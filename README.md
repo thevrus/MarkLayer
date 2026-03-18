@@ -4,6 +4,10 @@ Annotate any webpage, together. Draw, highlight, comment, and collaborate in rea
 
 **[Try it live](https://marklayer.app)**
 
+<p align="center">
+  <img src=".github/preview.png" alt="MarkLayer landing page" width="720" />
+</p>
+
 ---
 
 ## What is this?
