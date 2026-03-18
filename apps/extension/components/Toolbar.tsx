@@ -1,0 +1,299 @@
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { glass } from '../lib/glass';
+import { Icon } from '../lib/icons';
+import {
+  activeTool,
+  clearAll,
+  color,
+  lineWidth,
+  onExportPng,
+  redo,
+  SHORTCUTS,
+  showShareDialog,
+  TOOLS,
+  undo,
+} from '../lib/state';
+
+const COLORS = ['#b462f5', '#f43f5e', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#ffffff', '#1e1e1e'];
+const LINE_WIDTHS = [1, 2, 3, 5, 8, 12, 20];
+
+function Tooltip({ text, shortcut }: { text: string; shortcut?: string }) {
+  return (
+    <div
+      class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 pointer-events-none
+                opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100
+                transition-all duration-150 ease-out z-10"
+    >
+      <div class={`${glass.surfaceSmall} !rounded-[10px] px-2.5 py-1.5 flex items-center gap-2 whitespace-nowrap`}>
+        <span class="text-[11px] text-white/70 font-medium tracking-[0.01em]">{text}</span>
+        {shortcut && (
+          <kbd
+            class="text-[10px] text-white/35 bg-white/[0.06] border border-white/[0.08]
+                      rounded-[5px] px-1.5 py-0.5 font-mono leading-none"
+          >
+            {shortcut}
+          </kbd>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ToolBtn({
+  name,
+  active,
+  onClick,
+  tip,
+  shortcut,
+  accent,
+  accentColor,
+}: {
+  name: string;
+  active?: boolean;
+  onClick: () => void;
+  tip: string;
+  shortcut?: string;
+  accent?: boolean;
+  accentColor?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      class={`group relative appearance-none border-none p-2 rounded-xl cursor-pointer
+              leading-none inline-flex place-items-center min-w-[36px] min-h-[36px]
+              transition-all duration-150 ease-out
+              hover:bg-white/[0.1] hover:shadow-[inset_0_0.5px_0_oklch(1_0_0/0.06)]
+              active:bg-white/[0.05] active:scale-[0.94]
+              ${
+                active
+                  ? accent
+                    ? 'shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08),inset_0_0.5px_0_oklch(1_0_0/0.08)]'
+                    : 'bg-white/[0.14] text-white shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
+                  : 'bg-transparent text-white/45'
+              }`}
+      style={
+        active && accent && accentColor
+          ? {
+              color: accentColor,
+              background: `color-mix(in oklch, ${accentColor} 18%, transparent)`,
+            }
+          : undefined
+      }
+    >
+      <Icon name={name} />
+      <Tooltip text={tip} shortcut={shortcut} />
+    </button>
+  );
+}
+
+export function Toolbar() {
+  const [collapsed, setCollapsed] = useState(true);
+  const [showColors, setShowColors] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const offsetRef = useRef({ x: 0, y: 0 });
+  const tbRef = useRef<HTMLDivElement>(null);
+
+  const lbl = (t: string) => t[0].toUpperCase() + t.slice(1);
+
+  const startDrag = useCallback((e: MouseEvent | TouchEvent) => {
+    e.stopPropagation();
+    if ('touches' in e) e.preventDefault();
+    const tb = tbRef.current;
+    if (!tb) return;
+    setDragging(true);
+    const r = tb.getBoundingClientRect();
+    const c = 'touches' in e ? e.touches[0] : e;
+    offsetRef.current = { x: c.clientX - r.left, y: c.clientY - r.top };
+    Object.assign(tb.style, {
+      translate: 'none',
+      insetInlineStart: `${r.left}px`,
+      insetBlockEnd: 'auto',
+      insetBlockStart: `${r.top}px`,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      if ('cancelable' in e && e.cancelable) e.preventDefault();
+      const tb = tbRef.current;
+      if (!tb) return;
+      const c = 'touches' in e ? e.touches[0] : e;
+      const r = tb.getBoundingClientRect();
+      const x = Math.min(Math.max(c.clientX - offsetRef.current.x, 0), innerWidth - r.width);
+      const y = Math.min(Math.max(c.clientY - offsetRef.current.y, 0), innerHeight - r.height);
+      tb.style.insetInlineStart = `${x}px`;
+      tb.style.insetBlockStart = `${y}px`;
+    };
+    const endDrag = () => setDragging(false);
+    document.addEventListener('mousemove', onMove, { passive: false });
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('mouseup', endDrag);
+      document.removeEventListener('touchend', endDrag);
+    };
+  }, [dragging]);
+
+  const acts = [
+    {
+      id: 'share',
+      icon: 'share',
+      label: 'Share',
+      fn: () => {
+        showShareDialog.value = true;
+      },
+    },
+    {
+      id: 'download',
+      icon: 'download',
+      label: 'Export PNG',
+      fn: () => {
+        onExportPng.value?.();
+      },
+    },
+  ];
+
+  const hist = [
+    { id: 'undo', icon: 'undo', tip: 'Undo', shortcut: '⌘Z', fn: undo },
+    { id: 'redo', icon: 'redo', tip: 'Redo', shortcut: '⌘⇧Z', fn: redo },
+    { id: 'clear', icon: 'clear', tip: 'Clear all', fn: clearAll },
+  ];
+
+  return (
+    <div
+      ref={tbRef}
+      class={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[2147483646] select-none
+              ${glass.surface} ${glass.font}
+              p-2.5 text-white/80 max-w-[calc(100dvw-24px)] w-max`}
+    >
+      <div class="flex flex-col gap-1.5">
+        {/* Main row */}
+        <div class="flex items-center gap-0.5">
+          {/* Tools */}
+          <div class="flex gap-0.5 items-center">
+            {TOOLS.map((t) => (
+              <ToolBtn
+                key={t}
+                name={t}
+                active={activeTool.value === t}
+                onClick={() => (activeTool.value = t)}
+                tip={lbl(t)}
+                shortcut={SHORTCUTS[t]}
+                accent={t !== 'navigate'}
+                accentColor={color.value}
+              />
+            ))}
+          </div>
+
+          {/* Separator */}
+          <div class={glass.sep} />
+
+          {/* Colors + Width */}
+          <div class="flex gap-1.5 items-center">
+            <div class="group relative">
+              <button
+                type="button"
+                onClick={() => setShowColors(!showColors)}
+                class="w-6 h-6 rounded-full border-2 border-white/[0.12] cursor-pointer
+                       transition-all duration-150 hover:scale-110 hover:border-white/25"
+                style={{ background: color.value }}
+              />
+              {showColors && (
+                <div
+                  class={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-10
+                             ${glass.surfaceSmall} !rounded-[10px] p-2 flex gap-1.5`}
+                >
+                  {COLORS.map((c) => (
+                    <button
+                      type="button"
+                      key={c}
+                      onClick={() => {
+                        color.value = c;
+                        setShowColors(false);
+                      }}
+                      class={`w-5 h-5 rounded-full border-2 cursor-pointer transition-all duration-150
+                              hover:scale-125
+                              ${
+                                color.value === c
+                                  ? 'border-white/60 scale-110'
+                                  : 'border-white/[0.08] hover:border-white/25'
+                              }`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+              )}
+              <Tooltip text="Color" />
+            </div>
+            <div class="group relative">
+              <select
+                value={lineWidth.value}
+                onChange={(e) => (lineWidth.value = +(e.target as HTMLSelectElement).value)}
+                class={`h-7 px-2 rounded-lg border border-white/[0.08] bg-white/[0.05]
+                        text-white/50 text-[11px] font-medium cursor-pointer outline-none
+                        transition-all duration-150
+                        hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white/80
+                        ${glass.font}`}
+              >
+                {LINE_WIDTHS.map((v) => (
+                  <option key={v} value={v} class="bg-[oklch(0.13_0.01_280)] text-[oklch(0.85_0_0)]">
+                    {v}px
+                  </option>
+                ))}
+              </select>
+              <Tooltip text="Stroke" />
+            </div>
+          </div>
+
+          {/* Separator */}
+          <div class={glass.sep} />
+
+          {/* History */}
+          <div class="flex gap-0.5 items-center">
+            {hist.map((a) => (
+              <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.tip} shortcut={a.shortcut} />
+            ))}
+          </div>
+
+          {/* Grip handle */}
+          <div
+            onMouseDown={startDrag}
+            onTouchStart={startDrag}
+            class="w-3.5 h-6 cursor-grab shrink-0 opacity-[0.12] mx-1
+                   hover:opacity-[0.35] transition-opacity duration-200
+                   bg-[radial-gradient(circle,oklch(1_0_0/0.9)_0.8px,transparent_0.8px)]
+                   [background-size:5px_5px] bg-center bg-repeat"
+            style={dragging ? { cursor: 'grabbing' } : undefined}
+          />
+
+          {/* Chevron toggle */}
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            class="appearance-none bg-transparent border-none text-white/20 cursor-pointer p-1.5
+                   inline-flex place-items-center rounded-lg transition-all duration-150
+                   hover:text-white/50 hover:bg-white/[0.07]"
+          >
+            <Icon name={collapsed ? 'chevDown' : 'chevUp'} size={12} />
+          </button>
+        </div>
+
+        {/* Actions row */}
+        {!collapsed && (
+          <div
+            class={`flex items-center gap-0.5 pt-1.5 ${glass.divider.replace('h-px', 'border-t border-white/[0.04]')}`}
+          >
+            {acts.map((a) => (
+              <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.label} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

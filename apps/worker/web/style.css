@@ -1,0 +1,102 @@
+@import "tailwindcss";
+@source "../../extension/components";
+@source "../../extension/lib";
+@source "./";
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+    background: #fff;
+    color: #111;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #app {
+    min-height: 100vh;
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Landing page animations ─── */
+
+@keyframes lpFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lpUnderlineGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes lpToolbarIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes lpPulseGlow {
+  0%,
+  100% {
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+  50% {
+    box-shadow:
+      0 8px 40px rgba(249, 83, 198, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+}
+
+.lp-fade-up {
+  opacity: 0;
+  animation: lpFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.lp-underline-grow {
+  transform-origin: left;
+  transform: scaleX(0);
+  animation: lpUnderlineGrow 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
+}
+
+.lp-toolbar-in {
+  opacity: 0;
+  animation: lpToolbarIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
+}
+
+.lp-input-glow {
+  animation: lpPulseGlow 3s ease-in-out infinite;
+}

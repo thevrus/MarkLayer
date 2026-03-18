@@ -1,0 +1,37 @@
+{
+  "name": "marklayer-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-01",
+  "observability": {
+    "enabled": false
+  },
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "marklayer",
+      "database_id": "b19c956e-8602-439b-9c06-242e88da8fbb"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "ANNOTATION_ROOM",
+        "class_name": "AnnotationRoom"
+      }
+    ]
+  },
+  "triggers": {
+    "crons": ["0 3 * * *"]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AnnotationRoom"]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@marklayer/worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite & wrangler dev --port 8787 & wait",
+    "dev:web": "vite",
+    "dev:worker": "wrangler dev",
+    "build": "vite build",
+    "deploy": "vite build && wrangler deploy",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@marklayer/types": "workspace:*",
+    "@orpc/server": "^1.5.0",
+    "@orpc/zod": "^1.5.0",
+    "@preact/signals": "^2.8.2",
+    "clsx": "^2.1.1",
+    "hono": "^4.7.0",
+    "lucide-preact": "^0.577.0",
+    "nanoid": "^5.1.7",
+    "preact": "^10.29.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250313.0",
+    "@tailwindcss/vite": "^4.2.1",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.0",
+    "wrangler": "^4.10.0"
+  }
+}

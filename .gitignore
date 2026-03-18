@@ -1,0 +1,10 @@
+.DS_Store
+node_modules/
+.output/
+.wxt/
+.wrangler/
+.turbo/
+dist/
+apps/worker/public/
+*.log
+bun.lock
