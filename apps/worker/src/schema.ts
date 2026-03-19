@@ -42,6 +42,15 @@ const circleOp = z.object({
   radius: z.number(),
 });
 
+const commentStatusEnum = z.enum(['open', 'in_progress', 'resolved']);
+
+const commentMeta = z.object({
+  url: z.optional(z.string()),
+  viewport: z.optional(z.object({ width: z.number(), height: z.number() })),
+  browser: z.optional(z.string()),
+  os: z.optional(z.string()),
+});
+
 const commentOp = z.object({
   ...base,
   tool: z.literal('comment'),
@@ -51,8 +60,10 @@ const commentOp = z.object({
   y: z.number(),
   ts: z.number(),
   resolved: z.optional(z.boolean()),
+  status: z.optional(commentStatusEnum),
   parentId: z.optional(z.string()),
   author: z.optional(z.string()),
+  meta: z.optional(commentMeta),
 });
 
 const textOp = z.object({
@@ -64,5 +75,31 @@ const textOp = z.object({
   fontSize: z.number(),
 });
 
-export const drawOpSchema = z.union([freehandOp, rectOp, lineOp, circleOp, commentOp, textOp]);
+const selectionRect = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
+const selectionOp = z.object({
+  ...base,
+  tool: z.literal('selection'),
+  text: z.string(),
+  rects: z.array(selectionRect),
+  comment: z.optional(z.string()),
+  ts: z.number(),
+  author: z.optional(z.string()),
+  status: z.optional(commentStatusEnum),
+});
+
+export const drawOpSchema = z.discriminatedUnion('tool', [
+  freehandOp,
+  rectOp,
+  lineOp,
+  circleOp,
+  commentOp,
+  textOp,
+  selectionOp,
+]);
 export const opsArraySchema = z.array(drawOpSchema);

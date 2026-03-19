@@ -58,31 +58,49 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
     const el = ref.current;
     if (!el) return;
 
+    // Appear animation: fade in + scale up
+    const appear = el.animate(
+      [
+        { opacity: 0, transform: 'scale(0.3)', filter: 'blur(4px)' },
+        { opacity: 1, transform: 'scale(1)', filter: 'blur(0px)' },
+      ],
+      {
+        duration: 600,
+        delay: cursor.delay * 1000,
+        easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        fill: 'both',
+      },
+    );
+
+    // Movement animation starts after appear
     const keyframes = cursor.path.map(([x, y]) => ({
       left: `${x}%`,
       top: `${y}%`,
     }));
 
-    const anim = el.animate(keyframes, {
+    const move = el.animate(keyframes, {
       duration: cursor.duration * 1000,
-      delay: cursor.delay * 1000,
+      delay: cursor.delay * 1000 + 600,
       iterations: Number.POSITIVE_INFINITY,
       easing: 'cubic-bezier(0.25, 0.1, 0.25, 1)',
       fill: 'both',
     });
 
-    return () => anim.cancel();
+    return () => {
+      appear.cancel();
+      move.cancel();
+    };
   }, [cursor]);
 
   return (
     <div
       ref={ref}
       class="absolute pointer-events-none"
-      style={{ left: `${cursor.path[0][0]}%`, top: `${cursor.path[0][1]}%` }}
+      style={{ left: `${cursor.path[0][0]}%`, top: `${cursor.path[0][1]}%`, opacity: 0 }}
     >
       <CursorArrow color={cursor.color} />
       <div
-        class="absolute left-5 top-6 whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold text-white leading-none"
+        class="absolute left-6 top-7 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold text-white leading-none"
         style={{ background: cursor.color, boxShadow: `0 2px 8px ${cursor.color}40` }}
       >
         {cursor.name}

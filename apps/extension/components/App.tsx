@@ -15,6 +15,7 @@ import {
 } from '../lib/state';
 import { Canvas } from './Canvas';
 import { CommentLayer } from './CommentLayer';
+import { SelectionLayer } from './SelectionLayer';
 import { Toolbar } from './Toolbar';
 
 export function App() {
@@ -37,6 +38,11 @@ export function App() {
         return;
       }
       if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'r') {
+          e.preventDefault();
+          window.location.reload();
+          return;
+        }
         if (e.key === 'z' && !e.shiftKey) {
           e.preventDefault();
           undo();
@@ -104,6 +110,7 @@ export function App() {
     <>
       <Canvas />
       <CommentLayer />
+      <SelectionLayer />
       <Toolbar />
       {toasts.value.length > 0 && (
         <div class="fixed top-5 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">

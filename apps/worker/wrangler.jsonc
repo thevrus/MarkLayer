@@ -3,7 +3,11 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-03-01",
   "observability": {
-    "enabled": false
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
   },
   "assets": {
     "directory": "public",
@@ -25,6 +29,12 @@
       }
     ]
   },
+  "r2_buckets": [
+    {
+      "binding": "OG_BUCKET",
+      "bucket_name": "marklayer-og"
+    }
+  ],
   "triggers": {
     "crons": ["0 3 * * *"]
   },

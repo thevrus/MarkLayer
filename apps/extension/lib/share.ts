@@ -28,7 +28,7 @@ export async function saveAnnotations(ops: DrawOp[]): Promise<string | null> {
     const width = window.innerWidth;
     const currentUrl = window.location.href.split('#')[0];
     const encoded = btoa(`${currentUrl}#ant=${width}=${id}`);
-    return `https://marklayer.app/?view=${encoded}`;
+    return `https://marklayer.app/s/${id}?view=${encoded}`;
   } catch (e) {
     console.error('Error saving annotations:', e);
     return null;

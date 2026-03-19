@@ -80,6 +80,7 @@ function opBounds(op: DrawOp) {
         h: (op.radius + pad) * 2,
       };
     case 'comment':
+    case 'selection':
       return null; // rendered as DOM
     default:
       return null;
@@ -91,7 +92,7 @@ function inView(b: ReturnType<typeof opBounds>, vx: number, vy: number, vw: numb
 }
 
 export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy: number) {
-  if (op.tool === 'comment') return;
+  if (op.tool === 'comment' || op.tool === 'selection') return;
   if (op.tool === 'text') {
     c.save();
     c.font = `${op.fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif`;

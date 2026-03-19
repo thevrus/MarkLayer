@@ -15,6 +15,7 @@ import {
   Square,
   Trash2,
   Type,
+  TypeOutline,
   Undo2,
   X,
 } from 'lucide-preact';
@@ -29,6 +30,7 @@ const iconMap: Record<string, typeof MousePointer2> = {
   circle: Circle,
   text: Type,
   comment: MessageCircle,
+  selection: TypeOutline,
   eraser: Eraser,
   share: Share2,
   download: Download,

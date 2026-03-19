@@ -1,5 +1,5 @@
 import { glass } from '@ext/lib/glass';
-import { getReplies, pushReply, resolveComment } from '@ext/lib/state';
+import { getReplies, pushReply, setOpStatus } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { CommentOp } from '@ext/lib/types';
 import { clsx } from 'clsx';
@@ -220,7 +220,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  resolveComment(op.id);
+                  setOpStatus(op.id, resolved ? 'open' : 'resolved');
                 }}
                 class="text-[11px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
                        border border-white/[0.08] bg-white/[0.05]

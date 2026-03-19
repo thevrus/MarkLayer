@@ -17,6 +17,7 @@ import {
   redo,
   SHAPES,
   SHORTCUT_MAP,
+  selections,
   showAnnotationPanel,
   showShareDialog,
   toast,
@@ -25,6 +26,7 @@ import {
 } from '@ext/lib/state';
 import type { DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { signal, useSignalEffect } from '@preact/signals';
+import clsx from 'clsx';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { AnnotationPanel } from './AnnotationPanel';
@@ -33,6 +35,8 @@ import { FakeCursors } from './FakeCursors';
 import { connected, useRealtimeSync } from './useRealtimeSync';
 import { WebCommentPin } from './WebCommentPin';
 import { WebCommentPopover } from './WebCommentPopover';
+import { WebSelectionHighlight } from './WebSelectionHighlight';
+import { WebSelectionPopover } from './WebSelectionPopover';
 
 const API_BASE = '/api/';
 
@@ -46,6 +50,14 @@ const isLanding = signal(true);
 const urlReady = signal(false);
 const commentPopover = signal<{ x: number; y: number } | null>(null);
 const textInput = signal<{ x: number; y: number } | null>(null);
+const selectionPopover = signal<{
+  text: string;
+  rects: import('@ext/lib/types').SelectionRect[];
+  screenX: number;
+  screenY: number;
+} | null>(null);
+const isReadonly = signal(false);
+const sharing = signal(false);
 
 // Parse URL params (synchronous — called before first render)
 function parseViewParam(): boolean {
@@ -62,6 +74,7 @@ function parseViewParam(): boolean {
     if (eqIdx === -1) return false;
     originalWidth.value = parseInt(meta.substring(0, eqIdx), 10);
     annotationId.value = meta.substring(eqIdx + 1);
+    isReadonly.value = params.get('readonly') === '1';
     return !!(pageUrl.value && annotationId.value && !Number.isNaN(originalWidth.value));
   } catch {
     return false;
@@ -79,7 +92,7 @@ function navigateTo(url: string) {
   const w = window.innerWidth;
   const id = nanoid();
   const encoded = toBase64(`${url}#ant=${w}=${id}`);
-  location.href = `/?view=${encodeURIComponent(encoded)}`;
+  location.href = `/s/${id}?view=${encodeURIComponent(encoded)}`;
 }
 
 export function App() {
@@ -172,12 +185,18 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isReadonly.value) return;
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
         if (e.key === 'Escape') (e.target as HTMLElement).blur();
         return;
       }
       if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'r') {
+          e.preventDefault();
+          window.location.reload();
+          return;
+        }
         if (e.key === 'z' && !e.shiftKey) {
           e.preventDefault();
           undo();
@@ -215,25 +234,31 @@ export function App() {
     doShare();
   });
 
-  async function doShare() {
+  async function doShare(opts?: { readonly?: boolean; expiresIn?: number }) {
+    if (sharing.value) return;
+    sharing.value = true;
     toast('Saving...', 'info');
     const id = annotationId.value || nanoid();
     annotationId.value = id;
     const url_ = pageUrl.value || location.origin;
     const ow = originalWidth.value || window.innerWidth;
     try {
+      const payload = opts?.expiresIn ? { ops: operations.value, expires_in: opts.expiresIn } : operations.value;
       const res = await fetch(`${API_BASE}${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(operations.value),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
       const encoded = toBase64(`${url_}#ant=${ow}=${id}`);
-      const shareUrl = `${location.origin}/?view=${encodeURIComponent(encoded)}`;
+      let shareUrl = `${location.origin}/s/${id}?view=${encodeURIComponent(encoded)}`;
+      if (opts?.readonly) shareUrl += '&readonly=1';
       await navigator.clipboard.writeText(shareUrl);
       toast('Link copied to clipboard!', 'success');
     } catch {
       toast('Failed to save', 'error');
+    } finally {
+      sharing.value = false;
     }
   }
 
@@ -289,7 +314,7 @@ export function App() {
     ctx.scale(s, s);
     ctx.translate(0, -iframeScrollY.value / s);
     for (const op of operations.value) {
-      if (op.tool === 'comment') continue;
+      if (op.tool === 'comment' || op.tool === 'selection') continue;
       renderOp(ctx, op, 0, 0);
     }
     ctx.restore();
@@ -298,7 +323,7 @@ export function App() {
   const onDown = useCallback(
     (e: MouseEvent) => {
       const tool = activeTool.value;
-      if (tool === 'navigate' || tool === 'comment') return;
+      if (tool === 'navigate' || tool === 'comment' || tool === 'selection') return;
       if (tool === 'text') {
         const pos = canvasCoords(e);
         textInput.value = pos;
@@ -467,10 +492,98 @@ export function App() {
     return () => window.removeEventListener('mousemove', handler);
   }, []);
 
+  // Selection tool: capture text selection on mouseup
+  const captureSelection = useCallback((sel: Selection | null, fromIframe: boolean) => {
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+    const text = sel.toString();
+    const rects: import('@ext/lib/types').SelectionRect[] = [];
+    const landing = isLanding.value;
+    const s = landing ? 1 : scale.value;
+    const sy = landing ? window.scrollY || 0 : iframeScrollY.value;
+    const vr = viewerRef.current?.getBoundingClientRect();
+    const fr = frameRef.current?.getBoundingClientRect();
+    for (let i = 0; i < sel.rangeCount; i++) {
+      for (const cr of sel.getRangeAt(i).getClientRects()) {
+        if (landing) {
+          rects.push({ x: cr.x + window.scrollX, y: cr.y + window.scrollY, width: cr.width, height: cr.height });
+        } else if (fromIframe && fr && vr) {
+          rects.push({
+            x: (cr.x + fr.left - vr.left) / s,
+            y: (cr.y + fr.top - vr.top + sy) / s,
+            width: cr.width / s,
+            height: cr.height / s,
+          });
+        } else if (vr) {
+          rects.push({
+            x: (cr.x - vr.left) / s,
+            y: (cr.y - vr.top + sy) / s,
+            width: cr.width / s,
+            height: cr.height / s,
+          });
+        }
+      }
+    }
+    if (rects.length === 0) return;
+    const lastCr = sel.getRangeAt(sel.rangeCount - 1).getClientRects();
+    const last = lastCr[lastCr.length - 1];
+    selectionPopover.value = {
+      text,
+      rects,
+      screenX: fromIframe && fr ? last.right + fr.left : last.right,
+      screenY: fromIframe && fr ? last.bottom + fr.top : last.bottom,
+    };
+  }, []);
+
+  // Parent frame mouseup
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (activeTool.value !== 'selection') return;
+      requestAnimationFrame(() => captureSelection(window.getSelection(), false));
+    };
+    window.addEventListener('mouseup', onMouseUp);
+    return () => window.removeEventListener('mouseup', onMouseUp);
+  }, [captureSelection]);
+
+  // Iframe mouseup (same-origin proxy)
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    let win: Window | null = null;
+    const onMouseUp = () => {
+      if (activeTool.value !== 'selection') return;
+      requestAnimationFrame(() => {
+        try {
+          captureSelection(frame.contentWindow?.getSelection?.() ?? null, true);
+        } catch {
+          /* cross-origin */
+        }
+      });
+    };
+    const attach = () => {
+      try {
+        win = frame.contentWindow;
+        win?.addEventListener('mouseup', onMouseUp);
+      } catch {
+        /* cross-origin */
+      }
+    };
+    frame.addEventListener('load', attach);
+    attach();
+    return () => {
+      frame.removeEventListener('load', attach);
+      try {
+        win?.removeEventListener('mouseup', onMouseUp);
+      } catch {
+        /* */
+      }
+    };
+  }, [captureSelection]);
+
   const tool = activeTool.value;
-  const showCanvas = isDrawingTool(tool) && tool !== 'comment' && tool !== 'text';
-  const showTextCursor = tool === 'text';
-  const showCommentCursor = tool === 'comment';
+  const readonly = isReadonly.value;
+  const showCanvas = !readonly && isDrawingTool(tool) && tool !== 'comment' && tool !== 'text' && tool !== 'selection';
+  const showTextCursor = !readonly && tool === 'text';
+  const showCommentCursor = !readonly && tool === 'comment';
   const comments = commentsComputed.value;
   const landing = isLanding.value;
 
@@ -579,15 +692,30 @@ export function App() {
                   urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
                 }}
               />
-              <kbd
-                class={`text-[12px] font-medium px-2 py-1 rounded-lg border transition-all duration-200 ${
+              <button
+                type="submit"
+                class={clsx(
+                  'shrink-0 w-10 h-10 rounded-xl grid place-items-center border-none cursor-pointer transition-all duration-200',
                   urlReady.value
-                    ? 'text-white bg-[#1a1a1a] border-[#1a1a1a] scale-105'
-                    : 'text-black/15 bg-black/[0.02] border-black/[0.06]'
-                }`}
+                    ? 'text-white bg-[#1a1a1a] shadow-[0_2px_8px_rgba(0,0,0,0.2)] scale-105 hover:scale-110 hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]'
+                    : 'text-black/20 bg-black/[0.04] hover:bg-black/[0.08]',
+                )}
               >
-                ↵
-              </kbd>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </svg>
+              </button>
             </div>
           </form>
 
@@ -647,11 +775,11 @@ export function App() {
         </footer>
 
         {/* Half-hidden watermark with gradient fade */}
-        <div class="relative overflow-hidden h-[clamp(60px,12vw,140px)]">
+        <div class="relative overflow-hidden h-[clamp(80px,16vw,180px)]">
           <p
-            class="text-center text-[clamp(100px,22vw,260px)] font-black tracking-[-0.05em] leading-none select-none absolute inset-x-0 top-0"
+            class="text-center text-[clamp(140px,28vw,340px)] font-black tracking-[0.05em] leading-none select-none absolute inset-x-0 top-0"
             style={{
-              background: 'linear-gradient(0deg, rgba(26,26,26,0) 0%, rgba(26,26,26,0.08) 100%)',
+              background: 'linear-gradient(180deg, rgba(26,26,26,0.12) 0%, rgba(26,26,26,0) 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -696,6 +824,21 @@ export function App() {
             />
           )}
         </div>
+
+        {/* Selection highlights (landing) */}
+        <div class="fixed inset-0 z-[2147483645] pointer-events-none overflow-hidden">
+          {selections.value.map((op) => (
+            <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={window.scrollY || 0} />
+          ))}
+        </div>
+        {selectionPopover.value && (
+          <WebSelectionPopover
+            {...selectionPopover.value}
+            onClose={() => {
+              selectionPopover.value = null;
+            }}
+          />
+        )}
 
         {/* Text tool overlay */}
         <div
@@ -755,9 +898,12 @@ export function App() {
             {toasts.value.map((t) => (
               <div
                 key={t.id}
-                class={`${glass.surfaceSmall} ${glass.font} px-4 py-2.5 text-xs font-medium
-                        animate-[fadeInDown_0.2s_ease-out]
-                        ${t.type === 'error' ? 'text-red-300' : t.type === 'success' ? 'text-green-300' : 'text-white/70'}`}
+                class={clsx(
+                  glass.surfaceSmall,
+                  glass.font,
+                  'px-4 py-2.5 text-xs font-medium animate-[fadeInDown_0.2s_ease-out]',
+                  t.type === 'error' ? 'text-red-300' : t.type === 'success' ? 'text-green-300' : 'text-white/70',
+                )}
               >
                 {t.message}
               </div>
@@ -769,7 +915,7 @@ export function App() {
   }
 
   return (
-    <div class={`h-screen flex flex-col bg-[#f5f5f5] ${glass.font}`}>
+    <div class={clsx('h-screen flex flex-col bg-[#f5f5f5]', glass.font)}>
       {/* Mobile gate — annotation tools need a desktop screen */}
       <div class="md:hidden fixed inset-0 z-[2147483647] bg-[#f5f0e8] flex flex-col items-center justify-center px-8 text-center font-['Inter',system-ui,sans-serif]">
         <Logo size={48} />
@@ -782,7 +928,7 @@ export function App() {
         </a>
       </div>
       {/* Top bar — uses same glass surface as toolbar */}
-      <div class={`flex items-center gap-3 px-4 h-[48px] ${glass.surface} !rounded-none z-50 shrink-0`}>
+      <div class={clsx('flex items-center gap-3 px-4 h-[48px] !rounded-none z-50 shrink-0', glass.surface)}>
         {/* Logo */}
         <a href="/" class="flex items-center gap-2 no-underline shrink-0 group">
           <Logo size={24} />
@@ -845,7 +991,10 @@ export function App() {
           {/* Connection indicator */}
           <div class="flex items-center gap-1.5 mr-0.5">
             <span
-              class={`w-2 h-2 rounded-full shrink-0 ${connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-white/20'}`}
+              class={clsx(
+                'w-2 h-2 rounded-full shrink-0',
+                connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-white/20',
+              )}
             />
             <span class="text-white/35 text-[11px] font-medium tabular-nums">
               {connected.value ? `${peerCount.value} online` : 'offline'}
@@ -855,9 +1004,12 @@ export function App() {
           <button
             type="button"
             onClick={() => (showAnnotationPanel.value = !showAnnotationPanel.value)}
-            class={`w-9 h-9 rounded-xl grid place-items-center cursor-pointer
-                   border-none transition-all duration-150 active:scale-[0.94]
-                   ${showAnnotationPanel.value ? 'bg-white/[0.14] text-white shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]' : 'bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]'}`}
+            class={clsx(
+              'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+              showAnnotationPanel.value
+                ? 'bg-white/[0.14] text-white shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
+                : 'bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]',
+            )}
             title="Annotations panel"
           >
             <svg
@@ -875,29 +1027,67 @@ export function App() {
             </svg>
           </button>
           {/* Share session */}
-          <button
-            type="button"
-            onClick={() => {
-              navigator.clipboard.writeText(window.location.href);
-              toast('Link copied!', 'success');
-            }}
-            class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]"
-            title="Copy share link"
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
-            </svg>
-          </button>
+          {!readonly && (
+            <>
+              <button
+                type="button"
+                onClick={() => doShare()}
+                disabled={sharing.value}
+                class={clsx(
+                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]',
+                  sharing.value && 'opacity-50 pointer-events-none',
+                )}
+                title="Copy editable link"
+              >
+                {sharing.value ? (
+                  <Spinner />
+                ) : (
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
+                  </svg>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => doShare({ readonly: true, expiresIn: 7 * 24 * 60 * 60 })}
+                disabled={sharing.value}
+                class={clsx(
+                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]',
+                  sharing.value && 'opacity-50 pointer-events-none',
+                )}
+                title="Copy read-only link (expires in 7 days)"
+              >
+                {sharing.value ? (
+                  <Spinner />
+                ) : (
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                )}
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -908,7 +1098,10 @@ export function App() {
           title="Annotated page"
           src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
           sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-          class={`w-full h-full border-none bg-white ${showCanvas || showCommentCursor || showTextCursor ? 'pointer-events-none' : ''}`}
+          class={clsx(
+            'w-full h-full border-none bg-white',
+            (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
+          )}
         />
 
         <canvas
@@ -955,6 +1148,21 @@ export function App() {
             />
           )}
         </div>
+
+        {/* Selection highlights */}
+        <div class="absolute inset-0 pointer-events-none overflow-hidden">
+          {selections.value.map((op) => (
+            <WebSelectionHighlight key={op.id} op={op} scale={scale.value} scrollY={iframeScrollY.value} />
+          ))}
+        </div>
+        {selectionPopover.value && (
+          <WebSelectionPopover
+            {...selectionPopover.value}
+            onClose={() => {
+              selectionPopover.value = null;
+            }}
+          />
+        )}
 
         {/* Text tool overlay */}
         <div
@@ -1014,7 +1222,34 @@ export function App() {
         />
       </div>
 
-      <Toolbar />
+      {!readonly && <Toolbar />}
+
+      {readonly && (
+        <div
+          class={clsx(
+            'fixed bottom-5 left-1/2 -translate-x-1/2 z-[2147483646] px-4 py-2.5 flex items-center gap-3',
+            glass.surfaceSmall,
+            glass.font,
+          )}
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-white/40"
+            aria-hidden="true"
+          >
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <span class="text-[12px] text-white/50 font-medium">View-only mode</span>
+        </div>
+      )}
 
       {toasts.value.length > 0 && (
         <div class="fixed top-12 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">
@@ -1035,6 +1270,15 @@ export function App() {
 }
 
 /* ─── Shared components ─── */
+
+function Spinner() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="animate-spin" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" opacity="0.25" />
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+    </svg>
+  );
+}
 
 let logoIdx = 0;
 export function Logo({ size = 24 }: { size?: number }) {

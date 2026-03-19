@@ -2,7 +2,7 @@ import { clsx } from 'clsx';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 import { glass } from '../lib/glass';
-import { color, commentCounter, lineWidth, pushOp } from '../lib/state';
+import { color, commentCounter, getCommentMeta, lineWidth, localUser, pushOp } from '../lib/state';
 
 interface Props {
   x: number;
@@ -31,6 +31,9 @@ export function CommentPopover({ x, y, onClose }: Props) {
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
+        author: localUser.name,
+        status: 'open',
+        meta: getCommentMeta(),
       });
     }
     onClose();

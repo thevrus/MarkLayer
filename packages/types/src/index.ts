@@ -39,6 +39,15 @@ export interface CircleOp extends BaseOp {
   radius: number;
 }
 
+export type CommentStatus = 'open' | 'in_progress' | 'resolved';
+
+export interface CommentMeta {
+  url?: string;
+  viewport?: { width: number; height: number };
+  browser?: string;
+  os?: string;
+}
+
 export interface CommentOp extends BaseOp {
   tool: 'comment';
   num: number;
@@ -47,8 +56,10 @@ export interface CommentOp extends BaseOp {
   y: number;
   ts: number;
   resolved?: boolean;
+  status?: CommentStatus;
   parentId?: string;
   author?: string;
+  meta?: CommentMeta;
 }
 
 export interface TextOp extends BaseOp {
@@ -59,7 +70,27 @@ export interface TextOp extends BaseOp {
   fontSize: number;
 }
 
-export type DrawOp = FreehandOp | RectOp | LineOp | CircleOp | CommentOp | TextOp;
+export interface SelectionRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SelectionOp extends BaseOp {
+  tool: 'selection';
+  /** The actual selected text string */
+  text: string;
+  /** Bounding rectangles from getClientRects(), in document coordinates */
+  rects: SelectionRect[];
+  /** Optional comment attached to the selection */
+  comment?: string;
+  ts: number;
+  author?: string;
+  status?: CommentStatus;
+}
+
+export type DrawOp = FreehandOp | RectOp | LineOp | CircleOp | CommentOp | TextOp | SelectionOp;
 
 /** Peer presence for live cursors */
 export interface Peer {

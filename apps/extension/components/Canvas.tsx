@@ -213,11 +213,12 @@ export function Canvas() {
   });
 
   const tool = activeTool.value;
-  const showCanvas = isDrawingTool(tool) && tool !== 'comment';
+  const showCanvas = isDrawingTool(tool) && tool !== 'comment' && tool !== 'selection';
 
   return (
     <canvas
       ref={canvasRef}
+      data-marklayer-canvas
       onMouseDown={onDown}
       onTouchStart={onDown}
       class="fixed inset-0 z-[2147483645]"

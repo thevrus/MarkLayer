@@ -2,8 +2,8 @@
 export function CursorArrow({ color }: { color: string }) {
   return (
     <svg
-      width="28"
-      height="28"
+      width="32"
+      height="32"
       viewBox="0 0 24 24"
       fill="none"
       style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))' }}

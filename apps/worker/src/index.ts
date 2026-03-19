@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { generateOgImage } from './og';
 import { opsArraySchema } from './schema';
 
 export { AnnotationRoom } from './annotation-room';
@@ -9,6 +10,7 @@ type Env = {
     DB: D1Database;
     ASSETS: Fetcher;
     ANNOTATION_ROOM: DurableObjectNamespace;
+    OG_BUCKET: R2Bucket;
   };
 };
 
@@ -49,13 +51,27 @@ api.post('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
 
-  const result = opsArraySchema.safeParse(body);
+  // Accept { ops, expires_in? } or a raw ops array for backwards compat
+  let ops: unknown;
+  let expiresAt: number | null = null;
+  if (Array.isArray(body)) {
+    ops = body;
+  } else if (body && typeof body === 'object' && 'ops' in body) {
+    ops = body.ops;
+    if (typeof body.expires_in === 'number' && body.expires_in > 0) {
+      expiresAt = Math.floor(Date.now() / 1000) + body.expires_in;
+    }
+  } else {
+    ops = body;
+  }
+
+  const result = opsArraySchema.safeParse(ops);
   if (!result.success) {
     return c.json({ error: 'Invalid operations data' }, 400);
   }
 
-  await c.env.DB.prepare('INSERT OR REPLACE INTO annotations (id, ops) VALUES (?, ?)')
-    .bind(id, JSON.stringify(result.data))
+  await c.env.DB.prepare('INSERT OR REPLACE INTO annotations (id, ops, expires_at) VALUES (?, ?, ?)')
+    .bind(id, JSON.stringify(result.data), expiresAt)
     .run();
 
   return c.json({ ok: true });
@@ -64,9 +80,19 @@ api.post('/:id', async (c) => {
 // Retrieve annotations
 api.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?').bind(id).first<{ ops: string }>();
+  const row = await c.env.DB.prepare('SELECT ops, expires_at FROM annotations WHERE id = ?')
+    .bind(id)
+    .first<{ ops: string; expires_at: number | null }>();
 
   if (!row) return c.json({ error: 'not found' }, 404);
+
+  // Check expiration
+  if (row.expires_at && Math.floor(Date.now() / 1000) > row.expires_at) {
+    // Clean up expired annotation
+    c.executionCtx.waitUntil(c.env.DB.prepare('DELETE FROM annotations WHERE id = ?').bind(id).run());
+    return c.json({ error: 'expired' }, 410);
+  }
+
   // Touch last_accessed_at (fire-and-forget)
   c.executionCtx.waitUntil(
     c.env.DB.prepare('UPDATE annotations SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run(),
@@ -75,6 +101,77 @@ api.get('/:id', async (c) => {
 });
 
 app.route('/api', api);
+
+// Shared annotation page — injects dynamic OG tags then serves the SPA
+app.get('/s/:id', async (c) => {
+  const annotationId = c.req.param('id');
+  const reqUrl = new URL(c.req.url);
+  // Extract domain from view param for OG card
+  let domain = 'a webpage';
+  const viewParam = reqUrl.searchParams.get('view');
+  if (viewParam) {
+    try {
+      const decoded = atob(decodeURIComponent(viewParam));
+      const hashIdx = decoded.indexOf('#ant=');
+      if (hashIdx > 0) domain = new URL(decoded.substring(0, hashIdx)).hostname;
+    } catch {}
+  }
+  const res = await c.env.ASSETS.fetch(new Request(new URL('/', reqUrl)));
+  let html = await res.text();
+  const ogImage = `${reqUrl.origin}/og/${annotationId}.png?domain=${encodeURIComponent(domain)}`;
+  const title = `MarkLayer \u2014 Annotations on ${domain}`;
+  html = html
+    .replace(
+      /<meta property="og:title"[^>]*>/,
+      `<meta property="og:url" content="${reqUrl.href}">\n    <meta property="og:title" content="${title}">`,
+    )
+    .replace(/<meta property="og:image"[^>]*>/, `<meta property="og:image" content="${ogImage}">`)
+    .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}">`)
+    .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`);
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+});
+
+// Generate OG preview image on-the-fly (cached in R2)
+app.get('/og/:key', async (c) => {
+  const key = c.req.param('key');
+  if (!key.endsWith('.png')) return c.notFound();
+  const id = key.slice(0, -4);
+  const domain = c.req.query('domain') || 'a webpage';
+
+  // Serve from R2 cache if available
+  const cached = await c.env.OG_BUCKET.get(key);
+  if (cached) {
+    return new Response(cached.body, {
+      headers: {
+        'Content-Type': 'image/png',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  }
+
+  // Fetch ops from D1 to compute stats
+  const row = await c.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?').bind(id).first<{ ops: string }>();
+  const ops = row ? JSON.parse(row.ops) : [];
+
+  // Generate card
+  const png = await generateOgImage({ domain, ops });
+
+  // Cache in R2 (fire-and-forget)
+  c.executionCtx.waitUntil(
+    c.env.OG_BUCKET.put(key, png, {
+      httpMetadata: { contentType: 'image/png' },
+    }),
+  );
+
+  return new Response(png, {
+    headers: {
+      'Content-Type': 'image/png',
+      'Cache-Control': 'public, max-age=86400',
+    },
+  });
+});
 
 // WebSocket endpoint for realtime collaboration
 app.get('/ws/:id', async (c) => {
@@ -250,10 +347,27 @@ app.all('*', async (c) => {
   }
 });
 
-// Scheduled cleanup: delete annotations not accessed in 30 days
+// Scheduled cleanup: delete stale and expired annotations + their OG images
 const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_event, env) => {
   const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
-  await env.DB.prepare('DELETE FROM annotations WHERE last_accessed_at < ?').bind(thirtyDaysAgo).run();
+  const now = Math.floor(Date.now() / 1000);
+
+  // Delete stale rows and get their IDs in one query
+  const deleted = await env.DB.prepare(
+    'DELETE FROM annotations WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
+  )
+    .bind(thirtyDaysAgo, now)
+    .all<{ id: string }>();
+
+  if (deleted.results.length > 0) {
+    // Clean up R2 OG images; chunk deletes (max 1000 per call)
+    const keys = deleted.results.map((r) => `${r.id}.png`);
+    const r2Deletes: Promise<void>[] = [];
+    for (let i = 0; i < keys.length; i += 1000) {
+      r2Deletes.push(env.OG_BUCKET.delete(keys.slice(i, i + 1000)));
+    }
+    await Promise.all(r2Deletes);
+  }
 };
 
 export default { ...app, scheduled };

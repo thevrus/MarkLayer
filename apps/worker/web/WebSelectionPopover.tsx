@@ -1,51 +1,46 @@
 import { glass } from '@ext/lib/glass';
-import { color, commentCounter, getCommentMeta, lineWidth, localUser, pushOp } from '@ext/lib/state';
+import { color, lineWidth, localUser, pushOp } from '@ext/lib/state';
+import type { SelectionOp, SelectionRect } from '@ext/lib/types';
 import { clsx } from 'clsx';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 
 interface Props {
-  x: number;
-  y: number;
-  scale: number;
-  scrollY: number;
+  text: string;
+  rects: SelectionRect[];
+  screenX: number;
+  screenY: number;
   onClose: () => void;
 }
 
-export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
+export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const num = commentCounter.value + 1;
 
   useEffect(() => {
     taRef.current?.focus();
   }, []);
 
   const commit = (save: boolean) => {
-    const txt = taRef.current?.value.trim();
-    if (save && txt) {
+    const comment = taRef.current?.value.trim();
+    if (save && rects.length > 0) {
       pushOp({
         id: nanoid(),
-        tool: 'comment' as const,
-        num,
-        text: txt,
-        x,
-        y,
+        tool: 'selection' as const,
+        text,
+        rects,
+        comment: comment || undefined,
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
         author: localUser.name,
-        status: 'open',
-        meta: getCommentMeta(),
-      });
+      } as SelectionOp);
     }
+    window.getSelection()?.removeAllRanges();
     onClose();
   };
 
-  // Position in viewport coords
-  const vx = x * s;
-  const vy = y * s - scrollY;
-  const left = Math.min(vx + 16, innerWidth - 300);
-  const top = vy + 24 > innerHeight - 200 ? Math.max(4, vy - 200) : vy + 16;
+  const left = Math.min(screenX + 16, innerWidth - 300);
+  const top = screenY + 24 > innerHeight - 200 ? Math.max(4, screenY - 200) : screenY + 16;
 
   return (
     <div
@@ -53,15 +48,10 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div class="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
-        <div
-          class="w-6 h-6 rounded-full text-white text-[10px] font-bold grid place-items-center shrink-0
-                 shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
-          style={{ background: color.value }}
-        >
-          {num}
-        </div>
-        <span class="text-xs text-white/45 font-medium tracking-[0.01em] flex-1">New comment</span>
+      {/* Selected text preview */}
+      <div class="px-4 pt-3.5 pb-2">
+        <span class="text-[10px] text-white/30 font-medium uppercase tracking-wider">Selected text</span>
+        <p class="text-[12px] text-white/50 m-0 mt-1 italic line-clamp-3 leading-relaxed">"{text}"</p>
       </div>
 
       <div class={clsx(glass.divider, 'mx-3.5')} />
@@ -69,7 +59,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
       <div class="p-3.5">
         <textarea
           ref={taRef}
-          placeholder="Leave a comment..."
+          placeholder="Add a comment (optional)…"
           rows={1}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -106,12 +96,12 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
           >
             Esc
           </kbd>
-          <span class="text-[10px] text-white/20">cancel</span>
+          <span class="text-[10px] text-white/20">skip comment</span>
         </div>
         <button
           type="button"
           onClick={() => commit(true)}
-          class="px-4 py-1.5 text-xs font-semibold rounded-[10px] border-none cursor-pointer
+          class="px-4 py-1.5 text-[12px] font-semibold rounded-[10px] border-none cursor-pointer
                  bg-gradient-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
                  text-white
                  shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
@@ -120,7 +110,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
                  hover:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_2px_16px_oklch(0.65_0.15_300/0.2)]
                  active:scale-[0.96]"
         >
-          Post
+          Save ↵
         </button>
       </div>
     </div>

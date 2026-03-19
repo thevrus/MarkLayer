@@ -1,13 +1,17 @@
 export type {
   BaseOp,
   CircleOp,
+  CommentMeta,
   CommentOp,
+  CommentStatus,
   DrawOp,
   FreehandOp,
   LineOp,
   Peer,
   Point,
   RectOp,
+  SelectionOp,
+  SelectionRect,
   TextOp,
 } from '@marklayer/types';
 
@@ -21,4 +25,5 @@ export type Tool =
   | 'circle'
   | 'comment'
   | 'text'
+  | 'selection'
   | 'eraser';

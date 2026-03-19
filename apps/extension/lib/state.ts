@@ -1,6 +1,6 @@
 import { computed, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
-import type { CommentOp, DrawOp, Peer, Tool } from './types';
+import type { CommentMeta, CommentOp, CommentStatus, DrawOp, Peer, SelectionOp, Tool } from './types';
 
 export const visible = signal(false);
 export const activeTool = signal<Tool>('navigate');
@@ -9,7 +9,7 @@ export const lineWidth = signal(2);
 
 export const operations = signal<DrawOp[]>([]);
 export const undoStack = signal<(DrawOp | { type: 'clear'; ops: DrawOp[] })[]>([]);
-export const commentCounter = computed(() => operations.value.filter((o) => o.tool === 'comment').length);
+export const commentCounter = computed(() => comments.value.length);
 export const showShareDialog = signal(false);
 export const peers = signal<Map<string, Peer>>(new Map());
 /** Total peers including self (peers map excludes local user) */
@@ -111,18 +111,52 @@ export function toast(message: string, type: Toast['type'] = 'info', duration = 
   }, duration);
 }
 
-export const comments = computed(() => operations.value.filter((op): op is CommentOp => op.tool === 'comment'));
+// Single-pass partition of operations into comments, selections, root comments, and reply map
+const _opIndex = computed(() => {
+  const allComments: CommentOp[] = [];
+  const allSelections: SelectionOp[] = [];
+  const roots: CommentOp[] = [];
+  const replies = new Map<string, CommentOp[]>();
+  for (const op of operations.value) {
+    if (op.tool === 'comment') {
+      const c = op as CommentOp;
+      allComments.push(c);
+      if (c.parentId) {
+        let arr = replies.get(c.parentId);
+        if (!arr) {
+          arr = [];
+          replies.set(c.parentId, arr);
+        }
+        arr.push(c);
+      } else {
+        roots.push(c);
+      }
+    } else if (op.tool === 'selection') {
+      allSelections.push(op as SelectionOp);
+    }
+  }
+  return { allComments, allSelections, roots, replies };
+});
 
-/** Root comments only (no parentId) */
-export const rootComments = computed(() => comments.value.filter((c) => !c.parentId));
+export const comments = computed(() => _opIndex.value.allComments);
+export const selections = computed(() => _opIndex.value.allSelections);
+export const rootComments = computed(() => _opIndex.value.roots);
 
-/** Get replies for a given comment id */
+/** Get replies for a given comment id (O(1) lookup) */
 export function getReplies(parentId: string): CommentOp[] {
-  return comments.value.filter((c) => c.parentId === parentId).sort((a, b) => a.ts - b.ts);
+  return _opIndex.value.replies.get(parentId) ?? [];
 }
 
 /** Annotation panel open state */
 export const showAnnotationPanel = signal(false);
+
+/** Comment status filter for annotation panel */
+export const commentFilter = signal<CommentStatus | 'all'>('all');
+
+/** Derive comment status with backwards compat for old `resolved` field */
+export function getCommentStatus(op: CommentOp): CommentStatus {
+  return op.status || (op.resolved ? 'resolved' : 'open');
+}
 
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
 export const FREEHAND: Set<string> = new Set(['pen', 'eraser', 'highlight']);
@@ -138,6 +172,7 @@ export const TOOLS: Tool[] = [
   'circle',
   'text',
   'comment',
+  'selection',
   'eraser',
 ];
 
@@ -151,6 +186,7 @@ export const SHORTCUT_MAP: Record<string, Tool> = {
   O: 'circle',
   T: 'text',
   C: 'comment',
+  S: 'selection',
   E: 'eraser',
 };
 export const SHORTCUTS: Partial<Record<Tool, string>> = Object.fromEntries(
@@ -159,7 +195,7 @@ export const SHORTCUTS: Partial<Record<Tool, string>> = Object.fromEntries(
 
 export function pushOp(op: DrawOp) {
   operations.value = [...operations.value, op];
-  undoStack.value = [];
+  if (undoStack.value.length) undoStack.value = [];
   onOpPushed.value?.(op);
 }
 
@@ -177,14 +213,62 @@ export function pushReply(parentOp: { id: string; x: number; y: number }, text: 
     ts: Date.now(),
     parentId: parentOp.id,
     author: localUser.name,
+    meta: getCommentMeta(),
   } as DrawOp);
 }
 
-export function resolveComment(opId: string) {
-  operations.value = operations.value.map((op) =>
-    op.id === opId && op.tool === 'comment' ? { ...op, resolved: !op.resolved } : op,
-  );
-  onOpPushed.value?.(operations.value.find((o) => o.id === opId) as DrawOp);
+export function setOpStatus(opId: string, status: CommentStatus) {
+  let updated: DrawOp | undefined;
+  operations.value = operations.value.map((op) => {
+    if (op.id !== opId) return op;
+    if (op.tool === 'comment') {
+      updated = { ...op, status, resolved: status === 'resolved' };
+    } else if (op.tool === 'selection') {
+      updated = { ...op, status };
+    } else {
+      return op;
+    }
+    return updated;
+  });
+  if (updated) onOpPushed.value?.(updated);
+}
+
+/** @deprecated Use setOpStatus instead */
+export const setCommentStatus = setOpStatus;
+/** @deprecated Use setOpStatus instead */
+export const setSelectionStatus = setOpStatus;
+
+const BROWSERS: [string, string][] = [
+  ['Firefox/', 'Firefox'],
+  ['Edg/', 'Edge'],
+  ['Chrome/', 'Chrome'],
+  ['Safari/', 'Safari'],
+];
+const OS_HINTS: [string, string][] = [
+  ['Mac OS', 'macOS'],
+  ['Windows', 'Windows'],
+  ['Linux', 'Linux'],
+  ['Android', 'Android'],
+  ['iPhone', 'iOS'],
+  ['iPad', 'iOS'],
+];
+
+// Cache browser/OS detection — UA doesn't change mid-session
+const _cachedUA = (() => {
+  const ua = navigator.userAgent;
+  return {
+    browser: BROWSERS.find(([hint]) => ua.includes(hint))?.[1] ?? 'Unknown',
+    os: OS_HINTS.find(([hint]) => ua.includes(hint))?.[1] ?? 'Unknown',
+  };
+})();
+
+/** Capture browser metadata for a comment */
+export function getCommentMeta(): CommentMeta {
+  return {
+    url: location.href,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    ..._cachedUA,
+  };
 }
 
 // Export PNG callback — set by App component
