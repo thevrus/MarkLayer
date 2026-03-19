@@ -35,34 +35,34 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
   };
 
   return (
-    <div class="border-b border-black/[0.04]">
+    <div class="border-b border-white/[0.06]">
       {/* Root comment header — click to expand */}
       <div
         class={clsx(
-          'px-4 py-3 cursor-pointer transition-colors duration-100 hover:bg-black/[0.02]',
-          expanded && 'bg-black/[0.015]',
+          'px-4 py-3 cursor-pointer transition-colors duration-100 hover:bg-white/[0.04]',
+          expanded && 'bg-white/[0.03]',
         )}
         onClick={() => setExpanded(!expanded)}
       >
         <div class="flex items-center gap-2 mb-1.5">
           <div
             class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0"
-            style={{ background: op.resolved ? '#9ca3af' : op.color }}
+            style={{ background: op.resolved ? '#6b7280' : op.color }}
           >
             {op.resolved ? '✓' : op.num}
           </div>
-          <span class="text-[11px] text-black/40 font-medium flex-1 truncate">{op.author || 'Anonymous'}</span>
-          <span class="text-[10px] text-black/20">{timeAgo(op.ts)}</span>
+          <span class="text-[11px] text-white/50 font-medium flex-1 truncate">{op.author || 'Anonymous'}</span>
+          <span class="text-[10px] text-white/25">{timeAgo(op.ts)}</span>
         </div>
         <p
-          class={clsx('text-[12.5px] text-black/65 leading-relaxed m-0', !expanded && 'line-clamp-2')}
-          style={{ textDecoration: op.resolved ? 'line-through' : 'none' }}
+          class={clsx('text-[12.5px] text-white/70 leading-relaxed m-0', !expanded && 'line-clamp-2')}
+          style={{ textDecoration: op.resolved ? 'line-through' : 'none', opacity: op.resolved ? 0.5 : 1 }}
         >
           {op.text}
         </p>
         <div class="flex items-center gap-3 mt-2">
           {replies.length > 0 && (
-            <span class="text-[10px] text-black/30 flex items-center gap-1">
+            <span class="text-[10px] text-white/30 flex items-center gap-1">
               <svg
                 width="10"
                 height="10"
@@ -85,7 +85,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
               e.stopPropagation();
               onScrollTo(op.x, op.y);
             }}
-            class="text-[10px] text-black/25 hover:text-blue-500 bg-transparent border-none cursor-pointer p-0 transition-colors"
+            class="text-[10px] text-white/25 hover:text-blue-400 bg-transparent border-none cursor-pointer p-0 transition-colors"
           >
             Go to
           </button>
@@ -97,7 +97,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
             }}
             class={clsx(
               'text-[10px] bg-transparent border-none cursor-pointer p-0 transition-colors',
-              op.resolved ? 'text-black/25 hover:text-black/60' : 'text-black/25 hover:text-green-600',
+              op.resolved ? 'text-white/25 hover:text-white/60' : 'text-white/25 hover:text-green-400',
             )}
           >
             {op.resolved ? 'Reopen' : 'Resolve'}
@@ -107,12 +107,12 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
 
       {/* Expanded: reply thread + input */}
       {expanded && (
-        <div class="bg-black/[0.015]">
+        <div class="bg-white/[0.02]">
           {/* Replies */}
           {replies.length > 0 && (
             <div class="px-4 pb-1">
               {replies.map((reply) => (
-                <div key={reply.id} class="flex gap-2 py-2 border-t border-black/[0.03] first:border-t-0">
+                <div key={reply.id} class="flex gap-2 py-2 border-t border-white/[0.05] first:border-t-0">
                   <div
                     class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0 mt-0.5"
                     style={{ background: reply.color }}
@@ -121,11 +121,11 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] text-black/45 font-medium truncate">{reply.author || 'Anonymous'}</span>
-                      <span class="text-[9px] text-black/20">{timeAgo(reply.ts)}</span>
+                      <span class="text-[10px] text-white/50 font-medium truncate">{reply.author || 'Anonymous'}</span>
+                      <span class="text-[9px] text-white/20">{timeAgo(reply.ts)}</span>
                     </div>
                     <p
-                      class="text-[12px] text-black/60 leading-relaxed m-0 mt-0.5"
+                      class="text-[12px] text-white/60 leading-relaxed m-0 mt-0.5"
                       style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
                       {reply.text}
@@ -152,11 +152,11 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                     placeholder="Write a reply..."
                     rows={1}
                     class={clsx(
-                      'w-full bg-white border border-black/[0.08] rounded-lg px-3 py-2',
-                      'text-black/80 text-[12px] leading-relaxed',
+                      'w-full bg-white/[0.06] border border-white/[0.1] rounded-lg px-3 py-2',
+                      'text-white/80 text-[12px] leading-relaxed',
                       'resize-none outline-none min-h-8 max-h-[100px]',
-                      'focus:border-blue-400/50 focus:shadow-[0_0_0_2px_rgba(59,130,246,0.1)]',
-                      'placeholder:text-black/25',
+                      'focus:border-white/[0.2] focus:bg-white/[0.08]',
+                      'placeholder:text-white/25',
                       glass.font,
                     )}
                     style={{ fieldSizing: 'content', boxSizing: 'border-box' } as Record<string, string>}
@@ -173,15 +173,15 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                     <button
                       type="button"
                       onClick={() => setReplying(false)}
-                      class="text-[10px] text-black/30 hover:text-black/60 bg-transparent border-none cursor-pointer px-2 py-1"
+                      class="text-[10px] text-white/30 hover:text-white/60 bg-transparent border-none cursor-pointer px-2 py-1"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={submitReply}
-                      class="text-[10px] font-semibold px-3 py-1 rounded-md cursor-pointer border-none
-                             bg-black/80 text-white hover:bg-black/90 active:scale-[0.96] transition-all duration-150"
+                      class="text-[10px] font-semibold px-3 py-1 rounded-lg cursor-pointer border-none
+                             bg-white/[0.14] text-white hover:bg-white/[0.2] active:bg-white/[0.08] active:scale-[0.94] transition-all duration-150 shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]"
                     >
                       Reply
                     </button>
@@ -197,8 +197,8 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   setReplying(true);
                   setTimeout(() => replyRef.current?.focus(), 50);
                 }}
-                class="w-full text-left px-3 py-2 rounded-lg border border-black/[0.06] bg-white
-                       text-[11px] text-black/25 cursor-text hover:border-black/[0.12] transition-colors"
+                class="w-full text-left px-3 py-2 rounded-lg border border-white/[0.08] bg-white/[0.04]
+                       text-[11px] text-white/25 cursor-text hover:border-white/[0.15] hover:bg-white/[0.06] transition-colors"
               >
                 Reply...
               </button>
@@ -231,30 +231,23 @@ export function AnnotationPanel({ onScrollTo }: Props) {
   const textCount = items.filter((i) => i.kind === 'text').length;
 
   return (
-    <div
-      class={clsx(
-        'absolute top-0 right-0 bottom-0 w-[340px] z-40',
-        'bg-[#fafafa] border-l border-black/[0.06]',
-        'flex flex-col',
-        glass.font,
-      )}
-    >
+    <div class={clsx('absolute top-3 right-3 bottom-3 w-[340px] z-40', glass.surface, 'flex flex-col overflow-hidden')}>
       {/* Header */}
-      <div class="flex items-center justify-between px-4 py-3 border-b border-black/[0.06] bg-white shrink-0">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.1] shrink-0">
         <div>
-          <h2 class="text-[13px] font-semibold text-black/80 m-0">Comments</h2>
-          <span class="text-[11px] text-black/30">
+          <h2 class="text-[13px] font-semibold text-white/80 m-0">Comments</h2>
+          <span class="text-[11px] text-white/30">
             {totalComments} thread{totalComments !== 1 ? 's' : ''}
-            {resolvedCount > 0 && <span class="text-green-600/50"> · {resolvedCount} resolved</span>}
+            {resolvedCount > 0 && <span class="text-green-400/60"> · {resolvedCount} resolved</span>}
             {textCount > 0 && ` · ${textCount} text`}
           </span>
         </div>
         <button
           type="button"
           onClick={() => (showAnnotationPanel.value = false)}
-          class="w-7 h-7 rounded-lg grid place-items-center cursor-pointer
-                 bg-transparent border-none text-black/30 hover:text-black/60
-                 hover:bg-black/[0.04] transition-all duration-150"
+          class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer
+                 bg-transparent border-none text-white/45 hover:text-white
+                 hover:bg-white/[0.1] active:bg-white/[0.05] active:scale-[0.94] transition-all duration-150"
         >
           <svg
             width="14"
@@ -285,13 +278,13 @@ export function AnnotationPanel({ onScrollTo }: Props) {
               stroke-width="1.5"
               stroke-linecap="round"
               stroke-linejoin="round"
-              class="text-black/10"
+              class="text-white/10"
               aria-hidden="true"
             >
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
-            <span class="text-[13px] text-black/20">No comments yet</span>
-            <span class="text-[11px] text-black/15">Use the comment tool (C) to add one</span>
+            <span class="text-[13px] text-white/20">No comments yet</span>
+            <span class="text-[11px] text-white/15">Use the comment tool (C) to add one</span>
           </div>
         )}
 
@@ -305,9 +298,9 @@ export function AnnotationPanel({ onScrollTo }: Props) {
             <button
               key={op.id}
               type="button"
-              class="w-full text-left px-4 py-3 border-b border-black/[0.04]
+              class="w-full text-left px-4 py-3 border-b border-white/[0.06]
                      bg-transparent cursor-pointer transition-colors duration-100
-                     hover:bg-black/[0.02]"
+                     hover:bg-white/[0.04]"
               onClick={() => onScrollTo(op.x, op.y)}
             >
               <div class="flex items-center gap-2 mb-1">
@@ -326,7 +319,7 @@ export function AnnotationPanel({ onScrollTo }: Props) {
                   <line x1="9" y1="20" x2="15" y2="20" />
                   <line x1="12" y1="4" x2="12" y2="20" />
                 </svg>
-                <span class="text-[11px] text-black/40 font-medium">Text</span>
+                <span class="text-[11px] text-white/40 font-medium">Text</span>
               </div>
               <p class="text-[12px] m-0 line-clamp-2 leading-relaxed" style={{ color: op.color }}>
                 {op.text}

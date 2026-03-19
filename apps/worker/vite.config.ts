@@ -17,7 +17,7 @@ export default defineConfig({
     jsxImportSource: 'preact',
     jsx: 'automatic',
   },
-  publicDir: false,
+  publicDir: 'static',
   build: {
     outDir: 'public',
     emptyOutDir: true,

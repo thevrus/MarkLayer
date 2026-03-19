@@ -114,6 +114,17 @@ export function App() {
     };
   }, []);
 
+  // Warn before leaving page with unsaved annotations
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (operations.value.length > 0) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
@@ -465,14 +476,7 @@ export function App() {
 
   if (landing) {
     return (
-      <div class="min-h-screen bg-[#f5f0e8] font-['Inter',system-ui,sans-serif] overflow-y-auto overflow-x-hidden">
-        {/* Glow orb */}
-        <div
-          class="pointer-events-none fixed top-[-20%] left-1/2 -translate-x-1/2 w-[800px] h-[600px] opacity-30 blur-[120px] z-0"
-          style={{ background: 'radial-gradient(ellipse at center, #F953C6 0%, #B91D73 40%, transparent 70%)' }}
-          aria-hidden="true"
-        />
-
+      <div class="min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden" style={{ background: '#f5f0e8' }}>
         {/* Nav */}
         <nav class="lp-fade-up flex items-center justify-between px-6 sm:px-10 py-5 max-w-[1100px] mx-auto">
           <div class="flex items-center gap-2.5">
@@ -503,7 +507,7 @@ export function App() {
                 <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
                 <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
               </svg>
-              <span>Chrome Extension</span>
+              <span class="hidden sm:inline">Chrome Extension</span>
             </a>
             <GithubLink dark />
           </div>
@@ -519,7 +523,7 @@ export function App() {
               Annotate
               <span
                 class="lp-underline-grow absolute -bottom-1 left-0 right-0 h-[0.18em] rounded-full opacity-50"
-                style={{ background: 'linear-gradient(90deg, #F953C6, #B91D73)' }}
+                style={{ background: '#F953C6' }}
               />
             </span>{' '}
             any webpage,
@@ -615,18 +619,20 @@ export function App() {
         </section>
 
         {/* Features grid */}
-        <section class="max-w-[800px] mx-auto px-6 pb-24">
-          <div class="grid grid-cols-4 gap-y-14 gap-x-8">
+        <section class="max-w-[900px] mx-auto px-6 pb-28">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-12 sm:gap-y-16 gap-x-6 sm:gap-x-10 group/features">
             {FEATURES.map((f, i) => (
               <div
                 key={i}
-                class="lp-fade-up flex flex-col items-center text-center"
+                class="lp-fade-up flex flex-col items-center text-center transition-opacity duration-200 group-hover/features:opacity-40 hover:!opacity-100"
                 style={{ animationDelay: `${0.5 + i * 0.07}s` }}
               >
-                <div class="text-[#1a1a1a]/70 mb-4">
+                <div class="flex items-center justify-center w-20 h-20 rounded-2xl mb-5 transition-all duration-200 hover:bg-[#1a1a1a]/[0.06] text-[#1a1a1a]">
                   <FeatureIcon d={f.d} />
                 </div>
-                <span class="text-[18px] font-bold text-[#1a1a1a]/70 leading-tight whitespace-pre-line">{f.label}</span>
+                <span class="text-[20px] font-extrabold text-[#1a1a1a] leading-tight tracking-[-0.02em] whitespace-pre-line">
+                  {f.label}
+                </span>
               </div>
             ))}
           </div>
@@ -645,7 +651,7 @@ export function App() {
           <p
             class="text-center text-[clamp(100px,22vw,260px)] font-black tracking-[-0.05em] leading-none select-none absolute inset-x-0 top-0"
             style={{
-              background: 'linear-gradient(180deg, rgba(26,26,26,0.08) 0%, rgba(26,26,26,0) 100%)',
+              background: 'linear-gradient(0deg, rgba(26,26,26,0) 0%, rgba(26,26,26,0.08) 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
               backgroundClip: 'text',
@@ -657,7 +663,9 @@ export function App() {
         </div>
 
         {/* Animated collaboration cursors */}
-        <FakeCursors />
+        <div class="hidden sm:block">
+          <FakeCursors />
+        </div>
 
         {/* Comment overlay — click to place pins on LP */}
         <div
@@ -738,7 +746,7 @@ export function App() {
           }}
         />
 
-        <div class="lp-toolbar-in fixed bottom-5 left-1/2 z-[2147483646]">
+        <div class="lp-toolbar-in hidden sm:block fixed bottom-5 left-1/2 z-[2147483646]">
           <Toolbar />
         </div>
 
@@ -773,35 +781,51 @@ export function App() {
           Back to home
         </a>
       </div>
-      {/* Top bar — Raycast/Apple inspired */}
-      <div class="flex items-center gap-4 px-5 h-[52px] bg-white/80 backdrop-blur-xl border-b border-black/[0.06] z-50 shrink-0">
+      {/* Top bar — uses same glass surface as toolbar */}
+      <div class={`flex items-center gap-3 px-4 h-[48px] ${glass.surface} !rounded-none z-50 shrink-0`}>
         {/* Logo */}
-        <a href="/" class="flex items-center gap-2.5 no-underline shrink-0 group">
-          <Logo size={28} />
-          <span class="text-[15px] font-bold tracking-[-0.02em] text-black/80 group-hover:text-black transition-colors">
+        <a href="/" class="flex items-center gap-2 no-underline shrink-0 group">
+          <Logo size={24} />
+          <span class="text-[14px] font-bold tracking-[-0.02em] text-white/70 group-hover:text-white transition-colors">
             MarkLayer
           </span>
         </a>
 
         {/* Divider */}
-        <div class="w-px h-5 bg-black/[0.08] shrink-0" />
+        <div class={glass.sep} />
 
-        {/* URL input */}
-        <UrlBar value={pageUrl.value} />
+        {/* URL display */}
+        <div class="flex-1 min-w-0 flex items-center gap-2 px-2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-white/30 shrink-0"
+            aria-hidden="true"
+          >
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+          <span class="text-[13px] text-white/40 truncate">{pageUrl.value}</span>
+        </div>
 
         {/* Divider */}
-        <div class="w-px h-5 bg-black/[0.08] shrink-0" />
+        <div class={glass.sep} />
 
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="flex items-center gap-1.5 shrink-0">
           {/* Presence avatars */}
           {peers.value.size > 0 && (
-            <div class="flex items-center -space-x-2 mr-1">
+            <div class="flex items-center -space-x-1.5 mr-1">
               {Array.from(peers.value.values())
                 .slice(0, 5)
                 .map((p) => (
                   <div
                     key={p.id}
-                    class="w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center border-[2.5px] border-white shadow-sm"
+                    class="w-6 h-6 rounded-full text-white text-[9px] font-bold grid place-items-center border-[2px] border-white/10 shadow-sm"
                     style={{ background: p.color }}
                     title={p.name}
                   >
@@ -812,28 +836,28 @@ export function App() {
                   </div>
                 ))}
               {peers.value.size > 5 && (
-                <div class="w-7 h-7 rounded-full bg-black/[0.06] text-black/40 text-[10px] font-bold grid place-items-center border-[2.5px] border-white">
+                <div class="w-6 h-6 rounded-full bg-white/[0.1] text-white/40 text-[9px] font-bold grid place-items-center border-[2px] border-white/10">
                   +{peers.value.size - 5}
                 </div>
               )}
             </div>
           )}
           {/* Connection indicator */}
-          <div class="flex items-center gap-1.5 mr-1">
+          <div class="flex items-center gap-1.5 mr-0.5">
             <span
-              class={`w-2 h-2 rounded-full shrink-0 ${connected.value ? 'bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]' : 'bg-black/10'}`}
+              class={`w-2 h-2 rounded-full shrink-0 ${connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-white/20'}`}
             />
-            {peerCount.value > 1 && (
-              <span class="text-black/35 text-[12px] font-medium tabular-nums">{peerCount.value}</span>
-            )}
+            <span class="text-white/35 text-[11px] font-medium tabular-nums">
+              {connected.value ? `${peerCount.value} online` : 'offline'}
+            </span>
           </div>
           {/* Annotations panel toggle */}
           <button
             type="button"
             onClick={() => (showAnnotationPanel.value = !showAnnotationPanel.value)}
             class={`w-9 h-9 rounded-xl grid place-items-center cursor-pointer
-                   border-none transition-all duration-150
-                   ${showAnnotationPanel.value ? 'bg-black/[0.08] text-black/60' : 'bg-transparent text-black/30 hover:text-black/60 hover:bg-black/[0.04]'}`}
+                   border-none transition-all duration-150 active:scale-[0.94]
+                   ${showAnnotationPanel.value ? 'bg-white/[0.14] text-white shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]' : 'bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]'}`}
             title="Annotations panel"
           >
             <svg
@@ -850,8 +874,30 @@ export function App() {
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
             </svg>
           </button>
-          {/* GitHub */}
-          <GithubLink dark />
+          {/* Share session */}
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              toast('Link copied!', 'success');
+            }}
+            class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]"
+            title="Copy share link"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -990,10 +1036,12 @@ export function App() {
 
 /* ─── Shared components ─── */
 
+let logoIdx = 0;
 export function Logo({ size = 24 }: { size?: number }) {
+  const id = `ml${++logoIdx}`;
   return (
     <svg width={size} height={size} viewBox="0 0 512 512" fill="none" aria-hidden="true">
-      <rect width="512" height="512" rx="128" fill="url(#ml)" />
+      <rect width="512" height="512" rx="128" fill={`url(#${id})`} />
       <path
         transform="translate(80 80) scale(22)"
         stroke="white"
@@ -1003,7 +1051,7 @@ export function Logo({ size = 24 }: { size?: number }) {
         d="m9.324 3.324 3.352 3.352m-6.746 6.59 7.595-7.419c.95-.928.958-2.452.02-3.391v0a2.384 2.384 0 0 0-3.392.02l-7.42 7.594-.983 4.18 4.18-.983Z"
       />
       <defs>
-        <linearGradient id="ml" gradientTransform="rotate(45)" style={{ transformOrigin: 'center center' }}>
+        <linearGradient id={id} gradientTransform="rotate(45)" style={{ transformOrigin: 'center center' }}>
           <stop stop-color="#F953C6" />
           <stop offset="1" stop-color="#B91D73" />
         </linearGradient>
@@ -1029,52 +1077,6 @@ function GithubLink({ dark }: { dark?: boolean }) {
         <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
       </svg>
     </a>
-  );
-}
-
-function UrlBar({ value, autofocus }: { value?: string; autofocus?: boolean }) {
-  return (
-    <form
-      class="flex-1 max-w-[480px] mx-auto"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const input = (e.currentTarget.elements.namedItem('url') as HTMLInputElement).value.trim();
-        if (!input) return;
-        let url = input;
-        if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-        navigateTo(url);
-      }}
-    >
-      <div class="flex items-center gap-3 px-4 h-9 rounded-xl bg-black/[0.04] border border-black/[0.06] hover:border-black/[0.1] focus-within:border-black/[0.12] focus-within:bg-black/[0.03] transition-all">
-        <svg
-          class="text-black/25 shrink-0"
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.3-4.3" />
-        </svg>
-        <input
-          name="url"
-          type="text"
-          placeholder="Paste URL to annotate..."
-          value={value}
-          autocomplete="off"
-          autofocus={autofocus}
-          class="flex-1 bg-transparent border-none text-black/70 text-[14px] placeholder:text-black/25 outline-none"
-        />
-        <kbd class="text-[11px] text-black/20 font-medium px-1.5 py-0.5 rounded-md border border-black/[0.06] bg-white/80">
-          ↵
-        </kbd>
-      </div>
-    </form>
   );
 }
 
@@ -1114,7 +1116,7 @@ function FeatureIcon({ d }: { d: string }) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      stroke-width="2"
+      stroke-width="1.75"
       stroke-linecap="round"
       stroke-linejoin="round"
       aria-hidden="true"
