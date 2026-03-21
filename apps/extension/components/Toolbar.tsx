@@ -1,3 +1,4 @@
+import { useSignalEffect } from '@preact/signals';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
@@ -5,6 +6,8 @@ import {
   activeTool,
   clearAll,
   color,
+  cycleTheme,
+  isDrawingActive,
   lineWidth,
   onExportPng,
   redo,
@@ -12,6 +15,7 @@ import {
   setColor,
   showShareDialog,
   TOOLS,
+  theme,
   undo,
 } from '../lib/state';
 
@@ -62,7 +66,7 @@ function ToolBtn({
       type="button"
       onClick={onClick}
       class={`group relative appearance-none border-none p-2 rounded-xl cursor-pointer
-              leading-none inline-flex place-items-center min-w-[36px] min-h-[36px]
+              leading-none inline-flex items-center justify-center min-w-[36px] min-h-[36px]
               transition-all duration-150 ease-out
               hover:bg-ml-glass-fg/[0.08] hover:shadow-[inset_0_0.5px_0_var(--ml-glass-border)]
               active:bg-ml-glass-fg/[0.04] active:scale-[0.94]
@@ -97,6 +101,12 @@ export function Toolbar() {
 
   const lbl = (t: string) => t[0].toUpperCase() + t.slice(1);
 
+  // Fade toolbar while actively drawing
+  useSignalEffect(() => {
+    const active = isDrawingActive.value;
+    tbRef.current?.animate({ opacity: active ? 0.15 : 1 }, { duration: 250, easing: 'ease-out', fill: 'forwards' });
+  });
+
   const startDrag = useCallback((e: MouseEvent | TouchEvent) => {
     e.stopPropagation();
     if ('touches' in e) e.preventDefault();
@@ -106,11 +116,14 @@ export function Toolbar() {
     const r = tb.getBoundingClientRect();
     const c = 'touches' in e ? e.touches[0] : e;
     offsetRef.current = { x: c.clientX - r.left, y: c.clientY - r.top };
+    // Cancel entrance animation and override CSS class positioning
+    for (const a of tb.getAnimations()) a.cancel();
     Object.assign(tb.style, {
-      translate: 'none',
-      insetInlineStart: `${r.left}px`,
-      insetBlockEnd: 'auto',
-      insetBlockStart: `${r.top}px`,
+      animation: 'none',
+      transform: 'none',
+      left: `${r.left}px`,
+      bottom: 'auto',
+      top: `${r.top}px`,
     });
   }, []);
 
@@ -124,8 +137,8 @@ export function Toolbar() {
       const r = tb.getBoundingClientRect();
       const x = Math.min(Math.max(c.clientX - offsetRef.current.x, 0), innerWidth - r.width);
       const y = Math.min(Math.max(c.clientY - offsetRef.current.y, 0), innerHeight - r.height);
-      tb.style.insetInlineStart = `${x}px`;
-      tb.style.insetBlockStart = `${y}px`;
+      tb.style.left = `${x}px`;
+      tb.style.top = `${y}px`;
     };
     const endDrag = () => setDragging(false);
     document.addEventListener('mousemove', onMove, { passive: false });
@@ -293,6 +306,11 @@ export function Toolbar() {
             {acts.map((a) => (
               <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.label} />
             ))}
+            <ToolBtn
+              name={theme.value === 'dark' ? 'moon' : 'sun'}
+              onClick={cycleTheme}
+              tip={theme.value === 'system' ? 'System' : theme.value === 'dark' ? 'Dark' : 'Light'}
+            />
           </div>
         )}
       </div>

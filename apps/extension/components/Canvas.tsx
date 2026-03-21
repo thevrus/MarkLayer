@@ -2,7 +2,18 @@ import { useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { hexToRgba, redrawCanvas, simplify } from '../lib/renderer';
-import { activeTool, color, FREEHAND, isDrawingTool, lineWidth, operations, pushOp, SHAPES } from '../lib/state';
+import {
+  activeTool,
+  color,
+  FREEHAND,
+  isDrawingActive,
+  isDrawingTool,
+  lineWidth,
+  operations,
+  pushOp,
+  SHAPES,
+  undoRedoFlash,
+} from '../lib/state';
 import type { FreehandOp, Point } from '../lib/types';
 
 export function Canvas() {
@@ -55,6 +66,7 @@ export function Canvas() {
       if ('touches' in e) e.preventDefault();
 
       drawing.current = true;
+      isDrawingActive.value = true;
       const d = docXY(e);
       startPt.current = d;
 
@@ -137,6 +149,7 @@ export function Canvas() {
       if ('button' in e && e.button !== 0) return;
       if (!drawing.current) return;
       drawing.current = false;
+      isDrawingActive.value = false;
       const tool = activeTool.value;
       const d = docXY(e);
       const s = startPt.current;
@@ -175,7 +188,6 @@ export function Canvas() {
     [applyTool],
   );
 
-  // Resize
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -206,10 +218,14 @@ export function Canvas() {
     };
   }, [onMove, onUp]);
 
-  // Redraw on operations change
   useSignalEffect(() => {
     const canvas = canvasRef.current;
     if (canvas) redrawCanvas(canvas, operations.value);
+  });
+
+  useSignalEffect(() => {
+    const v = undoRedoFlash.value;
+    if (v > 0) canvasRef.current?.animate([{ opacity: 0.3 }, { opacity: 1 }], { duration: 400, easing: 'ease-out' });
   });
 
   const tool = activeTool.value;

@@ -5,7 +5,9 @@ import {
   activeTool,
   color,
   comments as commentsComputed,
+  cycleTheme,
   FREEHAND,
+  isDrawingActive,
   isDrawingTool,
   lineWidth,
   localUser,
@@ -22,9 +24,11 @@ import {
   setUserName,
   showAnnotationPanel,
   showShareDialog,
+  theme,
   toast,
   toasts,
   undo,
+  undoRedoFlash,
 } from '@ext/lib/state';
 import type { DeviceMode, DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { effect, signal, useSignalEffect } from '@preact/signals';
@@ -83,28 +87,6 @@ const selectionPopover = signal<{
 } | null>(null);
 const isReadonly = signal(false);
 const sharing = signal(false);
-
-type ThemeMode = 'system' | 'light' | 'dark';
-const theme = signal<ThemeMode>((localStorage.getItem('ml-theme') as ThemeMode) || 'system');
-
-function cycleTheme() {
-  const systemDark = matchMedia('(prefers-color-scheme: dark)').matches;
-  // Skip the mode that matches system (no visible change)
-  const order: ThemeMode[] = systemDark
-    ? ['system', 'light'] // system=dark, so skip 'dark' (redundant)
-    : ['system', 'dark']; // system=light, so skip 'light' (redundant)
-  const idx = order.indexOf(theme.value);
-  const next = order[(idx + 1) % order.length];
-  theme.value = next;
-  const root = document.documentElement.classList;
-  root.remove('light', 'dark');
-  if (next !== 'system') {
-    root.add(next);
-    localStorage.setItem('ml-theme', next);
-  } else {
-    localStorage.removeItem('ml-theme');
-  }
-}
 
 const VALID_DEVICES = new Set<DeviceMode>(['desktop', 'tablet', 'mobile']);
 const initDevice = new URLSearchParams(location.search).get('device') as DeviceMode | null;
@@ -347,7 +329,7 @@ export function App() {
 
   const canvasCoords = useCallback((e: MouseEvent): Point => {
     const inner = innerRef.current;
-    if (!inner) return { x: 0, y: 0 };
+    if (!inner) return { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
     const r = inner.getBoundingClientRect();
     const cs = cssScale.value;
     return {
@@ -382,27 +364,29 @@ export function App() {
   const renderAll = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    const landing = isLanding.value;
     const viewer = viewerRef.current;
     const viewerW = viewer ? viewer.clientWidth : window.innerWidth;
     const viewerH = viewer ? viewer.clientHeight : window.innerHeight;
     const dev = deviceMode.value;
     const refW = dev === 'desktop' ? originalWidth.value || viewerW : DEVICE_WIDTHS[dev];
-    // CSS transform handles visual fit — canvas renders at reference width (1:1 with document coords)
     const cs = refW && viewerW ? viewerW / refW : 1;
     if (cssScale.value !== cs) cssScale.value = cs;
     const canvasW = refW;
-    const canvasH = Math.round(viewerH / cs);
+    // LP: full document height so canvas scrolls naturally; viewer: viewport height
+    const canvasH = landing ? document.documentElement.scrollHeight : Math.round(viewerH / cs);
     if (canvas.width !== canvasW) canvas.width = canvasW;
     if (canvas.height !== canvasH) canvas.height = canvasH;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvasW, canvasH);
     ctx.save();
-    // No ctx.scale() — canvas is 1:1 with document coordinates
-    const scrollY = iframeScrollY.value;
+    // LP: canvas is absolute (scrolls with page) so no translate needed
+    // Viewer: canvas is fixed, translate to offset iframe scroll
+    const scrollY = landing ? 0 : iframeScrollY.value;
     ctx.translate(0, -scrollY);
     const vx = 0;
-    const vy = scrollY;
+    const vy = landing ? 0 : scrollY;
     const vw = canvasW;
     const vh = canvasH;
     for (const op of operations.value) {
@@ -424,6 +408,7 @@ export function App() {
         return;
       }
       drawingRef.current = true;
+      isDrawingActive.value = true;
       const pos = canvasCoords(e);
       startPtRef.current = pos;
       const ctx = canvasRef.current?.getContext('2d');
@@ -431,7 +416,7 @@ export function App() {
       applyTool(ctx);
       if (FREEHAND.has(tool)) {
         ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y - iframeScrollY.value);
+        ctx.moveTo(pos.x, pos.y - (isLanding.value ? 0 : iframeScrollY.value));
         currentPathRef.current = {
           id: nanoid(),
           tool: tool as FreehandOp['tool'],
@@ -455,7 +440,7 @@ export function App() {
       const pos = canvasCoords(e);
       const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
-      const scrollOff = iframeScrollY.value;
+      const scrollOff = isLanding.value ? 0 : iframeScrollY.value;
       if (FREEHAND.has(tool)) {
         currentPathRef.current?.points.push(pos);
         ctx.lineTo(pos.x, pos.y - scrollOff);
@@ -505,6 +490,7 @@ export function App() {
     (e: MouseEvent) => {
       if (!drawingRef.current) return;
       drawingRef.current = false;
+      isDrawingActive.value = false;
       const tool = activeTool.value;
       const pos = canvasCoords(e);
       const sp = startPtRef.current;
@@ -559,6 +545,11 @@ export function App() {
       const t = setTimeout(renderAll, 550);
       return () => clearTimeout(t);
     }
+  });
+
+  useSignalEffect(() => {
+    const v = undoRedoFlash.value;
+    if (v > 0) canvasRef.current?.animate([{ opacity: 0.3 }, { opacity: 1 }], { duration: 400, easing: 'ease-out' });
   });
 
   useEffect(() => {
@@ -705,7 +696,7 @@ export function App() {
     return (
       <>
         <div
-          class="ml-force-light min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden"
+          class="ml-force-light relative min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden"
           style={{ background: 'var(--color-ml-bg)' }}
         >
           {/* Nav */}
@@ -713,6 +704,9 @@ export function App() {
             <div class="flex items-center gap-2.5">
               <Logo size={32} />
               <span class="text-[20px] font-bold tracking-[-0.02em] text-ml-fg">MarkLayer</span>
+              <span class="text-[12px] font-medium text-ml-fg/40 bg-ml-fg/[0.06] rounded-full px-2 py-0.5 select-none">
+                v0.1
+              </span>
             </div>
             <div class="flex items-center gap-4">
               <a
@@ -862,14 +856,75 @@ export function App() {
                   class="lp-fade-up flex flex-col items-center text-center transition-opacity duration-200 group-hover/features:opacity-40 hover:!opacity-100"
                   style={{ animationDelay: `${0.5 + i * 0.07}s` }}
                 >
-                  <div class="flex items-center justify-center w-20 h-20 rounded-2xl mb-5 transition-all duration-200 hover:bg-ml-btn/[0.06] text-ml-fg">
-                    <f.icon size={56} strokeWidth={1.75} aria-hidden="true" />
+                  <div
+                    class={`flex items-center justify-center w-28 h-28 rounded-3xl mb-5 transition-all duration-200 hover:bg-ml-btn/[0.06] text-ml-fg group/icon ${f.anim}`}
+                  >
+                    <f.icon
+                      size={84}
+                      strokeWidth={2.25}
+                      aria-hidden="true"
+                      class="transition-transform duration-500 ease-out"
+                    />
                   </div>
-                  <span class="text-[20px] font-extrabold text-ml-fg leading-tight tracking-[-0.02em] whitespace-pre-line">
+                  <span class="text-[30px] font-semibold text-ml-fg leading-tight tracking-[-0.04em] whitespace-pre-line">
                     {f.label}
                   </span>
                 </div>
               ))}
+            </div>
+          </section>
+
+          {/* Contact */}
+          <section class="max-w-[520px] mx-auto px-6 pb-12 text-center">
+            <h3 class="text-[20px] font-bold text-ml-fg mb-2">Have more questions?</h3>
+            <p class="text-[16px] text-ml-fg/50 leading-relaxed mb-4">
+              If you have any additional questions, do not hesitate to contact us at{' '}
+              <a
+                href="mailto:rusinvadym@gmail.com"
+                class="font-medium text-ml-fg/70 underline underline-offset-4 decoration-ml-fg/20 hover:text-ml-fg transition-colors"
+              >
+                rusinvadym@gmail.com
+              </a>
+            </p>
+            <div class="flex items-center justify-center gap-3 mt-6">
+              <a
+                class="inline-flex items-center justify-center size-10 rounded-xl bg-ml-fg/[0.05] text-ml-fg/50 hover:text-ml-fg hover:bg-ml-fg/[0.08] transition-colors"
+                href="https://x.com/rusin_vadim"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                <svg
+                  class="size-[18px] fill-current"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  role="img"
+                  aria-label="X (Twitter)"
+                >
+                  <path d="M21.2391 3H18.6854L12.9921 9.61784L14.1261 11.2682L21.2391 3Z" />
+                  <path d="M11.2104 14.6575L10.0764 13.0071L3.2002 21H5.75403L11.2104 14.6575Z" />
+                  <path d="M8.44486 3H3.2002L15.5685 21H20.8131L8.44486 3ZM5.31391 4.16971H7.70053L18.6861 19.8835H16.2995L5.31391 4.16971Z" />
+                </svg>
+              </a>
+              <a
+                class="inline-flex items-center justify-center size-10 rounded-xl bg-ml-fg/[0.05] text-ml-fg/50 hover:text-ml-fg hover:bg-ml-fg/[0.08] transition-colors"
+                href="https://github.com/thevrus"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                <svg
+                  class="size-[20px] fill-current"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  role="img"
+                  aria-label="GitHub"
+                >
+                  <path
+                    fill-rule="evenodd"
+                    d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                    clip-rule="evenodd"
+                  />
+                </svg>
+              </a>
             </div>
           </section>
 
@@ -884,7 +939,7 @@ export function App() {
           {/* Half-hidden watermark with gradient fade */}
           <div class="relative overflow-hidden h-[clamp(80px,16vw,180px)]">
             <p
-              class="text-center text-[clamp(140px,28vw,340px)] font-black tracking-[0.05em] leading-none select-none absolute inset-x-0 top-0"
+              class="text-center text-[clamp(60px,18vw,340px)] font-black tracking-tight leading-none select-none absolute inset-x-0 top-0"
               style={{
                 background:
                   'linear-gradient(180deg, color-mix(in srgb, var(--color-ml-fg) 12%, transparent) 0%, transparent 100%)',
@@ -981,18 +1036,19 @@ export function App() {
             />
           )}
 
-          {/* Drawing canvas overlay */}
+          {/* Drawing canvas overlay — absolute so it scrolls with the page */}
           <canvas
             ref={canvasRef}
             onMouseDown={onDown}
-            class="fixed inset-0 z-[2147483645]"
+            class="absolute inset-x-0 top-0 z-[2147483645]"
             style={{
+              height: '100%',
               pointerEvents: showCanvas ? 'auto' : 'none',
               cursor: showCanvas ? 'crosshair' : 'default',
             }}
           />
 
-          <div class="lp-toolbar-in hidden sm:block fixed bottom-5 left-1/2 z-[2147483646]">
+          <div class="lp-toolbar-in hidden sm:block">
             <Toolbar />
           </div>
 
@@ -1037,7 +1093,7 @@ export function App() {
         </a>
       </div>
       {/* Top bar — uses same glass surface as toolbar */}
-      <div class={clsx('flex items-center gap-3 px-4 h-[48px] !rounded-none z-50 shrink-0', glass.surface)}>
+      <div class="flex items-center gap-3 px-4 h-[48px] z-50 shrink-0 bg-[var(--ml-glass-bg)] backdrop-blur-[80px] backdrop-saturate-[1.9] backdrop-brightness-[1.1] shadow-[0_1px_3px_oklch(0_0_0/0.08)]">
         {/* Logo */}
         <a
           href="/"
@@ -1444,17 +1500,15 @@ function GithubLink({ dark }: { dark?: boolean }) {
   );
 }
 
-/* ─── Landing page (Klack-inspired) ─── */
-
-const FEATURES: { label: string; icon: LucideIcon }[] = [
-  { label: 'Drawing\ntools', icon: PenTool },
-  { label: 'Real-time\ncollaboration', icon: Users },
-  { label: 'Shareable\nlinks', icon: Link },
-  { label: 'Threaded\ncomments', icon: MessageSquare },
-  { label: 'No sign-up\nrequired', icon: User },
-  { label: 'Private\nby default', icon: Lock },
-  { label: 'Browser\nextension', icon: Puzzle },
-  { label: 'Free &\nopen source', icon: Code },
+const FEATURES: { label: string; icon: LucideIcon; anim: string }[] = [
+  { label: 'Drawing\ntools', icon: PenTool, anim: 'lp-anim-wiggle' },
+  { label: 'Real-time\ncollaboration', icon: Users, anim: 'lp-anim-bounce' },
+  { label: 'Shareable\nlinks', icon: Link, anim: 'lp-anim-rotate' },
+  { label: 'Threaded\ncomments', icon: MessageSquare, anim: 'lp-anim-bounce' },
+  { label: 'No sign-up\nrequired', icon: User, anim: 'lp-anim-bounce' },
+  { label: 'Private\nby default', icon: Lock, anim: 'lp-anim-shake' },
+  { label: 'Browser\nextension', icon: Puzzle, anim: 'lp-anim-rotate' },
+  { label: 'Free &\nopen source', icon: Code, anim: 'lp-anim-pulse' },
 ];
 
 function TextInputOverlay({

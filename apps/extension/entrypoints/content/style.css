@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ml-glass-fg: #1a1a1a;
+  --color-ml-glass-fg: #000;
   --color-ml-glass-accent: oklch(0 0 0 / 0.06);
   --color-ml-glass-muted: oklch(0 0 0 / 0.03);
 }
@@ -24,17 +24,20 @@
   }
 
   @media (prefers-color-scheme: dark) {
-    :host {
+    :host:not(.ml-light) {
       --color-ml-glass-fg: #fff;
       --color-ml-glass-accent: oklch(1 0 0 / 0.12);
       --color-ml-glass-muted: oklch(1 0 0 / 0.06);
-      --ml-glass-bg: oklch(0.15 0.012 280 / 0.96);
-      --ml-glass-bg-small: oklch(0.14 0.012 280 / 0.97);
-      --ml-glass-border: oklch(1 0 0 / 0.22);
+      --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
+      --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
+      --ml-glass-border: oklch(1 0 0 / 0.18);
+      --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
       --ml-glass-shadow:
-        0 0 0 0.5px oklch(0 0 0 / 0.35), 0 8px 40px oklch(0 0 0 / 0.3),
-        0 24px 60px oklch(0 0 0 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.18),
-        inset 0 -0.5px 0 oklch(0 0 0 / 0.1);
+        0 0 0 0.5px oklch(0 0 0 / 0.5),
+        0 8px 40px oklch(0 0 0 / 0.35),
+        0 24px 60px oklch(0 0 0 / 0.22),
+        inset 0 1px 0 oklch(1 0 0 / 0.28),
+        inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
       --ml-glass-shadow-small:
         0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
         inset 0 0.5px 0 oklch(1 0 0 / 0.15);
@@ -42,6 +45,29 @@
       --ml-glass-divider: oklch(1 0 0 / 0.1);
       --ml-glass-grip: oklch(1 0 0 / 0.9);
     }
+  }
+
+  /* Manual dark override — same vars, outside media query so it always wins */
+  :host(.ml-dark) {
+    --color-ml-glass-fg: #fff;
+    --color-ml-glass-accent: oklch(1 0 0 / 0.12);
+    --color-ml-glass-muted: oklch(1 0 0 / 0.06);
+    --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
+    --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
+    --ml-glass-border: oklch(1 0 0 / 0.18);
+    --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
+    --ml-glass-shadow:
+      0 0 0 0.5px oklch(0 0 0 / 0.5),
+      0 8px 40px oklch(0 0 0 / 0.35),
+      0 24px 60px oklch(0 0 0 / 0.22),
+      inset 0 1px 0 oklch(1 0 0 / 0.28),
+      inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
+    --ml-glass-shadow-small:
+      0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
+      inset 0 0.5px 0 oklch(1 0 0 / 0.15);
+    --ml-glass-sep: oklch(1 0 0 / 0.12);
+    --ml-glass-divider: oklch(1 0 0 / 0.1);
+    --ml-glass-grip: oklch(1 0 0 / 0.9);
   }
 }
 

@@ -17,7 +17,7 @@
   --color-ml-input: oklch(1 0 0 / 0.85);
   --color-ml-input-border: oklch(0 0 0 / 0.12);
   /* Glass overlay surfaces (toolbar, panels, popovers) */
-  --color-ml-glass-fg: #1a1a1a;
+  --color-ml-glass-fg: #000;
   --color-ml-glass-accent: oklch(0 0 0 / 0.06);
   --color-ml-glass-muted: oklch(0 0 0 / 0.03);
 }
@@ -67,16 +67,17 @@
       --color-ml-glass-fg: #fff;
       --color-ml-glass-accent: oklch(1 0 0 / 0.12);
       --color-ml-glass-muted: oklch(1 0 0 / 0.06);
-      --ml-glass-bg: oklch(0.15 0.012 280 / 0.96);
-      --ml-glass-bg-small: oklch(0.14 0.012 280 / 0.97);
-      --ml-glass-border: oklch(1 0 0 / 0.22);
+      --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
+      --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
+      --ml-glass-border: oklch(1 0 0 / 0.18);
+      --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
       --ml-glass-shadow:
-        0 0 0 0.5px oklch(0 0 0 / 0.35), 0 8px 40px oklch(0 0 0 / 0.3),
-        0 24px 60px oklch(0 0 0 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.18),
-        inset 0 -0.5px 0 oklch(0 0 0 / 0.1);
+        0 0 0 0.5px oklch(0 0 0 / 0.5), 0 8px 40px oklch(0 0 0 / 0.35),
+        0 24px 60px oklch(0 0 0 / 0.22), inset 0 1px 0 oklch(1 0 0 / 0.28),
+        inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
       --ml-glass-shadow-small:
-        0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
-        inset 0 0.5px 0 oklch(1 0 0 / 0.15);
+        0 0 0 0.5px oklch(0 0 0 / 0.4), 0 6px 24px oklch(0 0 0 / 0.3), 0 16px 48px oklch(0 0 0 / 0.18),
+        inset 0 0.5px 0 oklch(1 0 0 / 0.22);
       --ml-glass-sep: oklch(1 0 0 / 0.12);
       --ml-glass-divider: oklch(1 0 0 / 0.1);
       --ml-glass-grip: oklch(1 0 0 / 0.9);
@@ -98,16 +99,17 @@
     --color-ml-glass-fg: #fff;
     --color-ml-glass-accent: oklch(1 0 0 / 0.12);
     --color-ml-glass-muted: oklch(1 0 0 / 0.06);
-    --ml-glass-bg: oklch(0.15 0.012 280 / 0.96);
-    --ml-glass-bg-small: oklch(0.14 0.012 280 / 0.97);
-    --ml-glass-border: oklch(1 0 0 / 0.22);
+    --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
+    --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
+    --ml-glass-border: oklch(1 0 0 / 0.18);
+    --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
     --ml-glass-shadow:
-      0 0 0 0.5px oklch(0 0 0 / 0.35), 0 8px 40px oklch(0 0 0 / 0.3),
-      0 24px 60px oklch(0 0 0 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.18),
-      inset 0 -0.5px 0 oklch(0 0 0 / 0.1);
+      0 0 0 0.5px oklch(0 0 0 / 0.5), 0 8px 40px oklch(0 0 0 / 0.35),
+      0 24px 60px oklch(0 0 0 / 0.22), inset 0 1px 0 oklch(1 0 0 / 0.28),
+      inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
     --ml-glass-shadow-small:
-      0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
-      inset 0 0.5px 0 oklch(1 0 0 / 0.15);
+      0 0 0 0.5px oklch(0 0 0 / 0.4), 0 6px 24px oklch(0 0 0 / 0.3), 0 16px 48px oklch(0 0 0 / 0.18),
+      inset 0 0.5px 0 oklch(1 0 0 / 0.22);
     --ml-glass-sep: oklch(1 0 0 / 0.12);
     --ml-glass-divider: oklch(1 0 0 / 0.1);
     --ml-glass-grip: oklch(1 0 0 / 0.9);
@@ -136,11 +138,11 @@
     --color-ml-card-border: oklch(0.1 0 0 / 0.06);
     --color-ml-input: oklch(1 0 0 / 0.85);
     --color-ml-input-border: oklch(0 0 0 / 0.12);
-    --color-ml-glass-fg: #1a1a1a;
+    --color-ml-glass-fg: #000;
     --color-ml-glass-accent: oklch(0 0 0 / 0.06);
     --color-ml-glass-muted: oklch(0 0 0 / 0.03);
-    --ml-glass-bg: oklch(0.96 0.003 280 / 0.97);
-    --ml-glass-bg-small: oklch(0.96 0.003 280 / 0.98);
+    --ml-glass-bg: oklch(0.96 0.003 280);
+    --ml-glass-bg-small: oklch(0.96 0.003 280);
     --ml-glass-border: oklch(0 0 0 / 0.16);
     --ml-glass-shadow:
       0 0 0 0.5px oklch(0 0 0 / 0.12), 0 8px 40px oklch(0 0 0 / 0.1),
@@ -152,6 +154,17 @@
     --ml-glass-sep: oklch(0 0 0 / 0.12);
     --ml-glass-divider: oklch(0 0 0 / 0.09);
     --ml-glass-grip: oklch(0 0 0 / 0.9);
+  }
+}
+
+@keyframes toolbarIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
   }
 }
 
@@ -191,11 +204,9 @@
 @keyframes lpToolbarIn {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(20px);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
   }
 }
 
@@ -231,4 +242,99 @@
 
 .lp-input-glow {
   animation: lpPulseGlow 3s ease-in-out infinite;
+}
+
+/* Feature icon hover animations */
+@keyframes lpWiggle {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  15% {
+    transform: rotate(8deg) translateY(2px);
+  }
+  40% {
+    transform: rotate(-3deg) translateY(-1px);
+  }
+  65% {
+    transform: rotate(8deg) translateY(0);
+  }
+  85% {
+    transform: rotate(-1deg);
+  }
+}
+
+@keyframes lpBounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-6px);
+  }
+  50% {
+    transform: translateY(2px);
+  }
+  70% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes lpRotate {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  75% {
+    transform: rotate(12deg);
+  }
+}
+@keyframes lpShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-2px);
+  }
+  80% {
+    transform: translateX(2px);
+  }
+}
+
+@keyframes lpPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.85;
+  }
+}
+
+.lp-anim-wiggle:hover svg {
+  animation: lpWiggle 0.8s ease-in-out;
+}
+.lp-anim-bounce:hover svg {
+  animation: lpBounce 0.6s ease-in-out;
+}
+.lp-anim-rotate:hover svg {
+  animation: lpRotate 0.7s ease-in-out;
+}
+.lp-anim-shake:hover svg {
+  animation: lpShake 0.5s ease-in-out;
+}
+.lp-anim-pulse:hover svg {
+  animation: lpPulse 0.7s ease-in-out;
 }

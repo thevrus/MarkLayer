@@ -5,14 +5,31 @@ import type { CommentMeta, CommentOp, CommentStatus, DrawOp, Peer, SelectionOp, 
 export const visible = signal(false);
 export const activeTool = signal<Tool>('navigate');
 
-const TOOLBAR_COLORS = ['#b462f5', '#f43f5e', '#f97316', '#facc15', '#22c55e', '#3b82f6'];
-const storedColor = typeof localStorage !== 'undefined' ? localStorage.getItem('ml-color') : null;
-export const color = signal(storedColor || TOOLBAR_COLORS[Math.floor(Math.random() * TOOLBAR_COLORS.length)]);
+const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
+
+export type Theme = 'system' | 'light' | 'dark';
+export const theme = signal<Theme>((_ls?.getItem('ml-theme') as Theme) || 'system');
+export function cycleTheme() {
+  const systemDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+  const order: Theme[] = systemDark ? ['system', 'light'] : ['system', 'dark'];
+  const next = order[(order.indexOf(theme.value) + 1) % order.length];
+  theme.value = next;
+  try {
+    next === 'system' ? _ls?.removeItem('ml-theme') : _ls?.setItem('ml-theme', next);
+  } catch {
+    /* */
+  }
+  const root = typeof document !== 'undefined' ? document.documentElement.classList : null;
+  root?.remove('light', 'dark');
+  next !== 'system' && root?.add(next);
+}
+
+export const color = signal(_ls?.getItem('ml-color') || '#f43f5e');
 
 export function setColor(c: string) {
   color.value = c;
   try {
-    localStorage.setItem('ml-color', c);
+    _ls?.setItem('ml-color', c);
   } catch {
     /* */
   }
@@ -97,18 +114,30 @@ const ANIMALS = [
 function randomPick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
-const storedName = typeof localStorage !== 'undefined' ? localStorage.getItem('ml-username') : null;
+const savedName = _ls?.getItem('ml-username') ?? null;
+const savedCursorColor = _ls?.getItem('ml-usercolor') ?? null;
+const freshName = `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`;
+const freshCursorColor = randomPick(CURSOR_COLORS);
 export const localUser = {
-  name: storedName || `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`,
-  color: randomPick(CURSOR_COLORS),
+  name: savedName || freshName,
+  color: savedCursorColor || freshCursorColor,
 };
+// Persist on first visit so color stays stable
+if (!savedName || !savedCursorColor) {
+  try {
+    if (!savedName) _ls?.setItem('ml-username', localUser.name);
+    if (!savedCursorColor) _ls?.setItem('ml-usercolor', localUser.color);
+  } catch {
+    /* */
+  }
+}
 
 export function setUserName(name: string) {
   const trimmed = name.trim();
   if (!trimmed) return;
   localUser.name = trimmed;
   try {
-    localStorage.setItem('ml-username', trimmed);
+    _ls?.setItem('ml-username', trimmed);
   } catch {
     /* */
   }
@@ -184,6 +213,8 @@ export function getCommentStatus(op: CommentOp): CommentStatus {
 }
 
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
+/** True while user is actively drawing (mousedown on canvas) */
+export const isDrawingActive = signal(false);
 export const FREEHAND: Set<string> = new Set(['pen', 'eraser', 'highlight']);
 export const SHAPES: Set<string> = new Set(['rectangle', 'circle', 'line', 'arrow']);
 
@@ -299,6 +330,9 @@ export function getCommentMeta(): CommentMeta {
 // Export PNG callback — set by App component
 export const onExportPng = signal<(() => void) | null>(null);
 
+/** Bumped on undo/redo to trigger a canvas flash */
+export const undoRedoFlash = signal(0);
+
 export function undo() {
   const ops = operations.value;
   const stack = undoStack.value;
@@ -313,6 +347,7 @@ export function undo() {
   undoStack.value = [...stack, removed];
   operations.value = ops.slice(0, -1);
   onUndone.value?.(removed.id);
+  undoRedoFlash.value++;
 }
 
 export function redo() {
@@ -322,6 +357,7 @@ export function redo() {
   if ('type' in last) return;
   operations.value = [...operations.value, last];
   undoStack.value = stack.slice(0, -1);
+  undoRedoFlash.value++;
 }
 
 export function clearAll() {

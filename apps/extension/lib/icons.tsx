@@ -6,6 +6,7 @@ import {
   Eraser,
   Highlighter,
   MessageCircle,
+  Moon,
   MousePointer2,
   MoveUpRight,
   Pen,
@@ -13,6 +14,7 @@ import {
   Redo2,
   Share2,
   Square,
+  Sun,
   Trash2,
   Type,
   TypeOutline,
@@ -40,6 +42,8 @@ const iconMap: Record<string, typeof MousePointer2> = {
   chevDown: ChevronDown,
   chevUp: ChevronUp,
   close: X,
+  sun: Sun,
+  moon: Moon,
 };
 
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {

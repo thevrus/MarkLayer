@@ -8,6 +8,7 @@ import {
   redo,
   SHORTCUT_MAP,
   showShareDialog,
+  theme,
   toast,
   toasts,
   undo,
@@ -69,6 +70,15 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // Warn before leaving page with unsaved drawings
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (operations.value.length > 0) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
   // Intercept share → direct clipboard copy + toast
   useSignalEffect(() => {
     if (!showShareDialog.value) return;
@@ -103,6 +113,15 @@ export function App() {
       });
     }
   }, []);
+
+  // Sync theme class to shadow host
+  useSignalEffect(() => {
+    const t = theme.value;
+    const host = document.querySelector('mark-layer')?.shadowRoot?.host;
+    if (!host) return;
+    host.classList.remove('ml-dark', 'ml-light');
+    t !== 'system' && host.classList.add(t === 'dark' ? 'ml-dark' : 'ml-light');
+  });
 
   if (!visible.value) return null;
 

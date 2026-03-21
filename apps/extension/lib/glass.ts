@@ -4,6 +4,7 @@ export const glass = {
   /** Primary surface — toolbar, popover panels. */
   surface: `
     bg-[var(--ml-glass-bg)]
+    [background-image:var(--ml-glass-gloss,none)]
     backdrop-blur-[80px] backdrop-saturate-[1.9] backdrop-brightness-[1.1]
     border border-[var(--ml-glass-border)]
     [box-shadow:var(--ml-glass-shadow)]

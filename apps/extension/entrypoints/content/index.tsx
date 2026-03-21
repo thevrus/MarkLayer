@@ -4,13 +4,18 @@ import { visible } from '../../lib/state';
 import './style.css';
 
 export default defineContentScript({
-  matches: ['<all_urls>'],
+  matches: [],
+  registration: 'runtime',
   cssInjectionMode: 'ui',
 
   async main(ctx) {
     // Skip injection when inside the MarkLayer web app (it has its own toolbar)
     if (document.documentElement.dataset.marklayer) return;
-    // Listen for toggle message from background script (browser action click)
+
+    // Injected on-demand via icon click — show immediately
+    visible.value = true;
+
+    // Listen for toggle message from background script (subsequent icon clicks)
     browser.runtime.onMessage.addListener((msg) => {
       if (msg?.type === 'toggle-annotate') {
         visible.value = !visible.value;
