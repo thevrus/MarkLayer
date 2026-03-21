@@ -4,6 +4,7 @@ export type {
   CommentMeta,
   CommentOp,
   CommentStatus,
+  DeviceMode,
   DrawOp,
   FreehandOp,
   LineOp,

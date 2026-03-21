@@ -58,7 +58,6 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
     const el = ref.current;
     if (!el) return;
 
-    // Appear animation: fade in + scale up
     const appear = el.animate(
       [
         { opacity: 0, transform: 'scale(0.3)', filter: 'blur(4px)' },
@@ -72,7 +71,6 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
       },
     );
 
-    // Movement animation starts after appear
     const keyframes = cursor.path.map(([x, y]) => ({
       left: `${x}%`,
       top: `${y}%`,

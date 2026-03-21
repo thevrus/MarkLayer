@@ -3,10 +3,14 @@ export interface Point {
   y: number;
 }
 
+export type DeviceMode = 'desktop' | 'tablet' | 'mobile';
+
 export interface BaseOp {
   id: string;
   color: string;
   lineWidth: number;
+  /** Viewport size this annotation was drawn on */
+  device?: DeviceMode;
 }
 
 export interface FreehandOp extends BaseOp {

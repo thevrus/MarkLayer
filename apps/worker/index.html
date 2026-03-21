@@ -34,6 +34,13 @@
     />
   </head>
   <body>
+    <script>
+      (() => {
+        var t = localStorage.getItem("ml-theme");
+        if (t === "dark" || t === "light")
+          document.documentElement.classList.add(t);
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="/web/main.tsx"></script>
   </body>

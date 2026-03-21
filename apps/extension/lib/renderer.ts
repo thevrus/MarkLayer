@@ -43,7 +43,7 @@ export function simplify(pts: Point[], tol = 1): Point[] {
   return out;
 }
 
-function opBounds(op: DrawOp) {
+export function opBounds(op: DrawOp) {
   const pad = (op.lineWidth ?? 2) / 2;
   switch (op.tool) {
     case 'pen':
@@ -87,7 +87,7 @@ function opBounds(op: DrawOp) {
   }
 }
 
-function inView(b: ReturnType<typeof opBounds>, vx: number, vy: number, vw: number, vh: number) {
+export function inView(b: ReturnType<typeof opBounds>, vx: number, vy: number, vw: number, vh: number) {
   return !b || (b.x + b.w > vx && b.x < vx + vw && b.y + b.h > vy && b.y < vy + vh);
 }
 

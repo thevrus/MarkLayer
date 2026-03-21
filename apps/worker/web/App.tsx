@@ -1,6 +1,6 @@
 import { Toolbar } from '@ext/components/Toolbar';
 import { glass } from '@ext/lib/glass';
-import { hexToRgba, renderOp, simplify } from '@ext/lib/renderer';
+import { hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
 import {
   activeTool,
   color,
@@ -8,6 +8,7 @@ import {
   FREEHAND,
   isDrawingTool,
   lineWidth,
+  localUser,
   onCursorMove,
   onExportPng,
   operations,
@@ -18,15 +19,36 @@ import {
   SHAPES,
   SHORTCUT_MAP,
   selections,
+  setUserName,
   showAnnotationPanel,
   showShareDialog,
   toast,
   toasts,
   undo,
 } from '@ext/lib/state';
-import type { DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
-import { signal, useSignalEffect } from '@preact/signals';
+import type { DeviceMode, DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
+import { effect, signal, useSignalEffect } from '@preact/signals';
 import clsx from 'clsx';
+import type { LucideIcon } from 'lucide-preact';
+import {
+  ArrowRight,
+  Code,
+  Link,
+  Loader2,
+  Lock,
+  MessageSquare,
+  Monitor,
+  Moon,
+  PenTool,
+  Puzzle,
+  Search,
+  Smartphone,
+  Sun,
+  Tablet,
+  Upload,
+  User,
+  Users,
+} from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { AnnotationPanel } from './AnnotationPanel';
@@ -40,9 +62,12 @@ import { WebSelectionPopover } from './WebSelectionPopover';
 
 const API_BASE = '/api/';
 
+const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && 'ontouchstart' in window;
+
 // Web-specific state
 const iframeScrollY = signal(0);
-const scale = signal(1);
+/** CSS transform scale — how much the locked container is visually scaled to fit the viewer */
+const cssScale = signal(1);
 const pageUrl = signal('');
 const originalWidth = signal(0);
 const annotationId = signal('');
@@ -59,6 +84,52 @@ const selectionPopover = signal<{
 const isReadonly = signal(false);
 const sharing = signal(false);
 
+type ThemeMode = 'system' | 'light' | 'dark';
+const theme = signal<ThemeMode>((localStorage.getItem('ml-theme') as ThemeMode) || 'system');
+
+function cycleTheme() {
+  const systemDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  // Skip the mode that matches system (no visible change)
+  const order: ThemeMode[] = systemDark
+    ? ['system', 'light'] // system=dark, so skip 'dark' (redundant)
+    : ['system', 'dark']; // system=light, so skip 'light' (redundant)
+  const idx = order.indexOf(theme.value);
+  const next = order[(idx + 1) % order.length];
+  theme.value = next;
+  const root = document.documentElement.classList;
+  root.remove('light', 'dark');
+  if (next !== 'system') {
+    root.add(next);
+    localStorage.setItem('ml-theme', next);
+  } else {
+    localStorage.removeItem('ml-theme');
+  }
+}
+
+const VALID_DEVICES = new Set<DeviceMode>(['desktop', 'tablet', 'mobile']);
+const initDevice = new URLSearchParams(location.search).get('device') as DeviceMode | null;
+export const deviceMode = signal<DeviceMode>(initDevice && VALID_DEVICES.has(initDevice) ? initDevice : 'desktop');
+const DEVICE_WIDTHS: Record<DeviceMode, number> = { desktop: 0, tablet: 768, mobile: 390 };
+
+// Sync device mode to URL
+effect(() => {
+  const dev = deviceMode.value;
+  const url = new URL(location.href);
+  if (dev === 'desktop') url.searchParams.delete('device');
+  else url.searchParams.set('device', dev);
+  history.replaceState(null, '', url);
+});
+
+/** Tag an operation with the current device mode before pushing */
+export function pushDeviceOp(op: DrawOp) {
+  pushOp({ ...op, device: deviceMode.value } as DrawOp);
+}
+
+/** Check if an operation belongs to the current device viewport (ops without a device tag default to desktop) */
+export function opMatchesDevice(op: { device?: string }): boolean {
+  return (op.device ?? 'desktop') === deviceMode.value;
+}
+
 // Parse URL params (synchronous — called before first render)
 function parseViewParam(): boolean {
   const params = new URLSearchParams(location.search);
@@ -73,9 +144,11 @@ function parseViewParam(): boolean {
     const eqIdx = meta.indexOf('=');
     if (eqIdx === -1) return false;
     originalWidth.value = parseInt(meta.substring(0, eqIdx), 10);
+    if (!originalWidth.value || originalWidth.value <= 0 || Number.isNaN(originalWidth.value))
+      originalWidth.value = 1280;
     annotationId.value = meta.substring(eqIdx + 1);
     isReadonly.value = params.get('readonly') === '1';
-    return !!(pageUrl.value && annotationId.value && !Number.isNaN(originalWidth.value));
+    return !!(pageUrl.value && annotationId.value);
   } catch {
     return false;
   }
@@ -97,7 +170,17 @@ function navigateTo(url: string) {
 
 export function App() {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const scrollToAnnotation = useCallback((_x: number, y: number) => {
+    try {
+      const win = frameRef.current?.contentWindow;
+      if (win) win.scrollTo({ top: Math.max(0, y - 200), behavior: 'smooth' });
+    } catch {
+      /* cross-origin */
+    }
+  }, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  /** Inner container — locked at originalWidth, CSS-transformed to fit viewer */
+  const innerRef = useRef<HTMLDivElement>(null);
   const drawingRef = useRef(false);
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
@@ -263,13 +346,13 @@ export function App() {
   }
 
   const canvasCoords = useCallback((e: MouseEvent): Point => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const r = canvas.getBoundingClientRect();
-    const s = scale.value;
+    const inner = innerRef.current;
+    if (!inner) return { x: 0, y: 0 };
+    const r = inner.getBoundingClientRect();
+    const cs = cssScale.value;
     return {
-      x: (e.clientX - r.left) / s,
-      y: (e.clientY - r.top) / s + iframeScrollY.value / s,
+      x: (e.clientX - r.left) / cs,
+      y: (e.clientY - r.top) / cs + iframeScrollY.value,
     };
   }, []);
 
@@ -300,21 +383,32 @@ export function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const viewer = viewerRef.current;
-    // On landing page, canvas is fixed fullscreen; in viewer mode, match viewer dims
-    const w = viewer ? viewer.clientWidth : window.innerWidth;
-    const h = viewer ? viewer.clientHeight : window.innerHeight;
-    const s = originalWidth.value ? w / originalWidth.value : 1;
-    if (scale.value !== s) scale.value = s;
-    if (canvas.width !== w) canvas.width = w;
-    if (canvas.height !== h) canvas.height = h;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const viewerW = viewer ? viewer.clientWidth : window.innerWidth;
+    const viewerH = viewer ? viewer.clientHeight : window.innerHeight;
+    const dev = deviceMode.value;
+    const refW = dev === 'desktop' ? originalWidth.value || viewerW : DEVICE_WIDTHS[dev];
+    // CSS transform handles visual fit — canvas renders at reference width (1:1 with document coords)
+    const cs = refW && viewerW ? viewerW / refW : 1;
+    if (cssScale.value !== cs) cssScale.value = cs;
+    const canvasW = refW;
+    const canvasH = Math.round(viewerH / cs);
+    if (canvas.width !== canvasW) canvas.width = canvasW;
+    if (canvas.height !== canvasH) canvas.height = canvasH;
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.clearRect(0, 0, w, h);
+    ctx.clearRect(0, 0, canvasW, canvasH);
     ctx.save();
-    ctx.scale(s, s);
-    ctx.translate(0, -iframeScrollY.value / s);
+    // No ctx.scale() — canvas is 1:1 with document coordinates
+    const scrollY = iframeScrollY.value;
+    ctx.translate(0, -scrollY);
+    const vx = 0;
+    const vy = scrollY;
+    const vw = canvasW;
+    const vh = canvasH;
     for (const op of operations.value) {
       if (op.tool === 'comment' || op.tool === 'selection') continue;
+      if (!opMatchesDevice(op)) continue;
+      if (!inView(opBounds(op), vx, vy, vw, vh)) continue;
       renderOp(ctx, op, 0, 0);
     }
     ctx.restore();
@@ -332,14 +426,12 @@ export function App() {
       drawingRef.current = true;
       const pos = canvasCoords(e);
       startPtRef.current = pos;
-      const ctx = canvasRef.current?.getContext('2d', { willReadFrequently: true });
+      const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
       applyTool(ctx);
       if (FREEHAND.has(tool)) {
         ctx.beginPath();
-        const vx = pos.x * scale.value;
-        const vy = pos.y * scale.value - iframeScrollY.value;
-        ctx.moveTo(vx, vy);
+        ctx.moveTo(pos.x, pos.y - iframeScrollY.value);
         currentPathRef.current = {
           id: nanoid(),
           tool: tool as FreehandOp['tool'],
@@ -361,24 +453,21 @@ export function App() {
       if (!drawingRef.current) return;
       const tool = activeTool.value;
       const pos = canvasCoords(e);
-      const ctx = canvasRef.current?.getContext('2d', { willReadFrequently: true });
+      const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
-      const s = scale.value;
       const scrollOff = iframeScrollY.value;
       if (FREEHAND.has(tool)) {
         currentPathRef.current?.points.push(pos);
-        const vx = pos.x * s;
-        const vy = pos.y * s - scrollOff;
-        ctx.lineTo(vx, vy);
+        ctx.lineTo(pos.x, pos.y - scrollOff);
         ctx.stroke();
       } else if (snapshotRef.current && SHAPES.has(tool)) {
         ctx.putImageData(snapshotRef.current, 0, 0);
         ctx.beginPath();
         const sp = startPtRef.current;
-        const vsx = sp.x * s,
-          vsy = sp.y * s - scrollOff;
-        const vex = pos.x * s,
-          vey = pos.y * s - scrollOff;
+        const vsx = sp.x,
+          vsy = sp.y - scrollOff;
+        const vex = pos.x,
+          vey = pos.y - scrollOff;
         applyTool(ctx);
         switch (tool) {
           case 'rectangle':
@@ -423,7 +512,7 @@ export function App() {
         currentPathRef.current.points.push(pos);
         if (currentPathRef.current.points.length > 1) {
           currentPathRef.current.points = simplify(currentPathRef.current.points, 1.5);
-          pushOp(currentPathRef.current);
+          pushDeviceOp(currentPathRef.current);
         }
         currentPathRef.current = null;
       } else if (SHAPES.has(tool)) {
@@ -431,13 +520,20 @@ export function App() {
         const base = { id: nanoid(), color: color.value, lineWidth: lineWidth.value };
         if (tool === 'circle') {
           const r = Math.hypot(pos.x - sp.x, pos.y - sp.y);
-          if (r > 0) pushOp({ ...base, tool: 'circle', centerX: sp.x, centerY: sp.y, radius: r } as DrawOp);
+          if (r > 0) pushDeviceOp({ ...base, tool: 'circle', centerX: sp.x, centerY: sp.y, radius: r } as DrawOp);
         } else if (tool === 'rectangle') {
           if (sp.x !== pos.x && sp.y !== pos.y)
-            pushOp({ ...base, tool: 'rectangle', startX: sp.x, startY: sp.y, endX: pos.x, endY: pos.y } as DrawOp);
+            pushDeviceOp({
+              ...base,
+              tool: 'rectangle',
+              startX: sp.x,
+              startY: sp.y,
+              endX: pos.x,
+              endY: pos.y,
+            } as DrawOp);
         } else if (tool === 'line' || tool === 'arrow') {
           if (sp.x !== pos.x || sp.y !== pos.y)
-            pushOp({
+            pushDeviceOp({
               ...base,
               tool: 'line',
               arrow: tool === 'arrow',
@@ -452,10 +548,17 @@ export function App() {
     [canvasCoords],
   );
 
+  // Re-render canvas when operations, scroll, or device mode change
   useSignalEffect(() => {
     operations.value;
     iframeScrollY.value;
+    const dev = deviceMode.value;
     renderAll();
+    // Device mode change triggers a CSS width transition — schedule a delayed re-render to match final size
+    if (dev !== 'desktop') {
+      const t = setTimeout(renderAll, 550);
+      return () => clearTimeout(t);
+    }
   });
 
   useEffect(() => {
@@ -480,13 +583,9 @@ export function App() {
   // Send cursor position to peers
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      const viewer = viewerRef.current;
-      if (!viewer) return;
-      const r = viewer.getBoundingClientRect();
-      const s = scale.value;
-      const x = (e.clientX - r.left) / s;
-      const y = (e.clientY - r.top) / s + iframeScrollY.value / s;
-      onCursorMove.value?.(x, y, activeTool.value);
+      const pos = canvasCoords(e);
+      if (pos.x === 0 && pos.y === 0 && !innerRef.current) return;
+      onCursorMove.value?.(pos.x, pos.y, activeTool.value);
     };
     window.addEventListener('mousemove', handler);
     return () => window.removeEventListener('mousemove', handler);
@@ -498,27 +597,21 @@ export function App() {
     const text = sel.toString();
     const rects: import('@ext/lib/types').SelectionRect[] = [];
     const landing = isLanding.value;
-    const s = landing ? 1 : scale.value;
     const sy = landing ? window.scrollY || 0 : iframeScrollY.value;
-    const vr = viewerRef.current?.getBoundingClientRect();
-    const fr = frameRef.current?.getBoundingClientRect();
+    const ir = landing ? null : innerRef.current?.getBoundingClientRect();
+    const cs = cssScale.value;
     for (let i = 0; i < sel.rangeCount; i++) {
       for (const cr of sel.getRangeAt(i).getClientRects()) {
         if (landing) {
           rects.push({ x: cr.x + window.scrollX, y: cr.y + window.scrollY, width: cr.width, height: cr.height });
-        } else if (fromIframe && fr && vr) {
+        } else if (fromIframe) {
+          rects.push({ x: cr.x, y: cr.y + sy, width: cr.width, height: cr.height });
+        } else if (ir) {
           rects.push({
-            x: (cr.x + fr.left - vr.left) / s,
-            y: (cr.y + fr.top - vr.top + sy) / s,
-            width: cr.width / s,
-            height: cr.height / s,
-          });
-        } else if (vr) {
-          rects.push({
-            x: (cr.x - vr.left) / s,
-            y: (cr.y - vr.top + sy) / s,
-            width: cr.width / s,
-            height: cr.height / s,
+            x: (cr.x - ir.left) / cs,
+            y: (cr.y - ir.top) / cs + sy,
+            width: cr.width / cs,
+            height: cr.height / cs,
           });
         }
       }
@@ -529,8 +622,8 @@ export function App() {
     selectionPopover.value = {
       text,
       rects,
-      screenX: fromIframe && fr ? last.right + fr.left : last.right,
-      screenY: fromIframe && fr ? last.bottom + fr.top : last.bottom,
+      screenX: fromIframe && ir ? last.right * cs + ir.left : last.right,
+      screenY: fromIframe && ir ? last.bottom * cs + ir.top : last.bottom,
     };
   }, []);
 
@@ -587,352 +680,371 @@ export function App() {
   const comments = commentsComputed.value;
   const landing = isLanding.value;
 
-  if (landing) {
+  if (!landing && isMobileDevice) {
     return (
-      <div class="min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden" style={{ background: '#f5f0e8' }}>
-        {/* Nav */}
-        <nav class="lp-fade-up flex items-center justify-between px-6 sm:px-10 py-5 max-w-[1100px] mx-auto">
-          <div class="flex items-center gap-2.5">
-            <Logo size={32} />
-            <span class="text-[20px] font-bold tracking-[-0.02em] text-[#1a1a1a]">MarkLayer</span>
-          </div>
-          <div class="flex items-center gap-4">
-            <a
-              href="https://chromewebstore.google.com"
-              target="_blank"
-              rel="noopener"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#1a1a1a] text-white text-[14px] font-semibold no-underline hover:bg-[#333] transition-colors"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="4" />
-                <line x1="21.17" y1="8" x2="12" y2="8" />
-                <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
-                <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
-              </svg>
-              <span class="hidden sm:inline">Chrome Extension</span>
-            </a>
-            <GithubLink dark />
-          </div>
-        </nav>
-
-        {/* Hero */}
-        <section class="text-center pt-16 sm:pt-24 pb-10 px-6">
-          <h1
-            class="lp-fade-up text-[clamp(44px,7.5vw,80px)] font-extrabold tracking-[-0.04em] leading-[1.05] text-[#1a1a1a] mb-8"
-            style={{ animationDelay: '0.1s' }}
-          >
-            <span class="relative inline-block">
-              Annotate
-              <span
-                class="lp-underline-grow absolute -bottom-1 left-0 right-0 h-[0.18em] rounded-full opacity-50"
-                style={{ background: '#F953C6' }}
-              />
-            </span>{' '}
-            any webpage,
-            <br />
-            together.
-          </h1>
-
-          <p
-            class="lp-fade-up text-[22px] text-[#1a1a1a]/40 mb-12 max-w-[520px] mx-auto leading-relaxed"
-            style={{ animationDelay: '0.2s' }}
-          >
-            Draw, highlight, comment and collaborate on any site in real-time. No sign-up required.
-          </p>
-
-          {/* URL input — big, centered */}
-          <form
-            class="lp-fade-up max-w-[520px] mx-auto mb-4"
-            style={{ animationDelay: '0.3s' }}
-            onSubmit={(e) => {
-              e.preventDefault();
-              const input = (e.currentTarget.elements.namedItem('url') as HTMLInputElement).value.trim();
-              if (!input) return;
-              let url = input;
-              if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-              navigateTo(url);
-            }}
-          >
-            <div class="lp-input-glow flex items-center gap-3 px-6 py-5 rounded-2xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-[0_4px_24px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.8)]">
-              <svg
-                class="text-black/20 shrink-0"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-              <input
-                name="url"
-                type="text"
-                placeholder="Paste any URL to annotate..."
-                autocomplete="off"
-                autofocus
-                class="flex-1 bg-transparent border-none text-[#1a1a1a] text-[18px] placeholder:text-black/20 outline-none"
-                onInput={(e) => {
-                  const v = (e.target as HTMLInputElement).value.trim();
-                  urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
-                }}
-              />
-              <button
-                type="submit"
-                class={clsx(
-                  'shrink-0 w-10 h-10 rounded-xl grid place-items-center border-none cursor-pointer transition-all duration-200',
-                  urlReady.value
-                    ? 'text-white bg-[#1a1a1a] shadow-[0_2px_8px_rgba(0,0,0,0.2)] scale-105 hover:scale-110 hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]'
-                    : 'text-black/20 bg-black/[0.04] hover:bg-black/[0.08]',
-                )}
-              >
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </form>
-
-          {/* Quick try */}
-          <div
-            class="lp-fade-up flex items-center justify-center gap-5 text-[16px] text-[#1a1a1a]/30 mb-16"
-            style={{ animationDelay: '0.4s' }}
-          >
-            <span>Try:</span>
-            {['Wikipedia', 'Hacker News', 'GitHub'].map((name) => (
-              <button
-                key={name}
-                type="button"
-                onClick={() =>
-                  navigateTo(
-                    name === 'Wikipedia'
-                      ? 'https://en.wikipedia.org/wiki/Web_annotation'
-                      : name === 'Hacker News'
-                        ? 'https://news.ycombinator.com'
-                        : 'https://github.com',
-                  )
-                }
-                class="text-[#1a1a1a]/35 hover:text-[#1a1a1a]/70 transition-colors cursor-pointer bg-transparent border-none text-[16px] p-0 underline underline-offset-2 decoration-black/10 hover:decoration-black/30"
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Features grid */}
-        <section class="max-w-[900px] mx-auto px-6 pb-28">
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-12 sm:gap-y-16 gap-x-6 sm:gap-x-10 group/features">
-            {FEATURES.map((f, i) => (
-              <div
-                key={i}
-                class="lp-fade-up flex flex-col items-center text-center transition-opacity duration-200 group-hover/features:opacity-40 hover:!opacity-100"
-                style={{ animationDelay: `${0.5 + i * 0.07}s` }}
-              >
-                <div class="flex items-center justify-center w-20 h-20 rounded-2xl mb-5 transition-all duration-200 hover:bg-[#1a1a1a]/[0.06] text-[#1a1a1a]">
-                  <FeatureIcon d={f.d} />
-                </div>
-                <span class="text-[20px] font-extrabold text-[#1a1a1a] leading-tight tracking-[-0.02em] whitespace-pre-line">
-                  {f.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* SEO footer copy */}
-        <footer class="max-w-[520px] mx-auto px-6 pb-16 text-center">
-          <p class="text-[16px] text-[#1a1a1a]/25 leading-relaxed">
-            MarkLayer is a free, open-source web annotation tool. Annotate any webpage with drawings, highlights, and
-            comments — then share a link for real-time collaboration. No account needed.
-          </p>
-        </footer>
-
-        {/* Half-hidden watermark with gradient fade */}
-        <div class="relative overflow-hidden h-[clamp(80px,16vw,180px)]">
-          <p
-            class="text-center text-[clamp(140px,28vw,340px)] font-black tracking-[0.05em] leading-none select-none absolute inset-x-0 top-0"
-            style={{
-              background: 'linear-gradient(180deg, rgba(26,26,26,0.12) 0%, rgba(26,26,26,0) 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-            aria-hidden="true"
-          >
-            MarkLayer
-          </p>
-        </div>
-
-        {/* Animated collaboration cursors */}
-        <div class="hidden sm:block">
-          <FakeCursors />
-        </div>
-
-        {/* Comment overlay — click to place pins on LP */}
-        <div
-          class="fixed inset-0 z-[2147483646] overflow-hidden"
-          style={{
-            pointerEvents: showCommentCursor ? 'auto' : 'none',
-            cursor: showCommentCursor ? 'crosshair' : 'default',
-          }}
-          onClick={(e) => {
-            if (tool !== 'comment') return;
-            const x = e.clientX;
-            const y = e.clientY + (window.scrollY || 0);
-            commentPopover.value = { x, y };
-          }}
+      <div
+        class="min-h-screen flex flex-col items-center justify-center px-6 font-['Inter',system-ui,sans-serif] text-center"
+        style={{ background: 'var(--color-ml-bg)' }}
+      >
+        <Logo size={48} />
+        <h1 class="text-[24px] font-bold text-ml-fg mt-6 mb-2">Desktop only</h1>
+        <p class="text-[15px] text-ml-fg/50 max-w-[320px] leading-relaxed mb-8">
+          Annotation tools require a desktop browser. Open this link on your computer to view and collaborate.
+        </p>
+        <a
+          href="/"
+          class="px-5 py-2.5 rounded-xl bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline hover:bg-ml-btn-hover transition-colors"
         >
-          {comments.map((c) => (
-            <WebCommentPin key={c.id} op={c} scale={1} scrollY={window.scrollY || 0} />
-          ))}
-          {commentPopover.value && (
-            <WebCommentPopover
-              x={commentPopover.value.x}
-              y={commentPopover.value.y}
-              scale={1}
-              scrollY={window.scrollY || 0}
-              onClose={() => {
-                commentPopover.value = null;
-              }}
-            />
-          )}
-        </div>
-
-        {/* Selection highlights (landing) */}
-        <div class="fixed inset-0 z-[2147483645] pointer-events-none overflow-hidden">
-          {selections.value.map((op) => (
-            <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={window.scrollY || 0} />
-          ))}
-        </div>
-        {selectionPopover.value && (
-          <WebSelectionPopover
-            {...selectionPopover.value}
-            onClose={() => {
-              selectionPopover.value = null;
-            }}
-          />
-        )}
-
-        {/* Text tool overlay */}
-        <div
-          class="fixed inset-0 z-[2147483646]"
-          style={{
-            pointerEvents: showTextCursor ? 'auto' : 'none',
-            cursor: showTextCursor ? 'text' : 'default',
-          }}
-          onClick={(e) => {
-            if (tool !== 'text') return;
-            const x = e.clientX;
-            const y = e.clientY + (window.scrollY || 0);
-            textInput.value = { x, y };
-          }}
-        />
-        {textInput.value && (
-          <TextInputOverlay
-            x={textInput.value.x}
-            y={textInput.value.y}
-            scale={1}
-            scrollY={window.scrollY || 0}
-            onCommit={(text) => {
-              if (text && textInput.value) {
-                pushOp({
-                  id: nanoid(),
-                  tool: 'text',
-                  text,
-                  x: textInput.value.x,
-                  y: textInput.value.y,
-                  fontSize: Math.max(14, lineWidth.value * 6),
-                  color: color.value,
-                  lineWidth: lineWidth.value,
-                } as TextOp);
-              }
-              textInput.value = null;
-            }}
-          />
-        )}
-
-        {/* Drawing canvas overlay */}
-        <canvas
-          ref={canvasRef}
-          onMouseDown={onDown}
-          class="fixed inset-0 z-[2147483645]"
-          style={{
-            pointerEvents: showCanvas ? 'auto' : 'none',
-            cursor: showCanvas ? 'crosshair' : 'default',
-          }}
-        />
-
-        <div class="lp-toolbar-in hidden sm:block fixed bottom-5 left-1/2 z-[2147483646]">
-          <Toolbar />
-        </div>
-
-        {toasts.value.length > 0 && (
-          <div class="fixed top-12 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">
-            {toasts.value.map((t) => (
-              <div
-                key={t.id}
-                class={clsx(
-                  glass.surfaceSmall,
-                  glass.font,
-                  'px-4 py-2.5 text-xs font-medium animate-[fadeInDown_0.2s_ease-out]',
-                  t.type === 'error' ? 'text-red-300' : t.type === 'success' ? 'text-green-300' : 'text-white/70',
-                )}
-              >
-                {t.message}
-              </div>
-            ))}
-          </div>
-        )}
+          Back to home
+        </a>
       </div>
     );
   }
 
+  if (landing) {
+    return (
+      <>
+        <div
+          class="ml-force-light min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden"
+          style={{ background: 'var(--color-ml-bg)' }}
+        >
+          {/* Nav */}
+          <nav class="lp-fade-up flex items-center justify-between px-6 sm:px-10 py-5 max-w-[1100px] mx-auto">
+            <div class="flex items-center gap-2.5">
+              <Logo size={32} />
+              <span class="text-[20px] font-bold tracking-[-0.02em] text-ml-fg">MarkLayer</span>
+            </div>
+            <div class="flex items-center gap-4">
+              <a
+                href="https://chromewebstore.google.com"
+                target="_blank"
+                rel="noopener"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline hover:bg-ml-btn-hover transition-colors"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="4" />
+                  <line x1="21.17" y1="8" x2="12" y2="8" />
+                  <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
+                  <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
+                </svg>
+                <span class="hidden sm:inline">Chrome Extension</span>
+              </a>
+              <GithubLink dark />
+            </div>
+          </nav>
+
+          {/* Hero */}
+          <section class="text-center pt-16 sm:pt-24 pb-10 px-6">
+            <h1
+              class="lp-fade-up text-[clamp(44px,7.5vw,80px)] font-extrabold tracking-[-0.04em] leading-[1.05] text-ml-fg mb-8"
+              style={{ animationDelay: '0.1s' }}
+            >
+              <span class="relative inline-block">
+                Annotate
+                <span
+                  class="lp-underline-grow absolute -bottom-1 left-0 right-0 h-[0.18em] rounded-full opacity-50"
+                  style={{ background: '#F953C6' }}
+                />
+              </span>{' '}
+              any webpage,
+              <br />
+              together.
+            </h1>
+
+            <p
+              class="lp-fade-up text-[22px] text-ml-fg/40 mb-12 max-w-[520px] mx-auto leading-relaxed"
+              style={{ animationDelay: '0.2s' }}
+            >
+              Draw, highlight, comment and collaborate on any site in real-time. No sign-up required.
+            </p>
+
+            {isMobileDevice ? (
+              <div
+                class="lp-fade-up max-w-[520px] mx-auto mb-16 px-6 py-5 rounded-2xl bg-ml-input backdrop-blur-xl border border-ml-input-border shadow-[0_4px_24px_rgba(0,0,0,0.06)] text-center"
+                style={{ animationDelay: '0.3s' }}
+              >
+                <Monitor size={28} class="text-ml-fg/30 mx-auto mb-3" aria-hidden="true" />
+                <p class="text-[15px] font-semibold text-ml-fg/70 m-0 mb-1">Desktop only</p>
+                <p class="text-[13px] text-ml-fg/40 m-0">
+                  Drawing tools and annotation require a desktop browser. Open this page on your computer to get
+                  started.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* URL input — big, centered */}
+                <form
+                  class="lp-fade-up max-w-[520px] mx-auto mb-4"
+                  style={{ animationDelay: '0.3s' }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const input = (e.currentTarget.elements.namedItem('url') as HTMLInputElement).value.trim();
+                    if (!input) return;
+                    let url = input;
+                    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+                    navigateTo(url);
+                  }}
+                >
+                  <div class="lp-input-glow flex items-center gap-3 px-6 py-5 rounded-2xl bg-ml-input backdrop-blur-xl border border-ml-input-border shadow-[0_4px_24px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                    <Search size={18} class="text-ml-fg/20 shrink-0" aria-hidden="true" />
+                    <input
+                      name="url"
+                      type="text"
+                      placeholder="Paste any URL to annotate..."
+                      autocomplete="off"
+                      autofocus
+                      class="flex-1 bg-transparent border-none text-ml-fg text-[18px] placeholder:text-ml-fg/20 outline-none"
+                      onInput={(e) => {
+                        const v = (e.target as HTMLInputElement).value.trim();
+                        urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      class={clsx(
+                        'shrink-0 w-10 h-10 rounded-xl grid place-items-center border-none cursor-pointer transition-all duration-200',
+                        urlReady.value
+                          ? 'text-ml-btn-fg bg-ml-btn shadow-[0_2px_8px_rgba(0,0,0,0.2)] scale-105 hover:scale-110 hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]'
+                          : 'text-ml-fg/20 bg-ml-fg/[0.04] hover:bg-ml-fg/[0.08]',
+                      )}
+                    >
+                      <ArrowRight size={20} aria-hidden="true" />
+                    </button>
+                  </div>
+                </form>
+
+                {/* Quick try */}
+                <div
+                  class="lp-fade-up flex items-center justify-center gap-5 text-[16px] text-ml-fg/30 mb-16"
+                  style={{ animationDelay: '0.4s' }}
+                >
+                  <span>Try:</span>
+                  {['Wikipedia', 'Hacker News', 'GitHub'].map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() =>
+                        navigateTo(
+                          name === 'Wikipedia'
+                            ? 'https://en.wikipedia.org/wiki/Web_annotation'
+                            : name === 'Hacker News'
+                              ? 'https://news.ycombinator.com'
+                              : 'https://github.com',
+                        )
+                      }
+                      class="text-ml-fg/35 hover:text-ml-fg/70 transition-colors cursor-pointer bg-transparent border-none text-[16px] p-0 underline underline-offset-2 decoration-ml-fg/10 hover:decoration-ml-fg/30"
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* Features grid */}
+          <section class="max-w-[900px] mx-auto px-6 pb-28">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-12 sm:gap-y-16 gap-x-6 sm:gap-x-10 group/features">
+              {FEATURES.map((f, i) => (
+                <div
+                  key={i}
+                  class="lp-fade-up flex flex-col items-center text-center transition-opacity duration-200 group-hover/features:opacity-40 hover:!opacity-100"
+                  style={{ animationDelay: `${0.5 + i * 0.07}s` }}
+                >
+                  <div class="flex items-center justify-center w-20 h-20 rounded-2xl mb-5 transition-all duration-200 hover:bg-ml-btn/[0.06] text-ml-fg">
+                    <f.icon size={56} strokeWidth={1.75} aria-hidden="true" />
+                  </div>
+                  <span class="text-[20px] font-extrabold text-ml-fg leading-tight tracking-[-0.02em] whitespace-pre-line">
+                    {f.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* SEO footer copy */}
+          <footer class="max-w-[520px] mx-auto px-6 pb-16 text-center">
+            <p class="text-[16px] text-ml-fg/25 leading-relaxed">
+              MarkLayer is a free, open-source web annotation tool. Annotate any webpage with drawings, highlights, and
+              comments — then share a link for real-time collaboration. No account needed.
+            </p>
+          </footer>
+
+          {/* Half-hidden watermark with gradient fade */}
+          <div class="relative overflow-hidden h-[clamp(80px,16vw,180px)]">
+            <p
+              class="text-center text-[clamp(140px,28vw,340px)] font-black tracking-[0.05em] leading-none select-none absolute inset-x-0 top-0"
+              style={{
+                background:
+                  'linear-gradient(180deg, color-mix(in srgb, var(--color-ml-fg) 12%, transparent) 0%, transparent 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}
+              aria-hidden="true"
+            >
+              MarkLayer
+            </p>
+          </div>
+
+          {/* Comment overlay — click to place pins on LP */}
+          <div
+            class="fixed inset-0 z-[2147483646] overflow-hidden"
+            style={{
+              pointerEvents: showCommentCursor ? 'auto' : 'none',
+              cursor: showCommentCursor ? 'crosshair' : 'default',
+            }}
+            onClick={(e) => {
+              if (tool !== 'comment') return;
+              const x = e.clientX;
+              const y = e.clientY + (window.scrollY || 0);
+              commentPopover.value = { x, y };
+            }}
+          >
+            {comments.map((c) => (
+              <WebCommentPin key={c.id} op={c} scale={1} scrollY={window.scrollY || 0} />
+            ))}
+            {commentPopover.value && (
+              <WebCommentPopover
+                x={commentPopover.value.x}
+                y={commentPopover.value.y}
+                scale={1}
+                scrollY={window.scrollY || 0}
+                onClose={() => {
+                  commentPopover.value = null;
+                }}
+              />
+            )}
+          </div>
+
+          {/* Selection highlights (landing) */}
+          <div class="fixed inset-0 z-[2147483645] pointer-events-none overflow-hidden">
+            {selections.value.map((op) => (
+              <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={window.scrollY || 0} />
+            ))}
+          </div>
+          {selectionPopover.value && (
+            <WebSelectionPopover
+              {...selectionPopover.value}
+              onClose={() => {
+                selectionPopover.value = null;
+              }}
+            />
+          )}
+
+          {/* Text tool overlay */}
+          <div
+            class="fixed inset-0 z-[2147483646]"
+            style={{
+              pointerEvents: showTextCursor ? 'auto' : 'none',
+              cursor: showTextCursor ? 'text' : 'default',
+            }}
+            onClick={(e) => {
+              if (tool !== 'text') return;
+              const x = e.clientX;
+              const y = e.clientY + (window.scrollY || 0);
+              textInput.value = { x, y };
+            }}
+          />
+          {textInput.value && (
+            <TextInputOverlay
+              x={textInput.value.x}
+              y={textInput.value.y}
+              scale={1}
+              scrollY={window.scrollY || 0}
+              onCommit={(text) => {
+                if (text && textInput.value) {
+                  pushDeviceOp({
+                    id: nanoid(),
+                    tool: 'text',
+                    text,
+                    x: textInput.value.x,
+                    y: textInput.value.y,
+                    fontSize: Math.max(14, lineWidth.value * 6),
+                    color: color.value,
+                    lineWidth: lineWidth.value,
+                  } as TextOp);
+                }
+                textInput.value = null;
+              }}
+            />
+          )}
+
+          {/* Drawing canvas overlay */}
+          <canvas
+            ref={canvasRef}
+            onMouseDown={onDown}
+            class="fixed inset-0 z-[2147483645]"
+            style={{
+              pointerEvents: showCanvas ? 'auto' : 'none',
+              cursor: showCanvas ? 'crosshair' : 'default',
+            }}
+          />
+
+          <div class="lp-toolbar-in hidden sm:block fixed bottom-5 left-1/2 z-[2147483646]">
+            <Toolbar />
+          </div>
+
+          {toasts.value.length > 0 && (
+            <div class="fixed top-12 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">
+              {toasts.value.map((t) => (
+                <div
+                  key={t.id}
+                  class={clsx(
+                    glass.surfaceSmall,
+                    glass.font,
+                    'px-4 py-2.5 text-xs font-medium animate-[fadeInDown_0.2s_ease-out]',
+                    t.type === 'error'
+                      ? 'text-red-500'
+                      : t.type === 'success'
+                        ? 'text-green-500'
+                        : 'text-ml-glass-fg/70',
+                  )}
+                >
+                  {t.message}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <FakeCursors />
+      </>
+    );
+  }
+
   return (
-    <div class={clsx('h-screen flex flex-col bg-[#f5f5f5]', glass.font)}>
+    <div class={clsx('h-screen flex flex-col bg-ml-bg-viewer', glass.font)}>
       {/* Mobile gate — annotation tools need a desktop screen */}
-      <div class="md:hidden fixed inset-0 z-[2147483647] bg-[#f5f0e8] flex flex-col items-center justify-center px-8 text-center font-['Inter',system-ui,sans-serif]">
+      <div class="md:hidden fixed inset-0 z-[2147483647] bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Inter',system-ui,sans-serif]">
         <Logo size={48} />
-        <h2 class="text-[22px] font-bold text-[#1a1a1a] mt-6 mb-3 tracking-[-0.02em]">Desktop only</h2>
-        <p class="text-[16px] text-[#1a1a1a]/40 leading-relaxed max-w-[300px] mb-8">
+        <h2 class="text-[22px] font-bold text-ml-fg mt-6 mb-3 tracking-[-0.02em]">Desktop only</h2>
+        <p class="text-[16px] text-ml-fg/40 leading-relaxed max-w-[300px] mb-8">
           MarkLayer's annotation tools are designed for desktop screens. Open this link on your computer.
         </p>
-        <a href="/" class="px-5 py-2.5 rounded-xl bg-[#1a1a1a] text-white text-[14px] font-semibold no-underline">
+        <a href="/" class="px-5 py-2.5 rounded-xl bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline">
           Back to home
         </a>
       </div>
       {/* Top bar — uses same glass surface as toolbar */}
       <div class={clsx('flex items-center gap-3 px-4 h-[48px] !rounded-none z-50 shrink-0', glass.surface)}>
         {/* Logo */}
-        <a href="/" class="flex items-center gap-2 no-underline shrink-0 group">
+        <a
+          href="/"
+          class="flex items-center gap-2 no-underline shrink-0 group cursor-pointer rounded-lg px-2 py-1 -ml-2 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150"
+        >
           <Logo size={24} />
-          <span class="text-[14px] font-bold tracking-[-0.02em] text-white/70 group-hover:text-white transition-colors">
+          <span class="text-[14px] font-bold tracking-[-0.02em] text-ml-glass-fg/70 group-hover:text-ml-glass-fg transition-colors">
             MarkLayer
           </span>
         </a>
@@ -940,23 +1052,46 @@ export function App() {
         {/* Divider */}
         <div class={glass.sep} />
 
-        {/* URL display */}
-        <div class="flex-1 min-w-0 flex items-center gap-2 px-2">
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="text-white/30 shrink-0"
-            aria-hidden="true"
-          >
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-          </svg>
-          <span class="text-[13px] text-white/40 truncate">{pageUrl.value}</span>
+        {/* URL display — click to copy */}
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard.writeText(pageUrl.value).then(
+              () => toast('URL copied!', 'success'),
+              () => toast('Failed to copy', 'error'),
+            );
+          }}
+          class="flex-1 min-w-0 flex items-center gap-2 px-2 bg-transparent border-none cursor-pointer rounded-lg py-1
+                 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150"
+          title="Copy URL"
+        >
+          <Link size={16} class="text-ml-glass-fg/30 shrink-0" aria-hidden="true" />
+          <span class="text-[13px] text-ml-glass-fg/40 truncate text-left">{pageUrl.value}</span>
+        </button>
+
+        {/* Divider */}
+        <div class={glass.sep} />
+
+        {/* Device viewport picker */}
+        <div class="flex items-center gap-0.5 shrink-0">
+          {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => (deviceMode.value = mode)}
+              class={clsx(
+                'w-8 h-8 rounded-lg grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+                deviceMode.value === mode
+                  ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
+                  : 'bg-transparent text-ml-glass-fg/35 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
+              )}
+              title={`${mode.charAt(0).toUpperCase() + mode.slice(1)} viewport`}
+            >
+              {mode === 'desktop' && <Monitor size={16} aria-hidden="true" />}
+              {mode === 'tablet' && <Tablet size={16} aria-hidden="true" />}
+              {mode === 'mobile' && <Smartphone size={16} aria-hidden="true" />}
+            </button>
+          ))}
         </div>
 
         {/* Divider */}
@@ -971,7 +1106,7 @@ export function App() {
                 .map((p) => (
                   <div
                     key={p.id}
-                    class="w-6 h-6 rounded-full text-white text-[9px] font-bold grid place-items-center border-[2px] border-white/10 shadow-sm"
+                    class="w-6 h-6 rounded-full text-white text-[9px] font-bold grid place-items-center border-[2px] border-ml-glass-fg/10 shadow-sm"
                     style={{ background: p.color }}
                     title={p.name}
                   >
@@ -982,21 +1117,44 @@ export function App() {
                   </div>
                 ))}
               {peers.value.size > 5 && (
-                <div class="w-6 h-6 rounded-full bg-white/[0.1] text-white/40 text-[9px] font-bold grid place-items-center border-[2px] border-white/10">
+                <div class="w-6 h-6 rounded-full bg-ml-glass-accent/[0.1] text-ml-glass-fg/40 text-[9px] font-bold grid place-items-center border-[2px] border-ml-glass-fg/10">
                   +{peers.value.size - 5}
                 </div>
               )}
             </div>
           )}
+          {/* User avatar + name — click to edit */}
+          <div class="flex items-center gap-1.5">
+            <div
+              class="w-6 h-6 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0 border-[2px] border-ml-glass-fg/10 shadow-sm"
+              style={{ background: localUser.color }}
+            >
+              {localUser.name
+                .split(' ')
+                .map((w) => w[0])
+                .join('')}
+            </div>
+            <input
+              type="text"
+              defaultValue={localUser.name}
+              maxLength={24}
+              class="w-[90px] bg-transparent border-none text-[11px] text-ml-glass-fg/50 font-medium outline-none truncate px-1 py-0.5 rounded hover:bg-ml-glass-accent/[0.06] focus:bg-ml-glass-accent/[0.08] focus:text-ml-glass-fg/80 cursor-text"
+              title="Click to edit your name"
+              onBlur={(e) => setUserName((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              }}
+            />
+          </div>
           {/* Connection indicator */}
           <div class="flex items-center gap-1.5 mr-0.5">
             <span
               class={clsx(
                 'w-2 h-2 rounded-full shrink-0',
-                connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-white/20',
+                connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-ml-glass-accent/20',
               )}
             />
-            <span class="text-white/35 text-[11px] font-medium tabular-nums">
+            <span class="text-ml-glass-fg/35 text-[11px] font-medium tabular-nums">
               {connected.value ? `${peerCount.value} online` : 'offline'}
             </span>
           </div>
@@ -1007,24 +1165,12 @@ export function App() {
             class={clsx(
               'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
               showAnnotationPanel.value
-                ? 'bg-white/[0.14] text-white shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                : 'bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]',
+                ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
+                : 'bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
             )}
             title="Annotations panel"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+            <MessageSquare size={16} aria-hidden="true" />
           </button>
           {/* Share session */}
           {!readonly && (
@@ -1034,192 +1180,185 @@ export function App() {
                 onClick={() => doShare()}
                 disabled={sharing.value}
                 class={clsx(
-                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]',
+                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
                   sharing.value && 'opacity-50 pointer-events-none',
                 )}
                 title="Copy editable link"
               >
-                {sharing.value ? (
-                  <Spinner />
-                ) : (
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13" />
-                  </svg>
-                )}
+                {sharing.value ? <Spinner /> : <Upload size={16} aria-hidden="true" />}
               </button>
               <button
                 type="button"
                 onClick={() => doShare({ readonly: true, expiresIn: 7 * 24 * 60 * 60 })}
                 disabled={sharing.value}
                 class={clsx(
-                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-white/45 hover:text-white hover:bg-white/[0.1]',
+                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
                   sharing.value && 'opacity-50 pointer-events-none',
                 )}
                 title="Copy read-only link (expires in 7 days)"
               >
-                {sharing.value ? (
-                  <Spinner />
-                ) : (
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                  </svg>
-                )}
+                {sharing.value ? <Spinner /> : <Lock size={16} aria-hidden="true" />}
               </button>
             </>
           )}
+          {/* Theme toggle */}
+          <button
+            type="button"
+            onClick={(e) => {
+              cycleTheme();
+              (e.currentTarget as HTMLElement).blur();
+            }}
+            class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
+            title={`Theme: ${theme.value}`}
+          >
+            {theme.value === 'dark' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
+          </button>
         </div>
       </div>
 
       {/* Viewer */}
-      <div id="viewer" ref={viewerRef} class="flex-1 relative overflow-hidden">
-        <iframe
-          ref={frameRef}
-          title="Annotated page"
-          src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
-          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-          class={clsx(
-            'w-full h-full border-none bg-white',
-            (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
-          )}
-        />
-
-        <canvas
-          ref={canvasRef}
-          onMouseDown={onDown}
-          class="absolute inset-0"
-          style={{
-            pointerEvents: showCanvas ? 'auto' : 'none',
-            cursor: showCanvas ? 'crosshair' : 'default',
-          }}
-        />
-
-        <CursorLayer scale={scale.value} scrollY={iframeScrollY.value} />
-
+      <div
+        class={clsx(
+          'flex-1 relative overflow-hidden',
+          deviceMode.value !== 'desktop' && 'flex items-stretch justify-center bg-ml-bg-device',
+        )}
+      >
         <div
-          class="absolute inset-0 overflow-hidden"
-          style={{
-            pointerEvents: showCommentCursor ? 'auto' : 'none',
-            cursor: showCommentCursor ? 'crosshair' : 'default',
-          }}
-          onClick={(e) => {
-            if (tool !== 'comment') return;
-            const viewer = viewerRef.current;
-            if (!viewer) return;
-            const r = viewer.getBoundingClientRect();
-            const s = scale.value;
-            const x = (e.clientX - r.left) / s;
-            const y = (e.clientY - r.top) / s + iframeScrollY.value / s;
-            commentPopover.value = { x, y };
-          }}
+          id="viewer"
+          ref={viewerRef}
+          class={clsx(
+            'relative h-full',
+            deviceMode.value === 'desktop'
+              ? 'w-full overflow-hidden'
+              : 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)] bg-white',
+          )}
+          style={
+            deviceMode.value !== 'desktop' ? { width: DEVICE_WIDTHS[deviceMode.value], maxWidth: '100%' } : undefined
+          }
         >
-          {comments.map((c) => (
-            <WebCommentPin key={c.id} op={c} scale={scale.value} scrollY={iframeScrollY.value} />
-          ))}
+          {/* Inner container — locked at reference width, CSS-transformed to fit viewer */}
+          <div
+            ref={innerRef}
+            class="absolute top-0 left-0 will-change-transform"
+            style={{
+              width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
+              height: `${100 / cssScale.value}%`,
+              transform: cssScale.value !== 1 ? `scale(${cssScale.value})` : undefined,
+              transformOrigin: 'top left',
+            }}
+          >
+            <iframe
+              ref={frameRef}
+              title="Annotated page"
+              src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              class={clsx(
+                'w-full h-full border-none bg-white',
+                (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
+              )}
+            />
+
+            <canvas
+              ref={canvasRef}
+              onMouseDown={onDown}
+              class="absolute inset-0"
+              style={{
+                pointerEvents: showCanvas ? 'auto' : 'none',
+                cursor: showCanvas ? 'crosshair' : 'default',
+              }}
+            />
+
+            <CursorLayer scale={1} scrollY={iframeScrollY.value} />
+
+            <div
+              class="absolute inset-0"
+              style={{
+                pointerEvents: showCommentCursor ? 'auto' : 'none',
+                cursor: showCommentCursor ? 'crosshair' : 'default',
+              }}
+              onClick={(e) => {
+                if (tool !== 'comment') return;
+                commentPopover.value = canvasCoords(e);
+              }}
+            >
+              {comments.filter(opMatchesDevice).map((c) => (
+                <WebCommentPin key={c.id} op={c} scale={1} scrollY={iframeScrollY.value} />
+              ))}
+            </div>
+
+            {/* Selection highlights */}
+            <div class="absolute inset-0 pointer-events-none overflow-hidden">
+              {selections.value.filter(opMatchesDevice).map((op) => (
+                <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={iframeScrollY.value} />
+              ))}
+            </div>
+
+            {/* Text tool overlay */}
+            <div
+              class="absolute inset-0"
+              style={{
+                pointerEvents: showTextCursor ? 'auto' : 'none',
+                cursor: showTextCursor ? 'text' : 'default',
+              }}
+              onClick={(e) => {
+                if (tool !== 'text') return;
+                textInput.value = canvasCoords(e);
+              }}
+            />
+            {textInput.value && (
+              <TextInputOverlay
+                x={textInput.value.x}
+                y={textInput.value.y}
+                scale={1}
+                scrollY={iframeScrollY.value}
+                onCommit={(text) => {
+                  if (text && textInput.value) {
+                    pushDeviceOp({
+                      id: nanoid(),
+                      tool: 'text',
+                      text,
+                      x: textInput.value.x,
+                      y: textInput.value.y,
+                      fontSize: Math.max(14, lineWidth.value * 6),
+                      color: color.value,
+                      lineWidth: lineWidth.value,
+                    } as TextOp);
+                  }
+                  textInput.value = null;
+                }}
+              />
+            )}
+          </div>
+
+          {/* Comment popover — fixed position, outside transform container */}
           {commentPopover.value && (
             <WebCommentPopover
               x={commentPopover.value.x}
               y={commentPopover.value.y}
-              scale={scale.value}
+              scale={cssScale.value}
               scrollY={iframeScrollY.value}
               onClose={() => {
                 commentPopover.value = null;
               }}
             />
           )}
+
+          {/* Selection popover — fixed position, outside transform container */}
+          {selectionPopover.value && (
+            <WebSelectionPopover
+              {...selectionPopover.value}
+              onClose={() => {
+                selectionPopover.value = null;
+              }}
+            />
+          )}
+
+          {/* Annotation sidebar panel (desktop: overlay inside viewer) */}
+          {deviceMode.value === 'desktop' && <AnnotationPanel onScrollTo={scrollToAnnotation} />}
         </div>
 
-        {/* Selection highlights */}
-        <div class="absolute inset-0 pointer-events-none overflow-hidden">
-          {selections.value.map((op) => (
-            <WebSelectionHighlight key={op.id} op={op} scale={scale.value} scrollY={iframeScrollY.value} />
-          ))}
-        </div>
-        {selectionPopover.value && (
-          <WebSelectionPopover
-            {...selectionPopover.value}
-            onClose={() => {
-              selectionPopover.value = null;
-            }}
-          />
-        )}
-
-        {/* Text tool overlay */}
-        <div
-          class="absolute inset-0"
-          style={{
-            pointerEvents: showTextCursor ? 'auto' : 'none',
-            cursor: showTextCursor ? 'text' : 'default',
-          }}
-          onClick={(e) => {
-            if (tool !== 'text') return;
-            const viewer = viewerRef.current;
-            if (!viewer) return;
-            const r = viewer.getBoundingClientRect();
-            const s = scale.value;
-            const x = (e.clientX - r.left) / s;
-            const y = (e.clientY - r.top) / s + iframeScrollY.value / s;
-            textInput.value = { x, y };
-          }}
-        />
-        {textInput.value && (
-          <TextInputOverlay
-            x={textInput.value.x}
-            y={textInput.value.y}
-            scale={scale.value}
-            scrollY={iframeScrollY.value}
-            onCommit={(text) => {
-              if (text && textInput.value) {
-                pushOp({
-                  id: nanoid(),
-                  tool: 'text',
-                  text,
-                  x: textInput.value.x,
-                  y: textInput.value.y,
-                  fontSize: Math.max(14, lineWidth.value * 6),
-                  color: color.value,
-                  lineWidth: lineWidth.value,
-                } as TextOp);
-              }
-              textInput.value = null;
-            }}
-          />
-        )}
-
-        {/* Annotation sidebar panel */}
-        <AnnotationPanel
-          onScrollTo={(_x, y) => {
-            // Scroll the iframe to bring the annotation into view
-            try {
-              const win = frameRef.current?.contentWindow;
-              if (win) {
-                win.scrollTo({ top: Math.max(0, y - 200), behavior: 'smooth' });
-              }
-            } catch {
-              /* cross-origin */
-            }
-          }}
-        />
+        {/* Annotation sidebar panel (tablet/mobile: docked beside viewer) */}
+        {deviceMode.value !== 'desktop' && <AnnotationPanel docked onScrollTo={scrollToAnnotation} />}
       </div>
 
       {!readonly && <Toolbar />}
@@ -1232,22 +1371,8 @@ export function App() {
             glass.font,
           )}
         >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="text-white/40"
-            aria-hidden="true"
-          >
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-          <span class="text-[12px] text-white/50 font-medium">View-only mode</span>
+          <Lock size={14} class="text-ml-glass-fg/40" aria-hidden="true" />
+          <span class="text-[12px] text-ml-glass-fg/50 font-medium">View-only mode</span>
         </div>
       )}
 
@@ -1258,7 +1383,7 @@ export function App() {
               key={t.id}
               class={`${glass.surfaceSmall} ${glass.font} px-4 py-2.5 text-xs font-medium
                       animate-[fadeInDown_0.2s_ease-out]
-                      ${t.type === 'error' ? 'text-red-300' : t.type === 'success' ? 'text-green-300' : 'text-white/70'}`}
+                      ${t.type === 'error' ? 'text-red-500' : t.type === 'success' ? 'text-green-500' : 'text-ml-glass-fg/70'}`}
             >
               {t.message}
             </div>
@@ -1272,12 +1397,7 @@ export function App() {
 /* ─── Shared components ─── */
 
 function Spinner() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" class="animate-spin" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" opacity="0.25" />
-      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-    </svg>
-  );
+  return <Loader2 size={16} class="animate-spin" aria-hidden="true" />;
 }
 
 let logoIdx = 0;
@@ -1312,8 +1432,8 @@ function GithubLink({ dark }: { dark?: boolean }) {
       rel="noopener"
       class={
         dark
-          ? 'text-black/25 hover:text-black/50 transition-colors no-underline'
-          : 'text-white/25 hover:text-white/50 transition-colors no-underline'
+          ? 'text-ml-fg/25 hover:text-ml-fg/50 transition-colors no-underline'
+          : 'text-ml-glass-fg/25 hover:text-ml-glass-fg/50 transition-colors no-underline'
       }
     >
       <span class="sr-only">GitHub</span>
@@ -1326,49 +1446,16 @@ function GithubLink({ dark }: { dark?: boolean }) {
 
 /* ─── Landing page (Klack-inspired) ─── */
 
-const FEATURES = [
-  {
-    label: 'Drawing\ntools',
-    d: 'M12 19l7-7 3 3-7 7-3-3z M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z M2 2l7.586 7.586 M11 13a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
-  },
-  {
-    label: 'Real-time\ncollaboration',
-    d: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75',
-  },
-  {
-    label: 'Shareable\nlinks',
-    d: 'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71 M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
-  },
-  { label: 'Threaded\ncomments', d: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
-  { label: 'No sign-up\nrequired', d: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2 M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z' },
-  {
-    label: 'Private\nby default',
-    d: 'M3 13a2 2 0 0 0 0 0h0a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7z M7 11V7a5 5 0 0 1 10 0v4',
-  },
-  {
-    label: 'Browser\nextension',
-    d: 'M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z',
-  },
-  { label: 'Free &\nopen source', d: 'M16 18l6-6-6-6 M8 6l-6 6 6 6' },
-] as const;
-
-function FeatureIcon({ d }: { d: string }) {
-  return (
-    <svg
-      width="56"
-      height="56"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.75"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      aria-hidden="true"
-    >
-      <path d={d} />
-    </svg>
-  );
-}
+const FEATURES: { label: string; icon: LucideIcon }[] = [
+  { label: 'Drawing\ntools', icon: PenTool },
+  { label: 'Real-time\ncollaboration', icon: Users },
+  { label: 'Shareable\nlinks', icon: Link },
+  { label: 'Threaded\ncomments', icon: MessageSquare },
+  { label: 'No sign-up\nrequired', icon: User },
+  { label: 'Private\nby default', icon: Lock },
+  { label: 'Browser\nextension', icon: Puzzle },
+  { label: 'Free &\nopen source', icon: Code },
+];
 
 function TextInputOverlay({
   x,

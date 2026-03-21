@@ -1,8 +1,9 @@
 import { glass } from '@ext/lib/glass';
-import { color, commentCounter, getCommentMeta, lineWidth, localUser, pushOp } from '@ext/lib/state';
+import { color, commentCounter, getCommentMeta, lineWidth, localUser } from '@ext/lib/state';
 import { clsx } from 'clsx';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
+import { pushDeviceOp } from './App';
 
 interface Props {
   x: number;
@@ -23,7 +24,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
   const commit = (save: boolean) => {
     const txt = taRef.current?.value.trim();
     if (save && txt) {
-      pushOp({
+      pushDeviceOp({
         id: nanoid(),
         tool: 'comment' as const,
         num,
@@ -41,9 +42,9 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
     onClose();
   };
 
-  // Position in viewport coords
+  // Position in viewport coords — convert document-space (x,y) through CSS scale
   const vx = x * s;
-  const vy = y * s - scrollY;
+  const vy = (y - scrollY) * s;
   const left = Math.min(vx + 16, innerWidth - 300);
   const top = vy + 24 > innerHeight - 200 ? Math.max(4, vy - 200) : vy + 16;
 
@@ -61,7 +62,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
         >
           {num}
         </div>
-        <span class="text-xs text-white/45 font-medium tracking-[0.01em] flex-1">New comment</span>
+        <span class="text-xs text-ml-glass-fg/45 font-medium tracking-[0.01em] flex-1">New comment</span>
       </div>
 
       <div class={clsx(glass.divider, 'mx-3.5')} />
@@ -81,15 +82,15 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
             }
           }}
           class={clsx(
-            'w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5',
-            'text-white/90 text-[13px] leading-relaxed',
+            'w-full bg-ml-glass-accent/[0.04] border border-ml-glass-fg/[0.08] rounded-xl px-3.5 py-2.5',
+            'text-ml-glass-fg/90 text-[13px] leading-relaxed',
             'resize-none outline-none min-h-10 max-h-[140px]',
             'caret-[oklch(0.65_0.15_300)]',
             'transition-all duration-150',
             'focus:border-[oklch(0.65_0.15_300/0.35)]',
             'focus:shadow-[0_0_0_3px_oklch(0.65_0.15_300/0.06),inset_0_0.5px_0_oklch(1_0_0/0.04)]',
-            'focus:bg-white/[0.06]',
-            'placeholder:text-white/18',
+            'focus:bg-ml-glass-accent/[0.06]',
+            'placeholder:text-ml-glass-fg/18',
             glass.font,
           )}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' } as Record<string, string>}
@@ -101,12 +102,12 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
           <kbd
-            class="text-[10px] text-white/25 bg-white/[0.05] border border-white/[0.07]
+            class="text-[10px] text-ml-glass-fg/25 bg-ml-glass-accent/[0.05] border border-ml-glass-fg/[0.07]
                       rounded-md px-1.5 py-0.5 font-mono leading-none"
           >
             Esc
           </kbd>
-          <span class="text-[10px] text-white/20">cancel</span>
+          <span class="text-[10px] text-ml-glass-fg/20">cancel</span>
         </div>
         <button
           type="button"

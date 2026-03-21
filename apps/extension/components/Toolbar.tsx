@@ -9,6 +9,7 @@ import {
   onExportPng,
   redo,
   SHORTCUTS,
+  setColor,
   showShareDialog,
   TOOLS,
   undo,
@@ -25,10 +26,10 @@ function Tooltip({ text, shortcut }: { text: string; shortcut?: string }) {
                 transition-all duration-150 ease-out z-10"
     >
       <div class={`${glass.surfaceSmall} !rounded-[10px] px-2.5 py-1.5 flex items-center gap-2 whitespace-nowrap`}>
-        <span class="text-[11px] text-white/70 font-medium tracking-[0.01em]">{text}</span>
+        <span class="text-[11px] text-ml-glass-fg/70 font-medium tracking-[0.01em]">{text}</span>
         {shortcut && (
           <kbd
-            class="text-[10px] text-white/35 bg-white/[0.06] border border-white/[0.08]
+            class="text-[10px] text-ml-glass-fg/35 bg-ml-glass-accent/[0.06] border border-ml-glass-fg/[0.08]
                       rounded-[5px] px-1.5 py-0.5 font-mono leading-none"
           >
             {shortcut}
@@ -63,14 +64,14 @@ function ToolBtn({
       class={`group relative appearance-none border-none p-2 rounded-xl cursor-pointer
               leading-none inline-flex place-items-center min-w-[36px] min-h-[36px]
               transition-all duration-150 ease-out
-              hover:bg-white/[0.1] hover:shadow-[inset_0_0.5px_0_oklch(1_0_0/0.06)]
-              active:bg-white/[0.05] active:scale-[0.94]
+              hover:bg-ml-glass-fg/[0.08] hover:shadow-[inset_0_0.5px_0_var(--ml-glass-border)]
+              active:bg-ml-glass-fg/[0.04] active:scale-[0.94]
               ${
                 active
                   ? accent
-                    ? 'shadow-[inset_0_0_0_1px_oklch(1_0_0/0.08),inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                    : 'bg-white/[0.14] text-white shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                  : 'bg-transparent text-white/45'
+                    ? 'shadow-[inset_0_0_0_1px_var(--ml-glass-border),inset_0_0.5px_0_var(--ml-glass-border)]'
+                    : 'bg-ml-glass-fg/[0.1] text-ml-glass-fg shadow-[inset_0_0.5px_0_var(--ml-glass-border)]'
+                  : 'bg-transparent text-ml-glass-fg/45'
               }`}
       style={
         active && accent && accentColor
@@ -167,9 +168,10 @@ export function Toolbar() {
   return (
     <div
       ref={tbRef}
-      class={`fixed bottom-5 left-1/2 -translate-x-1/2 z-[2147483646] select-none
+      class={`fixed bottom-5 left-1/2 z-[2147483646] select-none
               ${glass.surface} ${glass.font}
-              p-2.5 text-white/80 max-w-[calc(100dvw-24px)] w-max`}
+              p-2.5 text-ml-glass-fg/80 max-w-[calc(100dvw-24px)] w-max`}
+      style={{ animation: 'toolbarIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both' }}
     >
       <div class="flex flex-col gap-1.5">
         {/* Main row */}
@@ -199,8 +201,8 @@ export function Toolbar() {
               <button
                 type="button"
                 onClick={() => setShowColors(!showColors)}
-                class="w-6 h-6 rounded-full border-2 border-white/[0.12] cursor-pointer
-                       transition-all duration-150 hover:scale-110 hover:border-white/25"
+                class="w-6 h-6 rounded-full border-2 border-ml-glass-fg/[0.12] cursor-pointer
+                       transition-all duration-150 hover:scale-110 hover:border-ml-glass-fg/25"
                 style={{ background: color.value }}
               />
               {showColors && (
@@ -213,15 +215,15 @@ export function Toolbar() {
                       type="button"
                       key={c}
                       onClick={() => {
-                        color.value = c;
+                        setColor(c);
                         setShowColors(false);
                       }}
                       class={`w-5 h-5 rounded-full border-2 cursor-pointer transition-all duration-150
                               hover:scale-125
                               ${
                                 color.value === c
-                                  ? 'border-white/60 scale-110'
-                                  : 'border-white/[0.08] hover:border-white/25'
+                                  ? 'border-ml-glass-fg/60 scale-110'
+                                  : 'border-ml-glass-fg/[0.08] hover:border-ml-glass-fg/25'
                               }`}
                       style={{ background: c }}
                     />
@@ -234,10 +236,10 @@ export function Toolbar() {
               <select
                 value={lineWidth.value}
                 onChange={(e) => (lineWidth.value = +(e.target as HTMLSelectElement).value)}
-                class={`h-7 px-2 rounded-lg border border-white/[0.08] bg-white/[0.05]
-                        text-white/50 text-[11px] font-medium cursor-pointer outline-none
+                class={`h-7 px-2 rounded-lg border border-ml-glass-fg/[0.08] bg-ml-glass-accent/[0.05]
+                        text-ml-glass-fg/50 text-[11px] font-medium cursor-pointer outline-none
                         transition-all duration-150
-                        hover:border-white/[0.16] hover:bg-white/[0.08] hover:text-white/80
+                        hover:border-ml-glass-fg/[0.16] hover:bg-ml-glass-accent/[0.08] hover:text-ml-glass-fg/80
                         ${glass.font}`}
               >
                 {LINE_WIDTHS.map((v) => (
@@ -264,9 +266,9 @@ export function Toolbar() {
           <div
             onMouseDown={startDrag}
             onTouchStart={startDrag}
-            class="w-3.5 h-6 cursor-grab shrink-0 opacity-[0.12] mx-1
-                   hover:opacity-[0.35] transition-opacity duration-200
-                   bg-[radial-gradient(circle,oklch(1_0_0/0.9)_0.8px,transparent_0.8px)]
+            class="w-3.5 h-6 cursor-grab shrink-0 opacity-30 mx-1
+                   hover:opacity-50 transition-opacity duration-200
+                   bg-[radial-gradient(circle,var(--ml-glass-grip)_0.8px,transparent_0.8px)]
                    [background-size:5px_5px] bg-center bg-repeat"
             style={dragging ? { cursor: 'grabbing' } : undefined}
           />
@@ -275,9 +277,9 @@ export function Toolbar() {
           <button
             type="button"
             onClick={() => setCollapsed(!collapsed)}
-            class="appearance-none bg-transparent border-none text-white/20 cursor-pointer p-1.5
+            class="appearance-none bg-transparent border-none text-ml-glass-fg/20 cursor-pointer p-1.5
                    inline-flex place-items-center rounded-lg transition-all duration-150
-                   hover:text-white/50 hover:bg-white/[0.07]"
+                   hover:text-ml-glass-fg/50 hover:bg-ml-glass-accent/[0.07]"
           >
             <Icon name={collapsed ? 'chevDown' : 'chevUp'} size={12} />
           </button>
@@ -286,7 +288,7 @@ export function Toolbar() {
         {/* Actions row */}
         {!collapsed && (
           <div
-            class={`flex items-center gap-0.5 pt-1.5 ${glass.divider.replace('h-px', 'border-t border-white/[0.04]')}`}
+            class={`flex items-center gap-0.5 pt-1.5 ${glass.divider.replace('h-px', 'border-t border-ml-glass-fg/[0.04]')}`}
           >
             {acts.map((a) => (
               <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.label} />

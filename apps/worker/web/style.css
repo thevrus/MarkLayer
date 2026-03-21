@@ -3,6 +3,27 @@
 @source "../../extension/lib";
 @source "./";
 
+@theme {
+  /* Page surfaces */
+  --color-ml-bg: #f5f0e8;
+  --color-ml-bg-viewer: #f5f5f5;
+  --color-ml-bg-device: #e8e5e0;
+  --color-ml-fg: #1a1a1a;
+  --color-ml-btn: #1a1a1a;
+  --color-ml-btn-hover: #333;
+  --color-ml-btn-fg: #fff;
+  --color-ml-card: oklch(1 0 0 / 0.3);
+  --color-ml-card-border: oklch(0.1 0 0 / 0.06);
+  --color-ml-input: oklch(1 0 0 / 0.85);
+  --color-ml-input-border: oklch(0 0 0 / 0.12);
+  /* Glass overlay surfaces (toolbar, panels, popovers) */
+  --color-ml-glass-fg: #1a1a1a;
+  --color-ml-glass-accent: oklch(0 0 0 / 0.06);
+  --color-ml-glass-muted: oklch(0 0 0 / 0.03);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   *,
   *::before,
@@ -11,15 +32,126 @@
     box-sizing: border-box;
   }
 
+  :root {
+    color-scheme: light dark;
+    /* Glass surface vars (not in @theme — used as raw CSS in glass.ts) */
+    --ml-glass-bg: oklch(0.96 0.003 280 / 0.97);
+    --ml-glass-bg-small: oklch(0.96 0.003 280 / 0.98);
+    --ml-glass-border: oklch(0 0 0 / 0.16);
+    --ml-glass-shadow:
+      0 0 0 0.5px oklch(0 0 0 / 0.12), 0 8px 40px oklch(0 0 0 / 0.1),
+      0 24px 60px oklch(0 0 0 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.6),
+      inset 0 -0.5px 0 oklch(0 0 0 / 0.05);
+    --ml-glass-shadow-small:
+      0 0 0 0.5px oklch(0 0 0 / 0.1), 0 6px 24px oklch(0 0 0 / 0.08), 0 16px 48px oklch(0 0 0 / 0.05),
+      inset 0 0.5px 0 oklch(1 0 0 / 0.5);
+    --ml-glass-sep: oklch(0 0 0 / 0.12);
+    --ml-glass-divider: oklch(0 0 0 / 0.09);
+    --ml-glass-grip: oklch(0 0 0 / 0.9);
+  }
+
+  /* Dark: system preference OR manual .dark class */
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light) {
+      --color-ml-bg: #111110;
+      --color-ml-bg-viewer: #1a1a1a;
+      --color-ml-bg-device: #0e0e0e;
+      --color-ml-fg: #e8e5e0;
+      --color-ml-btn: #e8e5e0;
+      --color-ml-btn-hover: #d4d0ca;
+      --color-ml-btn-fg: #111;
+      --color-ml-card: oklch(1 0 0 / 0.04);
+      --color-ml-card-border: oklch(1 0 0 / 0.08);
+      --color-ml-input: oklch(1 0 0 / 0.06);
+      --color-ml-input-border: oklch(1 0 0 / 0.1);
+      --color-ml-glass-fg: #fff;
+      --color-ml-glass-accent: oklch(1 0 0 / 0.12);
+      --color-ml-glass-muted: oklch(1 0 0 / 0.06);
+      --ml-glass-bg: oklch(0.15 0.012 280 / 0.96);
+      --ml-glass-bg-small: oklch(0.14 0.012 280 / 0.97);
+      --ml-glass-border: oklch(1 0 0 / 0.22);
+      --ml-glass-shadow:
+        0 0 0 0.5px oklch(0 0 0 / 0.35), 0 8px 40px oklch(0 0 0 / 0.3),
+        0 24px 60px oklch(0 0 0 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.18),
+        inset 0 -0.5px 0 oklch(0 0 0 / 0.1);
+      --ml-glass-shadow-small:
+        0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
+        inset 0 0.5px 0 oklch(1 0 0 / 0.15);
+      --ml-glass-sep: oklch(1 0 0 / 0.12);
+      --ml-glass-divider: oklch(1 0 0 / 0.1);
+      --ml-glass-grip: oklch(1 0 0 / 0.9);
+    }
+  }
+
+  :root.dark {
+    --color-ml-bg: #111110;
+    --color-ml-bg-viewer: #1a1a1a;
+    --color-ml-bg-device: #0e0e0e;
+    --color-ml-fg: #e8e5e0;
+    --color-ml-btn: #e8e5e0;
+    --color-ml-btn-hover: #d4d0ca;
+    --color-ml-btn-fg: #111;
+    --color-ml-card: oklch(1 0 0 / 0.04);
+    --color-ml-card-border: oklch(1 0 0 / 0.08);
+    --color-ml-input: oklch(1 0 0 / 0.06);
+    --color-ml-input-border: oklch(1 0 0 / 0.1);
+    --color-ml-glass-fg: #fff;
+    --color-ml-glass-accent: oklch(1 0 0 / 0.12);
+    --color-ml-glass-muted: oklch(1 0 0 / 0.06);
+    --ml-glass-bg: oklch(0.15 0.012 280 / 0.96);
+    --ml-glass-bg-small: oklch(0.14 0.012 280 / 0.97);
+    --ml-glass-border: oklch(1 0 0 / 0.22);
+    --ml-glass-shadow:
+      0 0 0 0.5px oklch(0 0 0 / 0.35), 0 8px 40px oklch(0 0 0 / 0.3),
+      0 24px 60px oklch(0 0 0 / 0.18), inset 0 1px 0 oklch(1 0 0 / 0.18),
+      inset 0 -0.5px 0 oklch(0 0 0 / 0.1);
+    --ml-glass-shadow-small:
+      0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
+      inset 0 0.5px 0 oklch(1 0 0 / 0.15);
+    --ml-glass-sep: oklch(1 0 0 / 0.12);
+    --ml-glass-divider: oklch(1 0 0 / 0.1);
+    --ml-glass-grip: oklch(1 0 0 / 0.9);
+  }
+
   body {
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
-    background: #fff;
-    color: #111;
+    background: var(--color-ml-bg);
+    color: var(--color-ml-fg);
     -webkit-font-smoothing: antialiased;
   }
 
   #app {
     min-height: 100vh;
+  }
+
+  /* Force light theme on landing page regardless of system/manual dark mode */
+  .ml-force-light,
+  .ml-force-light * {
+    --color-ml-bg: #f5f0e8;
+    --color-ml-fg: #1a1a1a;
+    --color-ml-btn: #1a1a1a;
+    --color-ml-btn-hover: #333;
+    --color-ml-btn-fg: #fff;
+    --color-ml-card: oklch(1 0 0 / 0.3);
+    --color-ml-card-border: oklch(0.1 0 0 / 0.06);
+    --color-ml-input: oklch(1 0 0 / 0.85);
+    --color-ml-input-border: oklch(0 0 0 / 0.12);
+    --color-ml-glass-fg: #1a1a1a;
+    --color-ml-glass-accent: oklch(0 0 0 / 0.06);
+    --color-ml-glass-muted: oklch(0 0 0 / 0.03);
+    --ml-glass-bg: oklch(0.96 0.003 280 / 0.97);
+    --ml-glass-bg-small: oklch(0.96 0.003 280 / 0.98);
+    --ml-glass-border: oklch(0 0 0 / 0.16);
+    --ml-glass-shadow:
+      0 0 0 0.5px oklch(0 0 0 / 0.12), 0 8px 40px oklch(0 0 0 / 0.1),
+      0 24px 60px oklch(0 0 0 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.6),
+      inset 0 -0.5px 0 oklch(0 0 0 / 0.05);
+    --ml-glass-shadow-small:
+      0 0 0 0.5px oklch(0 0 0 / 0.1), 0 6px 24px oklch(0 0 0 / 0.08), 0 16px 48px oklch(0 0 0 / 0.05),
+      inset 0 0.5px 0 oklch(1 0 0 / 0.5);
+    --ml-glass-sep: oklch(0 0 0 / 0.12);
+    --ml-glass-divider: oklch(0 0 0 / 0.09);
+    --ml-glass-grip: oklch(0 0 0 / 0.9);
   }
 }
 

@@ -3,6 +3,7 @@ import { getReplies, pushReply, setOpStatus } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { CommentOp } from '@ext/lib/types';
 import { clsx } from 'clsx';
+import { Check } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
 
 interface Props {
@@ -46,20 +47,8 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
         >
           {op.num}
           {resolved && (
-            <div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 text-white text-[9px] font-bold grid place-items-center shadow-sm border border-white/80">
-              <svg
-                width="9"
-                height="9"
-                viewBox="0 0 12 12"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M2 6.5L5 9.5L10 3" />
-              </svg>
+            <div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 text-white text-[9px] font-bold grid place-items-center shadow-sm border border-ml-glass-fg/80">
+              <Check size={9} strokeWidth={2.5} aria-hidden="true" />
             </div>
           )}
           {replies.length > 0 && !resolved && (
@@ -73,7 +62,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
         <div
           class={clsx(
             'absolute top-0 left-[calc(100%+10px)]',
-            'bg-[oklch(0.15_0.015_280)] border border-white/[0.12]',
+            'bg-[var(--ml-glass-bg-small)] border border-[var(--ml-glass-border)]',
             'shadow-[0_0_0_0.5px_oklch(0_0_0/0.5),0_6px_24px_oklch(0_0_0/0.35),0_16px_48px_oklch(0_0_0/0.25)]',
             'rounded-xl',
             'w-[300px]',
@@ -93,15 +82,17 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
             >
               {op.num}
             </div>
-            <span class="text-[10px] text-white/30 font-medium tracking-wide flex-1">{op.author || 'Anonymous'}</span>
-            <span class="text-[10px] text-white/20 font-medium">{timeAgo(op.ts)}</span>
+            <span class="text-[10px] text-ml-glass-fg/30 font-medium tracking-wide flex-1">
+              {op.author || 'Anonymous'}
+            </span>
+            <span class="text-[10px] text-ml-glass-fg/20 font-medium">{timeAgo(op.ts)}</span>
           </div>
 
           <div style={{ padding: '4px 14px 10px' }}>
             <p
               style={{
                 margin: 0,
-                color: 'rgba(255,255,255,0.75)',
+                color: 'color-mix(in srgb, var(--color-ml-glass-fg) 75%, transparent)',
                 fontSize: '12.5px',
                 lineHeight: 1.55,
                 wordBreak: 'break-word',
@@ -120,7 +111,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                 class="bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
               />
               {replies.map((reply) => (
-                <div key={reply.id} style={{ padding: '8px 14px' }} class="border-l-2 border-white/[0.06] ml-3">
+                <div key={reply.id} style={{ padding: '8px 14px' }} class="border-l-2 border-ml-glass-fg/[0.06] ml-3">
                   <div class="flex items-center gap-2 mb-1">
                     <div
                       class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0"
@@ -128,13 +119,13 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                     >
                       {(reply.author || '?').charAt(0).toUpperCase()}
                     </div>
-                    <span class="text-[10px] text-white/40 font-medium">{reply.author || 'Anonymous'}</span>
-                    <span class="text-[9px] text-white/20">{timeAgo(reply.ts)}</span>
+                    <span class="text-[10px] text-ml-glass-fg/40 font-medium">{reply.author || 'Anonymous'}</span>
+                    <span class="text-[9px] text-ml-glass-fg/20">{timeAgo(reply.ts)}</span>
                   </div>
                   <p
                     style={{
                       margin: 0,
-                      color: 'rgba(255,255,255,0.65)',
+                      color: 'color-mix(in srgb, var(--color-ml-glass-fg) 65%, transparent)',
                       fontSize: '12px',
                       lineHeight: 1.5,
                       wordBreak: 'break-word',
@@ -162,12 +153,12 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                 placeholder="Reply..."
                 rows={1}
                 class={clsx(
-                  'w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2',
-                  'text-white/90 text-[12px] leading-relaxed',
+                  'w-full bg-ml-glass-accent/[0.04] border border-ml-glass-fg/[0.08] rounded-lg px-3 py-2',
+                  'text-ml-glass-fg/90 text-[12px] leading-relaxed',
                   'resize-none outline-none min-h-8 max-h-[80px]',
                   'caret-[oklch(0.65_0.15_300)]',
-                  'focus:border-[oklch(0.65_0.15_300/0.35)] focus:bg-white/[0.06]',
-                  'placeholder:text-white/18',
+                  'focus:border-[oklch(0.65_0.15_300/0.35)] focus:bg-ml-glass-accent/[0.06]',
+                  'placeholder:text-ml-glass-fg/18',
                   glass.font,
                 )}
                 style={{ fieldSizing: 'content', boxSizing: 'border-box' } as Record<string, string>}
@@ -184,7 +175,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                 <button
                   type="button"
                   onClick={() => setShowReply(false)}
-                  class="text-[10px] text-white/30 hover:text-white/60 bg-transparent border-none cursor-pointer px-2 py-1"
+                  class="text-[10px] text-ml-glass-fg/30 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer px-2 py-1"
                 >
                   Cancel
                 </button>
@@ -210,8 +201,8 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                   setTimeout(() => replyRef.current?.focus(), 50);
                 }}
                 class="text-[11px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
-                       border border-white/[0.08] bg-white/[0.05]
-                       text-white/50 hover:text-white/80 hover:bg-white/[0.1]
+                       border border-ml-glass-fg/[0.08] bg-ml-glass-accent/[0.05]
+                       text-ml-glass-fg/50 hover:text-ml-glass-fg/80 hover:bg-ml-glass-accent/[0.1]
                        transition-all duration-150"
               >
                 Reply
@@ -223,8 +214,8 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                   setOpStatus(op.id, resolved ? 'open' : 'resolved');
                 }}
                 class="text-[11px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
-                       border border-white/[0.08] bg-white/[0.05]
-                       text-white/50 hover:text-white/80 hover:bg-white/[0.1]
+                       border border-ml-glass-fg/[0.08] bg-ml-glass-accent/[0.05]
+                       text-ml-glass-fg/50 hover:text-ml-glass-fg/80 hover:bg-ml-glass-accent/[0.1]
                        transition-all duration-150"
               >
                 {resolved ? 'Reopen' : 'Resolve'}

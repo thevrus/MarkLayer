@@ -47,21 +47,23 @@ export function CommentPin({ op }: { op: CommentOp }) {
             >
               {op.num}
             </div>
-            <span class="text-[10px] text-white/30 font-medium tracking-wide">{timeAgo(op.ts)}</span>
+            <span class="text-[10px] text-ml-glass-fg/30 font-medium tracking-wide">{timeAgo(op.ts)}</span>
           </div>
 
           <div class={clsx(glass.divider, 'mx-3')} />
 
           {/* Body */}
           <div class="px-3.5 py-3">
-            <p class="text-white/75 text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap m-0">{op.text}</p>
+            <p class="text-ml-glass-fg/75 text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap m-0">
+              {op.text}
+            </p>
           </div>
 
           <div class={clsx(glass.divider, 'mx-3')} />
 
           {/* Footer */}
           <div class="px-3.5 py-2 flex items-center gap-1.5">
-            <span class="text-[10px] text-white/20 font-medium">Click to reply</span>
+            <span class="text-[10px] text-ml-glass-fg/20 font-medium">Click to reply</span>
           </div>
         </div>
       </div>

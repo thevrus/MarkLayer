@@ -124,6 +124,8 @@ export class AnnotationRoom extends DurableObject<Env> {
               JSON.stringify({
                 type: 'cursor',
                 peerId: info.id,
+                name: info.name,
+                color: info.color,
                 x: msg.x,
                 y: msg.y,
                 tool: msg.tool,

@@ -6,6 +6,7 @@ const base = {
   id: z.string(),
   color: z.string(),
   lineWidth: z.number(),
+  device: z.optional(z.enum(['desktop', 'tablet', 'mobile'])),
 };
 
 const freehandOp = z.object({

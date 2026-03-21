@@ -63,24 +63,24 @@ export function WebSelectionHighlight({ op, scale: s, scrollY }: Props) {
             'p-3',
           )}
         >
-          <p class="text-[11px] text-white/40 m-0 mb-1 italic line-clamp-3 leading-relaxed">"{op.text}"</p>
+          <p class="text-[11px] text-ml-glass-fg/40 m-0 mb-1 italic line-clamp-3 leading-relaxed">"{op.text}"</p>
           {op.comment && (
             <p
-              class="text-[12px] text-white/70 m-0 mt-1.5 leading-relaxed whitespace-pre-wrap"
+              class="text-[12px] text-ml-glass-fg/70 m-0 mt-1.5 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[9px] text-white/25">{op.author}</span>
+            <span class="text-[9px] text-ml-glass-fg/25">{op.author}</span>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpStatus(op.id, resolved ? 'open' : 'resolved');
               }}
-              class="text-[10px] text-white/30 hover:text-white/60 bg-transparent border-none cursor-pointer p-0 transition-colors"
+              class="text-[10px] text-ml-glass-fg/30 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer p-0 transition-colors"
             >
               {resolved ? '↩ Reopen' : '✓ Resolve'}
             </button>

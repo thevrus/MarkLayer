@@ -139,8 +139,8 @@ export function useRealtimeSync(annotationId: string) {
               } else {
                 map.set(msg.peerId, {
                   id: msg.peerId,
-                  name: '?',
-                  color: '#8b5cf6',
+                  name: msg.name || 'Anonymous',
+                  color: msg.color || '#8b5cf6',
                   cursor: { x: msg.x, y: msg.y },
                   tool: msg.tool,
                   lastSeen: Date.now(),

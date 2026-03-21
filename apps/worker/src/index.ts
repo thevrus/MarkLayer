@@ -349,14 +349,14 @@ app.all('*', async (c) => {
 
 // Scheduled cleanup: delete stale and expired annotations + their OG images
 const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_event, env) => {
-  const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
+  const ninetyDaysAgo = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
   const now = Math.floor(Date.now() / 1000);
 
   // Delete stale rows and get their IDs in one query
   const deleted = await env.DB.prepare(
     'DELETE FROM annotations WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
   )
-    .bind(thirtyDaysAgo, now)
+    .bind(ninetyDaysAgo, now)
     .all<{ id: string }>();
 
   if (deleted.results.length > 0) {

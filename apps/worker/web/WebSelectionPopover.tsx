@@ -1,9 +1,10 @@
 import { glass } from '@ext/lib/glass';
-import { color, lineWidth, localUser, pushOp } from '@ext/lib/state';
+import { color, lineWidth, localUser } from '@ext/lib/state';
 import type { SelectionOp, SelectionRect } from '@ext/lib/types';
 import { clsx } from 'clsx';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
+import { pushDeviceOp } from './App';
 
 interface Props {
   text: string;
@@ -23,7 +24,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
   const commit = (save: boolean) => {
     const comment = taRef.current?.value.trim();
     if (save && rects.length > 0) {
-      pushOp({
+      pushDeviceOp({
         id: nanoid(),
         tool: 'selection' as const,
         text,
@@ -50,8 +51,8 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
     >
       {/* Selected text preview */}
       <div class="px-4 pt-3.5 pb-2">
-        <span class="text-[10px] text-white/30 font-medium uppercase tracking-wider">Selected text</span>
-        <p class="text-[12px] text-white/50 m-0 mt-1 italic line-clamp-3 leading-relaxed">"{text}"</p>
+        <span class="text-[10px] text-ml-glass-fg/30 font-medium uppercase tracking-wider">Selected text</span>
+        <p class="text-[12px] text-ml-glass-fg/50 m-0 mt-1 italic line-clamp-3 leading-relaxed">"{text}"</p>
       </div>
 
       <div class={clsx(glass.divider, 'mx-3.5')} />
@@ -71,15 +72,15 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
             }
           }}
           class={clsx(
-            'w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5',
-            'text-white/90 text-[13px] leading-relaxed',
+            'w-full bg-ml-glass-accent/[0.04] border border-ml-glass-fg/[0.08] rounded-xl px-3.5 py-2.5',
+            'text-ml-glass-fg/90 text-[13px] leading-relaxed',
             'resize-none outline-none min-h-10 max-h-[140px]',
             'caret-[oklch(0.65_0.15_300)]',
             'transition-all duration-150',
             'focus:border-[oklch(0.65_0.15_300/0.35)]',
             'focus:shadow-[0_0_0_3px_oklch(0.65_0.15_300/0.06),inset_0_0.5px_0_oklch(1_0_0/0.04)]',
-            'focus:bg-white/[0.06]',
-            'placeholder:text-white/18',
+            'focus:bg-ml-glass-accent/[0.06]',
+            'placeholder:text-ml-glass-fg/18',
             glass.font,
           )}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' } as Record<string, string>}
@@ -91,12 +92,12 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
           <kbd
-            class="text-[10px] text-white/25 bg-white/[0.05] border border-white/[0.07]
+            class="text-[10px] text-ml-glass-fg/25 bg-ml-glass-accent/[0.05] border border-ml-glass-fg/[0.07]
                       rounded-md px-1.5 py-0.5 font-mono leading-none"
           >
             Esc
           </kbd>
-          <span class="text-[10px] text-white/20">skip comment</span>
+          <span class="text-[10px] text-ml-glass-fg/20">skip comment</span>
         </div>
         <button
           type="button"

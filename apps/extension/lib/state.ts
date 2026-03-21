@@ -4,7 +4,20 @@ import type { CommentMeta, CommentOp, CommentStatus, DrawOp, Peer, SelectionOp, 
 
 export const visible = signal(false);
 export const activeTool = signal<Tool>('navigate');
-export const color = signal('#f43f5e');
+
+const TOOLBAR_COLORS = ['#b462f5', '#f43f5e', '#f97316', '#facc15', '#22c55e', '#3b82f6'];
+const storedColor = typeof localStorage !== 'undefined' ? localStorage.getItem('ml-color') : null;
+export const color = signal(storedColor || TOOLBAR_COLORS[Math.floor(Math.random() * TOOLBAR_COLORS.length)]);
+
+export function setColor(c: string) {
+  color.value = c;
+  try {
+    localStorage.setItem('ml-color', c);
+  } catch {
+    /* */
+  }
+}
+
 export const lineWidth = signal(2);
 
 export const operations = signal<DrawOp[]>([]);
@@ -84,10 +97,22 @@ const ANIMALS = [
 function randomPick<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
+const storedName = typeof localStorage !== 'undefined' ? localStorage.getItem('ml-username') : null;
 export const localUser = {
-  name: `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`,
+  name: storedName || `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`,
   color: randomPick(CURSOR_COLORS),
 };
+
+export function setUserName(name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  localUser.name = trimmed;
+  try {
+    localStorage.setItem('ml-username', trimmed);
+  } catch {
+    /* */
+  }
+}
 
 // Callback for WebSocket sync — set by useRealtimeSync hook
 export const onOpPushed = signal<((op: DrawOp) => void) | null>(null);

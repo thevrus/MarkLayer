@@ -119,7 +119,7 @@ export function App() {
               key={t.id}
               class={`${glass.surfaceSmall} ${glass.font} px-4 py-2.5 text-[12px] font-medium
                       animate-[fadeInDown_0.2s_ease-out]
-                      ${t.type === 'error' ? 'text-red-300' : t.type === 'success' ? 'text-green-300' : 'text-white/70'}`}
+                      ${t.type === 'error' ? 'text-red-500' : t.type === 'success' ? 'text-green-500' : 'text-ml-glass-fg/70'}`}
             >
               {t.message}
             </div>

@@ -27,7 +27,8 @@ export async function saveAnnotations(ops: DrawOp[]): Promise<string | null> {
 
     const width = window.innerWidth;
     const currentUrl = window.location.href.split('#')[0];
-    const encoded = btoa(`${currentUrl}#ant=${width}=${id}`);
+    const payload = `${currentUrl}#ant=${width}=${id}`;
+    const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(payload)));
     return `https://marklayer.app/s/${id}?view=${encoded}`;
   } catch (e) {
     console.error('Error saving annotations:', e);
@@ -51,7 +52,9 @@ export function parseUrlHash(): { width: number; id: string } | null {
   if (hash.startsWith('#ant=')) {
     const parts = hash.substring(5).split('=');
     if (parts.length === 2) {
-      return { width: parseInt(parts[0], 10), id: parts[1] };
+      const width = parseInt(parts[0], 10);
+      if (!width || width <= 0 || Number.isNaN(width)) return null;
+      return { width, id: parts[1] };
     }
   }
   return null;

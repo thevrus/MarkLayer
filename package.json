@@ -12,7 +12,8 @@
     "build": "turbo build",
     "check": "turbo check",
     "lint": "biome check .",
-    "lint:fix": "biome check --write ."
+    "lint:fix": "biome check --write .",
+    "deploy": "turbo build && cd apps/worker && bun run deploy"
   },
   "workspaces": [
     "apps/*",
