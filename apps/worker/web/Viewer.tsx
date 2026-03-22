@@ -939,11 +939,11 @@ export default function Viewer() {
 
         <div class="flex items-center gap-1.5 shrink-0">
           {/* Avatar group */}
-          <div class="flex items-center -space-x-3 mr-1">
+          <div class="flex items-center -space-x-2.5 mr-1">
             {/* Local user */}
             <div
-              class="w-9 h-9 rounded-full text-white text-[11px] font-bold grid place-items-center shrink-0 ring-[3px] ring-[var(--ml-glass-bg)] shadow-sm"
-              style={{ background: localUser.color, zIndex: peers.value.size + 1 }}
+              class="w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center shrink-0 ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-colors duration-150"
+              style={{ background: color.value, zIndex: peers.value.size + 1 }}
               title={localUser.name}
             >
               {localUser.name
@@ -958,7 +958,7 @@ export default function Viewer() {
               .map((p, i) => (
                 <div
                   key={p.id}
-                  class="w-9 h-9 rounded-full text-white text-[11px] font-bold grid place-items-center ring-[3px] ring-[var(--ml-glass-bg)] shadow-sm cursor-pointer"
+                  class="w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] shadow-sm cursor-pointer"
                   style={{ background: p.color, zIndex: peers.value.size - i }}
                   title={p.name}
                   onClick={() => {
@@ -973,7 +973,7 @@ export default function Viewer() {
                 </div>
               ))}
             {peers.value.size > 3 && (
-              <div class="w-9 h-9 rounded-full bg-[#e5e5e5] dark:bg-[#404040] text-[#555] dark:text-[#ccc] text-[11px] font-bold grid place-items-center ring-[3px] ring-[var(--ml-glass-bg)]">
+              <div class="w-7 h-7 rounded-full bg-[#e5e5e5] dark:bg-[#404040] text-[#555] dark:text-[#ccc] text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)]">
                 +{peers.value.size - 3}
               </div>
             )}
