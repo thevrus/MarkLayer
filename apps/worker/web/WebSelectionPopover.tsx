@@ -59,6 +59,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
 
       <div class="p-3.5">
         <textarea
+          name="comment"
           ref={taRef}
           placeholder="Add a comment (optional)…"
           rows={1}

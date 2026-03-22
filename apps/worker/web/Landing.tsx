@@ -444,9 +444,10 @@ export function Landing() {
                   <Search size={18} class="text-ml-fg/20 shrink-0" aria-hidden="true" />
                   <input
                     name="url"
-                    type="text"
+                    type="url"
+                    inputMode="url"
                     placeholder="Paste any URL to annotate..."
-                    autocomplete="off"
+                    autocomplete="url"
                     autofocus
                     class="flex-1 bg-transparent border-none text-ml-fg text-[18px] placeholder:text-ml-fg/20 outline-none"
                     onInput={(e) => {

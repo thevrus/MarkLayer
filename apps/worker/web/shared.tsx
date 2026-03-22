@@ -87,6 +87,7 @@ export function TextInputOverlay({
 
   return (
     <textarea
+      name="textAnnotation"
       ref={ref}
       class="absolute bg-transparent border-none outline-none resize-none p-0 m-0"
       style={{

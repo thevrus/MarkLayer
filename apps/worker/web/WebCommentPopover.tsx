@@ -69,6 +69,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
 
       <div class="p-3.5">
         <textarea
+          name="comment"
           ref={taRef}
           placeholder="Leave a comment..."
           rows={1}

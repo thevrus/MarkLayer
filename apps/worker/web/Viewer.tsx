@@ -311,10 +311,10 @@ export default function Viewer() {
     };
   }, []);
 
-  // Warn before leaving with unsaved annotations
+  // Auto-save reminder — ops sync in real-time, so just confirm on close
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (operations.value.length > 0) e.preventDefault();
+      if (operations.value.length > 0 && !connected.value) e.preventDefault();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
@@ -879,6 +879,7 @@ export default function Viewer() {
             }}
           />
           <input
+            name="pageUrl"
             type="text"
             defaultValue={pageUrl.value}
             class="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] text-ml-glass-fg/40 focus:text-ml-glass-fg/80 truncate cursor-text"
@@ -979,12 +980,16 @@ export default function Viewer() {
           </div>
           {/* Editable name */}
           <input
+            name="displayName"
             type="text"
             defaultValue={localUser.name}
             maxLength={24}
             class="w-[90px] bg-transparent border-none text-[11px] text-ml-glass-fg/50 font-medium outline-none truncate px-1 py-0.5 rounded hover:bg-ml-glass-accent/[0.06] focus:bg-ml-glass-accent/[0.08] focus:text-ml-glass-fg/80 cursor-text"
             title="Click to edit your name"
-            onBlur={(e) => setUserName((e.target as HTMLInputElement).value)}
+            onBlur={(e) => {
+              setUserName((e.target as HTMLInputElement).value);
+              (e.target as HTMLInputElement).value = localUser.name;
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
             }}

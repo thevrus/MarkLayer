@@ -156,6 +156,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
           {showReply ? (
             <div style={{ padding: '8px 12px 10px' }}>
               <textarea
+                name="reply"
                 ref={replyRef}
                 placeholder="Reply..."
                 rows={1}

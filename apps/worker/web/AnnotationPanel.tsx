@@ -199,6 +199,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                 </div>
                 <div class="flex-1">
                   <textarea
+                    name="reply"
                     ref={replyRef}
                     placeholder="Write a reply..."
                     rows={1}

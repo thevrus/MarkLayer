@@ -49,7 +49,9 @@ const api = new Hono<Env>();
 api.use('*', cors());
 
 // Generate short-lived TURN credentials for WebRTC
-const STUN_FALLBACK = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+const STUN_FALLBACK = {
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }],
+};
 api.get('/turn', async (c) => {
   const keyId = c.env.TURN_KEY_ID;
   const token = c.env.TURN_KEY_TOKEN;
