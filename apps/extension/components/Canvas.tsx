@@ -1,7 +1,7 @@
 import { useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
-import { hexToRgba, redrawCanvas, simplify } from '../lib/renderer';
+import { hexToRgba, redrawCanvas, renderOp, simplify } from '../lib/renderer';
 import {
   activeTool,
   color,
@@ -14,10 +14,11 @@ import {
   SHAPES,
   undoRedoFlash,
 } from '../lib/state';
-import type { FreehandOp, Point } from '../lib/types';
+import type { DrawOp, FreehandOp, Point } from '../lib/types';
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const eraserRef = useRef<HTMLDivElement>(null);
   const drawing = useRef(false);
   const startPt = useRef<Point>({ x: 0, y: 0 });
   const snapshot = useRef<ImageData | null>(null);
@@ -74,6 +75,10 @@ export function Canvas() {
       if (!ctx) return;
       applyTool(ctx);
 
+      if (FREEHAND.has(tool) || SHAPES.has(tool)) {
+        const canvas = canvasRef.current!;
+        snapshot.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      }
       if (FREEHAND.has(tool)) {
         currentPath.current = {
           id: nanoid(),
@@ -83,9 +88,6 @@ export function Canvas() {
           lineWidth: ctx.lineWidth,
           compositeOperation: ctx.globalCompositeOperation as GlobalCompositeOperation,
         };
-      } else if (SHAPES.has(tool)) {
-        const canvas = canvasRef.current!;
-        snapshot.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
       }
       const c = clientXY(e);
       ctx.beginPath();
@@ -108,8 +110,10 @@ export function Canvas() {
 
     if (FREEHAND.has(tool)) {
       currentPath.current?.points.push({ x: d.x, y: d.y });
-      ctx.lineTo(c.x, c.y);
-      ctx.stroke();
+      if (snapshot.current) ctx.putImageData(snapshot.current, 0, 0);
+      if (currentPath.current && currentPath.current.points.length > 1) {
+        renderOp(ctx, currentPath.current as DrawOp, scrollX, scrollY);
+      }
     } else if (snapshot.current && SHAPES.has(tool)) {
       ctx.putImageData(snapshot.current, 0, 0);
       ctx.beginPath();
@@ -156,9 +160,10 @@ export function Canvas() {
       const ctx = getCtx();
 
       if (FREEHAND.has(tool) && currentPath.current) {
+        snapshot.current = null;
         currentPath.current.points.push({ x: d.x, y: d.y });
         if (currentPath.current.points.length > 1) {
-          currentPath.current.points = simplify(currentPath.current.points, 1.5);
+          if (tool !== 'eraser') currentPath.current.points = simplify(currentPath.current.points, 1.5);
           pushOp(currentPath.current);
         }
         currentPath.current = null;
@@ -208,6 +213,21 @@ export function Canvas() {
       scrollRaf = requestAnimationFrame(() => redrawCanvas(canvas, operations.value));
     };
     window.addEventListener('scroll', onScroll, { passive: true });
+    const onEraserMove = (e: MouseEvent) => {
+      const el = eraserRef.current;
+      if (!el) return;
+      if (activeTool.value !== 'eraser') {
+        el.style.display = 'none';
+        return;
+      }
+      const size = Math.max(5, lineWidth.value * 1.5) * 2.5;
+      el.style.display = 'block';
+      el.style.left = `${e.clientX}px`;
+      el.style.top = `${e.clientY}px`;
+      el.style.width = `${size}px`;
+      el.style.height = `${size}px`;
+    };
+    window.addEventListener('mousemove', onEraserMove);
     return () => {
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', onMove);
@@ -215,6 +235,7 @@ export function Canvas() {
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('touchend', onUp);
       window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('mousemove', onEraserMove);
     };
   }, [onMove, onUp]);
 
@@ -228,20 +249,39 @@ export function Canvas() {
     if (v > 0) canvasRef.current?.animate([{ opacity: 0.3 }, { opacity: 1 }], { duration: 400, easing: 'ease-out' });
   });
 
+  // Hide eraser cursor immediately on tool change (keyboard shortcuts don't trigger mousemove)
+  useSignalEffect(() => {
+    if (activeTool.value !== 'eraser' && eraserRef.current) {
+      eraserRef.current.style.display = 'none';
+    }
+  });
+
   const tool = activeTool.value;
   const showCanvas = isDrawingTool(tool) && tool !== 'comment' && tool !== 'selection';
 
   return (
-    <canvas
-      ref={canvasRef}
-      data-marklayer-canvas
-      onMouseDown={onDown}
-      onTouchStart={onDown}
-      class="fixed inset-0 z-[2147483645]"
-      style={{
-        pointerEvents: showCanvas ? 'auto' : 'none',
-        cursor: showCanvas ? 'crosshair' : 'default',
-      }}
-    />
+    <>
+      <canvas
+        ref={canvasRef}
+        data-marklayer-canvas
+        onMouseDown={onDown}
+        onTouchStart={onDown}
+        class="fixed inset-0 z-[2147483645]"
+        style={{
+          pointerEvents: showCanvas ? 'auto' : 'none',
+          cursor: showCanvas ? (tool === 'eraser' ? 'none' : 'crosshair') : 'default',
+        }}
+      />
+      <div
+        ref={eraserRef}
+        class="fixed pointer-events-none z-[2147483646] rounded-full"
+        style={{
+          display: 'none',
+          transform: 'translate(-50%, -50%)',
+          border: '1.5px solid rgba(120, 120, 120, 0.8)',
+          boxShadow: '0 0 0 1px rgba(255, 255, 255, 0.5)',
+        }}
+      />
+    </>
   );
 }

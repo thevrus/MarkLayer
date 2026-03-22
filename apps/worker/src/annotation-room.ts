@@ -8,14 +8,32 @@ export class AnnotationRoom extends DurableObject<Env> {
   private ops: unknown[] | null = null;
   private dirty = false;
   private annotationId: string | null = null;
+  private createdAt: number | null = null;
+  private expiresAt: number | null = null;
+  private url: string | null = null;
+  private width: number | null = null;
   /** Map WebSocket → { peerId, name, color } for presence */
   private peerInfo = new Map<WebSocket, { id: string; name: string; color: string }>();
 
   private async getOps(id: string): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
     this.annotationId = id;
-    const row = await this.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?').bind(id).first<{ ops: string }>();
+    const row = await this.env.DB.prepare(
+      'SELECT ops, url, width, created_at, expires_at FROM annotations WHERE id = ?',
+    )
+      .bind(id)
+      .first<{
+        ops: string;
+        url: string | null;
+        width: number | null;
+        created_at: number | null;
+        expires_at: number | null;
+      }>();
     this.ops = row ? JSON.parse(row.ops) : [];
+    this.createdAt = row?.created_at ?? null;
+    this.expiresAt = row?.expires_at ?? null;
+    this.url = row?.url ?? null;
+    this.width = row?.width ?? null;
     // Touch last_accessed_at
     this.env.DB.prepare('UPDATE annotations SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run();
     return this.ops!;
@@ -56,7 +74,17 @@ export class AnnotationRoom extends DurableObject<Env> {
     const ops = await this.getOps(id);
     // Send init + current peer list
     const peerList = this.getPeerList();
-    pair[1].send(JSON.stringify({ type: 'init', ops, peers: peerList }));
+    pair[1].send(
+      JSON.stringify({
+        type: 'init',
+        ops,
+        peers: peerList,
+        createdAt: this.createdAt,
+        expiresAt: this.expiresAt,
+        url: this.url,
+        width: this.width,
+      }),
+    );
 
     // Notify others of new peer joining
     this.broadcast(
@@ -135,6 +163,32 @@ export class AnnotationRoom extends DurableObject<Env> {
           }
           break;
         }
+        case 'profile': {
+          const info = this.peerInfo.get(ws);
+          if (info) {
+            if (msg.name) info.name = msg.name;
+            if (msg.color) info.color = msg.color;
+            this.broadcast(
+              JSON.stringify({ type: 'profile', peerId: info.id, name: info.name, color: info.color }),
+              ws,
+            );
+          }
+          break;
+        }
+        // WebRTC signaling relay — forward to target peer
+        case 'rtc_offer':
+        case 'rtc_answer':
+        case 'rtc_ice': {
+          const from = this.peerInfo.get(ws);
+          if (!from || !msg.to) break;
+          for (const [sock, info] of this.peerInfo) {
+            if (info.id === msg.to && sock.readyState === WebSocket.OPEN) {
+              sock.send(JSON.stringify({ ...msg, from: from.id }));
+              break;
+            }
+          }
+          break;
+        }
       }
     } catch {
       // Ignore malformed messages
@@ -158,7 +212,8 @@ export class AnnotationRoom extends DurableObject<Env> {
     if (!this.dirty || !this.ops || !this.annotationId) return;
     this.dirty = false;
     await this.env.DB.prepare(
-      'INSERT OR REPLACE INTO annotations (id, ops, last_accessed_at) VALUES (?, ?, unixepoch())',
+      `INSERT INTO annotations (id, ops, last_accessed_at) VALUES (?, ?, unixepoch())
+       ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, last_accessed_at = unixepoch()`,
     )
       .bind(this.annotationId, JSON.stringify(this.ops))
       .run();

@@ -1,3 +1,4 @@
+import getStroke from 'perfect-freehand';
 import { FREEHAND } from './state';
 import type { DrawOp, Point } from './types';
 
@@ -44,7 +45,8 @@ export function simplify(pts: Point[], tol = 1): Point[] {
 }
 
 export function opBounds(op: DrawOp) {
-  const pad = (op.lineWidth ?? 2) / 2;
+  const isFreehand = op.tool === 'pen' || op.tool === 'eraser' || op.tool === 'highlight';
+  const pad = isFreehand ? (op.lineWidth ?? 2) * 1.5 : (op.lineWidth ?? 2) / 2;
   switch (op.tool) {
     case 'pen':
     case 'eraser':
@@ -111,27 +113,28 @@ export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy
     lineJoin: 'round',
     globalCompositeOperation: ('compositeOperation' in op ? op.compositeOperation : undefined) ?? 'source-over',
   });
-  c.beginPath();
   if (FREEHAND.has(op.tool)) {
     const pts = 'points' in op ? (op.points as Point[]) : [];
     if (pts?.length) {
-      c.moveTo(pts[0].x - ox, pts[0].y - oy);
-      if (pts.length === 2) {
-        c.lineTo(pts[1].x - ox, pts[1].y - oy);
-      } else {
-        for (let i = 1; i < pts.length - 1; i++) {
-          c.quadraticCurveTo(
-            pts[i].x - ox,
-            pts[i].y - oy,
-            (pts[i].x + pts[i + 1].x) / 2 - ox,
-            (pts[i].y + pts[i + 1].y) / 2 - oy,
-          );
-        }
-        c.lineTo(pts[pts.length - 1].x - ox, pts[pts.length - 1].y - oy);
+      const outline = getStroke(
+        pts.map((p) => [p.x - ox, p.y - oy]),
+        {
+          size: op.lineWidth * 2.5,
+          thinning: 0,
+          smoothing: 0.5,
+          streamline: 0,
+        },
+      );
+      if (outline.length > 1) {
+        c.beginPath();
+        c.moveTo(outline[0][0], outline[0][1]);
+        for (let i = 1; i < outline.length; i++) c.lineTo(outline[i][0], outline[i][1]);
+        c.closePath();
+        c.fill();
       }
-      c.stroke();
     }
   } else {
+    c.beginPath();
     switch (op.tool) {
       case 'rectangle':
         c.strokeRect(op.startX - ox, op.startY - oy, op.endX - op.startX, op.endY - op.startY);

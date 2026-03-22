@@ -62,24 +62,49 @@ export async function generateOgImage({ domain, ops }: OgParams): Promise<ArrayB
   const title = escapeXml(`Annotations on ${domain}`);
   const subtitle = escapeXml(statsLine);
 
+  const fy = faviconUri ? 0 : 30; // vertical offset when no favicon
+
   const svg = `<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#1a1a1a"/>
-      <stop offset="50%" stop-color="#2d1f3d"/>
-      <stop offset="100%" stop-color="#1a1a1a"/>
-    </linearGradient>
+    <radialGradient id="glow1" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0%" stop-color="#F953C6" stop-opacity="0.14"/>
+      <stop offset="50%" stop-color="#7928CA" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="#09090F" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="0.78" cy="0.82" r="0.35">
+      <stop offset="0%" stop-color="#4F46E5" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#09090F" stop-opacity="0"/>
+    </radialGradient>
     <linearGradient id="brand" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#F953C6"/>
       <stop offset="100%" stop-color="#B91D73"/>
     </linearGradient>
+    <linearGradient id="topline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#F953C6" stop-opacity="0"/>
+      <stop offset="30%" stop-color="#F953C6" stop-opacity="0.8"/>
+      <stop offset="70%" stop-color="#B91D73" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#B91D73" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" x="0" y="0" width="36" height="36" patternUnits="userSpaceOnUse">
+      <circle cx="18" cy="18" r="0.6" fill="rgba(255,255,255,0.045)"/>
+    </pattern>
   </defs>
-  <rect width="1200" height="630" fill="url(#bg)"/>
-  ${faviconUri ? `<image x="560" y="150" width="80" height="80" href="${faviconUri}" clip-path="inset(0 round 16px)"/>` : ''}
-  <text x="600" y="${faviconUri ? 290 : 260}" text-anchor="middle" font-family="Inter" font-size="48" font-weight="700" fill="#ffffff" letter-spacing="-1">${title}</text>
-  <text x="600" y="${faviconUri ? 340 : 310}" text-anchor="middle" font-family="Inter" font-size="24" fill="rgba(255,255,255,0.5)">${subtitle}</text>
-  <rect x="540" y="${faviconUri ? 400 : 380}" width="28" height="28" rx="7" fill="url(#brand)"/>
-  <text x="580" y="${faviconUri ? 422 : 402}" font-family="Inter" font-size="22" font-weight="700" fill="rgba(255,255,255,0.35)" letter-spacing="-0.2">MarkLayer</text>
+
+  <rect width="1200" height="630" fill="#09090F"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <rect width="1200" height="630" fill="url(#glow1)"/>
+  <rect width="1200" height="630" fill="url(#glow2)"/>
+
+  <rect x="250" y="0" width="700" height="2" fill="url(#topline)"/>
+
+  ${faviconUri ? `<image x="564" y="155" width="72" height="72" href="${faviconUri}" clip-path="inset(0 round 14px)"/>` : ''}
+
+  <text x="600" y="${285 - fy}" text-anchor="middle" font-family="Inter" font-size="44" font-weight="700" fill="#ffffff" letter-spacing="-1.5">${title}</text>
+  <text x="600" y="${332 - fy}" text-anchor="middle" font-family="Inter" font-size="18" fill="rgba(255,255,255,0.38)" letter-spacing="0.3">${subtitle}</text>
+
+  <rect x="527" y="${400 - fy}" width="146" height="38" rx="19" fill="rgba(255,255,255,0.045)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+  <rect x="543" y="${409 - fy}" width="20" height="20" rx="5" fill="url(#brand)"/>
+  <text x="572" y="${425 - fy}" font-family="Inter" font-size="15" font-weight="600" fill="rgba(255,255,255,0.35)">MarkLayer</text>
 </svg>`;
 
   const resvg = new Resvg(svg, {

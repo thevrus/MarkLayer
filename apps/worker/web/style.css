@@ -338,3 +338,13 @@
 .lp-anim-pulse:hover svg {
   animation: lpPulse 0.7s ease-in-out;
 }
+
+/* Voice activity bars on cursor badges */
+@keyframes voiceBar {
+  from {
+    transform: scaleY(0.4);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}

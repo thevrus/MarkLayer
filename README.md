@@ -14,11 +14,13 @@
 
 ## ✨ Features
 
-- 🖊️ **Drawing tools** — pen, highlighter, shapes, arrows, text
+- 🖊️ **Drawing tools** — pen, highlighter, eraser, shapes, arrows, text
 - 💬 **Threaded comments** — pin anywhere, reply inline, track status
 - ✍️ **Text selection** — highlight text and annotate it
 - 👥 **Real-time collaboration** — live cursors, drawings, and comments via WebSocket
+- 🎙️ **Voice & video chat** — peer-to-peer via WebRTC with TURN fallback
 - 🔗 **Shareable links** — one link with OG preview cards
+- 💾 **Draft auto-save** — annotations persist locally and restore on revisit
 - 📸 **Export to PNG** — save annotations as an image
 - 🔒 **Privacy-first** — no accounts, no tracking, auto-expires after 30 days
 
@@ -57,7 +59,7 @@ Load the extension: `chrome://extensions/` → Developer mode → Load unpacked 
 | **Extension** | WXT, Chrome APIs |
 | **Backend** | Cloudflare Workers, Hono, Durable Objects |
 | **Database** | D1 (SQLite) + R2 (OG cache) |
-| **Real-time** | WebSocket via Durable Objects |
+| **Real-time** | WebSocket via Durable Objects, WebRTC (voice/video) |
 
 ## 🛠️ Scripts
 

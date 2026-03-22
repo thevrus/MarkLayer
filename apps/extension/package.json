@@ -23,8 +23,10 @@
     "@marklayer/types": "workspace:*",
     "@preact/signals": "^2.8.2",
     "clsx": "^2.1.1",
+    "idb-keyval": "^6.2.2",
     "lucide-preact": "^0.577.0",
     "nanoid": "^5.1.7",
+    "perfect-freehand": "^1.2.3",
     "preact": "^10.29.0"
   }
 }

@@ -11,6 +11,8 @@ type Env = {
     ASSETS: Fetcher;
     ANNOTATION_ROOM: DurableObjectNamespace;
     OG_BUCKET: R2Bucket;
+    TURN_KEY_ID?: string;
+    TURN_KEY_TOKEN?: string;
   };
 };
 
@@ -46,14 +48,31 @@ const app = new Hono<Env>();
 const api = new Hono<Env>();
 api.use('*', cors());
 
+// Generate short-lived TURN credentials for WebRTC
+const STUN_FALLBACK = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+api.get('/turn', async (c) => {
+  const keyId = c.env.TURN_KEY_ID;
+  const token = c.env.TURN_KEY_TOKEN;
+  if (!keyId || !token) return c.json(STUN_FALLBACK);
+  const res = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ttl: 86400 }),
+  });
+  if (!res.ok) return c.json(STUN_FALLBACK);
+  return c.json(await res.json());
+});
+
 // Store annotations
 api.post('/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
 
-  // Accept { ops, expires_in? } or a raw ops array for backwards compat
+  // Accept { ops, url?, width?, expires_in? } or a raw ops array for backwards compat
   let ops: unknown;
   let expiresAt: number | null = null;
+  let url: string | null = null;
+  let width: number | null = null;
   if (Array.isArray(body)) {
     ops = body;
   } else if (body && typeof body === 'object' && 'ops' in body) {
@@ -61,6 +80,8 @@ api.post('/:id', async (c) => {
     if (typeof body.expires_in === 'number' && body.expires_in > 0) {
       expiresAt = Math.floor(Date.now() / 1000) + body.expires_in;
     }
+    if (typeof body.url === 'string' && body.url) url = body.url;
+    if (typeof body.width === 'number' && body.width > 0) width = body.width;
   } else {
     ops = body;
   }
@@ -70,8 +91,11 @@ api.post('/:id', async (c) => {
     return c.json({ error: 'Invalid operations data' }, 400);
   }
 
-  await c.env.DB.prepare('INSERT OR REPLACE INTO annotations (id, ops, expires_at) VALUES (?, ?, ?)')
-    .bind(id, JSON.stringify(result.data), expiresAt)
+  await c.env.DB.prepare(
+    `INSERT INTO annotations (id, ops, url, width, expires_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, url = COALESCE(excluded.url, url), width = COALESCE(excluded.width, width), expires_at = excluded.expires_at`,
+  )
+    .bind(id, JSON.stringify(result.data), url, width, expiresAt)
     .run();
 
   return c.json({ ok: true });
@@ -80,9 +104,9 @@ api.post('/:id', async (c) => {
 // Retrieve annotations
 api.get('/:id', async (c) => {
   const id = c.req.param('id');
-  const row = await c.env.DB.prepare('SELECT ops, expires_at FROM annotations WHERE id = ?')
+  const row = await c.env.DB.prepare('SELECT ops, url, width, expires_at FROM annotations WHERE id = ?')
     .bind(id)
-    .first<{ ops: string; expires_at: number | null }>();
+    .first<{ ops: string; url: string | null; width: number | null; expires_at: number | null }>();
 
   if (!row) return c.json({ error: 'not found' }, 404);
 
@@ -97,7 +121,7 @@ api.get('/:id', async (c) => {
   c.executionCtx.waitUntil(
     c.env.DB.prepare('UPDATE annotations SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run(),
   );
-  return c.json(JSON.parse(row.ops));
+  return c.json({ ops: JSON.parse(row.ops), url: row.url, width: row.width });
 });
 
 app.route('/api', api);
@@ -128,15 +152,24 @@ app.get('/privacy', (c) =>
 app.get('/s/:id', async (c) => {
   const annotationId = c.req.param('id');
   const reqUrl = new URL(c.req.url);
-  // Extract domain from view param for OG card
+  // Extract domain for OG card — try DB first, fall back to legacy view param
   let domain = 'a webpage';
-  const viewParam = reqUrl.searchParams.get('view');
-  if (viewParam) {
+  const row = await c.env.DB.prepare('SELECT url FROM annotations WHERE id = ?')
+    .bind(annotationId)
+    .first<{ url: string | null }>();
+  if (row?.url) {
     try {
-      const decoded = atob(decodeURIComponent(viewParam));
-      const hashIdx = decoded.indexOf('#ant=');
-      if (hashIdx > 0) domain = new URL(decoded.substring(0, hashIdx)).hostname;
+      domain = new URL(row.url).hostname;
     } catch {}
+  } else {
+    const viewParam = reqUrl.searchParams.get('view');
+    if (viewParam) {
+      try {
+        const decoded = atob(decodeURIComponent(viewParam));
+        const hashIdx = decoded.indexOf('#ant=');
+        if (hashIdx > 0) domain = new URL(decoded.substring(0, hashIdx)).hostname;
+      } catch {}
+    }
   }
   const res = await c.env.ASSETS.fetch(new Request(new URL('/', reqUrl)));
   let html = await res.text();
@@ -270,7 +303,13 @@ app.get('/proxy', async (c) => {
     // 3. <base> tag so HTML-relative URLs resolve to original domain
     // 4. Patch pushState/replaceState to prevent navigation away from the iframe
     // 5. Intercept link clicks and forward to parent via postMessage
-    const inject = `<script>document.documentElement.dataset.marklayer="1";history.replaceState(null,"","${escapeForScript(origPath)}")</script><base href="${origin}/"><script>(function(){var r=history.replaceState,p=history.pushState;history.replaceState=function(){try{return r.apply(this,arguments)}catch(e){}};history.pushState=function(){try{return p.apply(this,arguments)}catch(e){}}; document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest("a"):null;if(!a)return;var h=a.href;if(!h||h.indexOf("javascript:")===0||h.charAt(0)==="#")return;e.preventDefault();e.stopPropagation();window.parent.postMessage({type:"ml-navigate",url:h},"*")},true)})();</script>`;
+    const inject = `<script>document.documentElement.dataset.marklayer="1";history.replaceState(null,"","${escapeForScript(origPath)}");navigator.serviceWorker&&(navigator.serviceWorker.register=function(){return Promise.resolve()});(function(){var F=window.fetch;window.fetch=function(i,o){try{var u=new URL(typeof i==="string"?i:i instanceof Request?i.url:String(i),location.href);if(u.origin!==location.origin&&/^https?:$/.test(u.protocol)){var p="/px/"+u.host+u.pathname+u.search;i=typeof i==="string"?p:new Request(p,i)}}catch(e){}return F.call(this,i,o)};var O=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){try{var u=new URL(arguments[1],location.href);if(u.origin!==location.origin&&/^https?:$/.test(u.protocol))arguments[1]="/px/"+u.host+u.pathname+u.search}catch(e){}return O.apply(this,arguments)}})()</script><base href="${origin}/"><script>(function(){var r=history.replaceState,p=history.pushState;history.replaceState=function(){try{return r.apply(this,arguments)}catch(e){}};history.pushState=function(){try{return p.apply(this,arguments)}catch(e){}}; document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest("a"):null;if(!a)return;var h=a.href;if(!h||h.indexOf("javascript:")===0||h.charAt(0)==="#")return;e.preventDefault();e.stopPropagation();window.parent.postMessage({type:"ml-navigate",url:h},"*")},true)})();</script>`;
+    // Rewrite absolute same-origin URLs in src/href attributes to route through /px/
+    // (must run BEFORE inject insertion so the <base href> tag is not affected)
+    const escapedOrigin = origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedHost = baseUrl.host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    html = html.replace(new RegExp(`((?:src|href)\\s*=\\s*["'])${escapedOrigin}/`, 'gi'), `$1/px/${baseUrl.host}/`);
+    html = html.replace(new RegExp(`((?:src|href)\\s*=\\s*["'])//${escapedHost}/`, 'gi'), `$1/px/${baseUrl.host}/`);
     if (html.includes('<head>')) {
       html = html.replace('<head>', `<head>${inject}`);
     } else if (html.includes('<head ')) {

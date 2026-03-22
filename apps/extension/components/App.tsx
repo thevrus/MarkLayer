@@ -1,7 +1,7 @@
 import { useSignalEffect } from '@preact/signals';
 import { useEffect } from 'preact/hooks';
 import { glass } from '../lib/glass';
-import { loadAnnotations, parseUrlHash, saveAnnotations, setAnnotationId } from '../lib/share';
+import { getShareUrl, loadAnnotations, parseUrlHash, saveAnnotations, setAnnotationId } from '../lib/share';
 import {
   activeTool,
   operations,
@@ -79,7 +79,7 @@ export function App() {
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
-  // Intercept share → direct clipboard copy + toast
+  // Intercept share → copy link immediately, save in background
   useSignalEffect(() => {
     if (!showShareDialog.value) return;
     showShareDialog.value = false;
@@ -88,16 +88,13 @@ export function App() {
       toast('Draw something first', 'info');
       return;
     }
-    toast('Saving...', 'info');
-    saveAnnotations(ops).then((url) => {
-      if (url) {
-        navigator.clipboard.writeText(url).then(
-          () => toast('Link copied!', 'success'),
-          () => toast('Failed to copy link', 'error'),
-        );
-      } else {
-        toast('Failed to save', 'error');
-      }
+    const url = getShareUrl();
+    navigator.clipboard.writeText(url).then(
+      () => toast('Link copied!', 'success'),
+      () => toast('Failed to copy link', 'error'),
+    );
+    saveAnnotations(ops).then((ok) => {
+      if (!ok) toast('Failed to save — link may not work', 'error');
     });
   });
 

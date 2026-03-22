@@ -4,7 +4,7 @@ import type { SelectionOp, SelectionRect } from '@ext/lib/types';
 import { clsx } from 'clsx';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
-import { pushDeviceOp } from './App';
+import { pushDeviceOp } from './signals';
 
 interface Props {
   text: string;

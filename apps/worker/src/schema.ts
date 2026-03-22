@@ -1,4 +1,4 @@
-import { z } from 'zod/v4-mini';
+import { z } from 'zod/mini';
 
 const point = z.object({ x: z.number(), y: z.number() });
 

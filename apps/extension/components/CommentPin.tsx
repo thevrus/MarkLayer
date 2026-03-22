@@ -4,10 +4,15 @@ import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
 
 export function CommentPin({ op }: { op: CommentOp }) {
+  const left = op.x - scrollX;
+  const top = op.y - scrollY;
+  const flipH = left + 300 > window.innerWidth;
+  const flipV = top + 300 > window.innerHeight;
+
   return (
     <div
       class={clsx('absolute pointer-events-auto cursor-pointer', 'group/pin', glass.font)}
-      style={{ left: op.x - scrollX, top: op.y - scrollY }}
+      style={{ left, top }}
       data-doc-x={op.x}
       data-doc-y={op.y}
     >
@@ -29,10 +34,13 @@ export function CommentPin({ op }: { op: CommentOp }) {
         {/* Hover card */}
         <div
           class={clsx(
-            'absolute top-0 left-[calc(100%+10px)]',
+            'absolute',
+            flipV ? 'bottom-0' : 'top-0',
+            flipH ? 'right-[calc(100%+10px)]' : 'left-[calc(100%+10px)]',
             glass.surfaceSmall,
             'w-max max-w-[280px] min-w-[160px]',
-            'opacity-0 scale-90 translate-x-[-6px] pointer-events-none',
+            'opacity-0 scale-90 pointer-events-none',
+            flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
             'transition-all duration-200 ease-out',
             'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0 group-hover/pin:pointer-events-auto',
             'overflow-hidden',

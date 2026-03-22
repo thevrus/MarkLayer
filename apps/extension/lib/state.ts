@@ -1,6 +1,29 @@
 import { computed, signal } from '@preact/signals';
+import { createStore, del, get, set } from 'idb-keyval';
 import { nanoid } from 'nanoid';
 import type { CommentMeta, CommentOp, CommentStatus, DrawOp, Peer, SelectionOp, Tool } from './types';
+
+// Draft auto-save via IndexedDB (dedicated store to avoid host page collisions)
+const _draftStore = createStore('marklayer-drafts', 'drafts');
+const _draftKey = `ml-draft-${location.href.split('#')[0]}`;
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleDraftSave() {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    set(_draftKey, operations.value, _draftStore).catch(() => {});
+  }, 500);
+}
+export async function restoreDraft() {
+  try {
+    const saved = await get<DrawOp[]>(_draftKey, _draftStore);
+    if (saved?.length && !operations.value.length) {
+      operations.value = saved;
+      toast('Draft restored', 'info', 2500);
+    }
+  } catch {
+    // IndexedDB unavailable — silently continue
+  }
+}
 
 export const visible = signal(false);
 export const activeTool = signal<Tool>('navigate');
@@ -133,14 +156,14 @@ if (!savedName || !savedCursorColor) {
 }
 
 export function setUserName(name: string) {
-  const trimmed = name.trim();
-  if (!trimmed) return;
+  const trimmed = name.trim() || `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`;
   localUser.name = trimmed;
   try {
     _ls?.setItem('ml-username', trimmed);
   } catch {
     /* */
   }
+  onProfileChange.value?.(localUser.name, localUser.color);
 }
 
 // Callback for WebSocket sync — set by useRealtimeSync hook
@@ -148,6 +171,7 @@ export const onOpPushed = signal<((op: DrawOp) => void) | null>(null);
 export const onUndone = signal<((opId: string) => void) | null>(null);
 export const onCleared = signal<(() => void) | null>(null);
 export const onCursorMove = signal<((x: number, y: number, tool: string) => void) | null>(null);
+export const onProfileChange = signal<((name: string, color: string) => void) | null>(null);
 
 // Toasts
 export interface Toast {
@@ -253,6 +277,7 @@ export function pushOp(op: DrawOp) {
   operations.value = [...operations.value, op];
   if (undoStack.value.length) undoStack.value = [];
   onOpPushed.value?.(op);
+  scheduleDraftSave();
 }
 
 /** Create and push a reply to an existing comment */
@@ -348,6 +373,7 @@ export function undo() {
   operations.value = ops.slice(0, -1);
   onUndone.value?.(removed.id);
   undoRedoFlash.value++;
+  scheduleDraftSave();
 }
 
 export function redo() {
@@ -358,6 +384,7 @@ export function redo() {
   operations.value = [...operations.value, last];
   undoStack.value = stack.slice(0, -1);
   undoRedoFlash.value++;
+  scheduleDraftSave();
 }
 
 export function clearAll() {
@@ -367,4 +394,5 @@ export function clearAll() {
   undoStack.value = [...undoStack.value, { type: 'clear' as const, ops: structuredClone(ops) }];
   operations.value = [];
   onCleared.value?.();
+  del(_draftKey, _draftStore).catch(() => {});
 }

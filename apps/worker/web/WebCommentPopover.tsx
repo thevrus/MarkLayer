@@ -3,7 +3,7 @@ import { color, commentCounter, getCommentMeta, lineWidth, localUser } from '@ex
 import { clsx } from 'clsx';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
-import { pushDeviceOp } from './App';
+import { pushDeviceOp } from './signals';
 
 interface Props {
   x: number;

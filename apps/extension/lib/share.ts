@@ -1,7 +1,8 @@
 import { nanoid } from 'nanoid';
 import type { DrawOp } from './types';
 
-const API_BASE = 'https://marklayer.app/api/';
+const APP_ORIGIN = 'https://marklayer.app';
+const API_BASE = `${APP_ORIGIN}/api/`;
 
 export { nanoid };
 
@@ -14,25 +15,32 @@ export function setAnnotationId(id: string) {
   currentAnnotationId = id;
 }
 
-export async function saveAnnotations(ops: DrawOp[]): Promise<string | null> {
-  const id = currentAnnotationId || nanoid();
-  currentAnnotationId = id;
+function ensureAnnotationId(): string {
+  if (!currentAnnotationId) currentAnnotationId = nanoid();
+  return currentAnnotationId;
+}
+
+/** Get share URL synchronously (generates ID if needed) */
+export function getShareUrl(): string {
+  return `${APP_ORIGIN}/s/${ensureAnnotationId()}`;
+}
+
+/** Save ops to server. Returns true on success. */
+export async function saveAnnotations(ops: DrawOp[]): Promise<boolean> {
+  const id = ensureAnnotationId();
   try {
+    const url = window.location.href.split('#')[0];
+    const width = window.innerWidth;
     const res = await fetch(`${API_BASE}${id}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(ops),
+      body: JSON.stringify({ ops, url, width }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const width = window.innerWidth;
-    const currentUrl = window.location.href.split('#')[0];
-    const payload = `${currentUrl}#ant=${width}=${id}`;
-    const encoded = btoa(String.fromCharCode(...new TextEncoder().encode(payload)));
-    return `https://marklayer.app/s/${id}?view=${encoded}`;
+    return true;
   } catch (e) {
     console.error('Error saving annotations:', e);
-    return null;
+    return false;
   }
 }
 

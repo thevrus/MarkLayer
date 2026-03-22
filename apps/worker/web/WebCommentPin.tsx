@@ -5,6 +5,7 @@ import type { CommentOp } from '@ext/lib/types';
 import { clsx } from 'clsx';
 import { Check } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
+import { cssScale } from './signals';
 
 interface Props {
   op: CommentOp;
@@ -15,6 +16,9 @@ interface Props {
 export function WebCommentPin({ op, scale: s, scrollY }: Props) {
   const left = op.x * s;
   const top = op.y * s - scrollY;
+  const cs = cssScale.value;
+  const flipH = (left + 320) * cs > window.innerWidth;
+  const flipV = (top + 400) * cs > window.innerHeight;
   const resolved = op.resolved;
   const replies = getReplies(op.id);
   const [showReply, setShowReply] = useState(false);
@@ -61,12 +65,15 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
         {/* Hover card */}
         <div
           class={clsx(
-            'absolute top-0 left-[calc(100%+10px)]',
+            'absolute',
+            flipV ? 'bottom-0' : 'top-0',
+            flipH ? 'right-[calc(100%+10px)]' : 'left-[calc(100%+10px)]',
             'bg-[var(--ml-glass-bg-small)] border border-[var(--ml-glass-border)]',
             'shadow-[0_0_0_0.5px_oklch(0_0_0/0.5),0_6px_24px_oklch(0_0_0/0.35),0_16px_48px_oklch(0_0_0/0.25)]',
             'rounded-xl',
             'w-[300px]',
-            'opacity-0 scale-90 translate-x-[-6px] pointer-events-none',
+            'opacity-0 scale-90 pointer-events-none',
+            flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
             'transition-all duration-200 ease-out',
             'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0 group-hover/pin:pointer-events-auto',
             'max-h-[400px] overflow-y-auto',

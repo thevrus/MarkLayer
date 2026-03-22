@@ -1,12 +1,35 @@
-import { localUser, onCleared, onCursorMove, onOpPushed, onUndone, operations, peers } from '@ext/lib/state';
+import {
+  localUser,
+  onCleared,
+  onCursorMove,
+  onOpPushed,
+  onProfileChange,
+  onUndone,
+  operations,
+  peers,
+} from '@ext/lib/state';
 import type { DrawOp, Peer } from '@ext/lib/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
+import { followingPeer, onFollowScroll } from './signals';
 
 export const connected = signal(false);
+/** Unix timestamp (seconds) when the annotation was first created */
+export const createdAt = signal<number | null>(null);
+/** Unix timestamp (seconds) when the annotation expires (null = never) */
+export const expiresAt = signal<number | null>(null);
 
-const localPeerId = nanoid();
+/** Annotation metadata received from server init */
+export const serverUrl = signal<string | null>(null);
+export const serverWidth = signal<number | null>(null);
+
+/** Exposed so voice room can send signaling messages through the same WS */
+export const wsSend = signal<((msg: unknown) => void) | null>(null);
+/** Callback for incoming WebRTC signaling messages */
+export const onRtcMessage = signal<((msg: { type: string; from: string; [k: string]: unknown }) => void) | null>(null);
+
+export const localPeerId = nanoid();
 
 /** Stale cursor threshold — hide cursors older than 5s */
 const STALE_MS = 5000;
@@ -22,6 +45,7 @@ export function useRealtimeSync(annotationId: string) {
 
     let destroyed = false;
     let initReceived = false;
+    let followScrollTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Debounced REST API save as fallback persistence
     function scheduleSave() {
@@ -36,20 +60,35 @@ export function useRealtimeSync(annotationId: string) {
       }, 3000);
     }
 
-    // Periodically prune stale peer cursors
+    // Periodically hide stale cursors (but keep peers in the map for presence)
+    // Skip pruning while tab is hidden — browser throttles timers and WS messages
+    // queue, so cursors would falsely appear stale. Bump lastSeen on visibility
+    // restore so peers aren't immediately pruned.
     const pruneInterval = setInterval(() => {
-      if (peers.value.size === 0) return;
+      if (document.hidden || peers.value.size === 0) return;
       const now = Date.now();
-      const next = new Map(peers.value);
       let changed = false;
-      for (const [id, peer] of next) {
-        if (now - peer.lastSeen > STALE_MS) {
-          next.delete(id);
+      const next = new Map<string, Peer>();
+      for (const [id, peer] of peers.value) {
+        if (peer.cursor && now - peer.lastSeen > STALE_MS) {
+          next.set(id, { ...peer, cursor: null });
           changed = true;
+        } else {
+          next.set(id, peer);
         }
       }
       if (changed) peers.value = next;
     }, 2000);
+    const onVisible = () => {
+      if (document.hidden || peers.value.size === 0) return;
+      const now = Date.now();
+      const next = new Map(peers.value);
+      for (const [id, peer] of next) {
+        next.set(id, { ...peer, lastSeen: now });
+      }
+      peers.value = next;
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     function connect() {
       if (destroyed) return;
@@ -97,6 +136,10 @@ export function useRealtimeSync(annotationId: string) {
                 operations.value = msg.ops;
                 initReceived = true;
               }
+              if (msg.createdAt != null) createdAt.value = msg.createdAt;
+              if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
+              if (msg.url) serverUrl.value = msg.url;
+              if (msg.width) serverWidth.value = msg.width;
               // Initialize peer list from server
               if (msg.peers) {
                 const map = new Map<string, Peer>();
@@ -127,26 +170,28 @@ export function useRealtimeSync(annotationId: string) {
               }
               break;
             case 'cursor': {
-              const map = new Map(peers.value);
-              const existing = map.get(msg.peerId);
-              if (existing) {
-                map.set(msg.peerId, {
-                  ...existing,
-                  cursor: { x: msg.x, y: msg.y },
-                  tool: msg.tool,
-                  lastSeen: Date.now(),
-                });
-              } else {
-                map.set(msg.peerId, {
-                  id: msg.peerId,
-                  name: msg.name || 'Anonymous',
-                  color: msg.color || '#8b5cf6',
-                  cursor: { x: msg.x, y: msg.y },
-                  tool: msg.tool,
-                  lastSeen: Date.now(),
-                });
+              const prev = peers.value;
+              const existing = prev.get(msg.peerId);
+              const updated = existing
+                ? { ...existing, cursor: { x: msg.x, y: msg.y }, tool: msg.tool, lastSeen: Date.now() }
+                : {
+                    id: msg.peerId,
+                    name: msg.name || 'Anonymous',
+                    color: msg.color || '#8b5cf6',
+                    cursor: { x: msg.x, y: msg.y },
+                    tool: msg.tool,
+                    lastSeen: Date.now(),
+                  };
+              const next = new Map(prev);
+              next.set(msg.peerId, updated);
+              peers.value = next;
+              // Follow mode: throttled scroll to followed peer's Y position
+              if (followingPeer.value === msg.peerId && !followScrollTimer) {
+                followScrollTimer = setTimeout(() => {
+                  followScrollTimer = null;
+                }, 200);
+                onFollowScroll.value?.(msg.y);
               }
-              peers.value = map;
               break;
             }
             case 'peer_join': {
@@ -165,11 +210,30 @@ export function useRealtimeSync(annotationId: string) {
               break;
             }
             case 'peer_leave': {
+              if (followingPeer.value === msg.peerId) followingPeer.value = null;
               const map = new Map(peers.value);
               map.delete(msg.peerId);
               peers.value = map;
               break;
             }
+            case 'profile': {
+              const existing = peers.value.get(msg.peerId);
+              if (existing) {
+                const next = new Map(peers.value);
+                next.set(msg.peerId, {
+                  ...existing,
+                  name: msg.name || existing.name,
+                  color: msg.color || existing.color,
+                });
+                peers.value = next;
+              }
+              break;
+            }
+            case 'rtc_offer':
+            case 'rtc_answer':
+            case 'rtc_ice':
+              onRtcMessage.value?.(msg);
+              break;
           }
         } catch {
           /* ignore malformed */
@@ -210,6 +274,8 @@ export function useRealtimeSync(annotationId: string) {
     onOpPushed.value = (op: DrawOp) => sendMsg({ type: 'op', op });
     onUndone.value = (opId: string) => sendMsg({ type: 'undo', opId });
     onCleared.value = () => sendMsg({ type: 'clear' });
+    onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });
+    wsSend.value = sendMsg;
 
     // Throttled cursor sending (50ms = 20 Hz, CSS transition smooths visually)
     let cursorTimer: ReturnType<typeof setTimeout> | null = null;
@@ -230,8 +296,12 @@ export function useRealtimeSync(annotationId: string) {
       onUndone.value = null;
       onCleared.value = null;
       onCursorMove.value = null;
+      onProfileChange.value = null;
+      wsSend.value = null;
       clearInterval(pruneInterval);
+      document.removeEventListener('visibilitychange', onVisible);
       if (cursorTimer) clearTimeout(cursorTimer);
+      if (followScrollTimer) clearTimeout(followScrollTimer);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       wsRef.current?.close();
       peers.value = new Map();
