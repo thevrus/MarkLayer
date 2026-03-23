@@ -362,7 +362,7 @@ export function Landing() {
           </div>
           <div class="flex items-center gap-4">
             <a
-              href="https://chromewebstore.google.com"
+              href="https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc"
               target="_blank"
               rel="noopener"
               class="flex items-center gap-2 px-4 py-2 rounded-xl bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline hover:bg-ml-btn-hover transition-colors"

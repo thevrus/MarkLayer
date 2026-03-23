@@ -9,7 +9,7 @@ export default defineConfig({
   manifest: {
     name: 'MarkLayer',
     description: 'Mark up any website with comments, drawings, and more',
-    version: '0.1.0',
+    version: '0.2.0',
     action: {},
     permissions: ['activeTab', 'scripting'],
   },
