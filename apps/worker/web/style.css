@@ -5,7 +5,7 @@
 
 @theme {
   /* Page surfaces */
-  --color-ml-bg: #f5f0e8;
+  --color-ml-bg: #fbfaf9;
   --color-ml-bg-viewer: #f5f5f5;
   --color-ml-bg-device: #e8e5e0;
   --color-ml-fg: #1a1a1a;
@@ -129,7 +129,7 @@
   /* Force light theme on landing page regardless of system/manual dark mode */
   .ml-force-light,
   .ml-force-light * {
-    --color-ml-bg: #f5f0e8;
+    --color-ml-bg: #fbfaf9;
     --color-ml-fg: #1a1a1a;
     --color-ml-btn: #1a1a1a;
     --color-ml-btn-hover: #333;

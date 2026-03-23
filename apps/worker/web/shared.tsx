@@ -51,15 +51,55 @@ export function GithubLink({ dark }: { dark?: boolean }) {
   );
 }
 
-export const FEATURES: { label: string; icon: LucideIcon; anim: string }[] = [
-  { label: 'Drawing\ntools', icon: PenTool, anim: 'lp-anim-wiggle' },
-  { label: 'Real-time\ncollaboration', icon: Users, anim: 'lp-anim-bounce' },
-  { label: 'Shareable\nlinks', icon: Link, anim: 'lp-anim-rotate' },
-  { label: 'Threaded\ncomments', icon: MessageSquare, anim: 'lp-anim-bounce' },
-  { label: 'No sign-up\nrequired', icon: User, anim: 'lp-anim-bounce' },
-  { label: 'Private\nby default', icon: Lock, anim: 'lp-anim-shake' },
-  { label: 'Browser\nextension', icon: Puzzle, anim: 'lp-anim-rotate' },
-  { label: 'Free &\nopen source', icon: Code, anim: 'lp-anim-pulse' },
+export const FEATURES: { label: string; desc: string; icon: LucideIcon; anim: string }[] = [
+  {
+    label: 'Drawing tools',
+    desc: 'Freehand drawing, shapes, arrows, and lines. Mark up any page with precision.',
+    icon: PenTool,
+    anim: 'lp-anim-wiggle',
+  },
+  {
+    label: 'Real-time collaboration',
+    desc: 'Live cursors so everyone sees changes as they happen. Collaborate on any webpage.',
+    icon: Users,
+    anim: 'lp-anim-bounce',
+  },
+  {
+    label: 'Shareable links',
+    desc: 'Share a link so anyone can see your annotations instantly. No extension needed to view.',
+    icon: Link,
+    anim: 'lp-anim-rotate',
+  },
+  {
+    label: 'Threaded comments',
+    desc: 'Pin comments to any spot on the page. Have conversations in context, not in Slack.',
+    icon: MessageSquare,
+    anim: 'lp-anim-bounce',
+  },
+  {
+    label: 'No sign-up required',
+    desc: 'Just install and go. No accounts, no emails, no onboarding flows.',
+    icon: User,
+    anim: 'lp-anim-bounce',
+  },
+  {
+    label: 'Private by default',
+    desc: 'Your data stays on your device. Annotations are only shared when you choose.',
+    icon: Lock,
+    anim: 'lp-anim-shake',
+  },
+  {
+    label: 'Browser extension',
+    desc: 'Works on any webpage — no exceptions. One click to start annotating.',
+    icon: Puzzle,
+    anim: 'lp-anim-rotate',
+  },
+  {
+    label: 'Free & open source',
+    desc: 'No paywall, no trial period. Inspect the code, contribute, or self-host.',
+    icon: Code,
+    anim: 'lp-anim-pulse',
+  },
 ];
 
 export function TextInputOverlay({

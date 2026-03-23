@@ -50,7 +50,7 @@ proxy.get('/proxy', async (c) => {
   if (isBlockedHost(hostname)) return c.text('Blocked URL', 400);
 
   const selfHost = new URL(c.req.url).hostname;
-  if (hostname === selfHost.toLowerCase()) return c.text('Cannot proxy to self', 400);
+  if (hostname === selfHost.toLowerCase()) return c.redirect('/?error=self');
 
   try {
     const resp = await fetch(url, {

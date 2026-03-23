@@ -24,7 +24,7 @@ import {
 import type { DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { useSignalEffect } from '@preact/signals';
 import clsx from 'clsx';
-import { ArrowRight, Monitor, Search } from 'lucide-preact';
+import { ArrowRight, ChevronDown, Monitor, Search } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { FakeCursors } from './FakeCursors';
@@ -248,7 +248,12 @@ export function Landing() {
       timer = setTimeout(renderAll, 100) as unknown as number;
     };
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const ro = new ResizeObserver(() => renderAll());
+    ro.observe(document.body);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      ro.disconnect();
+    };
   }, [renderAll]);
 
   useEffect(() => {
@@ -345,260 +350,294 @@ export function Landing() {
   const showCommentCursor = tool === 'comment';
   const comments = commentsComputed.value;
 
+  const CWS_URL = 'https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc';
+
+  const ChromeIcon = () => (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="4" />
+      <line x1="21.17" y1="8" x2="12" y2="8" />
+      <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
+      <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
+    </svg>
+  );
+
+  const CWS_LINK = (cls: string) => (
+    <a
+      href={CWS_URL}
+      target="_blank"
+      rel="noopener"
+      class={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline hover:bg-ml-btn-hover transition-colors ${cls}`}
+    >
+      <ChromeIcon />
+      Add to Chrome
+    </a>
+  );
+
   return (
     <>
+      {/* Gradient page background */}
       <div
         class="ml-force-light relative min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden"
-        style={{ background: 'var(--color-ml-bg)' }}
+        style={{
+          background: '#f0edf4',
+          backgroundImage: `
+            radial-gradient(ellipse 80% 60% at 15% 20%, rgba(200,180,230,0.4) 0%, transparent 70%),
+            radial-gradient(ellipse 50% 70% at 85% 15%, rgba(220,200,245,0.35) 0%, transparent 60%),
+            radial-gradient(ellipse 60% 50% at 50% 80%, rgba(210,190,240,0.3) 0%, transparent 65%),
+            radial-gradient(ellipse 40% 40% at 75% 60%, rgba(230,210,250,0.25) 0%, transparent 50%),
+            radial-gradient(ellipse 45% 35% at 25% 55%, rgba(195,175,225,0.2) 0%, transparent 55%)
+          `,
+        }}
       >
-        {/* Nav */}
-        <nav class="lp-fade-up flex items-center justify-between px-6 sm:px-10 py-5 max-w-[1100px] mx-auto">
-          <div class="flex items-center gap-2.5">
-            <Logo size={32} />
-            <span class="text-[20px] font-bold tracking-[-0.02em] text-ml-fg">MarkLayer</span>
-            <span class="text-[12px] font-medium text-ml-fg/40 bg-ml-fg/[0.06] rounded-full px-2 py-0.5 select-none">
-              v0.1
-            </span>
-          </div>
-          <div class="flex items-center gap-4">
+        {/* Centered white container with shadow */}
+        <div class="max-w-[800px] mx-auto my-0 sm:my-8 bg-white sm:rounded-3xl shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_8px_40px_rgba(0,0,0,0.06)] min-h-screen sm:min-h-0">
+          {/* Nav */}
+          <nav class="lp-fade-up flex items-center justify-between px-8 sm:px-10 pt-6 pb-2">
+            <div class="flex items-center gap-2.5">
+              <Logo size={28} />
+              <span class="text-[18px] font-bold tracking-[-0.02em] text-ml-fg">MarkLayer</span>
+            </div>
+            <div class="flex items-center gap-4">
+              <GithubLink dark />
+            </div>
+          </nav>
+
+          {/* Hero */}
+          <section class="text-center pt-16 sm:pt-20 pb-6 px-8">
+            {/* CWS badge with stars */}
             <a
-              href="https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc"
+              href={CWS_URL}
               target="_blank"
               rel="noopener"
-              class="flex items-center gap-2 px-4 py-2 rounded-xl bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline hover:bg-ml-btn-hover transition-colors"
+              class="lp-fade-up inline-flex items-center gap-2 rounded-lg bg-ml-fg/[0.04] p-1.5 pr-3 no-underline mb-6 hover:bg-ml-fg/[0.07] transition-colors"
             >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="4" />
-                <line x1="21.17" y1="8" x2="12" y2="8" />
-                <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
-                <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
-              </svg>
-              <span class="hidden sm:inline">Chrome Extension</span>
-            </a>
-            <GithubLink dark />
-          </div>
-        </nav>
-
-        {/* Hero */}
-        <section class="text-center pt-16 sm:pt-24 pb-10 px-6">
-          <h1
-            class="lp-fade-up text-[clamp(44px,7.5vw,80px)] font-extrabold tracking-[-0.04em] leading-[1.05] text-ml-fg mb-8"
-            style={{ animationDelay: '0.1s' }}
-          >
-            <span class="relative inline-block">
-              Annotate
-              <span
-                class="lp-underline-grow absolute -bottom-1 left-0 right-0 h-[0.18em] rounded-full opacity-50"
-                style={{ background: '#F953C6' }}
-              />
-            </span>{' '}
-            any webpage,
-            <br />
-            together.
-          </h1>
-
-          <p
-            class="lp-fade-up text-[22px] text-ml-fg/40 mb-12 max-w-[520px] mx-auto leading-relaxed"
-            style={{ animationDelay: '0.2s' }}
-          >
-            Draw, highlight, comment and collaborate on any site in real-time. No sign-up required.
-          </p>
-
-          {isMobileDevice ? (
-            <div
-              class="lp-fade-up max-w-[520px] mx-auto mb-16 px-6 py-5 rounded-2xl bg-ml-input backdrop-blur-xl border border-ml-input-border shadow-[0_4px_24px_rgba(0,0,0,0.06)] text-center"
-              style={{ animationDelay: '0.3s' }}
-            >
-              <Monitor size={28} class="text-ml-fg/30 mx-auto mb-3" aria-hidden="true" />
-              <p class="text-[15px] font-semibold text-ml-fg/70 m-0 mb-1">Desktop only</p>
-              <p class="text-[13px] text-ml-fg/40 m-0">
-                Drawing tools and annotation require a desktop browser. Open this page on your computer to get started.
-              </p>
-            </div>
-          ) : (
-            <>
-              <form
-                class="lp-fade-up max-w-[520px] mx-auto mb-4"
-                style={{ animationDelay: '0.3s' }}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const input = (e.currentTarget.elements.namedItem('url') as HTMLInputElement).value.trim();
-                  if (!input) return;
-                  let url = input;
-                  if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-                  navigateTo(url);
-                }}
-              >
-                <div class="lp-input-glow flex items-center gap-3 px-6 py-5 rounded-2xl bg-ml-input backdrop-blur-xl border border-ml-input-border shadow-[0_4px_24px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.08)]">
-                  <Search size={18} class="text-ml-fg/20 shrink-0" aria-hidden="true" />
-                  <input
-                    name="url"
-                    type="url"
-                    inputMode="url"
-                    placeholder="Paste any URL to annotate..."
-                    autocomplete="url"
-                    autofocus
-                    class="flex-1 bg-transparent border-none text-ml-fg text-[18px] placeholder:text-ml-fg/20 outline-none"
-                    onInput={(e) => {
-                      const v = (e.target as HTMLInputElement).value.trim();
-                      urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    class={clsx(
-                      'shrink-0 w-10 h-10 rounded-xl grid place-items-center border-none cursor-pointer transition-all duration-200',
-                      urlReady.value
-                        ? 'text-ml-btn-fg bg-ml-btn shadow-[0_2px_8px_rgba(0,0,0,0.2)] scale-105 hover:scale-110 hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)]'
-                        : 'text-ml-fg/20 bg-ml-fg/[0.04] hover:bg-ml-fg/[0.08]',
-                    )}
-                  >
-                    <ArrowRight size={20} aria-hidden="true" />
-                  </button>
-                </div>
-              </form>
-
-              <div
-                class="lp-fade-up flex items-center justify-center gap-5 text-[16px] text-ml-fg/30 mb-16"
-                style={{ animationDelay: '0.4s' }}
-              >
-                <span>Try:</span>
-                {['Wikipedia', 'Hacker News', 'GitHub'].map((name) => (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() =>
-                      navigateTo(
-                        name === 'Wikipedia'
-                          ? 'https://en.wikipedia.org/wiki/Web_annotation'
-                          : name === 'Hacker News'
-                            ? 'https://news.ycombinator.com'
-                            : 'https://github.com',
-                      )
-                    }
-                    class="text-ml-fg/35 hover:text-ml-fg/70 transition-colors cursor-pointer bg-transparent border-none text-[16px] p-0 underline underline-offset-2 decoration-ml-fg/10 hover:decoration-ml-fg/30"
-                  >
-                    {name}
-                  </button>
+              <img src="/cws-icon.svg" width="24" height="20" alt="" class="shrink-0" />
+              <div class="flex gap-0.5 text-ml-fg/60">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <svg key={i} width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                    <path
+                      d="M7.8 1.085c-.322-.67-1.279-.67-1.601 0L4.822 3.953l-3.174.416c-.736.096-1.042 1.005-.494 1.522l2.319 2.187-.582 3.122c-.138.742.647 1.291 1.295.942L7 10.624l2.815 1.517c.648.35 1.433-.2 1.295-.941l-.582-3.123 2.32-2.187c.547-.516.24-1.425-.495-1.522l-3.174-.415L7.8 1.085z"
+                      fill="currentColor"
+                    />
+                  </svg>
                 ))}
               </div>
-            </>
-          )}
-        </section>
+            </a>
 
-        {/* Features grid */}
-        <section class="max-w-[900px] mx-auto px-6 pb-28">
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-y-6 sm:gap-y-16 gap-x-4 sm:gap-x-10 group/features">
-            {FEATURES.map((f, i) => (
+            <h1
+              class="lp-fade-up text-[clamp(38px,7vw,64px)] font-normal tracking-[-0.02em] leading-[1.1] text-ml-fg mb-4 font-['Imbue',serif]"
+              style={{ animationDelay: '0.1s' }}
+            >
+              Annotate Any Webpage.
+              <br />
+              Share in One Link.
+            </h1>
+
+            <p
+              class="lp-fade-up text-[15px] text-ml-fg/45 mb-8 max-w-[400px] mx-auto leading-relaxed"
+              style={{ animationDelay: '0.2s' }}
+            >
+              Draw, comment, and mark up any live website — then share a link for instant visual feedback. No account
+              required.
+            </p>
+
+            {isMobileDevice ? (
               <div
-                key={i}
-                class="lp-fade-up flex flex-col items-center text-center transition-opacity duration-200 group-hover/features:opacity-40 hover:!opacity-100"
-                style={{ animationDelay: `${0.5 + i * 0.07}s` }}
+                class="lp-fade-up max-w-[400px] mx-auto mb-12 px-6 py-5 rounded-2xl bg-ml-fg/[0.02] border border-ml-fg/[0.06] text-center"
+                style={{ animationDelay: '0.3s' }}
               >
-                <div
-                  class={`flex items-center justify-center w-12 h-12 sm:w-28 sm:h-28 rounded-xl sm:rounded-3xl mb-2 sm:mb-5 transition-all duration-200 hover:bg-ml-btn/[0.06] text-ml-fg group/icon ${f.anim}`}
-                >
-                  <f.icon
-                    size={84}
-                    strokeWidth={2.25}
-                    aria-hidden="true"
-                    class="w-7 h-7 sm:w-[84px] sm:h-[84px] transition-transform duration-500 ease-out"
-                  />
-                </div>
-                <span class="text-[13px] sm:text-[30px] font-semibold text-ml-fg leading-tight tracking-[-0.02em] sm:tracking-[-0.04em] whitespace-pre-line">
-                  {f.label}
-                </span>
+                <Monitor size={24} class="text-ml-fg/30 mx-auto mb-3" aria-hidden="true" />
+                <p class="text-[14px] font-semibold text-ml-fg/70 m-0 mb-1">Desktop only</p>
+                <p class="text-[13px] text-ml-fg/40 m-0">Open this page on your computer to get started.</p>
               </div>
-            ))}
-          </div>
-        </section>
+            ) : (
+              <>
+                {/* CTA */}
+                <div class="lp-fade-up flex flex-col items-center gap-3 mb-2" style={{ animationDelay: '0.3s' }}>
+                  <a
+                    href={CWS_URL}
+                    target="_blank"
+                    rel="noopener"
+                    class="inline-flex items-center justify-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-colors select-none shadow-[0_1px_3px_rgba(0,0,0,0.2),0_4px_12px_rgba(0,0,0,0.15)]"
+                  >
+                    Add to Chrome — It's Free
+                  </a>
+                </div>
 
-        {/* Contact */}
-        <section class="max-w-[520px] mx-auto px-6 pb-12 text-center">
-          <h3 class="text-[20px] font-bold text-ml-fg mb-2">Have more questions?</h3>
-          <p class="text-[16px] text-ml-fg/50 leading-relaxed mb-4">
-            If you have any additional questions, do not hesitate to contact us at{' '}
-            <a
-              href="mailto:rusinvadym@gmail.com"
-              class="font-medium text-ml-fg/70 underline underline-offset-4 decoration-ml-fg/20 hover:text-ml-fg transition-colors"
-            >
-              rusinvadym@gmail.com
-            </a>
-          </p>
-          <div class="flex items-center justify-center gap-3 mt-6">
-            <a
-              class="inline-flex items-center justify-center size-10 rounded-xl bg-ml-fg/[0.05] text-ml-fg/50 hover:text-ml-fg hover:bg-ml-fg/[0.08] transition-colors"
-              href="https://x.com/rusin_vadim"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <svg
-                class="size-[18px] fill-current"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                role="img"
-                aria-label="X (Twitter)"
+                <p class="lp-fade-up text-[12px] text-ml-fg/30 mb-12" style={{ animationDelay: '0.35s' }}>
+                  No sign-up required
+                </p>
+
+                {/* URL input */}
+                <form
+                  class="lp-fade-up max-w-[460px] mx-auto mb-3"
+                  style={{ animationDelay: '0.4s' }}
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const input = (e.currentTarget.elements.namedItem('url') as HTMLInputElement).value.trim();
+                    if (!input) return;
+                    let url = input;
+                    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+                    navigateTo(url);
+                  }}
+                >
+                  <div class="flex items-center gap-3 px-5 py-3.5 rounded-xl bg-ml-fg/[0.02] border border-ml-fg/[0.08]">
+                    <Search size={16} class="text-ml-fg/20 shrink-0" aria-hidden="true" />
+                    <input
+                      name="url"
+                      type="url"
+                      inputMode="url"
+                      placeholder="Paste any URL to annotate..."
+                      autocomplete="url"
+                      class="flex-1 bg-transparent border-none text-ml-fg text-[14px] placeholder:text-ml-fg/25 outline-none"
+                      onInput={(e) => {
+                        const v = (e.target as HTMLInputElement).value.trim();
+                        urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      class={clsx(
+                        'shrink-0 w-8 h-8 rounded-lg grid place-items-center border-none cursor-pointer transition-all duration-200',
+                        urlReady.value
+                          ? 'text-ml-btn-fg bg-ml-btn shadow-sm'
+                          : 'text-ml-fg/20 bg-ml-fg/[0.04] hover:bg-ml-fg/[0.08]',
+                      )}
+                    >
+                      <ArrowRight size={16} aria-hidden="true" />
+                    </button>
+                  </div>
+                </form>
+
+                <div
+                  class="lp-fade-up flex items-center justify-center gap-4 text-[12px] text-ml-fg/30 mb-16"
+                  style={{ animationDelay: '0.45s' }}
+                >
+                  <span>Try:</span>
+                  {['Wikipedia', 'Hacker News', 'GitHub'].map((name) => (
+                    <button
+                      key={name}
+                      type="button"
+                      onClick={() =>
+                        navigateTo(
+                          name === 'Wikipedia'
+                            ? 'https://en.wikipedia.org/wiki/Web_annotation'
+                            : name === 'Hacker News'
+                              ? 'https://news.ycombinator.com'
+                              : 'https://github.com',
+                        )
+                      }
+                      class="text-ml-fg/35 hover:text-ml-fg/60 transition-colors cursor-pointer bg-transparent border-none text-[12px] p-0 underline underline-offset-2 decoration-ml-fg/15"
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* Features grid */}
+          <section class="pb-16">
+            <div class="grid grid-cols-1 sm:grid-cols-2">
+              {FEATURES.map((f, i) => (
+                <div
+                  key={f.label}
+                  class="lp-fade-up flex flex-col gap-2 p-8 ring-[0.5px] ring-ml-fg/[0.08]"
+                  style={{ animationDelay: `${i * 0.1}s` }}
+                >
+                  <div class="flex items-start gap-3">
+                    <div class="flex flex-col gap-1 flex-1 min-w-0">
+                      <h3 class="text-base flex items-start gap-3 font-medium text-ml-fg">
+                        <span class={`size-4 h-[1lh] text-ml-fg/50 ${f.anim}`}>
+                          <f.icon size={16} strokeWidth={2} class="size-4" aria-hidden="true" />
+                        </span>
+                        <span>{f.label}</span>
+                      </h3>
+                      <p class="text-sm pl-7 text-ml-fg/70 leading-relaxed m-0">{f.desc}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* FAQ */}
+          <section class="px-8 sm:px-10 pb-16">
+            <div class="flex flex-col">
+              {[
+                {
+                  q: 'Does the other person need the extension installed?',
+                  a: 'No. Anyone can view your annotations via the share link — no install required.',
+                },
+                { q: 'Is it really free?', a: 'Yes. No account, no paywall, no trial period.' },
+                { q: 'Does it work on any website?', a: 'Yes, MarkLayer works on any webpage.' },
+                {
+                  q: 'Can multiple people annotate at the same time?',
+                  a: 'Yes — real-time cursors let you collaborate live on any page.',
+                },
+              ].map((item) => (
+                <details key={item.q} class="group border-t border-ml-fg/[0.06] py-5">
+                  <summary class="flex items-center justify-between cursor-pointer list-none text-[15px] font-semibold text-ml-fg">
+                    {item.q}
+                    <ChevronDown
+                      size={16}
+                      class="text-ml-fg/25 shrink-0 ml-4 transition-transform duration-200 group-open:rotate-180"
+                      aria-hidden="true"
+                    />
+                  </summary>
+                  <p class="text-[14px] text-ml-fg/45 leading-relaxed mt-3 mb-0">{item.a}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+
+          {/* Bottom CTA */}
+          <section class="px-8 pt-8 pb-10 text-center">
+            <h2 class="text-[clamp(28px,5vw,40px)] font-normal tracking-[-0.01em] font-['Imbue',serif] text-ml-fg mb-5">
+              Start annotating what matters.
+            </h2>
+            {CWS_LINK('')}
+            <p class="text-[12px] text-ml-fg/30 mt-3">Free to use &middot; No sign-up required</p>
+          </section>
+
+          {/* Footer */}
+          <footer class="px-8 sm:px-10 pt-8 pb-8 border-t border-ml-fg/[0.06]">
+            <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-ml-fg/30 mb-4">
+              <a href="/privacy" class="hover:text-ml-fg/60 transition-colors no-underline text-ml-fg/30">
+                Privacy
+              </a>
+              <a
+                href="https://github.com/thevrus/MarkLayer"
+                target="_blank"
+                rel="noopener"
+                class="hover:text-ml-fg/60 transition-colors no-underline text-ml-fg/30"
               >
-                <path d="M21.2391 3H18.6854L12.9921 9.61784L14.1261 11.2682L21.2391 3Z" />
-                <path d="M11.2104 14.6575L10.0764 13.0071L3.2002 21H5.75403L11.2104 14.6575Z" />
-                <path d="M8.44486 3H3.2002L15.5685 21H20.8131L8.44486 3ZM5.31391 4.16971H7.70053L18.6861 19.8835H16.2995L5.31391 4.16971Z" />
-              </svg>
-            </a>
-            <a
-              class="inline-flex items-center justify-center size-10 rounded-xl bg-ml-fg/[0.05] text-ml-fg/50 hover:text-ml-fg hover:bg-ml-fg/[0.08] transition-colors"
-              href="https://github.com/thevrus"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <svg
-                class="size-[20px] fill-current"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                role="img"
-                aria-label="GitHub"
+                GitHub
+              </a>
+              <a
+                href="mailto:rusinvadym@gmail.com"
+                class="hover:text-ml-fg/60 transition-colors no-underline text-ml-fg/30"
               >
-                <path
-                  fill-rule="evenodd"
-                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            </a>
-          </div>
-        </section>
-
-        <footer class="max-w-[520px] mx-auto px-6 pb-16 text-center">
-          <p class="text-[16px] text-ml-fg/25 leading-relaxed">
-            MarkLayer is a free, open-source web annotation tool. Annotate any webpage with drawings, highlights, and
-            comments — then share a link for real-time collaboration. No account needed.
-          </p>
-        </footer>
-
-        <div class="relative overflow-hidden h-[clamp(80px,16vw,180px)]">
-          <p
-            class="text-center text-[clamp(60px,18vw,340px)] font-black tracking-tight leading-none select-none absolute inset-x-0 top-0"
-            style={{
-              background:
-                'linear-gradient(180deg, color-mix(in srgb, var(--color-ml-fg) 12%, transparent) 0%, transparent 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-            aria-hidden="true"
-          >
-            MarkLayer
-          </p>
+                Contact
+              </a>
+            </div>
+            <div class="flex items-center justify-center gap-2 text-[12px] text-ml-fg/20">
+              <Logo size={14} />
+              <span>MarkLayer &copy; {new Date().getFullYear()}</span>
+            </div>
+          </footer>
         </div>
 
         {/* Comment overlay */}
@@ -688,7 +727,7 @@ export function Landing() {
           }}
         />
 
-        <div class="lp-toolbar-in hidden sm:block">
+        <div class="lp-toolbar-in hidden sm:block z-[2147483647]">
           <Toolbar />
         </div>
 

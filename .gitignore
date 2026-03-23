@@ -8,3 +8,4 @@ dist/
 apps/worker/public/
 *.log
 bun.lock
+.env.local

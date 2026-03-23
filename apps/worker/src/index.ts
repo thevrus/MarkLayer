@@ -50,10 +50,8 @@ app.get('/s/:id', async (c) => {
   const ogImage = `${reqUrl.origin}/og/${annotationId}.png?domain=${encodeURIComponent(domain)}`;
   const title = `MarkLayer \u2014 Annotations on ${domain}`;
   html = html
-    .replace(
-      /<meta property="og:title"[^>]*>/,
-      `<meta property="og:url" content="${reqUrl.href}">\n    <meta property="og:title" content="${title}">`,
-    )
+    .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${reqUrl.href}">`)
+    .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}">`)
     .replace(/<meta property="og:image"[^>]*>/, `<meta property="og:image" content="${ogImage}">`)
     .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}">`)
     .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`);
@@ -96,6 +94,16 @@ app.get('/ws/:id', async (c) => {
   const url = new URL(c.req.url);
   url.searchParams.set('id', id);
   return room.fetch(new Request(url.toString(), c.req.raw));
+});
+
+// Sitemap for SEO
+app.get('/sitemap.xml', (c) => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://marklayer.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://marklayer.app/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+</urlset>`;
+  return c.body(xml, 200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' });
 });
 
 // Proxy + catch-all (must be last)

@@ -7,8 +7,9 @@ export default defineConfig({
     plugins: [preact(), tailwindcss()],
   }),
   manifest: {
-    name: 'MarkLayer',
-    description: 'Mark up any website with comments, drawings, and more',
+    name: 'MarkLayer — Webpage Annotator & Visual Feedback Tool',
+    description:
+      'MarkLayer is a free webpage annotation tool for Chrome. Draw, comment, and mark up any live website — then share a link so anyone can see your annotations instantly. No account required.',
     version: '0.2.0',
     action: {},
     permissions: ['activeTab', 'scripting'],

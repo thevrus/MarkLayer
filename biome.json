@@ -53,7 +53,9 @@
       "!**/dist",
       "!**/bun.lock",
       "!**/public/assets",
-      "!**/worker-configuration.d.ts"
+      "!**/worker-configuration.d.ts",
+      "!apps/worker/index.html",
+      "!apps/worker/public/index.html"
     ]
   }
 }

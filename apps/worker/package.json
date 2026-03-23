@@ -13,12 +13,14 @@
   },
   "dependencies": {
     "@marklayer/types": "workspace:*",
+    "@posthog/react": "^1.8.2",
     "@preact/signals": "^2.8.2",
     "@resvg/resvg-wasm": "^2.6.2",
     "clsx": "^2.1.1",
     "hono": "^4.7.0",
     "lucide-preact": "^0.577.0",
     "nanoid": "^5.1.7",
+    "posthog-js": "^1.363.3",
     "preact": "^10.29.0",
     "zod": "^4.0.0"
   },

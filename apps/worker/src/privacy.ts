@@ -26,8 +26,11 @@ export const privacyHtml = `<!DOCTYPE html>
   <h2>Page content</h2>
   <p>The extension does not read, collect, or transmit the content of any webpage you visit. It only renders its own overlay on top of the page.</p>
 
+  <h2>Analytics</h2>
+  <p>Our website (marklayer.app) uses <a href="https://posthog.com">PostHog</a> for basic usage analytics — page views, session duration, and session replays — so we can understand how people use the site and improve it. IP addresses are anonymized and we do not track individual clicks or form inputs. No analytics are collected by the browser extension.</p>
+
   <h2>Third parties</h2>
-  <p>We do not sell, share, or transfer any data to third parties.</p>
+  <p>We use PostHog for analytics as described above. We do not sell, share, or transfer any data to other third parties.</p>
 
   <h2>Contact</h2>
   <p>Questions? Open an issue on our <a href="https://github.com/thevrus/MarkLayer">GitHub repository</a>.</p>

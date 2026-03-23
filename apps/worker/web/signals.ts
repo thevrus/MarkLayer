@@ -1,4 +1,4 @@
-import { pushOp } from '@ext/lib/state';
+import { pushOp, toast as showToast } from '@ext/lib/state';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import { effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
@@ -97,6 +97,17 @@ function parseViewParam(): boolean {
 
 if (parseViewParam()) {
   isLanding.value = false;
+}
+
+// Show friendly error when redirected from proxy
+{
+  const params = new URLSearchParams(location.search);
+  if (params.get('error') === 'self') {
+    showToast("You can't annotate MarkLayer itself — try a different URL", 'error', 5000);
+    params.delete('error');
+    const clean = params.toString();
+    history.replaceState(null, '', clean ? `?${clean}` : location.pathname);
+  }
 }
 
 export async function navigateTo(url: string) {
