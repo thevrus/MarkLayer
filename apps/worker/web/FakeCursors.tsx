@@ -100,8 +100,9 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
       <div
         class="absolute left-6 top-7 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold text-white leading-none"
         style={{
-          background: cursor.color,
-          boxShadow: `0 2px 8px ${cursor.color}40`,
+          background: `linear-gradient(180deg, color-mix(in srgb, ${cursor.color} 80%, white 20%) 0%, ${cursor.color} 100%)`,
+          borderTop: '0.5px solid rgba(255,255,255,0.25)',
+          boxShadow: `0 1px 0 rgba(255,255,255,0.12) inset, 0 -1px 0 rgba(0,0,0,0.2) inset, 0 2px 6px ${cursor.color}40`,
         }}
       >
         {cursor.name}
