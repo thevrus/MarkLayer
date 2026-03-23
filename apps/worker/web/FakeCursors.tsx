@@ -99,7 +99,10 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
       <CursorArrow color={cursor.color} />
       <div
         class="absolute left-6 top-7 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold text-white leading-none"
-        style={{ background: cursor.color, boxShadow: `0 2px 8px ${cursor.color}40` }}
+        style={{
+          background: cursor.color,
+          boxShadow: `0 2px 8px ${cursor.color}40`,
+        }}
       >
         {cursor.name}
       </div>

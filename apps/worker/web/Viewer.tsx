@@ -30,7 +30,7 @@ import {
   undoRedoFlash,
 } from '@ext/lib/state';
 import type { DeviceMode, DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
-import { useSignalEffect } from '@preact/signals';
+import { useSignal, useSignalEffect } from '@preact/signals';
 import clsx from 'clsx';
 import {
   Calendar,
@@ -262,6 +262,7 @@ function InfoPanel() {
 
 export default function Viewer() {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const iframeLoaded = useSignal(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -1139,13 +1140,20 @@ export default function Viewer() {
               transformOrigin: 'top left',
             }}
           >
+            {!iframeLoaded.value && pageUrl.value && (
+              <div class="absolute inset-0 flex items-center justify-center bg-white">
+                <Spinner />
+              </div>
+            )}
             <iframe
               ref={frameRef}
               title="Annotated page"
               src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+              onLoad={() => { iframeLoaded.value = true; }}
               class={clsx(
                 'w-full h-full border-none bg-white',
+                !iframeLoaded.value && 'invisible',
                 (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
               )}
             />

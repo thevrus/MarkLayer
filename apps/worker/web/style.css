@@ -244,6 +244,52 @@
   animation: lpPulseGlow 3s ease-in-out infinite;
 }
 
+@keyframes lpShine {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+
+
+.lp-shine {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(180deg, #333 0%, #0a0a0a 100%);
+  border-top: 0.5px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 -1px 0 rgba(0, 0, 0, 0.3) inset,
+    0 2px 6px rgba(0, 0, 0, 0.2);
+}
+.lp-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.12) 48%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.12) 52%,
+    transparent 60%
+  );
+  transform: translateX(-100%) skewX(-15deg);
+  animation: lpShine 4s ease-in-out 2s infinite;
+  pointer-events: none;
+}
+.lp-shine:hover {
+  background: linear-gradient(180deg, #444 0%, #161616 100%);
+}
+.lp-shine:active {
+  background: linear-gradient(180deg, #111 0%, #0a0a0a 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.03) inset,
+    0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
 /* Feature icon hover animations */
 @keyframes lpWiggle {
   0%,

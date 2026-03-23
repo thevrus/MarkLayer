@@ -377,7 +377,7 @@ export function Landing() {
       href={CWS_URL}
       target="_blank"
       rel="noopener"
-      class={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline hover:bg-ml-btn-hover transition-colors ${cls}`}
+      class={`lp-shine inline-flex items-center gap-2 h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-all select-none ${cls}`}
     >
       <ChromeIcon />
       Add to Chrome
@@ -390,14 +390,7 @@ export function Landing() {
       <div
         class="ml-force-light relative min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden"
         style={{
-          background: '#f0edf4',
-          backgroundImage: `
-            radial-gradient(ellipse 80% 60% at 15% 20%, rgba(200,180,230,0.4) 0%, transparent 70%),
-            radial-gradient(ellipse 50% 70% at 85% 15%, rgba(220,200,245,0.35) 0%, transparent 60%),
-            radial-gradient(ellipse 60% 50% at 50% 80%, rgba(210,190,240,0.3) 0%, transparent 65%),
-            radial-gradient(ellipse 40% 40% at 75% 60%, rgba(230,210,250,0.25) 0%, transparent 50%),
-            radial-gradient(ellipse 45% 35% at 25% 55%, rgba(195,175,225,0.2) 0%, transparent 55%)
-          `,
+          background: 'linear-gradient(180deg, #f5e6f0 0%, #f0e8ee 25%, #f5f2f4 50%, #faf9fa 75%, #fff 100%)',
         }}
       >
         {/* Centered white container with shadow */}
@@ -406,7 +399,7 @@ export function Landing() {
           <nav class="lp-fade-up flex items-center justify-between px-8 sm:px-10 pt-6 pb-2">
             <div class="flex items-center gap-2.5">
               <Logo size={28} />
-              <span class="text-[18px] font-bold tracking-[-0.02em] text-ml-fg">MarkLayer</span>
+              <span class="text-[18px] font-bold tracking-[-0.02em] bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(180deg, #333 0%, #0a0a0a 100%)' }}>MarkLayer</span>
             </div>
             <div class="flex items-center gap-4">
               <GithubLink dark />
@@ -469,7 +462,7 @@ export function Landing() {
                     href={CWS_URL}
                     target="_blank"
                     rel="noopener"
-                    class="inline-flex items-center justify-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-colors select-none shadow-[0_1px_3px_rgba(0,0,0,0.2),0_4px_12px_rgba(0,0,0,0.15)]"
+                    class="lp-shine inline-flex items-center justify-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-all select-none"
                   >
                     Add to Chrome — It's Free
                   </a>
@@ -605,7 +598,7 @@ export function Landing() {
 
           {/* Bottom CTA */}
           <section class="px-8 pt-8 pb-10 text-center">
-            <h2 class="text-[clamp(28px,5vw,40px)] font-normal tracking-[-0.01em] font-['Imbue',serif] text-ml-fg mb-5">
+            <h2 class="text-[clamp(28px,5vw,40px)] font-normal tracking-[0.01em] font-['Imbue',serif] text-ml-fg mb-5">
               Start annotating what matters.
             </h2>
             {CWS_LINK('')}
