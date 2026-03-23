@@ -98,7 +98,7 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
     >
       <CursorArrow color={cursor.color} />
       <div
-        class="absolute left-6 top-7 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold text-white leading-none"
+        class="absolute left-[26px] top-[30px] whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold text-white leading-none"
         style={{
           background: `linear-gradient(180deg, color-mix(in srgb, ${cursor.color} 80%, white 20%) 0%, ${cursor.color} 100%)`,
           borderTop: '0.5px solid rgba(255,255,255,0.25)',

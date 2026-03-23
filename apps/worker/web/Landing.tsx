@@ -722,7 +722,7 @@ export function Landing() {
           }}
         />
 
-        <div class="lp-toolbar-in hidden sm:block z-[2147483647]">
+        <div class="lp-toolbar-in lp-shine-toolbar hidden sm:block z-[2147483647]">
           <Toolbar />
         </div>
 

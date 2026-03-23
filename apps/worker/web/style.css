@@ -290,6 +290,30 @@
     0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
+.lp-shine-toolbar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+}
+.lp-shine-toolbar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.08) 48%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.08) 52%,
+    transparent 60%
+  );
+  transform: translateX(-100%) skewX(-15deg);
+  animation: lpShine 5s ease-in-out 3s infinite;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+
 /* Feature icon hover animations */
 @keyframes lpWiggle {
   0%,
