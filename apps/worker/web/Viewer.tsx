@@ -291,6 +291,12 @@ export default function Viewer() {
     if (w && !originalWidth.value) originalWidth.value = w;
   });
 
+  // Reset loading state when the proxied URL changes
+  useSignalEffect(() => {
+    pageUrl.value;
+    iframeLoaded.value = false;
+  });
+
   // Export PNG
   useEffect(() => {
     onExportPng.value = () => {

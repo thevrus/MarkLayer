@@ -372,12 +372,14 @@ export function Landing() {
     </svg>
   );
 
+  const CTA_CLS = 'lp-shine inline-flex items-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-colors select-none';
+
   const CWS_LINK = (cls: string) => (
     <a
       href={CWS_URL}
       target="_blank"
       rel="noopener"
-      class={`lp-shine inline-flex items-center gap-2 h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-all select-none ${cls}`}
+      class={`${CTA_CLS} gap-2 ${cls}`}
     >
       <ChromeIcon />
       Add to Chrome
@@ -462,7 +464,7 @@ export function Landing() {
                     href={CWS_URL}
                     target="_blank"
                     rel="noopener"
-                    class="lp-shine inline-flex items-center justify-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-all select-none"
+                    class={`${CTA_CLS} justify-center`}
                   >
                     Add to Chrome — It's Free
                   </a>
@@ -598,7 +600,7 @@ export function Landing() {
 
           {/* Bottom CTA */}
           <section class="px-8 pt-8 pb-10 text-center">
-            <h2 class="text-[clamp(28px,5vw,40px)] font-normal tracking-[0.01em] font-['Imbue',serif] text-ml-fg mb-5">
+            <h2 class="text-[clamp(28px,5vw,40px)] font-normal tracking-[-0.01em] font-['Imbue',serif] text-ml-fg mb-5">
               Start annotating what matters.
             </h2>
             {CWS_LINK('')}

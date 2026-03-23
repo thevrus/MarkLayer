@@ -6,11 +6,9 @@
 
 > Annotate any webpage with drawings, comments, and highlights. Real-time collaboration for Chrome.
 
-**MarkLayer** is a free, open-source web annotation tool. Draw, highlight, comment on any page — then share a link for real-time collaboration. No sign-up required. [Try it live](https://marklayer.app) · [Build from source](#from-source)
+**MarkLayer** is a free, open-source web annotation tool. Draw, highlight, comment on any page — then share a link for real-time collaboration. No sign-up required.
 
-<p align="center">
-  <img src=".github/preview.jpg" alt="MarkLayer" width="720" />
-</p>
+[Try it live](https://marklayer.app) · [Chrome Web Store](https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc) · [Build from source](#from-source)
 
 ## ✨ Features
 

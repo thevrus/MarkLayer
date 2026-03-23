@@ -13,6 +13,7 @@ if (phKey) {
     autocapture: false,
     capture_pageview: true,
     capture_pageleave: true,
+    capture_exceptions: true,
   });
 }
 
