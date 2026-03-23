@@ -491,7 +491,7 @@ export function Landing() {
                     <Search size={16} class="text-ml-fg/20 shrink-0" aria-hidden="true" />
                     <input
                       name="url"
-                      type="url"
+                      type="text"
                       inputMode="url"
                       placeholder="Paste any URL to annotate..."
                       autocomplete="url"
