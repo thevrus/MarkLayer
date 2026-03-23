@@ -1156,7 +1156,9 @@ export default function Viewer() {
               title="Annotated page"
               src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-              onLoad={() => { iframeLoaded.value = true; }}
+              onLoad={() => {
+                iframeLoaded.value = true;
+              }}
               class={clsx(
                 'w-full h-full border-none bg-white',
                 !iframeLoaded.value && 'invisible',

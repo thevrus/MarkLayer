@@ -372,15 +372,11 @@ export function Landing() {
     </svg>
   );
 
-  const CTA_CLS = 'lp-shine inline-flex items-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-colors select-none';
+  const CTA_CLS =
+    'lp-shine inline-flex items-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-colors select-none';
 
   const CWS_LINK = (cls: string) => (
-    <a
-      href={CWS_URL}
-      target="_blank"
-      rel="noopener"
-      class={`${CTA_CLS} gap-2 ${cls}`}
-    >
+    <a href={CWS_URL} target="_blank" rel="noopener" class={`${CTA_CLS} gap-2 ${cls}`}>
       <ChromeIcon />
       Add to Chrome
     </a>
@@ -389,21 +385,32 @@ export function Landing() {
   return (
     <>
       {/* Gradient page background */}
-      <div
-        class="ml-force-light relative min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden"
-        style={{
-          background: 'linear-gradient(180deg, #f5e6f0 0%, #f0e8ee 25%, #f5f2f4 50%, #faf9fa 75%, #fff 100%)',
-        }}
-      >
+      <div class="ml-force-light relative min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden lp-bg-animate">
         {/* Centered white container with shadow */}
         <div class="max-w-[800px] mx-auto my-0 sm:my-8 bg-white sm:rounded-3xl shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_8px_40px_rgba(0,0,0,0.06)] min-h-screen sm:min-h-0">
           {/* Nav */}
           <nav class="lp-fade-up flex items-center justify-between px-8 sm:px-10 pt-6 pb-2">
             <div class="flex items-center gap-2.5">
               <Logo size={28} />
-              <span class="text-[18px] font-bold tracking-[-0.02em] bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(180deg, #333 0%, #0a0a0a 100%)' }}>MarkLayer</span>
+              <span
+                class="text-[18px] font-bold tracking-[-0.02em] bg-clip-text text-transparent"
+                style={{ backgroundImage: 'linear-gradient(180deg, #333 0%, #0a0a0a 100%)' }}
+              >
+                MarkLayer
+              </span>
             </div>
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-3">
+              <a
+                href="https://www.producthunt.com/"
+                target="_blank"
+                rel="noopener"
+                class="inline-flex items-center justify-center size-9 rounded-lg text-ml-fg/40 hover:text-ml-fg/70 hover:bg-ml-fg/[0.04] transition-colors"
+              >
+                <span class="sr-only">Product Hunt</span>
+                <svg class="size-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M13.604 8.4h-3.405V12h3.405a1.8 1.8 0 0 0 0-3.6ZM12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0Zm1.604 14.4h-3.405V18H7.801V6h5.804a4.2 4.2 0 0 1 0 8.4Z" />
+                </svg>
+              </a>
               <GithubLink dark />
             </div>
           </nav>
@@ -460,12 +467,7 @@ export function Landing() {
               <>
                 {/* CTA */}
                 <div class="lp-fade-up flex flex-col items-center gap-3 mb-2" style={{ animationDelay: '0.3s' }}>
-                  <a
-                    href={CWS_URL}
-                    target="_blank"
-                    rel="noopener"
-                    class={`${CTA_CLS} justify-center`}
-                  >
+                  <a href={CWS_URL} target="_blank" rel="noopener" class={`${CTA_CLS} justify-center`}>
                     Add to Chrome — It's Free
                   </a>
                 </div>
@@ -520,19 +522,15 @@ export function Landing() {
                   style={{ animationDelay: '0.45s' }}
                 >
                   <span>Try:</span>
-                  {['Wikipedia', 'Hacker News', 'GitHub'].map((name) => (
+                  {[
+                    { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Web_annotation' },
+                    { name: 'Hacker News', url: 'https://news.ycombinator.com' },
+                    { name: 'Product Hunt', url: 'https://www.producthunt.com' },
+                  ].map(({ name, url }) => (
                     <button
                       key={name}
                       type="button"
-                      onClick={() =>
-                        navigateTo(
-                          name === 'Wikipedia'
-                            ? 'https://en.wikipedia.org/wiki/Web_annotation'
-                            : name === 'Hacker News'
-                              ? 'https://news.ycombinator.com'
-                              : 'https://github.com',
-                        )
-                      }
+                      onClick={() => navigateTo(url)}
                       class="text-ml-fg/35 hover:text-ml-fg/60 transition-colors cursor-pointer bg-transparent border-none text-[12px] p-0 underline underline-offset-2 decoration-ml-fg/15"
                     >
                       {name}

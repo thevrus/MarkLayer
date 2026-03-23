@@ -244,6 +244,31 @@
   animation: lpPulseGlow 3s ease-in-out infinite;
 }
 
+@keyframes lpBgShift {
+  0%,
+  100% {
+    background-position: 50% 0%;
+  }
+  50% {
+    background-position: 50% 100%;
+  }
+}
+
+.lp-bg-animate {
+  background: linear-gradient(
+    180deg,
+    #f5e6f0 0%,
+    #efe0ec 15%,
+    #f0e8ee 30%,
+    #f5f2f4 50%,
+    #faf9fa 70%,
+    #fff 85%,
+    #f5f2f4 100%
+  );
+  background-size: 100% 200%;
+  animation: lpBgShift 12s ease-in-out infinite;
+}
+
 @keyframes lpShine {
   0% {
     transform: translateX(-100%) skewX(-15deg);
@@ -252,7 +277,6 @@
     transform: translateX(200%) skewX(-15deg);
   }
 }
-
 
 .lp-shine {
   position: relative;
@@ -312,7 +336,6 @@
   pointer-events: none;
   z-index: 9999;
 }
-
 
 /* Feature icon hover animations */
 @keyframes lpWiggle {
