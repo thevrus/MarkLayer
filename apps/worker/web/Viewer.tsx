@@ -46,7 +46,6 @@ import {
   Monitor,
   Moon,
   PenTool,
-  Share2,
   Smartphone,
   Sun,
   Tablet,
@@ -269,7 +268,6 @@ export default function Viewer() {
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const drawingRef = useRef(false);
-  const copiedEditable = useSignal(false);
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
   const snapshotRef = useRef<ImageData | null>(null);
@@ -1078,11 +1076,7 @@ export default function Viewer() {
           {!readonly && (
               <button
                 type="button"
-                onClick={() => {
-                  doShare();
-                  copiedEditable.value = true;
-                  setTimeout(() => (copiedEditable.value = false), 1000);
-                }}
+                onClick={() => doShare()}
                 disabled={sharing.value}
                 class={clsx(
                   'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
@@ -1090,18 +1084,7 @@ export default function Viewer() {
                 )}
                 title="Copy editable link"
               >
-                <span class="relative grid place-items-center w-4 h-4">
-                  <Share2
-                    size={16}
-                    aria-hidden="true"
-                    class={clsx('absolute inset-0 transition-all duration-300', copiedEditable.value ? 'opacity-0 scale-50' : 'opacity-100 scale-100')}
-                  />
-                  <Lock
-                    size={16}
-                    aria-hidden="true"
-                    class={clsx('absolute inset-0 transition-all duration-300', copiedEditable.value ? 'opacity-100 scale-100' : 'opacity-0 scale-50')}
-                  />
-                </span>
+                <Upload size={16} aria-hidden="true" />
               </button>
           )}
 
