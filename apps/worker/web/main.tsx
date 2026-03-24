@@ -17,4 +17,6 @@ if (phKey) {
   });
 }
 
-render(<App />, document.getElementById('app')!);
+const root = document.getElementById('app')!;
+root.innerHTML = '';
+render(<App />, root);

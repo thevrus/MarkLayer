@@ -387,10 +387,10 @@ export function Landing() {
       {/* Gradient page background */}
       <div class="ml-force-light relative min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden lp-bg-animate">
         {/* Centered white container with shadow */}
-        <div class="max-w-[800px] mx-auto my-0 sm:my-8 bg-white sm:rounded-3xl shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_8px_40px_rgba(0,0,0,0.06)] min-h-screen sm:min-h-0">
+        <main class="max-w-[800px] mx-auto my-0 sm:my-8 bg-white sm:rounded-3xl shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_8px_40px_rgba(0,0,0,0.06)] min-h-screen sm:min-h-0">
           {/* Nav */}
           <nav class="lp-fade-up flex items-center justify-between px-8 sm:px-10 pt-6 pb-2">
-            <div class="flex items-center gap-2.5">
+            <a href="/" class="flex items-center gap-2.5 no-underline">
               <Logo size={28} />
               <span
                 class="text-[18px] font-bold tracking-[-0.02em] bg-clip-text text-transparent"
@@ -398,10 +398,10 @@ export function Landing() {
               >
                 MarkLayer
               </span>
-            </div>
+            </a>
             <div class="flex items-center gap-3">
               <a
-                href="https://www.producthunt.com/"
+                href="https://www.producthunt.com/posts/marklayer"
                 target="_blank"
                 rel="noopener"
                 class="inline-flex items-center justify-center size-9 rounded-lg text-ml-fg/40 hover:text-ml-fg/70 hover:bg-ml-fg/[0.04] transition-colors"
@@ -416,15 +416,23 @@ export function Landing() {
           </nav>
 
           {/* Hero */}
-          <section class="text-center pt-16 sm:pt-20 pb-6 px-8">
+          <section class="text-center pt-16 sm:pt-20 pb-6 px-8 bg-white">
             {/* CWS badge with stars */}
             <a
               href={CWS_URL}
               target="_blank"
               rel="noopener"
+              aria-label="Rated 5 stars on Chrome Web Store"
               class="lp-fade-up inline-flex items-center gap-2 rounded-lg bg-ml-fg/[0.04] p-1.5 pr-3 no-underline mb-6 hover:bg-ml-fg/[0.07] transition-colors"
             >
-              <img src="/cws-icon.svg" width="24" height="20" alt="" class="shrink-0" />
+              <img
+                src="/cws-icon.svg"
+                width="24"
+                height="20"
+                alt="Chrome Web Store"
+                class="shrink-0"
+                fetchpriority="high"
+              />
               <div class="flex gap-0.5 text-ml-fg/60">
                 {Array.from({ length: 5 }, (_, i) => (
                   <svg key={i} width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
@@ -447,7 +455,7 @@ export function Landing() {
             </h1>
 
             <p
-              class="lp-fade-up text-[15px] text-ml-fg/45 mb-8 max-w-[400px] mx-auto leading-relaxed"
+              class="lp-fade-up text-[15px] text-ml-fg/60 mb-8 max-w-[400px] mx-auto leading-relaxed"
               style={{ animationDelay: '0.2s' }}
             >
               Draw, comment, and mark up any live website — then share a link for instant visual feedback. No account
@@ -456,12 +464,12 @@ export function Landing() {
 
             {isMobileDevice ? (
               <div
-                class="lp-fade-up max-w-[400px] mx-auto mb-12 px-6 py-5 rounded-2xl bg-ml-fg/[0.02] border border-ml-fg/[0.06] text-center"
+                class="lp-fade-up max-w-[400px] mx-auto mb-12 px-6 py-5 rounded-2xl bg-white border border-ml-fg/[0.06] text-center"
                 style={{ animationDelay: '0.3s' }}
               >
                 <Monitor size={24} class="text-ml-fg/30 mx-auto mb-3" aria-hidden="true" />
                 <p class="text-[14px] font-semibold text-ml-fg/70 m-0 mb-1">Desktop only</p>
-                <p class="text-[13px] text-ml-fg/40 m-0">Open this page on your computer to get started.</p>
+                <p class="text-[13px] text-ml-fg/60 m-0">Open this page on your computer to get started.</p>
               </div>
             ) : (
               <>
@@ -472,7 +480,7 @@ export function Landing() {
                   </a>
                 </div>
 
-                <p class="lp-fade-up text-[12px] text-ml-fg/30 mb-12" style={{ animationDelay: '0.35s' }}>
+                <p class="lp-fade-up text-[12px] text-ml-fg/60 mb-12" style={{ animationDelay: '0.35s' }}>
                   No sign-up required
                 </p>
 
@@ -505,6 +513,7 @@ export function Landing() {
                     />
                     <button
                       type="submit"
+                      aria-label="Go"
                       class={clsx(
                         'shrink-0 w-8 h-8 rounded-lg grid place-items-center border-none cursor-pointer transition-all duration-200',
                         urlReady.value
@@ -518,20 +527,20 @@ export function Landing() {
                 </form>
 
                 <div
-                  class="lp-fade-up flex items-center justify-center gap-4 text-[12px] text-ml-fg/30 mb-16"
+                  class="lp-fade-up flex items-center justify-center gap-4 text-[12px] text-ml-fg/60 mb-16"
                   style={{ animationDelay: '0.45s' }}
                 >
                   <span>Try:</span>
                   {[
                     { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Web_annotation' },
                     { name: 'Hacker News', url: 'https://news.ycombinator.com' },
-                    { name: 'Product Hunt', url: 'https://www.producthunt.com' },
+                    { name: 'Product Hunt', url: 'https://www.producthunt.com/products/marklayer' },
                   ].map(({ name, url }) => (
                     <button
                       key={name}
                       type="button"
                       onClick={() => navigateTo(url)}
-                      class="text-ml-fg/35 hover:text-ml-fg/60 transition-colors cursor-pointer bg-transparent border-none text-[12px] p-0 underline underline-offset-2 decoration-ml-fg/15"
+                      class="text-ml-fg/60 hover:text-ml-fg/80 transition-colors cursor-pointer bg-transparent border-none text-[12px] p-0 underline underline-offset-2 decoration-ml-fg/30"
                     >
                       {name}
                     </button>
@@ -552,12 +561,12 @@ export function Landing() {
                 >
                   <div class="flex items-start gap-3">
                     <div class="flex flex-col gap-1 flex-1 min-w-0">
-                      <h3 class="text-base flex items-start gap-3 font-medium text-ml-fg">
+                      <h2 class="text-base flex items-start gap-3 font-medium text-ml-fg">
                         <span class={`size-4 h-[1lh] text-ml-fg/50 ${f.anim}`}>
                           <f.icon size={16} strokeWidth={2} class="size-4" aria-hidden="true" />
                         </span>
                         <span>{f.label}</span>
-                      </h3>
+                      </h2>
                       <p class="text-sm pl-7 text-ml-fg/70 leading-relaxed m-0">{f.desc}</p>
                     </div>
                   </div>
@@ -626,12 +635,29 @@ export function Landing() {
                 Contact
               </a>
             </div>
+            <div class="flex justify-center mb-5">
+              <a
+                href="https://www.producthunt.com/products/marklayer?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-marklayer"
+                target="_blank"
+                rel="noopener"
+              >
+                <img
+                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1105463&theme=light"
+                  alt="MarkLayer - Draw & comment on any webpage — share one live link | Product Hunt"
+                  width="250"
+                  height="54"
+                  style={{ width: '250px', height: '54px' }}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+            </div>
             <div class="flex items-center justify-center gap-2 text-[12px] text-ml-fg/20">
               <Logo size={14} />
               <span>MarkLayer &copy; {new Date().getFullYear()}</span>
             </div>
           </footer>
-        </div>
+        </main>
 
         {/* Comment overlay */}
         <div

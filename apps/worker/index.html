@@ -31,18 +31,105 @@
       content="Free Chrome extension for visual feedback on websites. Draw, comment, collaborate in real time. No account needed."
     />
     <link rel="canonical" href="https://marklayer.app/" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary" />
     <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "MarkLayer",
-        "description": "Free Chrome extension to annotate any webpage with drawings, comments, and arrows. Share a link for instant visual feedback.",
-        "applicationCategory": "BrowserApplication",
-        "operatingSystem": "Chrome",
-        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-        "url": "https://marklayer.app",
-        "downloadUrl": "https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc"
-      }
+      [
+        {
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "name": "MarkLayer",
+          "url": "https://marklayer.app",
+          "description": "Free webpage annotation and visual collaboration tool. Draw, comment, and mark up any live website, then share a link for instant feedback.",
+          "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://marklayer.app/?url={url}",
+            "query-input": "required name=url"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          "name": "MarkLayer",
+          "description": "Free Chrome extension to annotate any webpage with drawings, comments, arrows, and highlights. Share a link for instant visual feedback — no account needed.",
+          "applicationCategory": "BrowserApplication",
+          "applicationSubCategory": "Collaboration Tool",
+          "operatingSystem": "Chrome",
+          "browserRequirements": "Requires Chrome or Chromium-based browser",
+          "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+          "url": "https://marklayer.app",
+          "downloadUrl": "https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc",
+          "screenshot": "https://marklayer.app/og.jpg",
+          "featureList": [
+            "Draw and sketch on any webpage",
+            "Add comments and text annotations",
+            "Insert arrows and highlights",
+            "Real-time collaboration with live cursors",
+            "Share annotations via a single link — no extension needed to view",
+            "No account or sign-up required",
+            "Works on any website"
+          ],
+          "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "5",
+            "ratingCount": "5",
+            "bestRating": "5"
+          }
+        },
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Does the other person need the extension installed?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "No. Anyone can view your annotations via the share link — no install required."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is MarkLayer really free?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. No account, no paywall, no trial period."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does MarkLayer work on any website?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, MarkLayer works on any webpage."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Can multiple people annotate at the same time?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes — real-time cursors let you collaborate live on any page."
+              }
+            }
+          ]
+        }
+        ,{
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          "name": "MarkLayer",
+          "url": "https://marklayer.app",
+          "logo": "https://marklayer.app/favicon.svg",
+          "sameAs": [
+            "https://github.com/thevrus/MarkLayer",
+            "https://www.producthunt.com/products/marklayer"
+          ],
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "rusinvadym@gmail.com",
+            "contactType": "customer support"
+          }
+        }
+      ]
     </script>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -53,7 +140,15 @@
     <link
       href="https://fonts.googleapis.com/css2?family=Imbue:opsz,wght@10..100,100..900&family=Inter:wght@400;500;600;700;800;900&display=swap"
       rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
+    <noscript>
+      <link
+        href="https://fonts.googleapis.com/css2?family=Imbue:opsz,wght@10..100,100..900&family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet"
+      />
+    </noscript>
   </head>
   <body>
     <script>
@@ -63,7 +158,51 @@
           document.documentElement.classList.add(t);
       })();
     </script>
-    <div id="app"></div>
+    <div id="app">
+      <!-- Static content for crawlers — Preact replaces on render -->
+      <div class="ml-force-light min-h-screen font-['Inter',system-ui,sans-serif] lp-bg-animate">
+      <main id="ssr" class="max-w-[800px] mx-auto sm:my-8 bg-white sm:rounded-3xl shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_8px_40px_rgba(0,0,0,0.06)]" style="padding:3rem 2rem;text-align:center">
+        <h1>Annotate Any Webpage. Share in One Link.</h1>
+        <p>MarkLayer is a free Chrome extension that lets you draw, comment, and mark up any live website — then share a link for instant visual feedback. No account required.</p>
+        <p><a href="https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc">Add to Chrome — It's Free</a></p>
+
+        <h2>Features</h2>
+        <ul>
+          <li><strong>Drawing tools</strong> — Freehand drawing, shapes, arrows, and lines. Mark up any page with precision.</li>
+          <li><strong>Real-time collaboration</strong> — Live cursors so everyone sees changes as they happen. Collaborate on any webpage.</li>
+          <li><strong>Shareable links</strong> — Share a link so anyone can see your annotations instantly. No extension needed to view.</li>
+          <li><strong>Threaded comments</strong> — Pin comments to any spot on the page. Have conversations in context, not in Slack.</li>
+          <li><strong>No sign-up required</strong> — Just install and go. No accounts, no emails, no onboarding flows.</li>
+          <li><strong>Private by default</strong> — Your data stays on your device. Annotations are only shared when you choose.</li>
+          <li><strong>Browser extension</strong> — Works on any webpage — no exceptions. One click to start annotating.</li>
+          <li><strong>Free &amp; open source</strong> — No paywall, no trial period. Inspect the code, contribute, or self-host.</li>
+        </ul>
+
+        <h2>Frequently Asked Questions</h2>
+        <dl>
+          <dt>Does the other person need the extension installed?</dt>
+          <dd>No. Anyone can view your annotations via the share link — no install required.</dd>
+          <dt>Is it really free?</dt>
+          <dd>Yes. No account, no paywall, no trial period.</dd>
+          <dt>Does it work on any website?</dt>
+          <dd>Yes, MarkLayer works on any webpage.</dd>
+          <dt>Can multiple people annotate at the same time?</dt>
+          <dd>Yes — real-time cursors let you collaborate live on any page.</dd>
+        </dl>
+
+        <h2>Start annotating what matters.</h2>
+        <p><a href="https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc">Add to Chrome</a> · Free to use · No sign-up required</p>
+
+        <footer>
+          <nav>
+            <a href="/privacy">Privacy</a>
+            <a href="https://github.com/thevrus/MarkLayer">GitHub</a>
+            <a href="mailto:rusinvadym@gmail.com">Contact</a>
+          </nav>
+        </footer>
+      </main>
+      </div>
+    </div>
     <script type="module" src="/web/main.tsx"></script>
   </body>
 </html>

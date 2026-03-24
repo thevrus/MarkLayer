@@ -38,6 +38,7 @@ import {
   Hash,
   Info,
   Link,
+  Loader2,
   Lock,
   MessageSquare,
   Mic,
@@ -45,6 +46,7 @@ import {
   Monitor,
   Moon,
   PenTool,
+  Share2,
   Smartphone,
   Sun,
   Tablet,
@@ -59,7 +61,7 @@ import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { AnnotationPanel } from './AnnotationPanel';
 import { CursorLayer } from './CursorLayer';
-import { Logo, Spinner, TextInputOverlay } from './shared';
+import { Logo, TextInputOverlay } from './shared';
 import {
   API_BASE,
   annotationId,
@@ -267,6 +269,7 @@ export default function Viewer() {
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const drawingRef = useRef(false);
+  const copiedEditable = useSignal(false);
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
   const snapshotRef = useRef<ImageData | null>(null);
@@ -1073,10 +1076,13 @@ export default function Viewer() {
 
           {/* Share session */}
           {!readonly && (
-            <>
               <button
                 type="button"
-                onClick={() => doShare()}
+                onClick={() => {
+                  doShare();
+                  copiedEditable.value = true;
+                  setTimeout(() => (copiedEditable.value = false), 1000);
+                }}
                 disabled={sharing.value}
                 class={clsx(
                   'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
@@ -1084,21 +1090,19 @@ export default function Viewer() {
                 )}
                 title="Copy editable link"
               >
-                {sharing.value ? <Spinner /> : <Upload size={16} aria-hidden="true" />}
+                <span class="relative grid place-items-center w-4 h-4">
+                  <Share2
+                    size={16}
+                    aria-hidden="true"
+                    class={clsx('absolute inset-0 transition-all duration-300', copiedEditable.value ? 'opacity-0 scale-50' : 'opacity-100 scale-100')}
+                  />
+                  <Lock
+                    size={16}
+                    aria-hidden="true"
+                    class={clsx('absolute inset-0 transition-all duration-300', copiedEditable.value ? 'opacity-100 scale-100' : 'opacity-0 scale-50')}
+                  />
+                </span>
               </button>
-              <button
-                type="button"
-                onClick={() => doShare({ readonly: true, expiresIn: 7 * 24 * 60 * 60 })}
-                disabled={sharing.value}
-                class={clsx(
-                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
-                  sharing.value && 'opacity-50 pointer-events-none',
-                )}
-                title="Copy read-only link (expires in 7 days)"
-              >
-                {sharing.value ? <Spinner /> : <Lock size={16} aria-hidden="true" />}
-              </button>
-            </>
           )}
 
           {/* Theme toggle */}
@@ -1138,7 +1142,7 @@ export default function Viewer() {
         >
           <div
             ref={innerRef}
-            class="absolute top-0 left-0 will-change-transform"
+            class="absolute top-0 left-0 right-0 mx-auto will-change-transform"
             style={{
               width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
               height: `${100 / cssScale.value}%`,
@@ -1147,8 +1151,10 @@ export default function Viewer() {
             }}
           >
             {!iframeLoaded.value && pageUrl.value && (
-              <div class="absolute inset-0 flex items-center justify-center bg-white">
-                <Spinner />
+              <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
+                <Logo size={48} />
+                <Loader2 size={32} class="animate-spin text-violet-500" aria-hidden="true" />
+                <p class="text-sm text-zinc-400">Loading page…</p>
               </div>
             )}
             <iframe

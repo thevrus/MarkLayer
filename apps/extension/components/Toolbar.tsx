@@ -213,6 +213,7 @@ export function Toolbar() {
             <div class="group relative">
               <button
                 type="button"
+                aria-label="Pick color"
                 onClick={() => setShowColors(!showColors)}
                 class="w-6 h-6 rounded-full border-2 border-ml-glass-fg/[0.12] cursor-pointer
                        transition-all duration-150 hover:scale-110 hover:border-ml-glass-fg/25"
@@ -247,6 +248,7 @@ export function Toolbar() {
             </div>
             <div class="group relative">
               <select
+                aria-label="Stroke width"
                 value={lineWidth.value}
                 onChange={(e) => (lineWidth.value = +(e.target as HTMLSelectElement).value)}
                 class={`h-7 px-2 rounded-lg border border-ml-glass-fg/[0.08] bg-ml-glass-accent/[0.05]
@@ -289,6 +291,7 @@ export function Toolbar() {
           {/* Chevron toggle */}
           <button
             type="button"
+            aria-label={collapsed ? 'Expand toolbar' : 'Collapse toolbar'}
             onClick={() => setCollapsed(!collapsed)}
             class="appearance-none bg-transparent border-none text-ml-glass-fg/20 cursor-pointer p-1.5
                    inline-flex place-items-center rounded-lg transition-all duration-150

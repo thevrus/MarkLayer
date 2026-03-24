@@ -96,15 +96,197 @@ app.get('/ws/:id', async (c) => {
   return room.fetch(new Request(url.toString(), c.req.raw));
 });
 
-// Sitemap for SEO
-app.get('/sitemap.xml', (c) => {
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+// Static SEO/AI text responses — hoisted to avoid per-request allocation
+const ROBOTS_TXT = `User-agent: *
+Allow: /
+
+# AI crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+Sitemap: https://marklayer.app/sitemap.xml`;
+
+app.get('/robots.txt', (c) =>
+  c.body(ROBOTS_TXT, 200, { 'Content-Type': 'text/plain', 'Cache-Control': 'public, max-age=86400' }),
+);
+
+const LLMS_TXT = `# MarkLayer
+
+> Free webpage annotation and visual collaboration tool for Chrome.
+
+MarkLayer is a Chrome extension that lets you draw, comment, and mark up any live website — then share a single link so anyone can see your annotations instantly. No account or sign-up required.
+
+## Features
+
+- Drawing tools: Freehand drawing, shapes, arrows, and lines on any webpage
+- Real-time collaboration: Live cursors so everyone sees changes as they happen
+- Shareable links: Share a link — recipients don't need the extension to view
+- Threaded comments: Pin comments to any spot on the page
+- No sign-up required: Just install and start annotating
+- Private by default: Annotations are only shared when you choose
+- Works on any website: No exceptions, one click to start
+- Free and open source: No paywall, no trial period
+
+## Links
+
+- Website: https://marklayer.app
+- Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
+- GitHub: https://github.com/thevrus/MarkLayer
+- Privacy Policy: https://marklayer.app/privacy
+
+## How It Works
+
+1. Install the MarkLayer Chrome extension (free)
+2. Navigate to any webpage and click the MarkLayer icon
+3. Draw, comment, or highlight anything on the page
+4. Click "Share" to get a link anyone can open — no extension needed on their end
+5. Collaborate in real time with live cursors
+
+## FAQ
+
+Q: Does the other person need the extension installed?
+A: No. Anyone can view annotations via the share link — no install required.
+
+Q: Is it really free?
+A: Yes. No account, no paywall, no trial period.
+
+Q: Does it work on any website?
+A: Yes, MarkLayer works on any webpage.
+
+Q: Can multiple people annotate at the same time?
+A: Yes — real-time cursors let you collaborate live on any page.
+
+## Contact
+
+Email: rusinvadym@gmail.com
+
+## Optional
+
+- [Full details](/llms-full.txt)`;
+
+app.get('/llms.txt', (c) =>
+  c.body(LLMS_TXT, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
+);
+
+const LLMS_FULL_TXT = `# MarkLayer — Full Reference
+
+> Free webpage annotation and visual collaboration tool for Chrome.
+
+## What is MarkLayer?
+
+MarkLayer is a free, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link — the recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
+
+MarkLayer is designed for designers, developers, QA engineers, product managers, and anyone who needs to give visual feedback on web content.
+
+## Core Features
+
+### Drawing Tools
+Freehand drawing, shapes, arrows, and lines. Users can mark up any page with precision using a floating toolbar. Stroke colors and widths are customizable.
+
+### Real-time Collaboration
+Multiple users can annotate the same page simultaneously. Live cursors show each participant's position and name in real time, powered by WebSockets and Cloudflare Durable Objects.
+
+### Shareable Links
+One click generates a share link. Anyone who opens the link sees the annotated page in their browser — no extension, no account, no install required. The link loads the original webpage with annotations overlaid.
+
+### Threaded Comments
+Users can pin comments to any spot on the page. Comments support threaded replies, making it easy to have contextual conversations directly on the webpage rather than in external tools like Slack or email.
+
+### No Sign-up Required
+There is no registration, no email verification, and no onboarding flow. Users install the extension and start annotating immediately.
+
+### Private by Default
+Annotations stay on the user's device until they explicitly choose to share. There is no central feed, no public profile, and no social features.
+
+### Works on Any Website
+MarkLayer works on any webpage without exceptions. The extension injects a transparent canvas overlay on top of the page content.
+
+### Free and Open Source
+MarkLayer is completely free with no paywall, trial period, or premium tier. The source code is available on GitHub under an open-source license.
+
+## Technical Architecture
+
+- **Frontend:** Preact with Preact Signals for state management, Tailwind CSS for styling
+- **Extension framework:** WXT (Web Extension Tools)
+- **Backend:** Cloudflare Workers with Hono framework
+- **Database:** Cloudflare D1 (SQLite)
+- **Real-time:** WebSockets via Cloudflare Durable Objects
+- **Storage:** Cloudflare R2 for OG images
+- **Build:** Bun workspaces, Turborepo, Vite
+
+## How It Works
+
+1. Install the MarkLayer Chrome extension from the Chrome Web Store (free)
+2. Navigate to any webpage
+3. Click the MarkLayer icon in the browser toolbar to activate the annotation overlay
+4. Use the floating toolbar to draw, add shapes, arrows, or pin comments
+5. Click "Share" to generate a unique link
+6. Send the link to anyone — they see the annotated page in their browser without needing the extension
+7. For real-time collaboration, multiple users can open the same share link and annotate simultaneously
+
+## Use Cases
+
+- **Design review:** Annotate mockups or staging sites with visual feedback
+- **QA and bug reporting:** Circle bugs, add arrows, and describe issues in context
+- **Content review:** Highlight text, suggest edits, and comment on live articles
+- **Client feedback:** Share annotated pages with clients who don't need any tools installed
+- **Education:** Teachers can annotate web resources for students
+- **Research:** Highlight and comment on academic papers or articles
+
+## Frequently Asked Questions
+
+Q: Does the other person need the extension installed?
+A: No. Anyone can view annotations via the share link — no install required. The share link loads the original page with annotations overlaid in a web app.
+
+Q: Is it really free?
+A: Yes. No account, no paywall, no trial period. MarkLayer is open source.
+
+Q: Does it work on any website?
+A: Yes, MarkLayer works on any webpage. The extension injects a transparent overlay on top of any page content.
+
+Q: Can multiple people annotate at the same time?
+A: Yes — real-time cursors let you collaborate live on any page. Changes appear instantly for all participants.
+
+Q: Is my data private?
+A: Yes. Annotations stay on your device until you choose to share. There is no tracking, no public profiles, and no social feed.
+
+Q: What browsers are supported?
+A: MarkLayer works on Chrome and Chromium-based browsers (Edge, Brave, Arc, etc.).
+
+## Links
+
+- Website: https://marklayer.app
+- Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
+- GitHub: https://github.com/thevrus/MarkLayer
+- Privacy Policy: https://marklayer.app/privacy
+
+## Contact
+
+Email: rusinvadym@gmail.com`;
+
+app.get('/llms-full.txt', (c) =>
+  c.body(LLMS_FULL_TXT, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
+);
+
+const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://marklayer.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
   <url><loc>https://marklayer.app/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://marklayer.app/llms.txt</loc><changefreq>monthly</changefreq><priority>0.2</priority></url>
 </urlset>`;
-  return c.body(xml, 200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' });
-});
+
+app.get('/sitemap.xml', (c) =>
+  c.body(SITEMAP_XML, 200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' }),
+);
 
 // Proxy + catch-all (must be last)
 app.route('/', proxy);

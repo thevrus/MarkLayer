@@ -49,8 +49,8 @@ proxy.get('/proxy', async (c) => {
   const hostname = parsed.hostname.toLowerCase();
   if (isBlockedHost(hostname)) return c.text('Blocked URL', 400);
 
-  const selfHost = new URL(c.req.url).hostname;
-  if (hostname === selfHost.toLowerCase()) return c.redirect('/?error=self');
+  const reqUrl = new URL(c.req.url);
+  if (hostname === reqUrl.hostname.toLowerCase()) return c.redirect('/?error=self');
 
   try {
     const resp = await fetch(url, {
@@ -58,6 +58,8 @@ proxy.get('/proxy', async (c) => {
         'User-Agent': BROWSER_UA,
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
+        Referer: `${parsed.origin}/`,
+        Origin: parsed.origin,
       },
       redirect: 'follow',
     });
@@ -72,46 +74,147 @@ proxy.get('/proxy', async (c) => {
       return new Response(resp.body, { headers });
     }
 
-    let html = await resp.text();
-
-    const baseUrl = new URL(url);
+    const baseUrl = new URL(resp.url || url);
     const origin = baseUrl.origin;
+    const host = baseUrl.host;
     const origPath = baseUrl.pathname + baseUrl.search;
-    const inject = `<script>document.documentElement.dataset.marklayer="1";history.replaceState(null,"","${escapeForScript(origPath)}");navigator.serviceWorker&&(navigator.serviceWorker.register=function(){return Promise.resolve()});(function(){var F=window.fetch;window.fetch=function(i,o){try{var u=new URL(typeof i==="string"?i:i instanceof Request?i.url:String(i),location.href);if(u.origin!==location.origin&&/^https?:$/.test(u.protocol)){var p="/px/"+u.host+u.pathname+u.search;i=typeof i==="string"?p:new Request(p,i)}}catch(e){}return F.call(this,i,o)};var O=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){try{var u=new URL(arguments[1],location.href);if(u.origin!==location.origin&&/^https?:$/.test(u.protocol))arguments[1]="/px/"+u.host+u.pathname+u.search}catch(e){}return O.apply(this,arguments)}})()</script><base href="${origin}/"><script>(function(){var r=history.replaceState,p=history.pushState;history.replaceState=function(){try{return r.apply(this,arguments)}catch(e){}};history.pushState=function(){try{return p.apply(this,arguments)}catch(e){}}; document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest("a"):null;if(!a)return;var h=a.href;if(!h||h.indexOf("javascript:")===0||h.charAt(0)==="#")return;e.preventDefault();e.stopPropagation();window.parent.postMessage({type:"ml-navigate",url:h},"*")},true)})();</script>`;
+    const selfOrigin = reqUrl.origin;
+    const inject = `<script>document.documentElement.dataset.marklayer="1";history.replaceState(null,"","${escapeForScript(origPath)}");navigator.serviceWorker&&(navigator.serviceWorker.register=function(){return Promise.resolve()});(function(){var H="${selfOrigin}";var T="${escapeForScript(baseUrl.host)}";var F=window.fetch;function _pw(s){try{var u=new URL(s,location.href);if(/^https?:$/.test(u.protocol)){if(u.origin!==location.origin)return H+"/px/"+u.host+u.pathname+u.search;if(u.pathname!=="/"&&!/^\\/(px|api|ws|proxy|s|og)(\\/|$)/.test(u.pathname))return H+"/px/"+T+u.pathname+u.search}}catch(e){}return null}window.fetch=function(i,o){var s=typeof i==="string"?i:i instanceof Request?i.url:String(i);var p=_pw(s);if(p)i=typeof i==="string"?p:new Request(p,i);return F.call(this,i,o)};var O=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){var p=_pw(String(arguments[1]));if(p)arguments[1]=p;return O.apply(this,arguments)}})()</script><base href="${origin}/"><script>(function(){var r=history.replaceState,p=history.pushState;history.replaceState=function(){try{return r.apply(this,arguments)}catch(e){}};history.pushState=function(){try{return p.apply(this,arguments)}catch(e){}}; document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest("a"):null;if(!a)return;var h=a.href;if(!h||h.indexOf("javascript:")===0||h.charAt(0)==="#")return;e.preventDefault();e.stopPropagation();window.parent.postMessage({type:"ml-navigate",url:h},"*")},true)})();</script>`;
 
-    // Rewrite absolute same-origin URLs in src/href attributes to route through /px/
-    const escapedOrigin = origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const escapedHost = baseUrl.host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    html = html.replace(new RegExp(`((?:src|href)\\s*=\\s*["'])${escapedOrigin}/`, 'gi'), `$1/px/${baseUrl.host}/`);
-    html = html.replace(new RegExp(`((?:src|href)\\s*=\\s*["'])//${escapedHost}/`, 'gi'), `$1/px/${baseUrl.host}/`);
-    if (html.includes('<head>')) {
-      html = html.replace('<head>', `<head>${inject}`);
-    } else if (html.includes('<head ')) {
-      html = html.replace(/<head\s[^>]*>/, (match) => `${match}${inject}`);
-    } else {
-      html = inject + html;
-    }
+    /** Rewrite a URL if it matches the target origin (must be absolute — <base href> points at target) */
+    const px = `${selfOrigin}/px/${host}`;
+    const rewriteUrl = (val: string): string | null => {
+      if (val.startsWith(`${origin}/`)) return `${px}${val.slice(origin.length)}`;
+      if (val.startsWith(`//${host}/`)) return `${px}${val.slice(host.length + 2)}`;
+      return null;
+    };
 
-    // Rewrite CSS url() references in inline <style> to use original origin
-    html = html.replace(/<style[\s\S]*?<\/style>/gi, (block) =>
-      block.replace(/url\(\s*(['"]?)\//g, `url($1${origin}/`),
-    );
-
-    // Strip CSP meta tags that block framing
-    html = html.replace(/<meta[^>]*http-equiv=["']?content-security-policy["']?[^>]*>/gi, '');
+    let injected = false;
+    const styleParts: string[] = [];
+    const scriptParts: string[] = [];
+    const rewriter = new HTMLRewriter()
+      .on('head', {
+        element(el) {
+          el.prepend(inject, { html: true });
+          injected = true;
+        },
+      })
+      .on('body', {
+        element(el) {
+          if (!injected) {
+            el.prepend(inject, { html: true });
+            injected = true;
+          }
+        },
+      })
+      // Rewrite same-origin absolute URLs in common attributes + inline style url()
+      .on('*', {
+        element(el) {
+          for (const attr of ['src', 'href', 'action', 'poster']) {
+            const val = el.getAttribute(attr);
+            if (!val) continue;
+            const rewritten = rewriteUrl(val);
+            if (rewritten) el.setAttribute(attr, rewritten);
+          }
+          const style = el.getAttribute('style');
+          if (style?.includes('url(')) {
+            el.setAttribute('style', style.replace(/url\(\s*(['"]?)\//g, `url($1${selfOrigin}/px/${host}/`));
+          }
+        },
+      })
+      // Rewrite srcset URLs
+      .on('[srcset]', {
+        element(el) {
+          const srcset = el.getAttribute('srcset');
+          if (!srcset) return;
+          const rewritten = srcset
+            .split(',')
+            .map((entry) => {
+              const trimmed = entry.trim();
+              const idx = trimmed.search(/\s/);
+              if (idx === -1) return rewriteUrl(trimmed) || trimmed;
+              const u = trimmed.slice(0, idx);
+              return (rewriteUrl(u) || u) + trimmed.slice(idx);
+            })
+            .join(', ');
+          if (rewritten !== srcset) el.setAttribute('srcset', rewritten);
+        },
+      })
+      // Strip SRI (fails on proxied resources) and nonce (blocks injected scripts)
+      .on('[integrity]', {
+        element(el) {
+          el.removeAttribute('integrity');
+        },
+      })
+      .on('[nonce]', {
+        element(el) {
+          el.removeAttribute('nonce');
+        },
+      })
+      // Strip CSP meta tags that block framing
+      .on('meta[http-equiv]', {
+        element(el) {
+          if ((el.getAttribute('http-equiv') || '').toLowerCase() === 'content-security-policy') el.remove();
+        },
+      })
+      // Strip external Cloudflare CDN scripts
+      .on('script[src*="/cdn-cgi/"]', {
+        element(el) {
+          el.remove();
+        },
+      })
+      // Strip inline Cloudflare CDN scripts
+      .on('script:not([src])', {
+        text(chunk) {
+          scriptParts.push(chunk.text);
+          if (chunk.lastInTextNode) {
+            const buf = scriptParts.join('');
+            chunk.replace(buf.includes('cdn-cgi') ? '' : buf, { html: true });
+            scriptParts.length = 0;
+          } else {
+            chunk.replace('');
+          }
+        },
+      })
+      // Rewrite CSS url() in inline <style> to route through proxy
+      .on('style', {
+        text(chunk) {
+          styleParts.push(chunk.text);
+          if (chunk.lastInTextNode) {
+            const buf = styleParts.join('');
+            chunk.replace(buf.replace(/url\(\s*(['"]?)\//g, `url($1${selfOrigin}/px/${host}/`), { html: true });
+            styleParts.length = 0;
+          } else {
+            chunk.replace('');
+          }
+        },
+      });
 
     const headers = new Headers();
     headers.set('Content-Type', 'text/html; charset=utf-8');
     headers.set('Access-Control-Allow-Origin', '*');
 
-    return new Response(html, { headers });
+    return rewriter.transform(new Response(resp.body, { headers }));
   } catch {
     return c.text('Proxy error: failed to fetch the requested URL', 502);
   }
 });
 
+// CORS preflight for sub-resource proxy
+proxy.options('/px/*', (c) => {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+      'Access-Control-Allow-Headers': c.req.header('Access-Control-Request-Headers') || '*',
+      'Access-Control-Max-Age': '86400',
+    },
+  });
+});
+
 // Sub-resource proxy: serves assets from the original domain
-proxy.get('/px/*', async (c) => {
+proxy.all('/px/*', async (c) => {
   const path = c.req.path.slice(4); // strip '/px/'
   const slashIdx = path.indexOf('/');
   const host = slashIdx > 0 ? path.slice(0, slashIdx) : path;
@@ -123,20 +226,36 @@ proxy.get('/px/*', async (c) => {
   const targetUrl = `https://${host}${rest}${new URL(c.req.url).search}`;
 
   try {
+    const fetchHeaders: Record<string, string> = {
+      'User-Agent': BROWSER_UA,
+      Accept: c.req.header('Accept') || '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      Referer: `https://${host}/`,
+      Origin: `https://${host}`,
+    };
+    const reqCt = c.req.header('Content-Type');
+    if (reqCt) fetchHeaders['Content-Type'] = reqCt;
+
     const resp = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': BROWSER_UA,
-        Accept: c.req.header('Accept') || '*/*',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
+      method: c.req.method,
+      body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
+      headers: fetchHeaders,
       redirect: 'follow',
     });
 
     const headers = new Headers();
-    const ct = resp.headers.get('content-type');
+    const ct = resp.headers.get('content-type') || '';
     if (ct) headers.set('Content-Type', ct);
     headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Access-Control-Expose-Headers', '*');
     headers.set('Cache-Control', resp.headers.get('cache-control') || 'public, max-age=3600');
+
+    // Rewrite absolute url() paths in CSS so they route through the proxy
+    if (ct.includes('text/css')) {
+      let css = await resp.text();
+      css = css.replace(/url\(\s*(['"]?)\//g, `url($1/px/${host}/`);
+      return new Response(css, { status: resp.status, headers });
+    }
 
     return new Response(resp.body, { status: resp.status, headers });
   } catch {
@@ -158,11 +277,13 @@ proxy.all('*', async (c) => {
 
     const resp = await fetch(target, {
       method: c.req.method,
-      body: c.req.raw.body,
+      body: c.req.method !== 'GET' && c.req.method !== 'HEAD' ? c.req.raw.body : undefined,
       headers: {
         'User-Agent': BROWSER_UA,
         Accept: c.req.header('Accept') || '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
+        Referer: `${originalUrl.origin}/`,
+        Origin: originalUrl.origin,
       },
       redirect: 'follow',
     });
