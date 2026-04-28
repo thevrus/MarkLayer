@@ -1,25 +1,40 @@
+import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from '@ext/lib/export-text';
 import { glass } from '@ext/lib/glass';
 import {
   color,
   commentFilter,
+  copyText,
   getCommentStatus,
   getReplies,
   localUser,
   operations,
   pushReply,
   rootComments,
+  STATUS_LABELS,
   setOpStatus,
   showAnnotationPanel,
+  toast,
 } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
-import type { CommentOp, CommentStatus, DeviceMode, SelectionOp, TextOp } from '@ext/lib/types';
+import type { CommentOp, CommentStatus, DeviceMode, DrawOp, SelectionOp, TextOp } from '@ext/lib/types';
 import { clsx } from 'clsx';
-import { MessageSquare, Monitor, Smartphone, Tablet, TextSelect, Type, X } from 'lucide-preact';
+import {
+  Check,
+  ClipboardCopy,
+  Download,
+  MessageSquare,
+  Monitor,
+  Smartphone,
+  Tablet,
+  TextSelect,
+  Type,
+  X,
+} from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
 
-interface Props {
+interface BodyProps {
   onScrollTo: (x: number, y: number) => void;
-  docked?: boolean;
+  getExportData?: () => { ops: DrawOp[]; url?: string; pages?: { url: string | null; ops: DrawOp[] }[] };
 }
 
 type AnnotationItem =
@@ -32,10 +47,10 @@ const STATUS_COLORS: Record<CommentStatus, string> = {
   in_progress: '#f59e0b',
   resolved: '#22c55e',
 };
-const STATUS_LABELS: Record<CommentStatus, string> = {
-  open: 'Open',
-  in_progress: 'In Progress',
-  resolved: 'Resolved',
+const STATUS_ACTIONS: Record<CommentStatus, string> = {
+  open: 'Mark in progress',
+  in_progress: 'Resolve',
+  resolved: 'Reopen',
 };
 
 function StatusBadge({ status }: { status: CommentStatus }) {
@@ -110,15 +125,15 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
             class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0"
             style={{ background: status === 'resolved' ? '#6b7280' : op.color }}
           >
-            {status === 'resolved' ? '✓' : op.num}
+            {status === 'resolved' ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : op.num}
           </div>
-          <span class="text-[11px] text-ml-glass-fg/50 font-medium flex-1 truncate">{op.author || 'Anonymous'}</span>
+          <span class="text-[12px] text-ml-glass-fg/80 font-semibold flex-1 truncate">{op.author || 'Anonymous'}</span>
           <DeviceBadge device={op.device} />
           <StatusBadge status={status} />
-          <span class="text-[10px] text-ml-glass-fg/25">{timeAgo(op.ts)}</span>
+          <span class="text-[11px] text-ml-glass-fg/55 tabular-nums">{timeAgo(op.ts)}</span>
         </div>
         <p
-          class={clsx('text-[12.5px] text-ml-glass-fg/70 leading-relaxed m-0', !expanded && 'line-clamp-2')}
+          class={clsx('text-[13px] text-ml-glass-fg/85 leading-relaxed m-0', !expanded && 'line-clamp-2')}
           style={{
             textDecoration: status === 'resolved' ? 'line-through' : 'none',
             opacity: status === 'resolved' ? 0.5 : 1,
@@ -129,8 +144,8 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
         {expanded && <MetaInfo op={op} />}
         <div class="flex items-center gap-3 mt-2">
           {replies.length > 0 && (
-            <span class="text-[10px] text-ml-glass-fg/30 flex items-center gap-1">
-              <MessageSquare size={10} aria-hidden="true" />
+            <span class="text-[11px] text-ml-glass-fg/55 flex items-center gap-1 font-medium">
+              <MessageSquare size={11} aria-hidden="true" />
               {replies.length}
             </span>
           )}
@@ -140,24 +155,22 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
               e.stopPropagation();
               onScrollTo(op.x, op.y);
             }}
-            class="text-[10px] text-ml-glass-fg/25 hover:text-blue-500 bg-transparent border-none cursor-pointer p-0 transition-colors"
+            class="text-[11px] font-medium text-ml-glass-fg/55 hover:text-[oklch(0.65_0.15_300)] bg-transparent border-none cursor-pointer p-0 transition-colors"
           >
             Go to
           </button>
           <button
             type="button"
             onClick={cycleStatus}
-            class="text-[10px] text-ml-glass-fg/25 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer p-0 transition-colors"
+            class="text-[11px] font-medium text-ml-glass-fg/55 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
           >
-            {status === 'open' ? '→ In Progress' : status === 'in_progress' ? '→ Resolve' : '→ Reopen'}
+            {STATUS_ACTIONS[status]}
           </button>
         </div>
       </div>
 
-      {/* Expanded: reply thread + input */}
       {expanded && (
         <div class="bg-ml-glass-accent/[0.02]">
-          {/* Replies */}
           {replies.length > 0 && (
             <div class="px-4 pb-1">
               {replies.map((reply) => (
@@ -170,13 +183,13 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   </div>
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="text-[10px] text-ml-glass-fg/50 font-medium truncate">
+                      <span class="text-[11.5px] text-ml-glass-fg/80 font-semibold truncate">
                         {reply.author || 'Anonymous'}
                       </span>
-                      <span class="text-[9px] text-ml-glass-fg/20">{timeAgo(reply.ts)}</span>
+                      <span class="text-[10.5px] text-ml-glass-fg/50 tabular-nums">{timeAgo(reply.ts)}</span>
                     </div>
                     <p
-                      class="text-[12px] text-ml-glass-fg/60 leading-relaxed m-0 mt-0.5"
+                      class="text-[12.5px] text-ml-glass-fg/80 leading-relaxed m-0 mt-0.5"
                       style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
                       {reply.text}
@@ -208,10 +221,10 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                       'text-ml-glass-fg/80 text-[12px] leading-relaxed',
                       'resize-none outline-none min-h-8 max-h-[100px]',
                       'focus:border-ml-glass-fg/[0.2] focus:bg-ml-glass-accent/[0.08]',
-                      'placeholder:text-ml-glass-fg/25',
+                      'placeholder:text-ml-glass-fg/45',
                       glass.font,
                     )}
-                    style={{ fieldSizing: 'content', boxSizing: 'border-box' } as Record<string, string>}
+                    style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -225,15 +238,18 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                     <button
                       type="button"
                       onClick={() => setReplying(false)}
-                      class="text-[10px] text-ml-glass-fg/30 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer px-2 py-1"
+                      class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer px-2 py-1 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={submitReply}
-                      class="text-[10px] font-semibold px-3 py-1 rounded-lg cursor-pointer border-none
-                             bg-ml-glass-accent/[0.14] text-white hover:bg-ml-glass-accent/[0.2] active:bg-ml-glass-accent/[0.08] active:scale-[0.94] transition-all duration-150 shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]"
+                      class="text-[11px] font-semibold px-3 py-1.5 rounded-lg cursor-pointer border-none text-white
+                             bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
+                             shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
+                             hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
+                             active:scale-[0.94] transition-[box-shadow,transform] duration-150"
                     >
                       Reply
                     </button>
@@ -249,8 +265,8 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   setReplying(true);
                   setTimeout(() => replyRef.current?.focus(), 50);
                 }}
-                class="w-full text-left px-3 py-2 rounded-lg border border-ml-glass-fg/[0.08] bg-ml-glass-accent/[0.04]
-                       text-[11px] text-ml-glass-fg/25 cursor-text hover:border-ml-glass-fg/[0.15] hover:bg-ml-glass-accent/[0.06] transition-colors"
+                class="w-full text-left px-3 py-2 rounded-lg border border-ml-glass-fg/10 bg-ml-glass-fg/3
+                       text-[12px] text-ml-glass-fg/55 cursor-text hover:border-ml-glass-fg/20 hover:bg-ml-glass-fg/6 hover:text-ml-glass-fg/75 transition-colors"
               >
                 Reply...
               </button>
@@ -267,8 +283,18 @@ const FILTER_OPTIONS: { value: CommentStatus | 'all'; label: string }[] = [
   ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value: value as CommentStatus, label })),
 ];
 
-export function AnnotationPanel({ onScrollTo, docked }: Props) {
-  const visible = showAnnotationPanel.value;
+function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
+  const buildExport = () => {
+    const data = getExportData?.() ?? { ops: operations.value };
+    return buildMarkdownExport(data.ops, { url: data.url, pages: data.pages });
+  };
+  const handleCopy = () => copyText(buildExport(), 'Markdown copied!');
+  const handleDownload = () => {
+    const md = buildExport();
+    const data = getExportData?.() ?? { ops: operations.value };
+    downloadMarkdown(md, defaultExportFilename(data.url));
+    toast('Markdown exported!', 'success');
+  };
 
   const allOps = operations.value;
   const filter = commentFilter.value;
@@ -296,46 +322,57 @@ export function AnnotationPanel({ onScrollTo, docked }: Props) {
   items.sort((a, b) => itemY(a) - itemY(b));
 
   return (
-    <div
-      class={clsx(
-        docked
-          ? 'shrink-0 my-3 ml-3 rounded-2xl transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]'
-          : 'absolute top-3 right-3 bottom-3 w-[340px] z-40 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
-        'flex flex-col overflow-hidden',
-        visible
-          ? docked
-            ? 'w-[340px] opacity-100'
-            : 'opacity-100 translate-x-0'
-          : docked
-            ? 'w-0 opacity-0 !ml-0 !p-0 !border-0'
-            : 'opacity-0 translate-x-4 pointer-events-none',
-      )}
-    >
+    <>
       {/* Header */}
       <div class="px-4 py-3 border-b border-ml-glass-fg/[0.1] shrink-0">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-[13px] font-semibold text-ml-glass-fg/80 m-0">Comments</h2>
-            <span class="text-[11px] text-ml-glass-fg/30">
+            <h2 class="text-[15px] font-semibold text-ml-glass-fg m-0 tracking-[-0.01em]">Comments</h2>
+            <span class="text-[12px] text-ml-glass-fg/60">
               {rootComments.value.length} thread{rootComments.value.length !== 1 ? 's' : ''}
-              {statusCounts.resolved > 0 && <span class="text-green-500/60"> · {statusCounts.resolved} resolved</span>}
+              {statusCounts.resolved > 0 && <span class="text-green-500/80"> · {statusCounts.resolved} resolved</span>}
               {textCount > 0 && ` · ${textCount} text`}
               {selectionCount > 0 && ` · ${selectionCount} selection`}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => (showAnnotationPanel.value = false)}
-            class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer
-                   bg-transparent border-none text-ml-glass-fg/45 hover:text-white
-                   hover:bg-ml-glass-accent/[0.1] active:bg-ml-glass-accent/[0.05] active:scale-[0.94] transition-all duration-150"
-          >
-            <X size={14} aria-hidden="true" />
-          </button>
+          <div class="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={handleCopy}
+              title="Copy comments + selections as Markdown"
+              class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
+                     bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
+                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.94]
+                     transition-[color,background-color,transform] duration-150"
+            >
+              <ClipboardCopy size={15} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={handleDownload}
+              title="Download Markdown (.md)"
+              class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
+                     bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
+                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.94]
+                     transition-[color,background-color,transform] duration-150"
+            >
+              <Download size={15} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => (showAnnotationPanel.value = false)}
+              title="Close panel"
+              class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
+                     bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
+                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.94]
+                     transition-[color,background-color,transform] duration-150"
+            >
+              <X size={16} aria-hidden="true" />
+            </button>
+          </div>
         </div>
         {/* Filter tabs */}
-        <div class="flex gap-1 mt-2.5">
+        <div class="flex gap-1 mt-3">
           {FILTER_OPTIONS.map((f) => {
             const count = f.value === 'all' ? rootComments.value.length : statusCounts[f.value];
             return (
@@ -344,10 +381,10 @@ export function AnnotationPanel({ onScrollTo, docked }: Props) {
                 type="button"
                 onClick={() => (commentFilter.value = f.value)}
                 class={clsx(
-                  'text-[10px] font-medium px-2 py-1 rounded-lg border-none cursor-pointer transition-all duration-150',
+                  'text-[11.5px] font-medium px-2.5 py-1 rounded-lg border-none cursor-pointer transition-[color,background-color] duration-150',
                   filter === f.value
-                    ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg/80'
-                    : 'bg-transparent text-ml-glass-fg/30 hover:text-ml-glass-fg/50 hover:bg-ml-glass-accent/[0.06]',
+                    ? 'bg-ml-glass-fg/12 text-ml-glass-fg'
+                    : 'bg-transparent text-ml-glass-fg/55 hover:text-ml-glass-fg hover:bg-ml-glass-fg/6',
                 )}
               >
                 {f.label}
@@ -361,10 +398,10 @@ export function AnnotationPanel({ onScrollTo, docked }: Props) {
       {/* List */}
       <div class="flex-1 overflow-y-auto">
         {items.length === 0 && (
-          <div class="flex flex-col items-center justify-center h-40 gap-2">
-            <MessageSquare size={24} strokeWidth={1.5} class="text-ml-glass-fg/10" aria-hidden="true" />
-            <span class="text-[13px] text-ml-glass-fg/20">No comments yet</span>
-            <span class="text-[11px] text-ml-glass-fg/15">Use the comment tool (C) to add one</span>
+          <div class="flex flex-col items-center justify-center h-44 gap-2 px-6 text-center">
+            <MessageSquare size={28} strokeWidth={1.5} class="text-ml-glass-fg/30" aria-hidden="true" />
+            <span class="text-[14px] font-medium text-ml-glass-fg/75">No comments yet</span>
+            <span class="text-[12px] text-ml-glass-fg/45 leading-snug">Use the comment tool (C) to add one</span>
           </div>
         )}
 
@@ -411,7 +448,7 @@ export function AnnotationPanel({ onScrollTo, docked }: Props) {
                   <button
                     type="button"
                     onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
-                    class="text-[10px] text-ml-glass-fg/25 hover:text-blue-500 bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class="text-[10px] text-ml-glass-fg/25 hover:text-[oklch(0.65_0.15_300)] bg-transparent border-none cursor-pointer p-0 transition-colors"
                   >
                     Go to
                   </button>
@@ -420,7 +457,7 @@ export function AnnotationPanel({ onScrollTo, docked }: Props) {
                     onClick={() => setOpStatus(op.id, selResolved ? 'open' : 'resolved')}
                     class="text-[10px] text-ml-glass-fg/25 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer p-0 transition-colors"
                   >
-                    {selResolved ? '→ Reopen' : '→ Resolve'}
+                    {selResolved ? 'Reopen' : 'Resolve'}
                   </button>
                 </div>
               </div>
@@ -449,6 +486,41 @@ export function AnnotationPanel({ onScrollTo, docked }: Props) {
           );
         })}
       </div>
+    </>
+  );
+}
+
+const PANEL_BASE = clsx(glass.surface, 'flex flex-col overflow-hidden');
+const PANEL_TRANSITION = 'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]';
+
+export function AnnotationPanel(props: BodyProps) {
+  const visible = showAnnotationPanel.value;
+  return (
+    <div
+      class={clsx(
+        'absolute top-3 right-3 bottom-3 w-[340px] z-40',
+        PANEL_TRANSITION,
+        PANEL_BASE,
+        visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none',
+      )}
+    >
+      <AnnotationPanelBody {...props} />
+    </div>
+  );
+}
+
+export function DockedAnnotationPanel(props: BodyProps) {
+  const visible = showAnnotationPanel.value;
+  return (
+    <div
+      class={clsx(
+        'shrink-0 my-3 ml-3 rounded-2xl',
+        PANEL_TRANSITION,
+        PANEL_BASE,
+        visible ? 'w-[340px] opacity-100' : 'w-0 opacity-0 !ml-0 !p-0 !border-0',
+      )}
+    >
+      <AnnotationPanelBody {...props} />
     </div>
   );
 }
