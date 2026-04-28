@@ -3,6 +3,7 @@ import { api } from './api';
 import { generateOgImage } from './og';
 import { privacyHtml } from './privacy';
 import { proxy } from './proxy';
+import { mountSeoRoutes, SEO_URLS } from './seo';
 
 export { AnnotationRoom } from './annotation-room';
 
@@ -14,10 +15,35 @@ export type Env = {
     OG_BUCKET: R2Bucket;
     TURN_KEY_ID?: string;
     TURN_KEY_TOKEN?: string;
+    POSTHOG_KEY?: string;
+    POSTHOG_HOST?: string;
   };
 };
 
 const app = new Hono<Env>();
+
+/** Parse a JSON-encoded array of page ids, dropping any non-string entries. */
+function parsePageIds(raw: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+type OgOp = { tool: string; parentId?: string };
+function isOgOp(o: unknown): o is OgOp {
+  return !!o && typeof o === 'object' && 'tool' in o && typeof o.tool === 'string';
+}
+function parseOgOps(raw: string): OgOp[] {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter(isOgOp) : [];
+  } catch {
+    return [];
+  }
+}
 
 app.route('/api', api);
 
@@ -54,9 +80,54 @@ app.get('/s/:id', async (c) => {
     .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}">`)
     .replace(/<meta property="og:image"[^>]*>/, `<meta property="og:image" content="${ogImage}">`)
     .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}">`)
-    .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`);
+    .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`)
+    .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${reqUrl.href}" />`);
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
+  });
+});
+
+// Shared project page (multi-page annotation bundle)
+app.get('/p/:id', async (c) => {
+  const projectId = c.req.param('id');
+  const reqUrl = new URL(c.req.url);
+  let domain = 'a project';
+  let pageCount = 0;
+  // Asset shell is independent of the project metadata — fetch in parallel.
+  const assetsPromise = c.env.ASSETS.fetch(new Request(new URL('/', reqUrl)));
+  const projectRow = await c.env.DB.prepare('SELECT page_ids FROM projects WHERE id = ?')
+    .bind(projectId)
+    .first<{ page_ids: string }>();
+  if (projectRow) {
+    try {
+      const pageIds = parsePageIds(projectRow.page_ids);
+      pageCount = pageIds.length;
+      if (pageIds.length > 0) {
+        const first = await c.env.DB.prepare('SELECT url FROM annotations WHERE id = ?')
+          .bind(pageIds[0])
+          .first<{ url: string | null }>();
+        if (first?.url) {
+          try {
+            domain = new URL(first.url).hostname;
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+  const res = await assetsPromise;
+  let html = await res.text();
+  const ogImage = `${reqUrl.origin}/og/${projectId}.png?domain=${encodeURIComponent(domain)}`;
+  const pagesLabel = pageCount > 0 ? ` (${pageCount} pages)` : '';
+  const title = `MarkLayer — Annotations on ${domain}${pagesLabel}`;
+  html = html
+    .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${reqUrl.href}">`)
+    .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}">`)
+    .replace(/<meta property="og:image"[^>]*>/, `<meta property="og:image" content="${ogImage}">`)
+    .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}">`)
+    .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`)
+    .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${reqUrl.href}" />`);
+  return new Response(html, {
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
   });
 });
 
@@ -74,8 +145,25 @@ app.get('/og/:key', async (c) => {
     });
   }
 
-  const row = await c.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?').bind(id).first<{ ops: string }>();
-  const ops = row ? JSON.parse(row.ops) : [];
+  let ops: OgOp[] = [];
+  const annoRow = await c.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?').bind(id).first<{ ops: string }>();
+  if (annoRow) {
+    ops = parseOgOps(annoRow.ops);
+  } else {
+    // Fall back to project: render the first page's ops as the preview
+    const projRow = await c.env.DB.prepare('SELECT page_ids FROM projects WHERE id = ?')
+      .bind(id)
+      .first<{ page_ids: string }>();
+    if (projRow) {
+      const pageIds = parsePageIds(projRow.page_ids);
+      if (pageIds.length > 0) {
+        const firstPage = await c.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?')
+          .bind(pageIds[0])
+          .first<{ ops: string }>();
+        if (firstPage) ops = parseOgOps(firstPage.ops);
+      }
+    }
+  }
   const png = await generateOgImage({ domain, ops });
 
   c.executionCtx.waitUntil(c.env.OG_BUCKET.put(key, png, { httpMetadata: { contentType: 'image/png' } }));
@@ -121,31 +209,77 @@ app.get('/robots.txt', (c) =>
 
 const LLMS_TXT = `# MarkLayer
 
-> Free webpage annotation and visual collaboration tool for Chrome.
+> 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up.
 
-MarkLayer is a Chrome extension that lets you draw, comment, and mark up any live website — then share a single link so anyone can see your annotations instantly. No account or sign-up required.
+MarkLayer is a Chrome extension that lets you draw, comment, and mark up any live website — then share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
+
+## Pricing
+
+Free. There is no paid plan. There is no trial. There is no per-seat pricing. Everything is included. See https://marklayer.app/pricing or https://marklayer.app/pricing.md for the machine-readable version.
+
+## Anonymous by design
+
+- No sign-up, no email verification, no login
+- No personal data collected
+- Random local display name and color generated in your browser
+- Annotations stay on your device until you choose to share
 
 ## Features
 
 - Drawing tools: Freehand drawing, shapes, arrows, and lines on any webpage
-- Real-time collaboration: Live cursors so everyone sees changes as they happen
-- Shareable links: Share a link — recipients don't need the extension to view
+- Real-time collaboration: Live cursors with unlimited collaborators per session
+- Shareable links: Recipients don't need the extension or an account to view
 - Threaded comments: Pin comments to any spot on the page
-- No sign-up required: Just install and start annotating
-- Private by default: Annotations are only shared when you choose
-- Works on any website: No exceptions, one click to start
-- Free and open source: No paywall, no trial period
+- Works on any website: Production, staging, internal tools, third-party sites
+- Open source and self-hostable
+
+## Use cases
+
+- Design review: https://marklayer.app/for/design-review
+- QA and bug reporting: https://marklayer.app/for/qa-bug-reporting
+- Client feedback: https://marklayer.app/for/client-feedback
+- Remote teams: https://marklayer.app/for/remote-teams
+- Students: https://marklayer.app/for/students
+- Educators: https://marklayer.app/for/educators
+- Researchers: https://marklayer.app/for/researchers
+- Content creators: https://marklayer.app/for/content-creators
+- Marketers: https://marklayer.app/for/marketers
+
+## Comparisons
+
+- vs Markup.io: https://marklayer.app/vs/markup-io
+- vs Pastel: https://marklayer.app/vs/pastel
+- vs BugHerd: https://marklayer.app/vs/bugherd
+- vs Hypothesis: https://marklayer.app/vs/hypothesis
+- vs AnnotateWeb: https://marklayer.app/vs/annotateweb
+- vs Jam.dev: https://marklayer.app/vs/jam
+- vs Marker.io: https://marklayer.app/vs/marker-io
+- vs Userback: https://marklayer.app/vs/userback
+- vs Ruttl: https://marklayer.app/vs/ruttl
+- vs Loom: https://marklayer.app/vs/loom
+
+## Free alternatives lists
+
+- Free Markup.io alternatives: https://marklayer.app/alternatives/markup-io
+- Free Pastel alternatives: https://marklayer.app/alternatives/pastel
+- Free BugHerd alternatives: https://marklayer.app/alternatives/bugherd
+- Free AnnotateWeb alternatives: https://marklayer.app/alternatives/annotateweb
+- Free Jam.dev alternatives: https://marklayer.app/alternatives/jam
+- Free Marker.io alternatives: https://marklayer.app/alternatives/marker-io
+- Free Userback alternatives: https://marklayer.app/alternatives/userback
+- Hypothesis alternatives: https://marklayer.app/alternatives/hypothesis
 
 ## Links
 
 - Website: https://marklayer.app
+- Pricing: https://marklayer.app/pricing
 - Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
 - GitHub: https://github.com/thevrus/MarkLayer
 - Privacy Policy: https://marklayer.app/privacy
 
 ## How It Works
 
-1. Install the MarkLayer Chrome extension (free)
+1. Install the MarkLayer Chrome extension (free, no account)
 2. Navigate to any webpage and click the MarkLayer icon
 3. Draw, comment, or highlight anything on the page
 4. Click "Share" to get a link anyone can open — no extension needed on their end
@@ -153,17 +287,20 @@ MarkLayer is a Chrome extension that lets you draw, comment, and mark up any liv
 
 ## FAQ
 
+Q: Is MarkLayer really free?
+A: Yes — 100% free. No paid plan, no trial, no per-seat pricing, no usage cap.
+
+Q: Is MarkLayer anonymous?
+A: Yes. No sign-up, no email, no profile, no login. No personal data is collected.
+
 Q: Does the other person need the extension installed?
 A: No. Anyone can view annotations via the share link — no install required.
-
-Q: Is it really free?
-A: Yes. No account, no paywall, no trial period.
 
 Q: Does it work on any website?
 A: Yes, MarkLayer works on any webpage.
 
 Q: Can multiple people annotate at the same time?
-A: Yes — real-time cursors let you collaborate live on any page.
+A: Yes — real-time live cursors let unlimited collaborators work together.
 
 ## Contact
 
@@ -179,13 +316,15 @@ app.get('/llms.txt', (c) =>
 
 const LLMS_FULL_TXT = `# MarkLayer — Full Reference
 
-> Free webpage annotation and visual collaboration tool for Chrome.
+> 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up, no payment.
 
 ## What is MarkLayer?
 
-MarkLayer is a free, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link — the recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
+MarkLayer is a free, anonymous, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link — the recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
 
-MarkLayer is designed for designers, developers, QA engineers, product managers, and anyone who needs to give visual feedback on web content.
+The two defining principles are **free** (no paid plan, no trial, no per-seat pricing, no usage cap) and **anonymous** (no sign-up, no email, no profile, no login, no personal data collection).
+
+MarkLayer is designed for designers, developers, QA engineers, product managers, agencies, and anyone who needs to give visual feedback on web content without onboarding the recipient through yet another account flow.
 
 ## Core Features
 
@@ -277,16 +416,27 @@ app.get('/llms-full.txt', (c) =>
   c.body(LLMS_FULL_TXT, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
 );
 
+const SITEMAP_LASTMOD = '2026-04-28';
+const SEO_URL_ENTRIES = SEO_URLS.map(
+  (path) =>
+    `  <url><loc>https://marklayer.app${path}</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
+).join('\n');
+
 const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://marklayer.app/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
-  <url><loc>https://marklayer.app/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://marklayer.app/llms.txt</loc><changefreq>monthly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://marklayer.app/</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
+${SEO_URL_ENTRIES}
+  <url><loc>https://marklayer.app/privacy</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://marklayer.app/llms.txt</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://marklayer.app/llms-full.txt</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
 </urlset>`;
 
 app.get('/sitemap.xml', (c) =>
   c.body(SITEMAP_XML, 200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' }),
 );
+
+// Mount SEO landing pages (comparisons, alternatives, use-cases, pricing)
+mountSeoRoutes(app);
 
 // Proxy + catch-all (must be last)
 app.route('/', proxy);
@@ -304,6 +454,21 @@ const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_even
 
   if (deleted.results.length > 0) {
     const keys = deleted.results.map((r) => `${r.id}.png`);
+    const r2Deletes: Promise<void>[] = [];
+    for (let i = 0; i < keys.length; i += 1000) {
+      r2Deletes.push(env.OG_BUCKET.delete(keys.slice(i, i + 1000)));
+    }
+    await Promise.all(r2Deletes);
+  }
+
+  // Same retention policy for project bundles
+  const deletedProjects = await env.DB.prepare(
+    'DELETE FROM projects WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
+  )
+    .bind(ninetyDaysAgo, now)
+    .all<{ id: string }>();
+  if (deletedProjects.results.length > 0) {
+    const keys = deletedProjects.results.map((r) => `${r.id}.png`);
     const r2Deletes: Promise<void>[] = [];
     for (let i = 0; i < keys.length; i += 1000) {
       r2Deletes.push(env.OG_BUCKET.delete(keys.slice(i, i + 1000)));
