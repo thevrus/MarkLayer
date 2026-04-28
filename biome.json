@@ -1,6 +1,6 @@
 {
   "root": true,
-  "$schema": "https://biomejs.dev/schemas/2.4.7/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
@@ -53,6 +53,7 @@
       "!**/dist",
       "!**/bun.lock",
       "!**/public/assets",
+      "!apps/worker/public",
       "!**/worker-configuration.d.ts",
       "!apps/worker/index.html",
       "!apps/worker/public/index.html"

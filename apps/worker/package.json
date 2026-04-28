@@ -4,14 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite & wrangler dev --port 8787 & wait",
-    "dev:web": "vite",
-    "dev:worker": "wrangler dev",
+    "dev": "vite",
     "build": "vite build",
+    "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
     "check": "tsc --noEmit"
   },
   "dependencies": {
+    "@cloudflare/vite-plugin": "^1.34.0",
     "@marklayer/types": "workspace:*",
     "@posthog/react": "^1.8.2",
     "@preact/signals": "^2.8.2",
@@ -22,14 +22,15 @@
     "nanoid": "^5.1.7",
     "posthog-js": "^1.363.3",
     "preact": "^10.29.0",
+    "tinykeys": "^3.0.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250313.0",
-    "@tailwindcss/vite": "^4.2.1",
+    "@tailwindcss/vite": "^4.2.4",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.9.3",
-    "vite": "^5.4.0",
+    "vite": "^7",
     "wrangler": "^4.10.0"
   }
 }

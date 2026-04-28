@@ -1,9 +1,10 @@
 import { resolve } from 'node:path';
+import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  plugins: [tailwindcss()],
+  plugins: [cloudflare(), tailwindcss()],
   resolve: {
     alias: {
       '@ext': resolve(__dirname, '../extension'),
@@ -21,12 +22,5 @@ export default defineConfig({
   build: {
     outDir: 'public',
     emptyOutDir: true,
-  },
-  server: {
-    proxy: {
-      '/api': 'http://localhost:8787',
-      '/ws': { target: 'http://localhost:8787', ws: true },
-      '/proxy': 'http://localhost:8787',
-    },
   },
 });
