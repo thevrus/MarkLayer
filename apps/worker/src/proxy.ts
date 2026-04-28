@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import type { Env } from './index';
+import { captureServer } from './posthog';
 
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -47,11 +48,15 @@ proxy.get('/proxy', async (c) => {
   }
 
   const hostname = parsed.hostname.toLowerCase();
-  if (isBlockedHost(hostname)) return c.text('Blocked URL', 400);
+  if (isBlockedHost(hostname)) {
+    captureServer(c.env, c.executionCtx, 'proxy_render_failed', { url, reason: 'blocked-host', hostname });
+    return c.text('Blocked URL', 400);
+  }
 
   const reqUrl = new URL(c.req.url);
   if (hostname === reqUrl.hostname.toLowerCase()) return c.redirect('/?error=self');
 
+  const fetchStart = Date.now();
   try {
     const resp = await fetch(url, {
       headers: {
@@ -65,6 +70,15 @@ proxy.get('/proxy', async (c) => {
     });
 
     const contentType = resp.headers.get('content-type') || 'text/html';
+
+    if (!resp.ok) {
+      captureServer(c.env, c.executionCtx, 'proxy_render_failed', {
+        url,
+        reason: 'upstream-not-ok',
+        status: resp.status,
+        duration_ms: Date.now() - fetchStart,
+      });
+    }
 
     // For non-HTML resources, pass through as-is
     if (!contentType.includes('text/html')) {
@@ -195,7 +209,13 @@ proxy.get('/proxy', async (c) => {
     headers.set('Access-Control-Allow-Origin', '*');
 
     return rewriter.transform(new Response(resp.body, { headers }));
-  } catch {
+  } catch (err) {
+    captureServer(c.env, c.executionCtx, 'proxy_render_failed', {
+      url,
+      reason: 'fetch-threw',
+      message: err instanceof Error ? err.message : String(err),
+      duration_ms: Date.now() - fetchStart,
+    });
     return c.text('Proxy error: failed to fetch the requested URL', 502);
   }
 });
