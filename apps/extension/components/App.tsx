@@ -16,7 +16,9 @@ import {
 } from '../lib/state';
 import { Canvas } from './Canvas';
 import { CommentLayer } from './CommentLayer';
+import { InspectorLayer } from './InspectorLayer';
 import { SelectionLayer } from './SelectionLayer';
+import { TextLayer } from './TextLayer';
 import { Toolbar } from './Toolbar';
 
 export function App() {
@@ -127,6 +129,8 @@ export function App() {
       <Canvas />
       <CommentLayer />
       <SelectionLayer />
+      <TextLayer />
+      <InspectorLayer />
       <Toolbar />
       {toasts.value.length > 0 && (
         <div class="fixed top-5 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">

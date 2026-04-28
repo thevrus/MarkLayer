@@ -257,7 +257,8 @@ export function Canvas() {
   });
 
   const tool = activeTool.value;
-  const showCanvas = isDrawingTool(tool) && tool !== 'comment' && tool !== 'selection';
+  const showCanvas =
+    isDrawingTool(tool) && tool !== 'comment' && tool !== 'selection' && tool !== 'inspect' && tool !== 'text';
 
   return (
     <>

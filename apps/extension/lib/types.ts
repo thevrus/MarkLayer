@@ -27,4 +27,5 @@ export type Tool =
   | 'comment'
   | 'text'
   | 'selection'
-  | 'eraser';
+  | 'eraser'
+  | 'inspect';

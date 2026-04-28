@@ -1,29 +1,19 @@
 import { computed, signal } from '@preact/signals';
-import { createStore, del, get, set } from 'idb-keyval';
 import { nanoid } from 'nanoid';
+import { createDraftStore } from './drafts';
 import type { CommentMeta, CommentOp, CommentStatus, DrawOp, Peer, SelectionOp, Tool } from './types';
 
-// Draft auto-save via IndexedDB (dedicated store to avoid host page collisions)
-const _draftStore = createStore('marklayer-drafts', 'drafts');
-const _draftKey = `ml-draft-${location.href.split('#')[0]}`;
-let _saveTimer: ReturnType<typeof setTimeout> | null = null;
-function scheduleDraftSave() {
-  if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    set(_draftKey, operations.value, _draftStore).catch(() => {});
-  }, 500);
-}
-export async function restoreDraft() {
-  try {
-    const saved = await get<DrawOp[]>(_draftKey, _draftStore);
-    if (saved?.length && !operations.value.length) {
-      operations.value = saved;
-      toast('Draft restored', 'info', 2500);
-    }
-  } catch {
-    // IndexedDB unavailable — silently continue
-  }
-}
+const drafts = createDraftStore({
+  key: `ml-draft-${location.href.split('#')[0]}`,
+  getOps: () => operations.value,
+  setOps: (ops) => {
+    operations.value = ops;
+  },
+  notify: (msg) => toast(msg, 'info', 2500),
+});
+
+/** Restore any saved draft for this URL into the operations signal. */
+export const restoreDraft = drafts.restore;
 
 export const visible = signal(false);
 export const activeTool = signal<Tool>('navigate');
@@ -189,6 +179,14 @@ export function toast(message: string, type: Toast['type'] = 'info', duration = 
   }, duration);
 }
 
+/** Copy text to clipboard with success/error toast feedback. */
+export function copyText(text: string, label = 'Copied!') {
+  navigator.clipboard.writeText(text).then(
+    () => toast(label, 'success'),
+    () => toast('Failed to copy', 'error'),
+  );
+}
+
 // Single-pass partition of operations into comments, selections, root comments, and reply map
 const _opIndex = computed(() => {
   const allComments: CommentOp[] = [];
@@ -236,6 +234,12 @@ export function getCommentStatus(op: CommentOp): CommentStatus {
   return op.status || (op.resolved ? 'resolved' : 'open');
 }
 
+export const STATUS_LABELS: Record<CommentStatus, string> = {
+  open: 'Open',
+  in_progress: 'In Progress',
+  resolved: 'Resolved',
+};
+
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
 /** True while user is actively drawing (mousedown on canvas) */
 export const isDrawingActive = signal(false);
@@ -254,6 +258,7 @@ export const TOOLS: Tool[] = [
   'comment',
   'selection',
   'eraser',
+  'inspect',
 ];
 
 export const SHORTCUT_MAP: Record<string, Tool> = {
@@ -268,6 +273,7 @@ export const SHORTCUT_MAP: Record<string, Tool> = {
   C: 'comment',
   S: 'selection',
   E: 'eraser',
+  I: 'inspect',
 };
 export const SHORTCUTS: Partial<Record<Tool, string>> = Object.fromEntries(
   Object.entries(SHORTCUT_MAP).map(([k, v]) => [v, k]),
@@ -277,7 +283,7 @@ export function pushOp(op: DrawOp) {
   operations.value = [...operations.value, op];
   if (undoStack.value.length) undoStack.value = [];
   onOpPushed.value?.(op);
-  scheduleDraftSave();
+  drafts.scheduleSave();
 }
 
 /** Create and push a reply to an existing comment */
@@ -373,7 +379,7 @@ export function undo() {
   operations.value = ops.slice(0, -1);
   onUndone.value?.(removed.id);
   undoRedoFlash.value++;
-  scheduleDraftSave();
+  drafts.scheduleSave();
 }
 
 export function redo() {
@@ -384,7 +390,7 @@ export function redo() {
   operations.value = [...operations.value, last];
   undoStack.value = stack.slice(0, -1);
   undoRedoFlash.value++;
-  scheduleDraftSave();
+  drafts.scheduleSave();
 }
 
 export function clearAll() {
@@ -394,5 +400,5 @@ export function clearAll() {
   undoStack.value = [...undoStack.value, { type: 'clear' as const, ops: structuredClone(ops) }];
   operations.value = [];
   onCleared.value?.();
-  del(_draftKey, _draftStore).catch(() => {});
+  drafts.clear();
 }
