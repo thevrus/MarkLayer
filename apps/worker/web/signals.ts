@@ -1,10 +1,25 @@
 import { pushOp, toast as showToast } from '@ext/lib/state';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import { effect, signal } from '@preact/signals';
-import { nanoid } from 'nanoid';
 import { fromBase64 } from './encoding';
+import { annotationId, currentPageIdx, originalWidth, pageUrl, projectId } from './projects';
 
-export const API_BASE = '/api/';
+// Re-export project surface so existing imports from './signals' keep working.
+export {
+  API_BASE,
+  annotationId,
+  createAnnotationFor,
+  currentPageIdx,
+  loadProject,
+  navigateTo,
+  originalWidth,
+  type ProjectPage,
+  pageUrl,
+  projectId,
+  projectLoading,
+  projectPages,
+  saveProject,
+} from './projects';
 
 export const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && 'ontouchstart' in window;
 
@@ -12,9 +27,6 @@ export const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAge
 export const iframeScrollY = signal(0);
 /** CSS transform scale — how much the locked container is visually scaled to fit the viewer */
 export const cssScale = signal(1);
-export const pageUrl = signal('');
-export const originalWidth = signal(0);
-export const annotationId = signal('');
 export const isLanding = signal(true);
 export const urlReady = signal(false);
 export const commentPopover = signal<{ x: number; y: number } | null>(null);
@@ -65,6 +77,16 @@ function parseViewParam(): boolean {
   const params = new URLSearchParams(location.search);
   const viewParam = params.get('view');
 
+  // Project URL: /p/:id (?page=N selects which page; defaults to 0)
+  const projectMatch = location.pathname.match(/^\/p\/([A-Za-z0-9_-]+)$/);
+  if (!viewParam && projectMatch) {
+    projectId.value = projectMatch[1];
+    isReadonly.value = params.get('readonly') === '1';
+    const pageParam = parseInt(params.get('page') ?? '0', 10);
+    currentPageIdx.value = Number.isFinite(pageParam) && pageParam >= 0 ? pageParam : 0;
+    return true;
+  }
+
   // New short URL: /s/:id (no view param)
   const pathMatch = location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)$/);
   if (!viewParam && pathMatch) {
@@ -108,17 +130,6 @@ if (parseViewParam()) {
     const clean = params.toString();
     history.replaceState(null, '', clean ? `?${clean}` : location.pathname);
   }
-}
-
-export async function navigateTo(url: string) {
-  const w = window.innerWidth;
-  const id = nanoid();
-  await fetch(`${API_BASE}${id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ops: [], url, width: w }),
-  });
-  location.href = `/s/${id}`;
 }
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });

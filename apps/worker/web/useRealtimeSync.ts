@@ -303,7 +303,16 @@ export function useRealtimeSync(annotationId: string) {
       if (cursorTimer) clearTimeout(cursorTimer);
       if (followScrollTimer) clearTimeout(followScrollTimer);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      wsRef.current?.close();
+      // Drop stale handlers BEFORE close so any in-flight messages from the old
+      // room don't leak into operations after the user has switched pages.
+      const ws = wsRef.current;
+      if (ws) {
+        ws.onmessage = null;
+        ws.onopen = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        ws.close();
+      }
       peers.value = new Map();
     };
   }, [annotationId]);
