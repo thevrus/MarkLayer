@@ -1,0 +1,61 @@
+@import "tailwindcss";
+@source "../src/pages.tsx";
+
+@layer base {
+  body {
+    font-family: "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    @apply mx-auto max-w-[780px] bg-[#fafafa] px-6 pt-12 pb-24 leading-relaxed text-[#1a1a1a];
+  }
+  h1 {
+    @apply mt-0 mb-4 text-4xl font-semibold leading-[1.15] tracking-[-0.02em];
+  }
+  h2 {
+    @apply mt-12 mb-4 text-[22px] font-semibold leading-tight tracking-[-0.01em];
+  }
+  h3 {
+    @apply mt-8 mb-3 text-lg font-semibold;
+  }
+  p {
+    @apply my-3.5;
+  }
+  a {
+    @apply text-[#2563eb] no-underline hover:underline;
+  }
+  ul,
+  ol {
+    @apply my-3.5 pl-6;
+  }
+  li {
+    @apply my-1.5;
+  }
+  dl {
+    @apply my-4;
+  }
+  dt {
+    @apply mt-4 font-semibold text-[#111827];
+  }
+  dd {
+    @apply mt-1;
+  }
+  table {
+    @apply my-6 w-full overflow-hidden rounded-lg border border-[#e5e7eb] bg-white text-[15px];
+  }
+  th {
+    @apply border-b border-[#e5e7eb] bg-[#f9fafb] px-4 py-3 text-left align-top text-sm font-semibold text-[#374151];
+  }
+  td {
+    @apply border-b border-[#e5e7eb] px-4 py-3 text-left align-top;
+  }
+  tr:last-child td {
+    @apply border-b-0;
+  }
+  blockquote {
+    @apply my-4 border-l-[3px] border-[#e5e7eb] pl-4 text-[#374151] italic;
+  }
+  footer {
+    @apply mt-16 border-t border-[#e5e7eb] pt-6 text-sm text-[#6b7280];
+  }
+  footer nav a {
+    @apply mr-4;
+  }
+}
