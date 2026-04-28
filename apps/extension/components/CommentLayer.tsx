@@ -24,7 +24,7 @@ export function CommentLayer() {
   return (
     <div
       class="fixed inset-0 z-[2147483646] pointer-events-none
-             font-[-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif]"
+             font-[-apple-system,BlinkMacSystemFont,'Geist',system-ui,sans-serif]"
       onClick={onClick}
       style={{
         pointerEvents: activeTool.value === 'comment' ? 'auto' : 'none',

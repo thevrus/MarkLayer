@@ -116,7 +116,7 @@
   }
 
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif;
     background: var(--color-ml-bg);
     color: var(--color-ml-fg);
     -webkit-font-smoothing: antialiased;

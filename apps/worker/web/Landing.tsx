@@ -1,3 +1,4 @@
+import { InspectorLayer } from '@ext/components/InspectorLayer';
 import { Toolbar } from '@ext/components/Toolbar';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
@@ -242,10 +243,10 @@ export function Landing() {
   });
 
   useEffect(() => {
-    let timer: number;
+    let timer: ReturnType<typeof setTimeout>;
     const onResize = () => {
       clearTimeout(timer);
-      timer = setTimeout(renderAll, 100) as unknown as number;
+      timer = setTimeout(renderAll, 100);
     };
     window.addEventListener('resize', onResize);
     const ro = new ResizeObserver(() => renderAll());
@@ -257,11 +258,11 @@ export function Landing() {
   }, [renderAll]);
 
   useEffect(() => {
-    window.addEventListener('mousemove', onMove as EventListener);
-    window.addEventListener('mouseup', onUp as EventListener);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove as EventListener);
-      window.removeEventListener('mouseup', onUp as EventListener);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
     };
   }, [onMove, onUp]);
 
@@ -385,7 +386,7 @@ export function Landing() {
   return (
     <>
       {/* Gradient page background */}
-      <div class="ml-force-light relative min-h-screen font-['Inter',system-ui,sans-serif] overflow-x-hidden lp-bg-animate">
+      <div class="ml-force-light relative min-h-screen font-['Geist',system-ui,sans-serif] overflow-x-hidden lp-bg-animate">
         {/* Centered white container with shadow */}
         <main class="max-w-[800px] mx-auto my-0 sm:my-8 bg-white sm:rounded-3xl shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_8px_40px_rgba(0,0,0,0.06)] min-h-screen sm:min-h-0">
           {/* Nav */}
@@ -615,25 +616,147 @@ export function Landing() {
           </section>
 
           {/* Footer */}
-          <footer class="px-8 sm:px-10 pt-8 pb-8 border-t border-ml-fg/[0.06]">
-            <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-ml-fg/30 mb-4">
-              <a href="/privacy" class="hover:text-ml-fg/60 transition-colors no-underline text-ml-fg/30">
-                Privacy
-              </a>
-              <a
-                href="https://github.com/thevrus/MarkLayer"
-                target="_blank"
-                rel="noopener"
-                class="hover:text-ml-fg/60 transition-colors no-underline text-ml-fg/30"
-              >
-                GitHub
-              </a>
-              <a
-                href="mailto:rusinvadym@gmail.com"
-                class="hover:text-ml-fg/60 transition-colors no-underline text-ml-fg/30"
-              >
-                Contact
-              </a>
+          <footer class="px-8 sm:px-10 pt-12 pb-8 border-t border-ml-fg/6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-8 max-w-3xl mx-auto mb-10 text-[13px]">
+              <div>
+                <div class="text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider">Product</div>
+                <ul class="space-y-2">
+                  <li>
+                    <a href="/pricing" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                      Pricing
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/privacy" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                      Privacy
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="https://github.com/thevrus/MarkLayer"
+                      target="_blank"
+                      rel="noopener"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      GitHub
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="mailto:rusinvadym@gmail.com"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      Contact
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <a
+                  href="/compare"
+                  class="block text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider no-underline hover:text-ml-fg/70 transition-colors"
+                >
+                  Compare
+                </a>
+                <ul class="space-y-2">
+                  <li>
+                    <a href="/vs/markup-io" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                      MarkLayer vs Markup.io
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/vs/pastel" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                      MarkLayer vs Pastel
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/vs/bugherd" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                      MarkLayer vs BugHerd
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/vs/hypothesis" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                      MarkLayer vs Hypothesis
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <a
+                  href="/alternatives"
+                  class="block text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider no-underline hover:text-ml-fg/70 transition-colors"
+                >
+                  Free alternatives
+                </a>
+                <ul class="space-y-2">
+                  <li>
+                    <a
+                      href="/alternatives/markup-io"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      Markup.io alternatives
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="/alternatives/pastel"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      Pastel alternatives
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="/alternatives/bugherd"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      BugHerd alternatives
+                    </a>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <a
+                  href="/use-cases"
+                  class="block text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider no-underline hover:text-ml-fg/70 transition-colors"
+                >
+                  Use cases
+                </a>
+                <ul class="space-y-2">
+                  <li>
+                    <a
+                      href="/for/design-review"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      Design review
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="/for/qa-bug-reporting"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      QA & bug reporting
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="/for/client-feedback"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      Client feedback
+                    </a>
+                  </li>
+                  <li>
+                    <a
+                      href="/for/remote-teams"
+                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                    >
+                      Remote teams
+                    </a>
+                  </li>
+                </ul>
+              </div>
             </div>
             <div class="flex justify-center mb-5">
               <a
@@ -745,6 +868,8 @@ export function Landing() {
             cursor: showCanvas ? 'crosshair' : 'default',
           }}
         />
+
+        <InspectorLayer />
 
         <div class="lp-toolbar-in lp-shine-toolbar hidden sm:block z-[2147483647]">
           <Toolbar />

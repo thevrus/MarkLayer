@@ -31,5 +31,5 @@ export const glass = {
   sep: 'w-px h-6 bg-gradient-to-b from-transparent via-[var(--ml-glass-sep)] to-transparent shrink-0 mx-1.5',
 
   /** Font stack */
-  font: "font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Display','Inter',system-ui,sans-serif]",
+  font: "font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Display','Geist',system-ui,sans-serif]",
 } as const;

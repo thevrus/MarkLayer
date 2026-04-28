@@ -11,14 +11,23 @@ async function ensureWasm() {
   }
 }
 
-// Cache the Inter font across requests in the same isolate
+// Cache the Geist font across requests in the same isolate
 let fontData: Uint8Array | null = null;
 async function getFont(): Promise<Uint8Array> {
   if (fontData) return fontData;
-  const res = await fetch(
-    'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfAZ9hjQ.ttf',
-  );
-  fontData = new Uint8Array(await res.arrayBuffer());
+  // Resolve the TTF URL via the Google Fonts CSS API. The User-Agent below
+  // signals no woff2 support, so the CSS response points at a TTF.
+  const cssRes = await fetch('https://fonts.googleapis.com/css2?family=Geist:wght@700&display=swap', {
+    headers: {
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.118 Safari/537.36',
+    },
+  });
+  const cssText = await cssRes.text();
+  const match = cssText.match(/url\((https:\/\/[^)]+\.ttf)\)/);
+  if (!match) throw new Error('Failed to resolve Geist TTF URL from Google Fonts CSS');
+  const fontRes = await fetch(match[1]);
+  fontData = new Uint8Array(await fontRes.arrayBuffer());
   return fontData;
 }
 
@@ -99,12 +108,12 @@ export async function generateOgImage({ domain, ops }: OgParams): Promise<ArrayB
 
   ${faviconUri ? `<image x="564" y="155" width="72" height="72" href="${faviconUri}" clip-path="inset(0 round 14px)"/>` : ''}
 
-  <text x="600" y="${285 - fy}" text-anchor="middle" font-family="Inter" font-size="44" font-weight="700" fill="#ffffff" letter-spacing="-1.5">${title}</text>
-  <text x="600" y="${332 - fy}" text-anchor="middle" font-family="Inter" font-size="18" fill="rgba(255,255,255,0.38)" letter-spacing="0.3">${subtitle}</text>
+  <text x="600" y="${285 - fy}" text-anchor="middle" font-family="Geist" font-size="44" font-weight="700" fill="#ffffff" letter-spacing="-1.5">${title}</text>
+  <text x="600" y="${332 - fy}" text-anchor="middle" font-family="Geist" font-size="18" fill="rgba(255,255,255,0.38)" letter-spacing="0.3">${subtitle}</text>
 
   <rect x="527" y="${400 - fy}" width="146" height="38" rx="19" fill="rgba(255,255,255,0.045)" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
   <rect x="543" y="${409 - fy}" width="20" height="20" rx="5" fill="url(#brand)"/>
-  <text x="572" y="${425 - fy}" font-family="Inter" font-size="15" font-weight="600" fill="rgba(255,255,255,0.35)">MarkLayer</text>
+  <text x="572" y="${425 - fy}" font-family="Geist" font-size="15" font-weight="600" fill="rgba(255,255,255,0.35)">MarkLayer</text>
 </svg>`;
 
   const resvg = new Resvg(svg, {

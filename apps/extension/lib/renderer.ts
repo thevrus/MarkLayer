@@ -97,7 +97,7 @@ export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy
   if (op.tool === 'comment' || op.tool === 'selection') return;
   if (op.tool === 'text') {
     c.save();
-    c.font = `${op.fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif`;
+    c.font = `${op.fontSize}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif`;
     c.fillStyle = op.color;
     c.textBaseline = 'top';
     c.fillText(op.text, op.x - ox, op.y - oy);

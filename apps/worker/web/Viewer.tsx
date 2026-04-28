@@ -57,26 +57,34 @@ import {
   X,
 } from 'lucide-preact';
 import { nanoid } from 'nanoid';
+import posthog from 'posthog-js';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
-import { AnnotationPanel } from './AnnotationPanel';
+import { tinykeys } from 'tinykeys';
+import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
 import { CursorLayer } from './CursorLayer';
+import { ProjectTabs } from './ProjectTabs';
 import { Logo, TextInputOverlay } from './shared';
 import {
   API_BASE,
   annotationId,
   commentPopover,
   cssScale,
+  currentPageIdx,
   DEVICE_WIDTHS,
   deviceMode,
   followingPeer,
   iframeScrollY,
   isMobileDevice,
   isReadonly,
+  loadProject,
   navigateTo,
   onFollowScroll,
   opMatchesDevice,
   originalWidth,
   pageUrl,
+  projectId,
+  projectLoading,
+  projectPages,
   pushDeviceOp,
   selectionPopover,
   sharing,
@@ -96,6 +104,7 @@ import {
 import { localVideoStream, useVoiceRoom, videoActive, voiceActive, voiceLevel, voiceMuted } from './useVoiceRoom';
 import { WebCommentPin } from './WebCommentPin';
 import { WebCommentPopover } from './WebCommentPopover';
+import { WebInspectorLayer } from './WebInspectorLayer';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
 
@@ -155,7 +164,7 @@ function InfoPanel() {
         <button
           type="button"
           onClick={() => (showInfoPanel.value = false)}
-          class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer bg-transparent border-none text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1] active:scale-[0.94] transition-all duration-150"
+          class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1] active:scale-[0.94] transition-all duration-150"
         >
           <X size={14} aria-hidden="true" />
         </button>
@@ -292,10 +301,68 @@ export default function Viewer() {
     if (w && !originalWidth.value) originalWidth.value = w;
   });
 
+  // Project init: when /p/:id is in the URL, fetch all pages and activate the selected one.
+  useEffect(() => {
+    const pid = projectId.value;
+    if (!pid) return;
+    let cancelled = false;
+    projectLoading.value = true;
+    loadProject(pid).then((data) => {
+      if (cancelled || !data) {
+        projectLoading.value = false;
+        if (!cancelled) toast('Project not found or expired', 'error', 4000);
+        return;
+      }
+      projectPages.value = data.pages;
+      const idx = Math.min(currentPageIdx.value, data.pages.length - 1);
+      currentPageIdx.value = Math.max(0, idx);
+      projectLoading.value = false;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // When project page changes, switch the active annotation room and reset URL/ops/width.
+  // Take a defensive copy of cached ops so subsequent mutations on either page can't bleed across.
+  useSignalEffect(() => {
+    if (!projectId.value) return;
+    const pages = projectPages.value;
+    const idx = currentPageIdx.value;
+    const page = pages[idx];
+    if (!page) return;
+    if (annotationId.value === page.id) return;
+    annotationId.value = page.id;
+    pageUrl.value = page.url ?? '';
+    originalWidth.value = page.width ?? 0;
+    operations.value = [...page.ops];
+    iframeScrollY.value = 0;
+    peers.value = new Map();
+  });
+
   // Reset loading state when the proxied URL changes
   useSignalEffect(() => {
     pageUrl.value;
     iframeLoaded.value = false;
+  });
+
+  const renderStartRef = useRef(0);
+  const captureRenderFailed = (reason: 'timeout' | 'no-marker' | 'iframe-error', extra?: Record<string, unknown>) => {
+    posthog.capture('page_render_failed', {
+      url: pageUrl.value,
+      reason,
+      duration_ms: Math.round(performance.now() - renderStartRef.current),
+      annotation_id: annotationId.value || null,
+      ...extra,
+    });
+  };
+  useSignalEffect(() => {
+    const url = pageUrl.value;
+    const loaded = iframeLoaded.value;
+    if (!url || loaded) return;
+    renderStartRef.current = performance.now();
+    const timer = window.setTimeout(() => captureRenderFailed('timeout'), 12_000);
+    return () => clearTimeout(timer);
   });
 
   // Export PNG
@@ -336,7 +403,7 @@ export default function Viewer() {
     const setupFrame = () => {
       try {
         const win = frame.contentWindow;
-        if (!win || !win.document.body) return;
+        if (!win?.document.body) return;
         win.addEventListener('scroll', () => {
           iframeScrollY.value = win.scrollY || 0;
           // Break follow mode on user-initiated scroll
@@ -403,37 +470,39 @@ export default function Viewer() {
 
   // Keyboard shortcuts
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (isReadonly.value) return;
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-        if (e.key === 'Escape') (e.target as HTMLElement).blur();
-        return;
-      }
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'r') {
-          e.preventDefault();
-          window.location.reload();
-          return;
-        }
-        if (e.key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          undo();
-          return;
-        }
-        if (e.key === 'y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
-          e.preventDefault();
-          redo();
-          return;
-        }
-      }
-      const m = SHORTCUT_MAP[e.key.toUpperCase()];
-      if (m) {
-        activeTool.value = m;
+    const isEditable = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+    };
+    const guard = (fn: (e: KeyboardEvent) => void) => (e: KeyboardEvent) => {
+      if (isReadonly.value || isEditable(e.target)) return;
+      fn(e);
+    };
+
+    const bindings: Record<string, (e: KeyboardEvent) => void> = {
+      '$mod+KeyR': guard((e) => {
         e.preventDefault();
-        return;
-      }
-      if (e.key === 'Escape') {
+        window.location.reload();
+      }),
+      '$mod+KeyZ': guard((e) => {
+        e.preventDefault();
+        undo();
+      }),
+      '$mod+Shift+KeyZ': guard((e) => {
+        e.preventDefault();
+        redo();
+      }),
+      '$mod+KeyY': guard((e) => {
+        e.preventDefault();
+        redo();
+      }),
+      Escape: (e) => {
+        if (isReadonly.value) return;
+        if (isEditable(e.target) && e.target instanceof HTMLElement) {
+          e.target.blur();
+          return;
+        }
         if (showShareDialog.value) {
           showShareDialog.value = false;
           e.preventDefault();
@@ -451,10 +520,15 @@ export default function Viewer() {
         }
         activeTool.value = 'navigate';
         e.preventDefault();
-      }
+      },
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    for (const [letter, tool] of Object.entries(SHORTCUT_MAP)) {
+      bindings[`Key${letter}`] = guard((e) => {
+        activeTool.value = tool;
+        e.preventDefault();
+      });
+    }
+    return tinykeys(window, bindings);
   }, []);
 
   // Share dialog signal
@@ -467,6 +541,22 @@ export default function Viewer() {
   async function doShare(opts?: { readonly?: boolean; expiresIn?: number }) {
     if (sharing.value) return;
     sharing.value = true;
+    // Project share: just copy the /p/:id link — pages are already persisted as the user added them
+    const pid = projectId.value;
+    if (pid) {
+      let shareUrl = `${location.origin}/p/${pid}`;
+      if (opts?.readonly) shareUrl += '?readonly=1';
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast('Project link copied!', 'success');
+      } catch {
+        toast('Failed to copy link', 'error');
+      } finally {
+        sharing.value = false;
+      }
+      return;
+    }
+
     const id = annotationId.value || nanoid();
     annotationId.value = id;
     const url_ = pageUrl.value || location.origin;
@@ -493,6 +583,20 @@ export default function Viewer() {
     } finally {
       sharing.value = false;
     }
+  }
+
+  // Aggregate ops across all project pages (current page = live, others = cached on load)
+  function buildExportData() {
+    const pid = projectId.value;
+    if (!pid) return { ops: operations.value, url: pageUrl.value || undefined };
+    const pages = projectPages.value;
+    const idx = currentPageIdx.value;
+    const liveOps = operations.value;
+    const aggregated = pages.map((p, i) => ({
+      url: p.url,
+      ops: i === idx ? liveOps : p.ops,
+    }));
+    return { ops: liveOps, url: pageUrl.value || undefined, pages: aggregated };
   }
 
   const canvasCoords = useCallback((e: MouseEvent): Point => {
@@ -712,21 +816,21 @@ export default function Viewer() {
   });
 
   useEffect(() => {
-    let timer: number;
+    let timer: ReturnType<typeof setTimeout>;
     const onResize = () => {
       clearTimeout(timer);
-      timer = setTimeout(renderAll, 100) as unknown as number;
+      timer = setTimeout(renderAll, 100);
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, [renderAll]);
 
   useEffect(() => {
-    window.addEventListener('mousemove', onMove as EventListener);
-    window.addEventListener('mouseup', onUp as EventListener);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
     return () => {
-      window.removeEventListener('mousemove', onMove as EventListener);
-      window.removeEventListener('mouseup', onUp as EventListener);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
     };
   }, [onMove, onUp]);
 
@@ -819,7 +923,13 @@ export default function Viewer() {
 
   const tool = activeTool.value;
   const readonly = isReadonly.value;
-  const showCanvas = !readonly && isDrawingTool(tool) && tool !== 'comment' && tool !== 'text' && tool !== 'selection';
+  const showCanvas =
+    !readonly &&
+    isDrawingTool(tool) &&
+    tool !== 'comment' &&
+    tool !== 'text' &&
+    tool !== 'selection' &&
+    tool !== 'inspect';
   const showTextCursor = !readonly && tool === 'text';
   const showCommentCursor = !readonly && tool === 'comment';
   const comments = commentsComputed.value;
@@ -827,7 +937,7 @@ export default function Viewer() {
   if (isMobileDevice) {
     return (
       <div
-        class="min-h-screen flex flex-col items-center justify-center px-6 font-['Inter',system-ui,sans-serif] text-center"
+        class="min-h-screen flex flex-col items-center justify-center px-6 font-['Geist',system-ui,sans-serif] text-center"
         style={{ background: 'var(--color-ml-bg)' }}
       >
         <Logo size={48} />
@@ -848,7 +958,7 @@ export default function Viewer() {
   return (
     <div class={clsx('h-screen flex flex-col bg-ml-bg-viewer', glass.font)}>
       {/* Mobile gate */}
-      <div class="md:hidden fixed inset-0 z-[2147483647] bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Inter',system-ui,sans-serif]">
+      <div class="md:hidden fixed inset-0 z-[2147483647] bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Geist',system-ui,sans-serif]">
         <Logo size={48} />
         <h2 class="text-[22px] font-bold text-ml-fg mt-6 mb-3 tracking-[-0.02em]">Desktop only</h2>
         <p class="text-[16px] text-ml-fg/40 leading-relaxed max-w-[300px] mb-8">
@@ -866,7 +976,7 @@ export default function Viewer() {
           class="flex items-center gap-2 no-underline shrink-0 group cursor-pointer rounded-lg px-2 py-1 -ml-2 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150"
         >
           <Logo size={24} />
-          <span class="text-[14px] font-bold tracking-[-0.02em] text-ml-glass-fg/70 group-hover:text-ml-glass-fg transition-colors">
+          <span class="text-[14px] font-bold tracking-[-0.02em] text-ml-glass-fg group-hover:text-ml-glass-fg transition-colors">
             MarkLayer
           </span>
         </a>
@@ -877,7 +987,7 @@ export default function Viewer() {
         <div class="flex-1 min-w-0 flex items-center gap-2 px-2 rounded-lg py-1 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150">
           <Link
             size={16}
-            class="text-ml-glass-fg/30 shrink-0 cursor-pointer hover:text-ml-glass-fg/60 transition-colors"
+            class="text-ml-glass-fg/55 shrink-0 cursor-pointer hover:text-ml-glass-fg transition-colors"
             aria-label="Copy URL"
             onClick={() => {
               navigator.clipboard.writeText(pageUrl.value).then(
@@ -890,7 +1000,7 @@ export default function Viewer() {
             name="pageUrl"
             type="text"
             defaultValue={pageUrl.value}
-            class="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] text-ml-glass-fg/40 focus:text-ml-glass-fg/80 truncate cursor-text"
+            class="flex-1 min-w-0 bg-transparent border-none outline-none text-[13.5px] text-ml-glass-fg/75 focus:text-ml-glass-fg truncate cursor-text"
             title="Edit URL and press Enter to navigate"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -912,7 +1022,7 @@ export default function Viewer() {
             'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] shrink-0',
             showInfoPanel.value
               ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-              : 'bg-transparent text-ml-glass-fg/35 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
+              : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
           )}
           title="Annotation info"
         >
@@ -932,7 +1042,7 @@ export default function Viewer() {
                 'w-8 h-8 rounded-lg grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
                 deviceMode.value === mode
                   ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                  : 'bg-transparent text-ml-glass-fg/35 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
+                  : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
               )}
               title={`${mode.charAt(0).toUpperCase() + mode.slice(1)} viewport`}
             >
@@ -992,7 +1102,7 @@ export default function Viewer() {
             type="text"
             defaultValue={localUser.name}
             maxLength={24}
-            class="w-[90px] bg-transparent border-none text-[11px] text-ml-glass-fg/50 font-medium outline-none truncate px-1 py-0.5 rounded hover:bg-ml-glass-accent/[0.06] focus:bg-ml-glass-accent/[0.08] focus:text-ml-glass-fg/80 cursor-text"
+            class="w-[90px] bg-transparent border-none text-[12px] text-ml-glass-fg/85 font-semibold outline-none truncate px-1.5 py-0.5 rounded hover:bg-ml-glass-fg/6 focus:bg-ml-glass-fg/8 focus:text-ml-glass-fg cursor-text"
             title="Click to edit your name"
             onBlur={(e) => {
               setUserName((e.target as HTMLInputElement).value);
@@ -1026,7 +1136,7 @@ export default function Viewer() {
                   'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
                   videoActive.value
                     ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                    : 'bg-transparent text-ml-glass-fg/35 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
+                    : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
                 )}
                 title={videoActive.value ? 'Turn off camera' : 'Turn on camera'}
               >
@@ -1037,7 +1147,7 @@ export default function Viewer() {
             <button
               type="button"
               onClick={() => (voiceActive.value = true)}
-              class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/35 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
+              class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
               title="Join voice"
             >
               <Mic size={16} aria-hidden="true" />
@@ -1052,7 +1162,7 @@ export default function Viewer() {
                 connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-ml-glass-accent/20',
               )}
             />
-            <span class="text-ml-glass-fg/35 text-[11px] font-medium tabular-nums">
+            <span class="text-ml-glass-fg/75 text-[12px] font-medium tabular-nums">
               {connected.value ? `${peerCount.value} online` : 'offline'}
             </span>
           </div>
@@ -1065,7 +1175,7 @@ export default function Viewer() {
               'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
               showAnnotationPanel.value
                 ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                : 'bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
+                : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
             )}
             title="Annotations panel"
           >
@@ -1074,18 +1184,18 @@ export default function Viewer() {
 
           {/* Share session */}
           {!readonly && (
-              <button
-                type="button"
-                onClick={() => doShare()}
-                disabled={sharing.value}
-                class={clsx(
-                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
-                  sharing.value && 'opacity-50 pointer-events-none',
-                )}
-                title="Copy editable link"
-              >
-                <Upload size={16} aria-hidden="true" />
-              </button>
+            <button
+              type="button"
+              onClick={() => doShare()}
+              disabled={sharing.value}
+              class={clsx(
+                'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
+                sharing.value && 'opacity-50 pointer-events-none',
+              )}
+              title="Copy editable link"
+            >
+              <Upload size={16} aria-hidden="true" />
+            </button>
           )}
 
           {/* Theme toggle */}
@@ -1095,13 +1205,16 @@ export default function Viewer() {
               cycleTheme();
               (e.currentTarget as HTMLElement).blur();
             }}
-            class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/45 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
+            class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
             title={`Theme: ${theme.value}`}
           >
             {theme.value === 'dark' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
           </button>
         </div>
       </div>
+
+      {/* Project page tabs (only rendered when /p/:id) */}
+      <ProjectTabs />
 
       {/* Viewer */}
       <div
@@ -1125,7 +1238,7 @@ export default function Viewer() {
         >
           <div
             ref={innerRef}
-            class="absolute top-0 left-0 right-0 mx-auto will-change-transform"
+            class="absolute top-0 left-0 will-change-transform"
             style={{
               width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
               height: `${100 / cssScale.value}%`,
@@ -1147,7 +1260,13 @@ export default function Viewer() {
               sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
               onLoad={() => {
                 iframeLoaded.value = true;
+                if (!pageUrl.value) return;
+                // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
+                const doc = frameRef.current?.contentDocument;
+                if (doc?.documentElement?.dataset?.marklayer === '1') return;
+                captureRenderFailed('no-marker', { body_preview: doc?.body?.textContent?.slice(0, 200) });
               }}
+              onError={() => captureRenderFailed('iframe-error')}
               class={clsx(
                 'w-full h-full border-none bg-white',
                 !iframeLoaded.value && 'invisible',
@@ -1216,6 +1335,7 @@ export default function Viewer() {
               />
             )}
 
+            {!readonly && <WebInspectorLayer frameRef={frameRef} />}
             <CursorLayer scale={1} scrollY={iframeScrollY.value} />
           </div>
 
@@ -1240,11 +1360,15 @@ export default function Viewer() {
             />
           )}
 
-          {deviceMode.value === 'desktop' && <AnnotationPanel onScrollTo={scrollToAnnotation} />}
+          {deviceMode.value === 'desktop' && (
+            <AnnotationPanel onScrollTo={scrollToAnnotation} getExportData={buildExportData} />
+          )}
           {deviceMode.value === 'desktop' && <InfoPanel />}
         </div>
 
-        {deviceMode.value !== 'desktop' && <AnnotationPanel docked onScrollTo={scrollToAnnotation} />}
+        {deviceMode.value !== 'desktop' && (
+          <DockedAnnotationPanel onScrollTo={scrollToAnnotation} getExportData={buildExportData} />
+        )}
       </div>
 
       {!readonly && <Toolbar />}

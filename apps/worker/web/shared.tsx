@@ -136,7 +136,7 @@ export function TextInputOverlay({
         fontSize: `${fontSize * s}px`,
         lineHeight: 1.3,
         color: color.value,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif',
         minWidth: '40px',
         minHeight: `${fontSize * s * 1.3}px`,
         caretColor: color.value,
