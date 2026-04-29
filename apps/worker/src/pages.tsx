@@ -56,16 +56,6 @@ export function faqSchema(qa: { q: string; a: string }[]): object {
   };
 }
 
-export function howToSchema(name: string, description: string, steps: { name: string; text: string }[]): object {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'HowTo',
-    name,
-    description,
-    step: steps.map((s, i) => ({ '@type': 'HowToStep', position: i + 1, name: s.name, text: s.text })),
-  };
-}
-
 export function breadcrumbSchema(items: { name: string; path?: string }[]): object {
   return {
     '@context': 'https://schema.org',
@@ -162,7 +152,7 @@ function ArticlePage({
   description: string;
   path: string;
   h1: string;
-  intro: string;
+  intro: Child;
   bottomLine?: string;
   breadcrumbs?: Crumb[];
   schema?: object[];
@@ -190,7 +180,9 @@ function ArticlePage({
           ))}
         </nav>
         <h1>{h1}</h1>
-        <p class="mb-6 text-sm text-[#6b7280]">Last updated: {LAST_UPDATED}</p>
+        <p class="mb-6 text-sm text-[#6b7280] [&_a]:text-[#6b7280] [&_a]:underline">
+          By <a href="/about">Vadym Rusin</a> · Last updated: {LAST_UPDATED}
+        </p>
         {bottomLine && (
           <p class="my-6 rounded-lg border-l-4 border-[#2563eb] bg-[#eff6ff] px-4 py-3 text-[15px] leading-relaxed text-[#1e3a8a]">
             <strong>Bottom line:</strong> {bottomLine}
@@ -207,7 +199,7 @@ function ArticlePage({
           class="my-6 inline-block rounded-lg bg-[#111827] px-5 py-3 font-semibold text-white no-underline hover:bg-black hover:text-white hover:no-underline"
           href={CHROME_STORE_URL}
         >
-          Add to Chrome — It's Free
+          Add to Chrome · It's Free
         </a>
         <SiteFooter />
       </body>
@@ -256,6 +248,7 @@ export type Comparison = {
   slug: string;
   competitor: string;
   competitorTagline: string;
+  homepage?: string;
   intro: string;
   bottomLine: string;
   rows: ComparisonRow[];
@@ -264,13 +257,28 @@ export type Comparison = {
   faq: { q: string; a: string }[];
 };
 
+function linkifyFirst(text: string, term: string, href?: string): Child {
+  if (!href) return text;
+  const idx = text.indexOf(term);
+  if (idx === -1) return text;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <a href={href} rel="noopener noreferrer" target="_blank">
+        {term}
+      </a>
+      {text.slice(idx + term.length)}
+    </>
+  );
+}
+
 export function renderComparison(
   c: Comparison,
   all: Comparison[],
   crossLink?: { href: string; label: string },
 ): string {
   const path = `/vs/${c.slug}`;
-  const title = `MarkLayer vs ${c.competitor} — Free Annotation Tool Compared (2026)`;
+  const title = `MarkLayer vs ${c.competitor}: Free Annotation Tool Compared (2026)`;
   const description = `Side-by-side comparison of MarkLayer and ${c.competitor}. Pricing, features, real-time collaboration, and when to choose each. Updated ${LAST_UPDATED}.`;
   const h1 = `MarkLayer vs ${c.competitor}`;
   const related = [
@@ -291,7 +299,7 @@ export function renderComparison(
       description={description}
       path={path}
       h1={h1}
-      intro={c.intro}
+      intro={linkifyFirst(c.intro, c.competitor, c.homepage)}
       bottomLine={c.bottomLine}
       breadcrumbs={breadcrumbs}
       schema={[articleSchema({ h1, description, path }), faqSchema(c.faq)]}
@@ -319,13 +327,20 @@ export function renderComparison(
       </table>
       <h2>About {c.competitor}</h2>
       <p>
-        {c.competitor} is {c.competitorTagline}.
+        {c.homepage ? (
+          <a href={c.homepage} rel="noopener noreferrer" target="_blank">
+            {c.competitor}
+          </a>
+        ) : (
+          c.competitor
+        )}{' '}
+        is {c.competitorTagline}.
       </p>
       <h2>About MarkLayer</h2>
       <p>
         MarkLayer is a free, open-source Chrome extension that lets you annotate any live webpage with drawings,
-        comments, arrows, and highlights — then share a single link so anyone can view the annotations without
-        installing anything. There is no account, no paywall, and no trial period.
+        comments, arrows, and highlights, then share a single link so anyone can view the annotations without installing
+        anything. There is no account, no paywall, and no trial period.
       </p>
       <h2>When to choose MarkLayer</h2>
       <ul>
@@ -351,6 +366,7 @@ export type AlternativeEntry = { name: string; url?: string; pitch: string; best
 export type Alternatives = {
   slug: string;
   target: string;
+  homepage?: string;
   intro: string;
   bottomLine: string;
   options: AlternativeEntry[];
@@ -363,7 +379,7 @@ export function renderAlternatives(
   crossLink?: { href: string; label: string },
 ): string {
   const path = `/alternatives/${a.slug}`;
-  const title = `Free ${a.target} Alternatives — ${LAST_UPDATED} Comparison`;
+  const title = `Free ${a.target} Alternatives: ${LAST_UPDATED} Comparison`;
   const description = `The best free and open-source ${a.target} alternatives in 2026. Compare features, pricing, and workflow trade-offs. Updated ${LAST_UPDATED}.`;
   const h1 = `Free ${a.target} Alternatives`;
   const related = [
@@ -384,7 +400,7 @@ export function renderAlternatives(
       description={description}
       path={path}
       h1={h1}
-      intro={a.intro}
+      intro={linkifyFirst(a.intro, a.target, a.homepage)}
       bottomLine={a.bottomLine}
       breadcrumbs={breadcrumbs}
       schema={[articleSchema({ h1, description, path }), faqSchema(a.faq)]}
@@ -440,11 +456,7 @@ export function renderUseCase(u: UseCase, all: UseCase[]): string {
       intro={u.intro}
       bottomLine={u.bottomLine}
       breadcrumbs={breadcrumbs}
-      schema={[
-        articleSchema({ h1: u.h1, description: u.intro.slice(0, 160), path }),
-        faqSchema(u.faq),
-        howToSchema(`How to use MarkLayer for ${u.audience}`, u.intro, u.steps),
-      ]}
+      schema={[articleSchema({ h1: u.h1, description: u.intro.slice(0, 160), path }), faqSchema(u.faq)]}
     >
       <h2>The problem</h2>
       <p>{u.problem}</p>
@@ -496,7 +508,7 @@ function HubItem({ href, title, blurb }: { href: string; title: string; blurb: s
 
 export function renderCompareHub(comparisons: Comparison[]): string {
   const path = '/compare';
-  const title = 'MarkLayer Comparisons — vs Markup.io, Pastel, BugHerd, Hypothesis';
+  const title = 'MarkLayer Comparisons: vs Markup.io, Pastel, BugHerd, Hypothesis';
   const description =
     'Side-by-side comparisons of MarkLayer against the leading visual feedback and annotation tools. Pricing, features, and trade-offs.';
   const h1 = 'MarkLayer comparisons';
@@ -523,7 +535,7 @@ export function renderCompareHub(comparisons: Comparison[]): string {
 
 export function renderAlternativesHub(alternatives: Alternatives[]): string {
   const path = '/alternatives';
-  const title = 'Free Annotation Tool Alternatives — Markup.io, Pastel, BugHerd';
+  const title = 'Free Annotation Tool Alternatives: Markup.io, Pastel, BugHerd';
   const description =
     'Free alternatives to the top paid webpage annotation and visual feedback tools. Compare options, pricing, and workflow trade-offs.';
   const h1 = 'Free annotation tool alternatives';
@@ -550,7 +562,7 @@ export function renderAlternativesHub(alternatives: Alternatives[]): string {
 
 export function renderUseCaseHub(useCases: UseCase[]): string {
   const path = '/use-cases';
-  const title = 'MarkLayer Use Cases — Design Review, QA, Client Feedback, Remote Teams';
+  const title = 'MarkLayer Use Cases: Design Review, QA, Client Feedback';
   const description =
     'How teams use MarkLayer for design review, QA bug reporting, client feedback, and remote collaboration. Workflows, examples, and step-by-step guides.';
   const h1 = 'MarkLayer use cases';
@@ -597,7 +609,7 @@ function PricingPage() {
   return (
     <html lang="en">
       <Head
-        title="MarkLayer Pricing — Free, No Tiers, No Paywall"
+        title="MarkLayer Pricing: Free, No Tiers, No Paywall"
         description="MarkLayer is completely free. No paid plan, no trial, no per-seat pricing. Open source and self-hostable."
         canonical={`${ORIGIN}/pricing`}
         ogType="website"
@@ -614,9 +626,11 @@ function PricingPage() {
           No plans · No tiers · No paywall
         </p>
         <h1>MarkLayer is 100% free.</h1>
-        <p class="mb-8 text-sm text-[#6b7280]">Last updated: {LAST_UPDATED}</p>
+        <p class="mb-8 text-sm text-[#6b7280] [&_a]:text-[#6b7280] [&_a]:underline">
+          By <a href="/about">Vadym Rusin</a> · Last updated: {LAST_UPDATED}
+        </p>
         <p class="mt-0 mb-8 text-lg text-[#374151]">
-          There is no pricing. MarkLayer is a free app — full stop. No paid plan, no trial, no per-seat fee, no premium
+          There is no pricing. MarkLayer is a free app, full stop. No paid plan, no trial, no per-seat fee, no premium
           tier, no usage cap, no upsell. This page exists only to confirm that.
         </p>
         <h2>What you get for $0</h2>
@@ -668,22 +682,22 @@ function PricingPage() {
               <td>
                 <strong>Trial period</strong>
               </td>
-              <td>N/A — everything is free, forever</td>
+              <td>N/A (everything is free, forever)</td>
             </tr>
             <tr>
               <td>
                 <strong>Self-hosting</strong>
               </td>
-              <td>Open source — fork and deploy on your own Cloudflare account</td>
+              <td>Open source: fork and deploy on your own Cloudflare account</td>
             </tr>
           </tbody>
         </table>
         <h2>Every feature is included</h2>
         <ul>
-          <li>Drawing tools — freehand, shapes, arrows, and lines</li>
+          <li>Drawing tools: freehand, shapes, arrows, and lines</li>
           <li>Threaded comments pinned to any spot on a page</li>
           <li>Real-time collaboration with live cursors</li>
-          <li>Shareable links — recipients don't need the extension or an account</li>
+          <li>Shareable links: recipients don't need the extension or an account</li>
           <li>Works on any website</li>
           <li>Open source and self-hostable</li>
         </ul>
@@ -695,7 +709,7 @@ function PricingPage() {
           <li>No "Team" or "Enterprise" plan.</li>
           <li>No per-seat pricing.</li>
           <li>No usage cap or annotation limit.</li>
-          <li>No trial period (because there's nothing to trial — everything is already free).</li>
+          <li>No trial period; everything is already free.</li>
           <li>No paywall, ever.</li>
           <li>No "verified" or "premium" account.</li>
           <li>No upsell flow inside the extension.</li>
@@ -703,8 +717,8 @@ function PricingPage() {
         <h2>Why is it free?</h2>
         <p>
           MarkLayer exists to make webpage annotation accessible to everyone. Infrastructure runs on Cloudflare's
-          low-cost edge services, and the code is open source — you can audit, fork, or self-host. There is no business
-          model on top of users. There is no plan to add one.
+          low-cost edge services, and the code is open source, so you can audit, fork, or self-host. There is no
+          business model on top of users. There is no plan to add one.
         </p>
         <h2>Machine-readable pricing</h2>
         <p>
@@ -715,7 +729,7 @@ function PricingPage() {
           class="my-6 inline-block rounded-lg bg-[#111827] px-5 py-3 font-semibold text-white no-underline hover:bg-black hover:text-white hover:no-underline"
           href={CHROME_STORE_URL}
         >
-          Add to Chrome — It's Free
+          Add to Chrome · It's Free
         </a>
         <SiteFooter showPricing={false} />
       </body>
@@ -733,7 +747,7 @@ function PrivacyPage() {
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>Privacy Policy — MarkLayer</title>
+        <title>Privacy Policy · MarkLayer</title>
         <style dangerouslySetInnerHTML={{ __html: seoCss }} />
       </head>
       <body>
@@ -760,8 +774,8 @@ function PrivacyPage() {
         </p>
         <h2>Analytics</h2>
         <p>
-          Our website (marklayer.app) uses <a href="https://posthog.com">PostHog</a> for basic usage analytics — page
-          views, session duration, and session replays — so we can understand how people use the site and improve it. IP
+          Our website (marklayer.app) uses <a href="https://posthog.com">PostHog</a> for basic usage analytics: page
+          views, session duration, and session replays, so we can understand how people use the site and improve it. IP
           addresses are anonymized and we do not track individual clicks or form inputs. No analytics are collected by
           the browser extension.
         </p>
@@ -780,3 +794,74 @@ function PrivacyPage() {
 }
 
 export const privacyHtml = renderHtml(<PrivacyPage />);
+
+// ─── About / author page ─────────────────────────────────────────────────────
+
+const PERSON_SCHEMA = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: 'Vadym Rusin',
+  url: `${ORIGIN}/about`,
+  sameAs: ['https://github.com/thevrus'],
+  jobTitle: 'Software engineer',
+  knowsAbout: [
+    'Web annotation tools',
+    'Browser extension development',
+    'Cloudflare Workers',
+    'Real-time collaboration',
+    'Preact',
+  ],
+  worksFor: { '@type': 'Organization', name: 'MarkLayer' },
+};
+
+function AboutPage() {
+  const path = '/about';
+  const title = 'About the author · MarkLayer';
+  const description =
+    'MarkLayer is built and maintained by Vadym Rusin. Background, contact, and editorial approach for the MarkLayer site.';
+  return (
+    <html lang="en">
+      <Head
+        title={title}
+        description={description}
+        canonical={`${ORIGIN}${path}`}
+        ogType="profile"
+        schema={[PERSON_SCHEMA, breadcrumbSchema([{ name: 'MarkLayer', path: '/' }, { name: 'About' }])]}
+      />
+      <body>
+        <nav class="mb-6 text-sm text-[#6b7280] [&_a]:text-[#6b7280]" aria-label="Breadcrumb">
+          <a href="/">MarkLayer</a>
+          {'  ›  '}
+          <span>About</span>
+        </nav>
+        <h1>About the author</h1>
+        <p class="mt-0 mb-8 text-lg text-[#374151]">
+          MarkLayer is built and maintained by Vadym Rusin. This page exists so you know who is behind the comparisons,
+          alternatives, and use-case guides on this site.
+        </p>
+        <h2>Vadym Rusin</h2>
+        <p>
+          I'm a software engineer working primarily on browser extensions, real-time collaboration, and Cloudflare
+          Workers. MarkLayer started as a tool I wanted for design review and visual feedback on live pages. The full
+          source is on <a href="https://github.com/thevrus/MarkLayer">GitHub</a> if you'd like to read or fork it.
+        </p>
+        <h2>Editorial approach</h2>
+        <p>
+          Comparison and alternatives pages on this site are written from hands-on use, public documentation, and
+          competitor pricing pages at the time of last review. When MarkLayer is genuinely the wrong fit for a workflow,
+          the relevant page says so and points to a better tool. Pricing and feature claims about other products are
+          dated to the last time they were checked, listed at the top of every article.
+        </p>
+        <h2>Contact</h2>
+        <p>
+          The fastest way to reach me is by opening an issue on{' '}
+          <a href="https://github.com/thevrus/MarkLayer/issues">GitHub</a>. Corrections to anything stated about another
+          product are welcome and get fixed quickly.
+        </p>
+        <SiteFooter />
+      </body>
+    </html>
+  );
+}
+
+export const aboutHtml = renderHtml(<AboutPage />);

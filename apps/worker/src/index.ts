@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { api } from './api';
 import { generateOgImage } from './og';
+import { aboutHtml } from './pages';
 import { privacyHtml } from './privacy';
 import { proxy } from './proxy';
 import { mountSeoRoutes, SEO_URLS } from './seo';
@@ -48,6 +49,7 @@ function parseOgOps(raw: string): OgOp[] {
 app.route('/api', api);
 
 app.get('/privacy', (c) => c.html(privacyHtml));
+app.get('/about', (c) => c.html(aboutHtml));
 
 // Shared annotation page — injects dynamic OG tags then serves the SPA
 app.get('/s/:id', async (c) => {
