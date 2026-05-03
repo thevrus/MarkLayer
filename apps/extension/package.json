@@ -1,7 +1,7 @@
 {
   "name": "@marklayer/extension",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -22,7 +22,6 @@
   "dependencies": {
     "@marklayer/types": "workspace:*",
     "@preact/signals": "^2.8.2",
-    "clsx": "^2.1.1",
     "idb-keyval": "^6.2.2",
     "lucide-preact": "^0.577.0",
     "nanoid": "^5.1.7",

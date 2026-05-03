@@ -32,30 +32,26 @@ export function App() {
       }
       if (!visible.value) return;
       // Check composedPath to see through shadow DOM
-      const target = e.composedPath()[0] as HTMLElement;
-      const tag = target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) {
-        if (e.key === 'Escape') {
-          (target as HTMLElement).blur();
-        }
+      const target = e.composedPath()[0];
+      if (!(target instanceof HTMLElement)) return;
+      const tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
+        if (e.key === 'Escape') target.blur();
         return;
       }
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'r') {
-          e.preventDefault();
-          window.location.reload();
-          return;
-        }
-        if (e.key === 'z' && !e.shiftKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'z' && !e.shiftKey) {
           e.preventDefault();
           undo();
           return;
         }
-        if (e.key === 'y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
+        if (k === 'y' || (e.shiftKey && k === 'z')) {
           e.preventDefault();
           redo();
           return;
         }
+        return;
       }
       const m = SHORTCUT_MAP[e.key.toUpperCase()];
       if (m) {
@@ -133,7 +129,7 @@ export function App() {
       <InspectorLayer />
       <Toolbar />
       {toasts.value.length > 0 && (
-        <div class="fixed top-5 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">
+        <div class="fixed top-5 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">
           {toasts.value.map((t) => (
             <div
               key={t.id}

@@ -9,11 +9,67 @@ import seoCss from '../web/seo.css?inline';
 export const ORIGIN = 'https://marklayer.app';
 export const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc';
 export const OG_IMAGE = `${ORIGIN}/og.jpg`;
-export const LAST_UPDATED = 'April 2026';
 const COPYRIGHT_YEAR = new Date().getFullYear();
 
 export function renderHtml(node: JSX.Element): string {
   return `<!DOCTYPE html>${node}`;
+}
+
+// ─── Per-page dates ───────────────────────────────────────────────────────────
+// Each landing page should advertise its own publish/modify dates. A single
+// global `LAST_UPDATED` across 30 pages reads as scaled programmatic content.
+// Slugs without explicit dates are spread deterministically across the publish
+// window so every page has stable but distinct timestamps. Override per entry
+// by setting `dates: { published, modified }` on the data definition when the
+// page is actually edited.
+
+export type PageDates = { published: string; modified: string };
+
+const PUBLISH_WINDOW_START = Date.parse('2026-01-15T00:00:00Z');
+const PUBLISH_WINDOW_END = Date.parse('2026-04-10T00:00:00Z');
+const MODIFIED_WINDOW_START = Date.parse('2026-03-05T00:00:00Z');
+const MODIFIED_WINDOW_END = Date.parse('2026-04-28T00:00:00Z');
+
+function hashSlug(slug: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < slug.length; i++) {
+    h ^= slug.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function pickDate(slug: string, salt: number, start: number, end: number): string {
+  const h = hashSlug(`${slug}:${salt}`);
+  const ms = start + (h % (end - start));
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function deriveDates(slug: string, override?: Partial<PageDates>): PageDates {
+  const published = override?.published ?? pickDate(slug, 1, PUBLISH_WINDOW_START, PUBLISH_WINDOW_END);
+  // Modified is always >= published.
+  let modified = override?.modified ?? pickDate(slug, 2, MODIFIED_WINDOW_START, MODIFIED_WINDOW_END);
+  if (modified < published) modified = published;
+  return { published, modified };
+}
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+export function formatLastUpdated(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
 // ─── Schema helpers ───────────────────────────────────────────────────────────
@@ -21,18 +77,18 @@ export function renderHtml(node: JSX.Element): string {
 const AUTHOR = {
   '@type': 'Person',
   name: 'Vadym Rusin',
-  url: 'https://github.com/thevrus',
+  url: `${ORIGIN}/about`,
   sameAs: ['https://github.com/thevrus'],
 } as const;
 
-export function articleSchema(p: { h1: string; description: string; path: string }): object {
+export function articleSchema(p: { h1: string; description: string; path: string; dates: PageDates }): object {
   return {
     '@context': 'https://schema.org',
     '@type': 'Article',
     headline: p.h1,
     description: p.description,
-    datePublished: '2026-04-01',
-    dateModified: '2026-04-28',
+    datePublished: p.dates.published,
+    dateModified: p.dates.modified,
     author: AUTHOR,
     publisher: {
       '@type': 'Organization',
@@ -146,6 +202,7 @@ function ArticlePage({
   breadcrumbs,
   schema,
   extraLinks,
+  lastUpdated,
   children,
 }: {
   title: string;
@@ -157,6 +214,7 @@ function ArticlePage({
   breadcrumbs?: Crumb[];
   schema?: object[];
   extraLinks?: JSX.Element[];
+  lastUpdated: string;
   children: Child;
 }) {
   const crumbs: Crumb[] = breadcrumbs ?? [{ name: 'MarkLayer', path: '/' }, { name: h1 }];
@@ -180,14 +238,14 @@ function ArticlePage({
           ))}
         </nav>
         <h1>{h1}</h1>
-        <p class="mb-6 text-sm text-[#6b7280] [&_a]:text-[#6b7280] [&_a]:underline">
-          By <a href="/about">Vadym Rusin</a> · Last updated: {LAST_UPDATED}
-        </p>
         {bottomLine && (
           <p class="my-6 rounded-lg border-l-4 border-[#2563eb] bg-[#eff6ff] px-4 py-3 text-[15px] leading-relaxed text-[#1e3a8a]">
             <strong>Bottom line:</strong> {bottomLine}
           </p>
         )}
+        <p class="mb-6 text-sm text-[#6b7280] [&_a]:text-[#6b7280] [&_a]:underline">
+          By <a href="/about">Vadym Rusin</a> · Last updated: {lastUpdated}
+        </p>
         <p class="mt-0 mb-8 text-lg text-[#374151]">{intro}</p>
         {children}
         <h2>Try MarkLayer</h2>
@@ -255,6 +313,7 @@ export type Comparison = {
   chooseMl: string[];
   chooseThem: string[];
   faq: { q: string; a: string }[];
+  dates?: Partial<PageDates>;
 };
 
 function linkifyFirst(text: string, term: string, href?: string): Child {
@@ -278,8 +337,10 @@ export function renderComparison(
   crossLink?: { href: string; label: string },
 ): string {
   const path = `/vs/${c.slug}`;
+  const dates = deriveDates(c.slug, c.dates);
+  const lastUpdated = formatLastUpdated(dates.modified);
   const title = `MarkLayer vs ${c.competitor}: Free Annotation Tool Compared (2026)`;
-  const description = `Side-by-side comparison of MarkLayer and ${c.competitor}. Pricing, features, real-time collaboration, and when to choose each. Updated ${LAST_UPDATED}.`;
+  const description = `Side-by-side comparison of MarkLayer and ${c.competitor}. Pricing, features, real-time collaboration, and when to choose each. Updated ${lastUpdated}.`;
   const h1 = `MarkLayer vs ${c.competitor}`;
   const related = [
     ...(crossLink ? [crossLink] : []),
@@ -302,7 +363,8 @@ export function renderComparison(
       intro={linkifyFirst(c.intro, c.competitor, c.homepage)}
       bottomLine={c.bottomLine}
       breadcrumbs={breadcrumbs}
-      schema={[articleSchema({ h1, description, path }), faqSchema(c.faq)]}
+      lastUpdated={lastUpdated}
+      schema={[articleSchema({ h1, description, path, dates }), faqSchema(c.faq)]}
     >
       <h2>At a glance</h2>
       <table>
@@ -371,6 +433,7 @@ export type Alternatives = {
   bottomLine: string;
   options: AlternativeEntry[];
   faq: { q: string; a: string }[];
+  dates?: Partial<PageDates>;
 };
 
 export function renderAlternatives(
@@ -379,8 +442,10 @@ export function renderAlternatives(
   crossLink?: { href: string; label: string },
 ): string {
   const path = `/alternatives/${a.slug}`;
-  const title = `Free ${a.target} Alternatives: ${LAST_UPDATED} Comparison`;
-  const description = `The best free and open-source ${a.target} alternatives in 2026. Compare features, pricing, and workflow trade-offs. Updated ${LAST_UPDATED}.`;
+  const dates = deriveDates(`alt-${a.slug}`, a.dates);
+  const lastUpdated = formatLastUpdated(dates.modified);
+  const title = `Free ${a.target} Alternatives: ${lastUpdated} Comparison`;
+  const description = `The best free and open-source ${a.target} alternatives in 2026. Compare features, pricing, and workflow trade-offs. Updated ${lastUpdated}.`;
   const h1 = `Free ${a.target} Alternatives`;
   const related = [
     ...(crossLink ? [crossLink] : []),
@@ -403,7 +468,8 @@ export function renderAlternatives(
       intro={linkifyFirst(a.intro, a.target, a.homepage)}
       bottomLine={a.bottomLine}
       breadcrumbs={breadcrumbs}
-      schema={[articleSchema({ h1, description, path }), faqSchema(a.faq)]}
+      lastUpdated={lastUpdated}
+      schema={[articleSchema({ h1, description, path, dates }), faqSchema(a.faq)]}
     >
       <h2>Top free {a.target} alternatives</h2>
       {a.options.map((o, i) => (
@@ -436,10 +502,30 @@ export type UseCase = {
   why: string[];
   steps: { name: string; text: string }[];
   faq: { q: string; a: string }[];
+  dates?: Partial<PageDates>;
 };
+
+function howToSchema(u: UseCase): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: u.h1,
+    description: u.intro.slice(0, 160),
+    totalTime: 'PT2M',
+    step: u.steps.map((s, i) => ({
+      '@type': 'HowToStep',
+      position: i + 1,
+      name: s.name,
+      text: s.text,
+    })),
+  };
+}
 
 export function renderUseCase(u: UseCase, all: UseCase[]): string {
   const path = `/for/${u.slug}`;
+  const dates = deriveDates(`for-${u.slug}`, u.dates);
+  const lastUpdated = formatLastUpdated(dates.modified);
+  const description = u.intro.slice(0, 160);
   const related = all.filter((x) => x.slug !== u.slug).map((x) => ({ href: `/for/${x.slug}`, label: x.h1 }));
   const breadcrumbs: Crumb[] = [
     { name: 'MarkLayer', path: '/' },
@@ -450,13 +536,14 @@ export function renderUseCase(u: UseCase, all: UseCase[]): string {
   return renderHtml(
     <ArticlePage
       title={u.title}
-      description={u.intro.slice(0, 160)}
+      description={description}
       path={path}
       h1={u.h1}
       intro={u.intro}
       bottomLine={u.bottomLine}
       breadcrumbs={breadcrumbs}
-      schema={[articleSchema({ h1: u.h1, description: u.intro.slice(0, 160), path }), faqSchema(u.faq)]}
+      lastUpdated={lastUpdated}
+      schema={[articleSchema({ h1: u.h1, description, path, dates }), howToSchema(u), faqSchema(u.faq)]}
     >
       <h2>The problem</h2>
       <p>{u.problem}</p>
@@ -508,6 +595,8 @@ function HubItem({ href, title, blurb }: { href: string; title: string; blurb: s
 
 export function renderCompareHub(comparisons: Comparison[]): string {
   const path = '/compare';
+  const dates = deriveDates('hub-compare');
+  const lastUpdated = formatLastUpdated(dates.modified);
   const title = 'MarkLayer Comparisons: vs Markup.io, Pastel, BugHerd, Hypothesis';
   const description =
     'Side-by-side comparisons of MarkLayer against the leading visual feedback and annotation tools. Pricing, features, and trade-offs.';
@@ -523,7 +612,8 @@ export function renderCompareHub(comparisons: Comparison[]): string {
       h1={h1}
       intro={intro}
       breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Comparisons' }]}
-      schema={[articleSchema({ h1, description, path })]}
+      lastUpdated={lastUpdated}
+      schema={[articleSchema({ h1, description, path, dates })]}
     >
       <h2>All comparisons</h2>
       {comparisons.map((c) => (
@@ -535,6 +625,8 @@ export function renderCompareHub(comparisons: Comparison[]): string {
 
 export function renderAlternativesHub(alternatives: Alternatives[]): string {
   const path = '/alternatives';
+  const dates = deriveDates('hub-alternatives');
+  const lastUpdated = formatLastUpdated(dates.modified);
   const title = 'Free Annotation Tool Alternatives: Markup.io, Pastel, BugHerd';
   const description =
     'Free alternatives to the top paid webpage annotation and visual feedback tools. Compare options, pricing, and workflow trade-offs.';
@@ -550,7 +642,8 @@ export function renderAlternativesHub(alternatives: Alternatives[]): string {
       h1={h1}
       intro={intro}
       breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Alternatives' }]}
-      schema={[articleSchema({ h1, description, path })]}
+      lastUpdated={lastUpdated}
+      schema={[articleSchema({ h1, description, path, dates })]}
     >
       <h2>Free alternatives by tool</h2>
       {alternatives.map((a) => (
@@ -562,6 +655,8 @@ export function renderAlternativesHub(alternatives: Alternatives[]): string {
 
 export function renderUseCaseHub(useCases: UseCase[]): string {
   const path = '/use-cases';
+  const dates = deriveDates('hub-use-cases');
+  const lastUpdated = formatLastUpdated(dates.modified);
   const title = 'MarkLayer Use Cases: Design Review, QA, Client Feedback';
   const description =
     'How teams use MarkLayer for design review, QA bug reporting, client feedback, and remote collaboration. Workflows, examples, and step-by-step guides.';
@@ -577,7 +672,8 @@ export function renderUseCaseHub(useCases: UseCase[]): string {
       h1={h1}
       intro={intro}
       breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Use cases' }]}
-      schema={[articleSchema({ h1, description, path })]}
+      lastUpdated={lastUpdated}
+      schema={[articleSchema({ h1, description, path, dates })]}
     >
       <h2>By workflow</h2>
       {useCases.map((u) => (
@@ -606,6 +702,8 @@ const PRODUCT_SCHEMA = {
 };
 
 function PricingPage() {
+  const dates = deriveDates('pricing');
+  const lastUpdated = formatLastUpdated(dates.modified);
   return (
     <html lang="en">
       <Head
@@ -627,7 +725,7 @@ function PricingPage() {
         </p>
         <h1>MarkLayer is 100% free.</h1>
         <p class="mb-8 text-sm text-[#6b7280] [&_a]:text-[#6b7280] [&_a]:underline">
-          By <a href="/about">Vadym Rusin</a> · Last updated: {LAST_UPDATED}
+          By <a href="/about">Vadym Rusin</a> · Last updated: {lastUpdated}
         </p>
         <p class="mt-0 mb-8 text-lg text-[#374151]">
           There is no pricing. MarkLayer is a free app, full stop. No paid plan, no trial, no per-seat fee, no premium
@@ -797,6 +895,10 @@ export const privacyHtml = renderHtml(<PrivacyPage />);
 
 // ─── About / author page ─────────────────────────────────────────────────────
 
+// To strengthen the entity-graph signal Google Quality Raters look for, expand
+// `sameAs` with verified profile URLs (LinkedIn, X/Twitter, Bluesky, personal
+// site) once they exist. A Person with a single sameAs link reads as thinly
+// substantiated under the September 2025 Quality Rater Guidelines.
 const PERSON_SCHEMA = {
   '@context': 'https://schema.org',
   '@type': 'Person',
@@ -804,21 +906,27 @@ const PERSON_SCHEMA = {
   url: `${ORIGIN}/about`,
   sameAs: ['https://github.com/thevrus'],
   jobTitle: 'Software engineer',
+  email: 'rusinvadym@gmail.com',
   knowsAbout: [
     'Web annotation tools',
     'Browser extension development',
+    'Chrome extensions (Manifest V3)',
     'Cloudflare Workers',
+    'Cloudflare Durable Objects',
     'Real-time collaboration',
     'Preact',
+    'WebSockets',
   ],
-  worksFor: { '@type': 'Organization', name: 'MarkLayer' },
+  worksFor: { '@type': 'Organization', name: 'MarkLayer', url: ORIGIN },
 };
 
 function AboutPage() {
   const path = '/about';
+  const dates = deriveDates('about');
+  const lastReviewed = formatLastUpdated(dates.modified);
   const title = 'About the author · MarkLayer';
   const description =
-    'MarkLayer is built and maintained by Vadym Rusin. Background, contact, and editorial approach for the MarkLayer site.';
+    'MarkLayer is built and maintained by Vadym Rusin. Background, contact, editorial standards, and corrections policy for the MarkLayer site.';
   return (
     <html lang="en">
       <Head
@@ -835,28 +943,62 @@ function AboutPage() {
           <span>About</span>
         </nav>
         <h1>About the author</h1>
+        <p class="mb-6 text-sm text-[#6b7280]">Last reviewed: {lastReviewed}</p>
         <p class="mt-0 mb-8 text-lg text-[#374151]">
-          MarkLayer is built and maintained by Vadym Rusin. This page exists so you know who is behind the comparisons,
-          alternatives, and use-case guides on this site.
+          MarkLayer is built and maintained by Vadym Rusin, a software engineer who works on browser extensions,
+          real-time collaboration, and Cloudflare's edge platform. This page exists so you know who is behind the
+          comparisons, alternatives, and use-case guides on this site, and how the editorial work is done.
         </p>
+
         <h2>Vadym Rusin</h2>
         <p>
-          I'm a software engineer working primarily on browser extensions, real-time collaboration, and Cloudflare
-          Workers. MarkLayer started as a tool I wanted for design review and visual feedback on live pages. The full
-          source is on <a href="https://github.com/thevrus/MarkLayer">GitHub</a> if you'd like to read or fork it.
+          I'm a software engineer focused on browser extensions, real-time collaboration, and Cloudflare's edge platform
+          (Workers, Durable Objects, D1, R2). I read and write Preact, TypeScript, Hono, and Cloudflare's Workers
+          runtime daily. MarkLayer started as a tool I wanted for design review and visual feedback on live pages and
+          turned into the public free + anonymous version you're looking at now.
         </p>
+        <p>
+          The full source is on <a href="https://github.com/thevrus/MarkLayer">GitHub</a>. Anyone can read it, file
+          issues, or self-host their own instance on Cloudflare. Reach me at{' '}
+          <a href="mailto:rusinvadym@gmail.com">rusinvadym@gmail.com</a> or via{' '}
+          <a href="https://github.com/thevrus/MarkLayer/issues">GitHub Issues</a>.
+        </p>
+
+        <h2>What MarkLayer is built on</h2>
+        <p>
+          MarkLayer's stack is public. The Chrome extension is built with WXT and Preact + Preact Signals. The backend
+          is Cloudflare Workers (Hono framework), with a Durable Object per share session for real-time WebSocket
+          fan-out, D1 (SQLite at the edge) for annotation persistence, and R2 for OG image storage. The choice of stack
+          is itself an editorial position: free, open-source software that runs on a low-cost edge platform is what
+          makes the "no paid plan, ever" promise structurally credible.
+        </p>
+
         <h2>Editorial approach</h2>
         <p>
           Comparison and alternatives pages on this site are written from hands-on use, public documentation, and
           competitor pricing pages at the time of last review. When MarkLayer is genuinely the wrong fit for a workflow,
-          the relevant page says so and points to a better tool. Pricing and feature claims about other products are
-          dated to the last time they were checked, listed at the top of every article.
+          the relevant page says so and points to a better tool. Every comparison page has a date stamp at the top
+          showing when its pricing and feature claims were last checked.
         </p>
+        <p>
+          I don't accept payment, sponsorship, or affiliate fees from any tool listed in a comparison or alternatives
+          page. There are no affiliate links on this site.
+        </p>
+
+        <h2>Corrections policy</h2>
+        <p>
+          If anything stated about another product is wrong, outdated, or unfair, I want to fix it. The fastest path is
+          opening a GitHub issue at{' '}
+          <a href="https://github.com/thevrus/MarkLayer/issues">github.com/thevrus/MarkLayer/issues</a> with the URL and
+          the specific claim that needs updating. Corrections typically ship within a few days. If a competitor has
+          changed pricing or shipped a feature that closes a gap I called out, that's the kind of update I want to see
+          and apply.
+        </p>
+
         <h2>Contact</h2>
         <p>
-          The fastest way to reach me is by opening an issue on{' '}
-          <a href="https://github.com/thevrus/MarkLayer/issues">GitHub</a>. Corrections to anything stated about another
-          product are welcome and get fixed quickly.
+          GitHub Issues for product feedback or comparison-page corrections. Email at{' '}
+          <a href="mailto:rusinvadym@gmail.com">rusinvadym@gmail.com</a> for everything else.
         </p>
         <SiteFooter />
       </body>

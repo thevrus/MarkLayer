@@ -14,7 +14,7 @@ import {
   SHAPES,
   undoRedoFlash,
 } from '../lib/state';
-import type { DrawOp, FreehandOp, Point } from '../lib/types';
+import type { FreehandOp, Point } from '../lib/types';
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -82,11 +82,11 @@ export function Canvas() {
       if (FREEHAND.has(tool)) {
         currentPath.current = {
           id: nanoid(),
-          tool: tool as FreehandOp['tool'],
+          tool,
           points: [{ x: d.x, y: d.y }],
           color: tool === 'highlight' ? hexToRgba(color.value, 0.4) : color.value,
           lineWidth: ctx.lineWidth,
-          compositeOperation: ctx.globalCompositeOperation as GlobalCompositeOperation,
+          compositeOperation: ctx.globalCompositeOperation,
         };
       }
       const c = clientXY(e);
@@ -112,7 +112,7 @@ export function Canvas() {
       currentPath.current?.points.push({ x: d.x, y: d.y });
       if (snapshot.current) ctx.putImageData(snapshot.current, 0, 0);
       if (currentPath.current && currentPath.current.points.length > 1) {
-        renderOp(ctx, currentPath.current as DrawOp, scrollX, scrollY);
+        renderOp(ctx, currentPath.current, scrollX, scrollY);
       }
     } else if (snapshot.current && SHAPES.has(tool)) {
       ctx.putImageData(snapshot.current, 0, 0);
@@ -267,7 +267,7 @@ export function Canvas() {
         data-marklayer-canvas
         onMouseDown={onDown}
         onTouchStart={onDown}
-        class="fixed inset-0 z-[2147483645]"
+        class="fixed inset-0 z-2147483645"
         style={{
           pointerEvents: showCanvas ? 'auto' : 'none',
           cursor: showCanvas ? (tool === 'eraser' ? 'none' : 'crosshair') : 'default',
@@ -275,7 +275,7 @@ export function Canvas() {
       />
       <div
         ref={eraserRef}
-        class="fixed pointer-events-none z-[2147483646] rounded-full"
+        class="fixed pointer-events-none z-2147483646 rounded-full"
         style={{
           display: 'none',
           transform: 'translate(-50%, -50%)',

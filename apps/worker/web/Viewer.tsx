@@ -1,4 +1,5 @@
 import { Toolbar } from '@ext/components/Toolbar';
+import { Tooltip } from '@ext/components/Tooltip';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
 import {
@@ -29,9 +30,9 @@ import {
   undo,
   undoRedoFlash,
 } from '@ext/lib/state';
-import type { DeviceMode, DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
+import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
+import { cn } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
-import clsx from 'clsx';
 import {
   Calendar,
   Copy,
@@ -139,7 +140,7 @@ function InfoPanel() {
   const toolCounts = new Map<string, number>();
   for (const op of ops) {
     if (op.tool === 'eraser') continue;
-    const t = op.tool === 'line' && (op as { arrow?: boolean }).arrow ? 'arrow' : op.tool;
+    const t = op.tool === 'line' && op.arrow ? 'arrow' : op.tool;
     toolCounts.set(t, (toolCounts.get(t) || 0) + 1);
   }
   const created = createdAt.value;
@@ -152,7 +153,7 @@ function InfoPanel() {
 
   return (
     <div
-      class={clsx(
+      class={cn(
         'absolute top-3 left-3 bottom-3 w-[300px] z-40 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
         glass.surface,
         'flex flex-col overflow-hidden',
@@ -194,7 +195,7 @@ function InfoPanel() {
             <div class="text-[10px] text-ml-glass-fg/30 font-medium uppercase tracking-wider">Session</div>
             <div class="flex items-center gap-2 mt-0.5">
               <span
-                class={clsx(
+                class={cn(
                   'w-1.5 h-1.5 rounded-full shrink-0',
                   isConnected ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.5)]' : 'bg-ml-glass-fg/20',
                 )}
@@ -680,11 +681,11 @@ export default function Viewer() {
       if (FREEHAND.has(tool)) {
         currentPathRef.current = {
           id: nanoid(),
-          tool: tool as FreehandOp['tool'],
+          tool,
           points: [pos],
           color: tool === 'highlight' ? hexToRgba(color.value, 0.4) : color.value,
           lineWidth: ctx.lineWidth,
-          compositeOperation: ctx.globalCompositeOperation as GlobalCompositeOperation,
+          compositeOperation: ctx.globalCompositeOperation,
         };
       }
     },
@@ -705,7 +706,7 @@ export default function Viewer() {
         if (currentPathRef.current && currentPathRef.current.points.length > 1) {
           ctx.save();
           ctx.translate(0, -scrollOff);
-          renderOp(ctx, currentPathRef.current as DrawOp, 0, 0);
+          renderOp(ctx, currentPathRef.current, 0, 0);
           ctx.restore();
         }
       } else if (snapshotRef.current && SHAPES.has(tool)) {
@@ -770,7 +771,7 @@ export default function Viewer() {
         const base = { id: nanoid(), color: color.value, lineWidth: lineWidth.value };
         if (tool === 'circle') {
           const r = Math.hypot(pos.x - sp.x, pos.y - sp.y);
-          if (r > 0) pushDeviceOp({ ...base, tool: 'circle', centerX: sp.x, centerY: sp.y, radius: r } as DrawOp);
+          if (r > 0) pushDeviceOp({ ...base, tool: 'circle', centerX: sp.x, centerY: sp.y, radius: r });
         } else if (tool === 'rectangle') {
           if (sp.x !== pos.x && sp.y !== pos.y)
             pushDeviceOp({
@@ -780,7 +781,7 @@ export default function Viewer() {
               startY: sp.y,
               endX: pos.x,
               endY: pos.y,
-            } as DrawOp);
+            });
         } else if (tool === 'line' || tool === 'arrow') {
           if (sp.x !== pos.x || sp.y !== pos.y)
             pushDeviceOp({
@@ -791,7 +792,7 @@ export default function Viewer() {
               startY: sp.y,
               endX: pos.x,
               endY: pos.y,
-            } as DrawOp);
+            });
         }
       }
     },
@@ -956,9 +957,9 @@ export default function Viewer() {
   }
 
   return (
-    <div class={clsx('h-screen flex flex-col bg-ml-bg-viewer', glass.font)}>
+    <div class={cn('h-screen flex flex-col bg-ml-bg-viewer', glass.font)}>
       {/* Mobile gate */}
-      <div class="md:hidden fixed inset-0 z-[2147483647] bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Geist',system-ui,sans-serif]">
+      <div class="md:hidden fixed inset-0 z-2147483647 bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Geist',system-ui,sans-serif]">
         <Logo size={48} />
         <h2 class="text-[22px] font-bold text-ml-fg mt-6 mb-3 tracking-[-0.02em]">Desktop only</h2>
         <p class="text-[16px] text-ml-fg/40 leading-relaxed max-w-[300px] mb-8">
@@ -1004,13 +1005,13 @@ export default function Viewer() {
             title="Edit URL and press Enter to navigate"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                let url = (e.target as HTMLInputElement).value.trim();
+                let url = e.currentTarget.value.trim();
                 if (!url) return;
                 if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
                 navigateTo(url);
               }
             }}
-            onFocus={(e) => (e.target as HTMLInputElement).select()}
+            onFocus={(e) => e.currentTarget.select()}
           />
         </div>
 
@@ -1018,37 +1019,37 @@ export default function Viewer() {
         <button
           type="button"
           onClick={() => (showInfoPanel.value = !showInfoPanel.value)}
-          class={clsx(
-            'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] shrink-0',
+          class={cn(
+            'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] shrink-0',
             showInfoPanel.value
               ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
               : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
           )}
-          title="Annotation info"
         >
           <Info size={16} aria-hidden="true" />
+          <Tooltip text="Annotation info" placement="bottom" />
         </button>
 
         <div class={glass.sep} />
 
         {/* Device viewport picker */}
         <div class="flex items-center gap-0.5 shrink-0">
-          {(['desktop', 'tablet', 'mobile'] as DeviceMode[]).map((mode) => (
+          {(['desktop', 'tablet', 'mobile'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => (deviceMode.value = mode)}
-              class={clsx(
-                'w-8 h-8 rounded-lg grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+              class={cn(
+                'group relative w-8 h-8 rounded-lg grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
                 deviceMode.value === mode
                   ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
                   : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
               )}
-              title={`${mode.charAt(0).toUpperCase() + mode.slice(1)} viewport`}
             >
               {mode === 'desktop' && <Monitor size={16} aria-hidden="true" />}
               {mode === 'tablet' && <Tablet size={16} aria-hidden="true" />}
               {mode === 'mobile' && <Smartphone size={16} aria-hidden="true" />}
+              <Tooltip text={`${mode.charAt(0).toUpperCase() + mode.slice(1)} viewport`} placement="bottom" />
             </button>
           ))}
         </div>
@@ -1091,7 +1092,7 @@ export default function Viewer() {
                 </div>
               ))}
             {peers.value.size > 3 && (
-              <div class="w-7 h-7 rounded-full bg-[#e5e5e5] dark:bg-[#404040] text-[#555] dark:text-[#ccc] text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)]">
+              <div class="w-7 h-7 rounded-full bg-[#e5e5e5] dark:bg-[#404040] text-[#555] dark:text-[#ccc] text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] tabular-nums">
                 +{peers.value.size - 3}
               </div>
             )}
@@ -1105,11 +1106,11 @@ export default function Viewer() {
             class="w-[90px] bg-transparent border-none text-[12px] text-ml-glass-fg/85 font-semibold outline-none truncate px-1.5 py-0.5 rounded hover:bg-ml-glass-fg/6 focus:bg-ml-glass-fg/8 focus:text-ml-glass-fg cursor-text"
             title="Click to edit your name"
             onBlur={(e) => {
-              setUserName((e.target as HTMLInputElement).value);
-              (e.target as HTMLInputElement).value = localUser.name;
+              setUserName(e.currentTarget.value);
+              e.currentTarget.value = localUser.name;
             }}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+              if (e.key === 'Enter') e.currentTarget.blur();
             }}
           />
 
@@ -1119,45 +1120,45 @@ export default function Viewer() {
               <button
                 type="button"
                 onClick={() => (voiceMuted.value = !voiceMuted.value)}
-                class={clsx(
-                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+                class={cn(
+                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
                   voiceMuted.value
                     ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/30'
                     : 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]',
                 )}
-                title={voiceMuted.value ? 'Unmute' : 'Mute'}
               >
                 {voiceMuted.value ? <MicOff size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
+                <Tooltip text={voiceMuted.value ? 'Unmute' : 'Mute'} placement="bottom" />
               </button>
               <button
                 type="button"
                 onClick={() => (videoActive.value = !videoActive.value)}
-                class={clsx(
-                  'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+                class={cn(
+                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
                   videoActive.value
                     ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
                     : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
                 )}
-                title={videoActive.value ? 'Turn off camera' : 'Turn on camera'}
               >
                 {videoActive.value ? <Video size={16} aria-hidden="true" /> : <VideoOff size={16} aria-hidden="true" />}
+                <Tooltip text={videoActive.value ? 'Turn off camera' : 'Turn on camera'} placement="bottom" />
               </button>
             </div>
           ) : (
             <button
               type="button"
               onClick={() => (voiceActive.value = true)}
-              class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
-              title="Join voice"
+              class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
             >
               <Mic size={16} aria-hidden="true" />
+              <Tooltip text="Join voice" placement="bottom" />
             </button>
           )}
 
           {/* Connection indicator */}
           <div class="flex items-center gap-1.5 mr-0.5">
             <span
-              class={clsx(
+              class={cn(
                 'w-2 h-2 rounded-full shrink-0',
                 connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-ml-glass-accent/20',
               )}
@@ -1171,15 +1172,15 @@ export default function Viewer() {
           <button
             type="button"
             onClick={() => (showAnnotationPanel.value = !showAnnotationPanel.value)}
-            class={clsx(
-              'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+            class={cn(
+              'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
               showAnnotationPanel.value
                 ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
                 : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
             )}
-            title="Annotations panel"
           >
             <MessageSquare size={16} aria-hidden="true" />
+            <Tooltip text="Annotations panel" placement="bottom" />
           </button>
 
           {/* Share session */}
@@ -1188,13 +1189,13 @@ export default function Viewer() {
               type="button"
               onClick={() => doShare()}
               disabled={sharing.value}
-              class={clsx(
-                'w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
+              class={cn(
+                'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
                 sharing.value && 'opacity-50 pointer-events-none',
               )}
-              title="Copy editable link"
             >
               <Upload size={16} aria-hidden="true" />
+              <Tooltip text="Copy editable link" placement="bottom" />
             </button>
           )}
 
@@ -1203,12 +1204,15 @@ export default function Viewer() {
             type="button"
             onClick={(e) => {
               cycleTheme();
-              (e.currentTarget as HTMLElement).blur();
+              e.currentTarget.blur();
             }}
-            class="w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
-            title={`Theme: ${theme.value}`}
+            class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
           >
             {theme.value === 'dark' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
+            <Tooltip
+              text={`Theme: ${theme.value === 'system' ? 'System' : theme.value === 'dark' ? 'Dark' : 'Light'}`}
+              placement="bottom"
+            />
           </button>
         </div>
       </div>
@@ -1218,7 +1222,7 @@ export default function Viewer() {
 
       {/* Viewer */}
       <div
-        class={clsx(
+        class={cn(
           'flex-1 relative overflow-hidden',
           deviceMode.value !== 'desktop' && 'flex items-stretch justify-center bg-ml-bg-device',
         )}
@@ -1226,7 +1230,7 @@ export default function Viewer() {
         <div
           id="viewer"
           ref={viewerRef}
-          class={clsx(
+          class={cn(
             'relative h-full',
             deviceMode.value === 'desktop'
               ? 'w-full overflow-hidden'
@@ -1267,7 +1271,7 @@ export default function Viewer() {
                 captureRenderFailed('no-marker', { body_preview: doc?.body?.textContent?.slice(0, 200) });
               }}
               onError={() => captureRenderFailed('iframe-error')}
-              class={clsx(
+              class={cn(
                 'w-full h-full border-none bg-white',
                 !iframeLoaded.value && 'invisible',
                 (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
@@ -1319,7 +1323,7 @@ export default function Viewer() {
                 scrollY={iframeScrollY.value}
                 onCommit={(text) => {
                   if (text && textInput.value) {
-                    pushDeviceOp({
+                    const op: TextOp = {
                       id: nanoid(),
                       tool: 'text',
                       text,
@@ -1328,7 +1332,8 @@ export default function Viewer() {
                       fontSize: Math.max(14, lineWidth.value * 6),
                       color: color.value,
                       lineWidth: lineWidth.value,
-                    } as TextOp);
+                    };
+                    pushDeviceOp(op);
                   }
                   textInput.value = null;
                 }}
@@ -1375,8 +1380,8 @@ export default function Viewer() {
 
       {readonly && (
         <div
-          class={clsx(
-            'fixed bottom-5 left-1/2 -translate-x-1/2 z-[2147483646] px-4 py-2.5 flex items-center gap-3',
+          class={cn(
+            'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 px-4 py-2.5 flex items-center gap-3',
             glass.surfaceSmall,
             glass.font,
           )}
@@ -1399,7 +1404,7 @@ export default function Viewer() {
           if (!peer) return null;
           return (
             <div
-              class={`fixed top-3 left-1/2 -translate-x-1/2 z-[2147483646] flex items-center gap-2 px-3 py-2 ${glass.surfaceSmall} ${glass.font} animate-[fadeInDown_0.2s_ease-out]`}
+              class={`fixed top-3 left-1/2 -translate-x-1/2 z-2147483646 flex items-center gap-2 px-3 py-2 ${glass.surfaceSmall} ${glass.font} animate-[fadeInDown_0.2s_ease-out]`}
             >
               <span class="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: peer.color }} />
               <span class="text-xs font-medium text-ml-glass-fg/70">Following {peer.name}</span>
@@ -1417,7 +1422,7 @@ export default function Viewer() {
         })()}
 
       {toasts.value.length > 0 && (
-        <div class="fixed top-12 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">
+        <div class="fixed top-12 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">
           {toasts.value.map((t) => (
             <div
               key={t.id}
@@ -1438,20 +1443,19 @@ function VoicePill() {
 
   return (
     <div
-      class={clsx(
-        'fixed top-[60px] z-[2147483646] flex items-center gap-2 px-3 py-2 rounded-xl transition-[right] duration-200',
+      class={cn(
+        'fixed top-[60px] z-2147483646 flex items-center gap-2 px-3 py-2 rounded-xl transition-[right] duration-200',
         showAnnotationPanel.value ? 'right-[364px]' : 'right-4',
         'bg-[var(--ml-glass-bg)] backdrop-blur-[80px] backdrop-saturate-[1.9] border border-ml-glass-fg/[0.06] shadow-[0_2px_10px_oklch(0_0_0/0.08)]',
         'animate-[fadeInDown_0.2s_ease-out]',
         'select-none',
       )}
-      style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
     >
       <button
         type="button"
         onClick={() => (voiceMuted.value = !voiceMuted.value)}
-        class={clsx(
-          'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-all duration-150 active:scale-90',
+        class={cn(
+          'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-all duration-150 active:scale-[0.94]',
           muted ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/30' : 'bg-green-500/20 text-green-400',
         )}
         title={muted ? 'Unmute' : 'Mute'}
@@ -1482,7 +1486,7 @@ function VoicePill() {
       <button
         type="button"
         onClick={() => (voiceActive.value = false)}
-        class="w-6 h-6 rounded-md grid place-items-center border-none cursor-pointer bg-transparent text-ml-glass-fg/20 hover:text-ml-glass-fg/50 hover:bg-ml-glass-fg/[0.06] transition-all duration-150 active:scale-90"
+        class="w-6 h-6 rounded-md grid place-items-center border-none cursor-pointer bg-transparent text-ml-glass-fg/20 hover:text-ml-glass-fg/50 hover:bg-ml-glass-fg/[0.06] transition-all duration-150 active:scale-[0.94]"
         title="Leave voice"
       >
         <X size={11} aria-hidden="true" />
@@ -1538,7 +1542,7 @@ function SelfVideoBubble({ stream }: { stream: MediaStream }) {
   return (
     <div
       ref={dragRef}
-      class="fixed top-0 left-0 z-[2147483646] cursor-grab active:cursor-grabbing select-none will-change-transform animate-[fadeInDown_0.2s_ease-out]"
+      class="fixed top-0 left-0 z-2147483646 cursor-grab active:cursor-grabbing select-none will-change-transform animate-[fadeInDown_0.2s_ease-out]"
       style={{ transform: `translate(${initX}px,${initY}px)` }}
       onMouseDown={(e) => {
         draggingRef.current = true;

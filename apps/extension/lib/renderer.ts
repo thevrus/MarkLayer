@@ -113,8 +113,8 @@ export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy
     lineJoin: 'round',
     globalCompositeOperation: ('compositeOperation' in op ? op.compositeOperation : undefined) ?? 'source-over',
   });
-  if (FREEHAND.has(op.tool)) {
-    const pts = 'points' in op ? (op.points as Point[]) : [];
+  if (FREEHAND.has(op.tool) && 'points' in op) {
+    const pts = op.points;
     if (pts?.length) {
       const outline = getStroke(
         pts.map((p) => [p.x - ox, p.y - oy]),

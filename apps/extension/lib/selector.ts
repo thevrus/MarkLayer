@@ -325,8 +325,6 @@ const STYLE_KEYS = [
   'fontFamily',
   'padding',
   'margin',
-  'width',
-  'height',
   'display',
   'position',
   'borderRadius',
@@ -338,14 +336,26 @@ const STYLE_KEYS = [
 
 const KEBAB_KEYS = STYLE_KEYS.map(toKebab);
 const SKIP_VALUES = new Set(['', 'none', 'normal', 'auto', '0px', 'rgba(0, 0, 0, 0)']);
+const FLEX_PROPS = new Set(['flex-direction', 'align-items', 'justify-content', 'gap']);
+const TEXT_PROPS = new Set(['color', 'font-size', 'font-weight', 'font-family']);
+// Tags that don't render their own text content — text styles are inherited but irrelevant.
+const NON_TEXT_TAGS = new Set(['img', 'video', 'audio', 'iframe', 'canvas', 'svg', 'embed', 'object']);
 
 /** Extract key computed styles, returned with kebab-case keys */
 export function getKeyStyles(el: Element): Record<string, string> {
   const cs = getComputedStyle(el);
   const pick: Record<string, string> = {};
+  const display = cs.getPropertyValue('display');
+  const isFlexLike = display === 'flex' || display === 'inline-flex' || display === 'grid' || display === 'inline-grid';
+  const isNonText = NON_TEXT_TAGS.has(el.tagName.toLowerCase());
   for (let i = 0; i < KEBAB_KEYS.length; i++) {
-    const v = cs.getPropertyValue(KEBAB_KEYS[i]);
-    if (!SKIP_VALUES.has(v)) pick[KEBAB_KEYS[i]] = v;
+    const key = KEBAB_KEYS[i];
+    const v = cs.getPropertyValue(key);
+    if (SKIP_VALUES.has(v)) continue;
+    if (key === 'position' && v === 'static') continue;
+    if (!isFlexLike && FLEX_PROPS.has(key)) continue;
+    if (isNonText && TEXT_PROPS.has(key)) continue;
+    pick[key] = v;
   }
   return pick;
 }
@@ -360,6 +370,22 @@ export function shortClassLabel(el: Element, max = 2): string {
   return result;
 }
 
+export const ELEMENT_INSPECTOR_HEADING = '## Element Inspector';
+
+const TEXT_MAX = 120;
+// Sample more than TEXT_MAX × ratio so whitespace can't hide non-WS content past the cut.
+// Picking <body> or large articles otherwise rebuilds MB-sized strings just to slice 120 chars.
+const TEXT_SAMPLE = TEXT_MAX * 8;
+
+/** Collapse whitespace and truncate element text to a short, single-line summary. */
+function summarizeText(el: Element): { text: string; truncated: boolean } {
+  const cleaned = (el.textContent ?? '').slice(0, TEXT_SAMPLE).replace(/\s+/g, ' ').trim();
+  return {
+    text: cleaned.slice(0, TEXT_MAX),
+    truncated: cleaned.length > TEXT_MAX,
+  };
+}
+
 /** Format element info as markdown for AI tools */
 export function formatForAI(
   el: Element,
@@ -367,19 +393,15 @@ export function formatForAI(
   styles?: Record<string, string>,
   rect?: { width: number; height: number },
 ): string {
-  const tag = el.tagName.toLowerCase();
   const dims = rect ?? el.getBoundingClientRect();
   const resolved = styles ?? getKeyStyles(el);
-  const fullText = (el.textContent ?? '').trim();
-  const text = fullText.slice(0, 120);
+  const { text, truncated } = summarizeText(el);
 
-  let md = '## Element Inspector\n\n';
+  let md = `${ELEMENT_INSPECTOR_HEADING}\n\n`;
   md += `**Selector:** \`${selector}\`\n`;
-  md += `**Tag:** \`<${tag}>\`\n`;
-  if (el.id) md += `**ID:** \`${el.id}\`\n`;
   if (el.classList.length) md += `**Classes:** \`${Array.from(el.classList).join(' ')}\`\n`;
   md += `**Size:** ${Math.round(dims.width)}×${Math.round(dims.height)}px\n`;
-  if (text) md += `**Text:** "${fullText.length > 120 ? `${text}…` : text}"\n`;
+  if (text) md += `**Text:** "${truncated ? `${text}…` : text}"\n`;
 
   if (Object.keys(resolved).length) {
     md += '\n**Computed Styles:**\n```css\n';
@@ -427,7 +449,7 @@ export function snapshotElement(el: Element, selector: string, viewportRect: DOM
     classes: Array.from(el.classList).join(' '),
     rect: viewportRect,
     styles,
-    text: (el.textContent ?? '').trim().slice(0, 120),
+    text: summarizeText(el).text,
     markdown: formatForAI(el, selector, styles, viewportRect),
   };
 }

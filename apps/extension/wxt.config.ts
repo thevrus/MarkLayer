@@ -10,7 +10,7 @@ export default defineConfig({
     name: 'MarkLayer — Webpage Annotator & Visual Feedback Tool',
     description:
       'Free annotation tool for Chrome. Draw, comment, and mark up any webpage, then share a link instantly. No account required.',
-    version: '0.2.1',
+    version: '0.2.2',
     action: {},
     permissions: ['activeTab', 'scripting'],
   },
@@ -22,8 +22,6 @@ export default defineConfig({
           entry.matches = ['<all_urls>'];
         }
       }
-      // Remove empty host_permissions WXT may auto-generate
-      delete (manifest as Record<string, unknown>).host_permissions;
     },
   },
 });

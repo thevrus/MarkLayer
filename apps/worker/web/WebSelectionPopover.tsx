@@ -1,7 +1,7 @@
 import { glass } from '@ext/lib/glass';
 import { color, lineWidth, localUser } from '@ext/lib/state';
 import type { SelectionOp, SelectionRect } from '@ext/lib/types';
-import { clsx } from 'clsx';
+import { cn } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 import { pushDeviceOp } from './signals';
@@ -24,9 +24,9 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
   const commit = (save: boolean) => {
     const comment = taRef.current?.value.trim();
     if (save && rects.length > 0) {
-      pushDeviceOp({
+      const op: SelectionOp = {
         id: nanoid(),
-        tool: 'selection' as const,
+        tool: 'selection',
         text,
         rects,
         comment: comment || undefined,
@@ -34,7 +34,8 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
         lineWidth: lineWidth.value,
         ts: Date.now(),
         author: localUser.name,
-      } as SelectionOp);
+      };
+      pushDeviceOp(op);
     }
     window.getSelection()?.removeAllRanges();
     onClose();
@@ -45,7 +46,13 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
 
   return (
     <div
-      class={clsx('fixed z-[2147483647]', glass.surface, glass.font, 'overflow-hidden w-[290px]')}
+      class={cn(
+        'fixed z-2147483647',
+        'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
+        glass.surface,
+        glass.font,
+        'overflow-hidden w-[290px]',
+      )}
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
     >
@@ -55,7 +62,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
         <p class="text-[12.5px] text-ml-glass-fg/80 m-0 mt-1 italic line-clamp-3 leading-relaxed">"{text}"</p>
       </div>
 
-      <div class={clsx(glass.divider, 'mx-3.5')} />
+      <div class={cn(glass.divider, 'mx-3.5')} />
 
       <div class="p-3.5">
         <textarea
@@ -72,7 +79,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
               commit(false);
             }
           }}
-          class={clsx(
+          class={cn(
             'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-xl px-3.5 py-2.5',
             'text-ml-glass-fg text-[13.5px] leading-relaxed',
             'resize-none outline-none min-h-10 max-h-[140px]',
@@ -88,7 +95,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
         />
       </div>
 
-      <div class={clsx(glass.divider, 'mx-3.5')} />
+      <div class={cn(glass.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
@@ -105,11 +112,12 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
           onClick={() => commit(true)}
           class="px-4 py-1.5 text-[12px] font-semibold rounded-[10px] border-none cursor-pointer
                  bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
-                 text-white
+                 text-white outline-none
                  shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
                  transition-[box-shadow,transform] duration-150
                  hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
                  hover:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_2px_16px_oklch(0.65_0.15_300/0.2)]
+                 focus-visible:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_0_0_3px_oklch(0.65_0.15_300/0.35)]
                  active:scale-[0.96]"
         >
           Save ↵

@@ -125,7 +125,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         case 'undo': {
           const ops = await this.getOps(id);
           if (msg.opId) {
-            const idx = ops.findIndex((o) => (o as Record<string, unknown>).id === msg.opId);
+            const idx = ops.findIndex((o) => typeof o === 'object' && o !== null && 'id' in o && o.id === msg.opId);
             if (idx !== -1) {
               ops.splice(idx, 1);
               this.broadcast(JSON.stringify({ type: 'undo', opId: msg.opId }), ws);

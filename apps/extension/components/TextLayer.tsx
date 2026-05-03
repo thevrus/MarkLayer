@@ -15,7 +15,7 @@ function TextInputOverlay({ x, y, onCommit }: { x: number; y: number; onCommit: 
   return (
     <textarea
       ref={ref}
-      class="fixed bg-transparent border-none outline-none resize-none p-0 m-0 z-[2147483647]"
+      class="fixed bg-transparent border-none outline-none resize-none p-0 m-0 z-2147483647"
       style={{
         left: x - scrollX,
         top: y - scrollY,
@@ -31,14 +31,14 @@ function TextInputOverlay({ x, y, onCommit }: { x: number; y: number; onCommit: 
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          onCommit((e.currentTarget as HTMLTextAreaElement).value.trim());
+          onCommit(e.currentTarget.value.trim());
         } else if (e.key === 'Escape') {
           e.preventDefault();
           onCommit('');
         }
       }}
       onBlur={(e) => {
-        onCommit((e.currentTarget as HTMLTextAreaElement).value.trim());
+        onCommit(e.currentTarget.value.trim());
       }}
       placeholder="Type here..."
     />
@@ -53,7 +53,7 @@ export function TextLayer() {
   return (
     <>
       <div
-        class="fixed inset-0 z-[2147483645]"
+        class="fixed inset-0 z-2147483645"
         style={{
           pointerEvents: cursorActive ? 'auto' : 'none',
           cursor: cursorActive ? 'text' : 'default',
@@ -69,7 +69,7 @@ export function TextLayer() {
           y={input.value.y}
           onCommit={(text) => {
             if (text && input.value) {
-              pushOp({
+              const op: TextOp = {
                 id: nanoid(),
                 tool: 'text',
                 text,
@@ -78,7 +78,8 @@ export function TextLayer() {
                 fontSize: Math.max(14, lineWidth.value * 6),
                 color: color.value,
                 lineWidth: lineWidth.value,
-              } as TextOp);
+              };
+              pushOp(op);
             }
             input.value = null;
           }}

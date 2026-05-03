@@ -2,7 +2,7 @@ import { glass } from '@ext/lib/glass';
 import { getReplies, pushReply, setOpStatus } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { CommentOp } from '@ext/lib/types';
-import { clsx } from 'clsx';
+import { cn } from '@marklayer/types';
 import { Check } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
 import { cssScale } from './signals';
@@ -36,7 +36,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
   };
 
   return (
-    <div class={clsx('absolute pointer-events-auto cursor-pointer group/pin', glass.font)} style={{ left, top }}>
+    <div class={cn('absolute pointer-events-auto cursor-pointer group/pin', glass.font)} style={{ left, top }}>
       <div class="relative -translate-x-1/2 -translate-y-1/2">
         {/* Pin dot */}
         <div
@@ -64,7 +64,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
 
         {/* Hover card */}
         <div
-          class={clsx(
+          class={cn(
             'absolute',
             flipV ? 'bottom-0' : 'top-0',
             flipH ? 'right-[calc(100%+10px)]' : 'left-[calc(100%+10px)]',
@@ -160,7 +160,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                 ref={replyRef}
                 placeholder="Reply..."
                 rows={1}
-                class={clsx(
+                class={cn(
                   'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-lg px-3 py-2',
                   'text-ml-glass-fg text-[12.5px] leading-relaxed',
                   'resize-none outline-none min-h-8 max-h-[80px]',

@@ -136,7 +136,7 @@ export function TextInputOverlay({
         fontSize: `${fontSize * s}px`,
         lineHeight: 1.3,
         color: color.value,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif',
+        fontFamily: '"Geist", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif',
         minWidth: '40px',
         minHeight: `${fontSize * s * 1.3}px`,
         caretColor: color.value,
@@ -146,14 +146,14 @@ export function TextInputOverlay({
       onKeyDown={(e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
-          onCommit((e.currentTarget as HTMLTextAreaElement).value.trim());
+          onCommit(e.currentTarget.value.trim());
         } else if (e.key === 'Escape') {
           e.preventDefault();
           onCommit('');
         }
       }}
       onBlur={(e) => {
-        onCommit((e.currentTarget as HTMLTextAreaElement).value.trim());
+        onCommit(e.currentTarget.value.trim());
       }}
       placeholder="Type here..."
     />

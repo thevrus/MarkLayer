@@ -1,6 +1,6 @@
 import { glass } from '@ext/lib/glass';
 import { operations, toast } from '@ext/lib/state';
-import { clsx } from 'clsx';
+import { cn } from '@marklayer/types';
 import { Plus, Trash2, X } from 'lucide-preact';
 import { useState } from 'preact/hooks';
 import {
@@ -128,7 +128,7 @@ export function ProjectTabs() {
 
   return (
     <div
-      class={clsx(
+      class={cn(
         'flex items-center gap-1 px-3 h-9 z-40 shrink-0 overflow-x-auto bg-[var(--ml-glass-bg)] backdrop-blur-[80px]',
         'border-b border-ml-glass-fg/[0.06] shadow-[0_1px_3px_oklch(0_0_0/0.04)]',
         glass.font,
@@ -143,7 +143,7 @@ export function ProjectTabs() {
         return (
           <div
             key={p.id}
-            class={clsx(
+            class={cn(
               'group relative shrink-0 inline-flex items-center h-7 rounded-lg',
               'transition-all duration-150',
               active
@@ -154,7 +154,7 @@ export function ProjectTabs() {
             <button
               type="button"
               onClick={() => switchTo(i)}
-              class={clsx(
+              class={cn(
                 'inline-flex items-center gap-1.5 h-7 pl-2.5 rounded-lg text-[12px] font-medium border-none cursor-pointer bg-transparent',
                 'text-inherit transition-all duration-150 active:scale-[0.97]',
                 canDelete ? 'pr-1' : 'pr-2.5',
@@ -171,7 +171,7 @@ export function ProjectTabs() {
               <button
                 type="button"
                 onClick={(e) => deletePage(i, e)}
-                class={clsx(
+                class={cn(
                   'h-5 w-5 mr-1 rounded grid place-items-center bg-transparent border-none cursor-pointer',
                   'text-current opacity-0 group-hover:opacity-50 hover:!opacity-100 hover:bg-ml-glass-fg/[0.08]',
                   'transition-all duration-100',
@@ -190,7 +190,7 @@ export function ProjectTabs() {
         <button
           type="button"
           onClick={() => setAdding(true)}
-          class={clsx(
+          class={cn(
             'shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[12px] font-medium border-none cursor-pointer',
             'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-fg/6 transition-[color,background-color] duration-150',
           )}
@@ -210,7 +210,7 @@ export function ProjectTabs() {
             value={newUrl}
             placeholder="https://example.com/page"
             disabled={loading}
-            onInput={(e) => setNewUrl((e.target as HTMLInputElement).value)}
+            onInput={(e) => setNewUrl(e.currentTarget.value)}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
                 setAdding(false);

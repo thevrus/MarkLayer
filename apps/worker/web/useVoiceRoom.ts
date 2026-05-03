@@ -20,6 +20,14 @@ const FALLBACK_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }],
 };
 
+function isSessionDescription(v: unknown): v is RTCSessionDescriptionInit {
+  return typeof v === 'object' && v !== null && 'type' in v && 'sdp' in v;
+}
+
+function isIceCandidate(v: unknown): v is RTCIceCandidateInit {
+  return typeof v === 'object' && v !== null && 'candidate' in v;
+}
+
 let _rtcConfig: RTCConfiguration | null = null;
 async function getRtcConfig(): Promise<RTCConfiguration> {
   if (_rtcConfig) return _rtcConfig;
@@ -203,7 +211,7 @@ export function useVoiceRoom(localPeerId: string) {
       // Handle incoming signaling (polite peer pattern to resolve glare)
       onRtcMessage.value = async (msg) => {
         if (destroyed) return;
-        const from = msg.from as string;
+        const from = msg.from;
 
         if (msg.type === 'rtc_offer') {
           const existing = conns.get(from);
@@ -220,21 +228,25 @@ export function useVoiceRoom(localPeerId: string) {
             conns.delete(from);
           }
 
+          const sdp = msg.sdp;
+          if (!isSessionDescription(sdp)) return;
           const stream = await getLocalStream();
           const { pc } = createPeerConnection(from, stream, rtcConfig);
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit));
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           sendSignaling({ type: 'rtc_answer', to: from, sdp: pc.localDescription!.toJSON() });
         } else if (msg.type === 'rtc_answer') {
           const entry = conns.get(from);
-          if (entry && entry.pc.signalingState !== 'stable') {
-            await entry.pc.setRemoteDescription(new RTCSessionDescription(msg.sdp as RTCSessionDescriptionInit));
+          const sdp = msg.sdp;
+          if (entry && entry.pc.signalingState !== 'stable' && isSessionDescription(sdp)) {
+            await entry.pc.setRemoteDescription(new RTCSessionDescription(sdp));
           }
         } else if (msg.type === 'rtc_ice') {
           const entry = conns.get(from);
-          if (entry && msg.candidate) {
-            await entry.pc.addIceCandidate(new RTCIceCandidate(msg.candidate as RTCIceCandidateInit)).catch(() => {});
+          const candidate = msg.candidate;
+          if (entry && isIceCandidate(candidate)) {
+            await entry.pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
           }
         }
       };

@@ -22,9 +22,9 @@ import {
   undo,
   undoRedoFlash,
 } from '@ext/lib/state';
-import type { DrawOp, FreehandOp, Point, TextOp } from '@ext/lib/types';
+import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
+import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
-import clsx from 'clsx';
 import { ArrowRight, ChevronDown, Monitor, Search } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
@@ -115,11 +115,11 @@ export function Landing() {
         ctx.moveTo(pos.x, pos.y);
         currentPathRef.current = {
           id: nanoid(),
-          tool: tool as FreehandOp['tool'],
+          tool,
           points: [pos],
           color: tool === 'highlight' ? hexToRgba(color.value, 0.4) : color.value,
           lineWidth: ctx.lineWidth,
-          compositeOperation: ctx.globalCompositeOperation as GlobalCompositeOperation,
+          compositeOperation: ctx.globalCompositeOperation,
         };
       } else if (SHAPES.has(tool)) {
         const canvas = canvasRef.current!;
@@ -203,7 +203,7 @@ export function Landing() {
         const base = { id: nanoid(), color: color.value, lineWidth: lineWidth.value };
         if (tool === 'circle') {
           const r = Math.hypot(pos.x - sp.x, pos.y - sp.y);
-          if (r > 0) pushDeviceOp({ ...base, tool: 'circle', centerX: sp.x, centerY: sp.y, radius: r } as DrawOp);
+          if (r > 0) pushDeviceOp({ ...base, tool: 'circle', centerX: sp.x, centerY: sp.y, radius: r });
         } else if (tool === 'rectangle') {
           if (sp.x !== pos.x && sp.y !== pos.y)
             pushDeviceOp({
@@ -213,7 +213,7 @@ export function Landing() {
               startY: sp.y,
               endX: pos.x,
               endY: pos.y,
-            } as DrawOp);
+            });
         } else if (tool === 'line' || tool === 'arrow') {
           if (sp.x !== pos.x || sp.y !== pos.y)
             pushDeviceOp({
@@ -224,7 +224,7 @@ export function Landing() {
               startY: sp.y,
               endX: pos.x,
               endY: pos.y,
-            } as DrawOp);
+            });
         }
       }
     },
@@ -269,9 +269,11 @@ export function Landing() {
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+      const tag = target.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-        if (e.key === 'Escape') (e.target as HTMLElement).blur();
+        if (e.key === 'Escape') target.blur();
         return;
       }
       if (e.ctrlKey || e.metaKey) {
@@ -459,7 +461,7 @@ export function Landing() {
               class="lp-fade-up text-[15px] text-ml-fg/60 mb-8 max-w-[400px] mx-auto leading-relaxed"
               style={{ animationDelay: '0.2s' }}
             >
-              Draw, comment, and mark up any live website — then share a link for instant visual feedback. No account
+              Draw, comment, and mark up any live website, then share a link for instant visual feedback. No account
               required.
             </p>
 
@@ -477,7 +479,7 @@ export function Landing() {
                 {/* CTA */}
                 <div class="lp-fade-up flex flex-col items-center gap-3 mb-2" style={{ animationDelay: '0.3s' }}>
                   <a href={CWS_URL} target="_blank" rel="noopener" class={`${CTA_CLS} justify-center`}>
-                    Add to Chrome — It's Free
+                    Add to Chrome · It's Free
                   </a>
                 </div>
 
@@ -491,7 +493,9 @@ export function Landing() {
                   style={{ animationDelay: '0.4s' }}
                   onSubmit={(e) => {
                     e.preventDefault();
-                    const input = (e.currentTarget.elements.namedItem('url') as HTMLInputElement).value.trim();
+                    const el = e.currentTarget.elements.namedItem('url');
+                    if (!(el instanceof HTMLInputElement)) return;
+                    const input = el.value.trim();
                     if (!input) return;
                     let url = input;
                     if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
@@ -508,14 +512,14 @@ export function Landing() {
                       autocomplete="url"
                       class="flex-1 bg-transparent border-none text-ml-fg text-[14px] placeholder:text-ml-fg/25 outline-none"
                       onInput={(e) => {
-                        const v = (e.target as HTMLInputElement).value.trim();
+                        const v = e.currentTarget.value.trim();
                         urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
                       }}
                     />
                     <button
                       type="submit"
                       aria-label="Go"
-                      class={clsx(
+                      class={cn(
                         'shrink-0 w-8 h-8 rounded-lg grid place-items-center border-none cursor-pointer transition-all duration-200',
                         urlReady.value
                           ? 'text-ml-btn-fg bg-ml-btn shadow-sm'
@@ -582,13 +586,13 @@ export function Landing() {
               {[
                 {
                   q: 'Does the other person need the extension installed?',
-                  a: 'No. Anyone can view your annotations via the share link — no install required.',
+                  a: 'No. Anyone can view your annotations via the share link. No install required.',
                 },
                 { q: 'Is it really free?', a: 'Yes. No account, no paywall, no trial period.' },
                 { q: 'Does it work on any website?', a: 'Yes, MarkLayer works on any webpage.' },
                 {
                   q: 'Can multiple people annotate at the same time?',
-                  a: 'Yes — real-time cursors let you collaborate live on any page.',
+                  a: 'Yes. Real-time cursors let you collaborate live on any page.',
                 },
               ].map((item) => (
                 <details key={item.q} class="group border-t border-ml-fg/[0.06] py-5">
@@ -609,7 +613,7 @@ export function Landing() {
           {/* Bottom CTA */}
           <section class="px-8 pt-8 pb-10 text-center">
             <h2 class="text-[clamp(28px,5vw,40px)] font-normal tracking-[-0.01em] font-['Imbue',serif] text-ml-fg mb-5">
-              Start annotating what matters.
+              Start annotating any page on the web.
             </h2>
             {CWS_LINK('')}
             <p class="text-[12px] text-ml-fg/30 mt-3">Free to use &middot; No sign-up required</p>
@@ -766,7 +770,7 @@ export function Landing() {
               >
                 <img
                   src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1105463&theme=light"
-                  alt="MarkLayer - Draw & comment on any webpage — share one live link | Product Hunt"
+                  alt="MarkLayer - Draw & comment on any webpage. Share one live link | Product Hunt"
                   width="250"
                   height="54"
                   style={{ width: '250px', height: '54px' }}
@@ -784,7 +788,7 @@ export function Landing() {
 
         {/* Comment overlay */}
         <div
-          class="fixed inset-0 z-[2147483646] overflow-hidden"
+          class="fixed inset-0 z-2147483646 overflow-hidden"
           style={{
             pointerEvents: showCommentCursor ? 'auto' : 'none',
             cursor: showCommentCursor ? 'crosshair' : 'default',
@@ -811,7 +815,7 @@ export function Landing() {
         </div>
 
         {/* Selection highlights */}
-        <div class="fixed inset-0 z-[2147483645] pointer-events-none overflow-hidden">
+        <div class="fixed inset-0 z-2147483645 pointer-events-none overflow-hidden">
           {selections.value.map((op) => (
             <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={window.scrollY || 0} />
           ))}
@@ -827,7 +831,7 @@ export function Landing() {
 
         {/* Text tool overlay */}
         <div
-          class="fixed inset-0 z-[2147483646]"
+          class="fixed inset-0 z-2147483646"
           style={{ pointerEvents: showTextCursor ? 'auto' : 'none', cursor: showTextCursor ? 'text' : 'default' }}
           onClick={(e) => {
             if (tool !== 'text') return;
@@ -842,7 +846,7 @@ export function Landing() {
             scrollY={window.scrollY || 0}
             onCommit={(text) => {
               if (text && textInput.value) {
-                pushDeviceOp({
+                const op: TextOp = {
                   id: nanoid(),
                   tool: 'text',
                   text,
@@ -851,7 +855,8 @@ export function Landing() {
                   fontSize: Math.max(14, lineWidth.value * 6),
                   color: color.value,
                   lineWidth: lineWidth.value,
-                } as TextOp);
+                };
+                pushDeviceOp(op);
               }
               textInput.value = null;
             }}
@@ -861,7 +866,7 @@ export function Landing() {
         <canvas
           ref={canvasRef}
           onMouseDown={onDown}
-          class="absolute inset-x-0 top-0 z-[2147483645]"
+          class="absolute inset-x-0 top-0 z-2147483645"
           style={{
             height: '100%',
             pointerEvents: showCanvas ? 'auto' : 'none',
@@ -871,12 +876,12 @@ export function Landing() {
 
         <InspectorLayer />
 
-        <div class="lp-toolbar-in lp-shine-toolbar hidden sm:block z-[2147483647]">
+        <div class="lp-toolbar-in lp-shine-toolbar hidden sm:block z-2147483647">
           <Toolbar />
         </div>
 
         {toasts.value.length > 0 && (
-          <div class="fixed top-12 left-1/2 -translate-x-1/2 z-[2147483647] flex flex-col gap-2 items-center">
+          <div class="fixed top-12 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">
             {toasts.value.map((t) => (
               <div
                 key={t.id}

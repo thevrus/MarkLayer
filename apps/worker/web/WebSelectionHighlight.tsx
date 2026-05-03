@@ -2,7 +2,7 @@ import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
 import { setOpStatus } from '@ext/lib/state';
 import type { SelectionOp } from '@ext/lib/types';
-import { clsx } from 'clsx';
+import { cn } from '@marklayer/types';
 
 interface Props {
   op: SelectionOp;
@@ -56,7 +56,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY }: Props) {
       >
         {/* Hover card */}
         <div
-          class={clsx(
+          class={cn(
             'absolute left-full top-0 ml-2 hidden group-hover/sel:block z-10 w-[240px]',
             glass.surfaceSmall,
             glass.font,

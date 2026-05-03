@@ -3,6 +3,10 @@ import { cors } from 'hono/cors';
 import type { Env } from './index';
 import { opsArraySchema } from './schema';
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
 const STUN_FALLBACK = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }],
 };
@@ -23,6 +27,8 @@ api.get('/turn', async (c) => {
   if (!res.ok) return c.json(STUN_FALLBACK);
   return c.json(await res.json());
 });
+
+// ---------- Annotations ----------
 
 // Store annotations
 api.post('/:id', async (c) => {
@@ -92,7 +98,6 @@ const MAX_PAGES_PER_PROJECT = 50;
 api.post('/p/:id', async (c) => {
   const id = c.req.param('id');
   const body: unknown = await c.req.json().catch(() => null);
-  const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
   const rawPages = isRecord(body) ? body.pageIds : undefined;
   if (!Array.isArray(rawPages)) return c.json({ error: 'pageIds required' }, 400);
   const pageIds = rawPages.filter((x): x is string => typeof x === 'string' && x.length > 0);

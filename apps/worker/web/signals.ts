@@ -48,9 +48,9 @@ export const followingPeer = signal<string | null>(null);
 export const onFollowScroll = signal<((y: number) => void) | null>(null);
 
 // Device mode
-const VALID_DEVICES = new Set<DeviceMode>(['desktop', 'tablet', 'mobile']);
-const initDevice = new URLSearchParams(location.search).get('device') as DeviceMode | null;
-export const deviceMode = signal<DeviceMode>(initDevice && VALID_DEVICES.has(initDevice) ? initDevice : 'desktop');
+const isDeviceMode = (v: unknown): v is DeviceMode => v === 'desktop' || v === 'tablet' || v === 'mobile';
+const initDevice = new URLSearchParams(location.search).get('device');
+export const deviceMode = signal<DeviceMode>(isDeviceMode(initDevice) ? initDevice : 'desktop');
 export const DEVICE_WIDTHS: Record<DeviceMode, number> = { desktop: 0, tablet: 768, mobile: 390 };
 
 // Sync device mode to URL
@@ -64,7 +64,7 @@ effect(() => {
 
 /** Tag an operation with the current device mode before pushing */
 export function pushDeviceOp(op: DrawOp) {
-  pushOp({ ...op, device: deviceMode.value } as DrawOp);
+  pushOp({ ...op, device: deviceMode.value });
 }
 
 /** Check if an operation belongs to the current device viewport (ops without a device tag default to desktop) */

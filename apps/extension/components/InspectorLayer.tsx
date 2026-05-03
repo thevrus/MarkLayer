@@ -1,10 +1,21 @@
+import { cn } from '@marklayer/types';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
-import { clsx } from 'clsx';
+import type { TargetedEvent } from 'preact';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { getSelector, type SelectedInfo, shortClassLabel, snapshotElement } from '../lib/selector';
-import { activeTool, copyText } from '../lib/state';
+import {
+  activeTool,
+  addToInspectorStack,
+  clearInspectorStack,
+  copyInspectorStack,
+  copyText,
+  inspectorStack,
+  inspectorStackOpen,
+  removeFromInspectorStack,
+  toast,
+} from '../lib/state';
 
 export interface HoverState {
   el: Element;
@@ -18,7 +29,7 @@ export function HoverHighlight({ state }: { state: HoverState }) {
   return (
     <>
       <div
-        class="fixed z-2147483646 pointer-events-none rounded-[2px]"
+        class="fixed z-2147483646 pointer-events-none rounded-xs animate-[fadeIn_120ms_ease-out]"
         style={{
           left: rect.left,
           top: rect.top,
@@ -40,11 +51,12 @@ function HoverTooltip({ state }: { state: HoverState }) {
   const tag = el.tagName.toLowerCase();
   const id = el.id;
   const classes = shortClassLabel(el);
-  const top = Math.max(0, rect.top - 28);
+  const top = Math.max(4, rect.top - 32);
   return (
     <div
       class="fixed z-2147483647 pointer-events-none inline-flex items-center gap-2 rounded-[8px]
-             whitespace-nowrap font-mono text-[11px] leading-[1.1] tracking-[0.01em]"
+             whitespace-nowrap font-mono text-[11px] leading-[1.1] tracking-[0.01em]
+             animate-[fadeIn_140ms_ease-out]"
       style={{
         left: rect.left,
         top,
@@ -108,6 +120,17 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 
   const copySelector = () => copyText(state.selector, 'Selector copied!');
   const copyForAI = () => copyText(buildPrompt(), 'Copied for AI!');
+  const addToStack = () => {
+    const comment = taRef.current?.value.trim() || '';
+    addToInspectorStack({
+      selector: state.selector,
+      comment,
+      markdown: state.markdown,
+    });
+    const count = inspectorStack.value.length;
+    toast(`Added to stack (${count})`, 'success', 2000);
+    onClose();
+  };
 
   // Drag-to-reposition. Offset is applied as a transform on top of the auto-anchored
   // base position so the panel keeps following the element on scroll while honoring
@@ -120,25 +143,25 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
     dragOffset.value = null;
   }
 
-  const onDragPointerDown = (e: PointerEvent) => {
+  const onDragPointerDown = (e: TargetedEvent<HTMLDivElement, PointerEvent>) => {
     if (e.button !== 0) return;
     if (e.target instanceof Element && e.target.closest('button')) return;
     e.preventDefault();
     const cur = dragOffset.value ?? { x: 0, y: 0 };
     dragStart.current = { px: e.clientX, py: e.clientY, ox: cur.x, oy: cur.y };
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
   };
 
-  const onDragPointerMove = (e: PointerEvent) => {
+  const onDragPointerMove = (e: TargetedEvent<HTMLDivElement, PointerEvent>) => {
     const ds = dragStart.current;
     if (!ds) return;
     dragOffset.value = { x: ds.ox + (e.clientX - ds.px), y: ds.oy + (e.clientY - ds.py) };
   };
 
-  const onDragPointerUp = (e: PointerEvent) => {
+  const onDragPointerUp = (e: TargetedEvent<HTMLDivElement, PointerEvent>) => {
     if (!dragStart.current) return;
     dragStart.current = null;
-    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const margin = 8;
@@ -164,8 +187,9 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 
   return (
     <div
-      class={clsx(
-        'fixed z-[2147483647] pointer-events-auto w-[320px] flex flex-col overflow-hidden',
+      class={cn(
+        'fixed z-2147483647 pointer-events-auto w-[320px] flex flex-col overflow-hidden',
+        'animate-[fadeIn_180ms_cubic-bezier(0.16,1,0.3,1)]',
         glass.surface,
         glass.font,
       )}
@@ -201,14 +225,15 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
-                copyForAI();
+                if (e.shiftKey) addToStack();
+                else copyForAI();
               } else if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopPropagation();
                 onClose();
               }
             }}
-            class={clsx(
+            class={cn(
               'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-xl px-3.5 py-2.5',
               'text-ml-glass-fg text-[13.5px] leading-relaxed',
               'resize-none outline-none min-h-10 max-h-[100px]',
@@ -224,34 +249,41 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
           />
         </div>
 
-        <div class="flex items-center justify-between px-4 pb-2.5">
-          <div class="flex items-center gap-2">
-            <kbd
-              class="text-[10.5px] text-ml-glass-fg/75 bg-ml-glass-fg/8 border border-ml-glass-fg/15
-                        rounded-md px-1.5 py-0.5 font-mono font-medium leading-none"
+        <div class="flex flex-col gap-2 px-4 pb-2.5">
+          <div class="flex items-stretch gap-2">
+            <button
+              type="button"
+              onClick={addToStack}
+              title="Collect multiple element changes, then copy them as one prompt"
+              class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px]
+                     cursor-pointer whitespace-nowrap
+                     bg-ml-glass-fg/6 text-ml-glass-fg/85 border border-ml-glass-fg/15
+                     transition-[background-color,border-color,color,transform] duration-150
+                     hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg hover:border-ml-glass-fg/25
+                     active:scale-[0.96]"
             >
-              ⌘↵
-            </kbd>
-            <span class="text-[11px] text-ml-glass-fg/55 font-medium">copy</span>
+              Add to stack
+              <kbd class="text-[10px] text-ml-glass-fg/55 font-mono leading-none">⇧⌘↵</kbd>
+            </button>
+            <button
+              type="button"
+              onClick={copyForAI}
+              title="Copy prompt to clipboard"
+              class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px]
+                     cursor-pointer whitespace-nowrap
+                     bg-ml-glass-fg/6 text-ml-glass-fg/85 border border-ml-glass-fg/15
+                     transition-[background-color,border-color,color,transform] duration-150
+                     hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg hover:border-ml-glass-fg/25
+                     active:scale-[0.96]"
+            >
+              Copy
+              <kbd class="text-[10px] text-ml-glass-fg/55 font-mono leading-none">⌘↵</kbd>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={copyForAI}
-            class="px-5 py-1.5 text-[12px] font-semibold rounded-[10px] border-none cursor-pointer
-                   bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
-                   text-white
-                   shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
-                   transition-[box-shadow,transform] duration-150
-                   hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
-                   hover:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_2px_16px_oklch(0.65_0.15_300/0.2)]
-                   active:scale-[0.96]"
-          >
-            Copy for AI ↵
-          </button>
         </div>
       </div>
 
-      <div class={clsx(glass.divider, 'mx-3.5 shrink-0')} />
+      <div class={cn(glass.divider, 'mx-3.5 shrink-0')} />
 
       <div class="overflow-y-auto min-h-0">
         <div class="px-4 py-2.5">
@@ -260,6 +292,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             <button
               type="button"
               onClick={copySelector}
+              aria-label="Copy selector"
               class="text-[11px] font-medium text-ml-glass-fg/65 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
             >
               Copy
@@ -308,20 +341,159 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 
         {Object.keys(state.styles).length > 0 && (
           <>
-            <div class={clsx(glass.divider, 'mx-3.5')} />
-            <div class="px-4 py-2.5">
-              <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Styles</span>
-              <div class="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10.5px] font-mono">
-                {Object.entries(state.styles).map(([k, v]) => (
-                  <div key={k} class="contents">
-                    <span class="text-ml-glass-fg/65">{k}</span>
-                    <span class="text-ml-glass-fg/85 truncate">{v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <div class={cn(glass.divider, 'mx-3.5')} />
+            <StylesSection styles={state.styles} />
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function StylesSection({ styles }: { styles: Record<string, string> }) {
+  const open = useSignal(false);
+  const count = Object.keys(styles).length;
+  return (
+    <div class="px-4 py-2.5">
+      <button
+        type="button"
+        onClick={() => {
+          open.value = !open.value;
+        }}
+        aria-expanded={open.value}
+        class="group flex items-center justify-between w-full bg-transparent border-none cursor-pointer p-0 text-left"
+      >
+        <span class="inline-flex items-center gap-1.5 text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em] group-hover:text-ml-glass-fg/85 transition-colors">
+          Styles
+          <span class="text-ml-glass-fg/45 font-medium normal-case tracking-normal tabular-nums">{count}</span>
+        </span>
+        <span class="text-ml-glass-fg/55 group-hover:text-ml-glass-fg/85 transition-colors">
+          <Icon name={open.value ? 'chevUp' : 'chevDown'} size={12} />
+        </span>
+      </button>
+      {open.value && (
+        <div class="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10.5px] font-mono animate-[fadeIn_140ms_ease-out]">
+          {Object.entries(styles).map(([k, v]) => (
+            <div key={k} class="contents">
+              <span class="text-ml-glass-fg/65">{k}</span>
+              <span class="text-ml-glass-fg/85 truncate">{v}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Short label for a stack item — last segment of the selector with positional pseudos stripped. */
+function stackItemLabel(selector: string): string {
+  const last = selector.split('>').pop()?.trim() ?? selector;
+  return last.replace(/:nth-(of-type|child)\([^)]+\)/g, '') || selector;
+}
+
+/**
+ * Floating widget that lists stacked element-inspect entries with a single
+ * "Copy all" action so users can hand the whole bundle to an LLM.
+ *
+ * Rendered separately from SelectedPanel so it stays visible while the user
+ * keeps picking new elements.
+ */
+export function InspectorStackPanel() {
+  const items = inspectorStack.value;
+  if (!items.length) return null;
+  const open = inspectorStackOpen.value;
+
+  return (
+    <div
+      class={cn(
+        'fixed bottom-5 right-5 z-2147483646 pointer-events-auto w-70 flex flex-col overflow-hidden',
+        'animate-[fadeIn_220ms_cubic-bezier(0.16,1,0.3,1)]',
+        glass.surface,
+        glass.font,
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-label={`${open ? 'Collapse' : 'Expand'} stacked elements`}
+        onClick={() => {
+          inspectorStackOpen.value = !open;
+        }}
+        class="flex items-center gap-2 px-3.5 py-2.5 bg-transparent border-none cursor-pointer text-left
+               hover:bg-ml-glass-fg/5 transition-colors"
+      >
+        <span
+          class="inline-flex items-center justify-center min-w-5.5 h-5.5 px-1.5 rounded-full text-[11px] font-bold tabular-nums
+                 bg-[oklch(0.65_0.15_300/0.22)] text-[oklch(0.86_0.08_300)]"
+        >
+          {items.length}
+        </span>
+        <span class="text-[11.5px] font-semibold text-ml-glass-fg tracking-[0.01em]">
+          Element{items.length === 1 ? '' : 's'} stacked
+        </span>
+        <span class="ml-auto text-ml-glass-fg/55">
+          <Icon name={open ? 'chevDown' : 'chevUp'} size={14} />
+        </span>
+      </button>
+
+      {open && (
+        <>
+          <div class={cn(glass.divider, 'mx-3.5 shrink-0')} />
+          <div class="max-h-55 overflow-y-auto px-2 py-1.5">
+            {items.map((it, i) => (
+              <div
+                key={it.id}
+                class="group flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-ml-glass-fg/5 transition-colors"
+              >
+                <span class="text-[10.5px] text-ml-glass-fg/45 font-mono tabular-nums leading-normal mt-0.5 shrink-0">
+                  {i + 1}
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="text-[11px] font-mono text-ml-glass-fg/70 truncate">{stackItemLabel(it.selector)}</div>
+                  <div class="text-[12px] text-ml-glass-fg/95 leading-snug line-clamp-2">
+                    {it.comment || <span class="text-ml-glass-fg/45 italic">No task description</span>}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Remove from stack"
+                  onClick={() => removeFromInspectorStack(it.id)}
+                  class="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity
+                         text-ml-glass-fg/55 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer
+                         inline-flex items-center justify-center w-6 h-6 rounded-md hover:bg-ml-glass-fg/10 shrink-0"
+                >
+                  <Icon name="close" size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div class={cn(glass.divider, 'mx-3.5 shrink-0')} />
+      <div class="flex items-center gap-2 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={clearInspectorStack}
+          class="px-2.5 py-1.5 text-[11.5px] font-medium rounded-lg cursor-pointer
+                 bg-transparent text-ml-glass-fg/65 border border-transparent
+                 transition-[background-color,color] duration-150
+                 hover:bg-ml-glass-fg/8 hover:text-ml-glass-fg"
+        >
+          Clear
+        </button>
+        <button
+          type="button"
+          onClick={copyInspectorStack}
+          title="Copy all to clipboard"
+          class="ml-auto px-2.5 py-1.5 text-[11.5px] font-medium rounded-lg cursor-pointer
+                 bg-ml-glass-fg/6 text-ml-glass-fg/85 border border-ml-glass-fg/15
+                 transition-[background-color,border-color,color] duration-150
+                 hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg hover:border-ml-glass-fg/25"
+        >
+          Copy all
+        </button>
       </div>
     </div>
   );
@@ -330,13 +502,16 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 export function SelectedHighlight({ rect }: { rect: DOMRect }) {
   return (
     <div
-      class="fixed z-2147483646 pointer-events-none border-2 border-[oklch(0.65_0.15_300)] rounded-sm"
+      class="fixed z-2147483646 pointer-events-none border-2 border-[oklch(0.65_0.15_300)] rounded-sm
+             animate-[fadeIn_140ms_ease-out]"
       style={{
         left: rect.left - 2,
         top: rect.top - 2,
         width: rect.width + 4,
         height: rect.height + 4,
         background: 'oklch(0.65 0.15 300 / 0.1)',
+        boxShadow: '0 0 0 4px oklch(0.65 0.15 300 / 0.12), 0 0 24px oklch(0.65 0.15 300 / 0.2)',
+        transition: 'left 120ms ease, top 120ms ease, width 120ms ease, height 120ms ease',
       }}
     />
   );
@@ -478,6 +653,7 @@ export function InspectorLayer() {
           />
         </>
       )}
+      <InspectorStackPanel />
     </>
   );
 }

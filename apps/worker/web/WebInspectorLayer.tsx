@@ -1,4 +1,10 @@
-import { HoverHighlight, type HoverState, SelectedHighlight, SelectedPanel } from '@ext/components/InspectorLayer';
+import {
+  HoverHighlight,
+  type HoverState,
+  InspectorStackPanel,
+  SelectedHighlight,
+  SelectedPanel,
+} from '@ext/components/InspectorLayer';
 import { getSelector, type SelectedInfo, snapshotElement } from '@ext/lib/selector';
 import { activeTool } from '@ext/lib/state';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
@@ -202,6 +208,7 @@ export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFram
           />
         </>
       )}
+      <InspectorStackPanel />
     </>,
     document.body,
   );

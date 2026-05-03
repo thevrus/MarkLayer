@@ -124,5 +124,8 @@ export async function generateOgImage({ domain, ops }: OgParams): Promise<ArrayB
     },
   });
   const png = resvg.render();
-  return png.asPng().buffer as ArrayBuffer;
+  const bytes = png.asPng();
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return copy;
 }

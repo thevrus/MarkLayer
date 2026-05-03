@@ -17,7 +17,7 @@ import {
 } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { CommentOp, CommentStatus, DeviceMode, DrawOp, SelectionOp, TextOp } from '@ext/lib/types';
-import { clsx } from 'clsx';
+import { cn } from '@marklayer/types';
 import {
   Check,
   ClipboardCopy,
@@ -114,7 +114,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
     <div class="border-b border-ml-glass-fg/[0.06]">
       {/* Root comment header — click to expand */}
       <div
-        class={clsx(
+        class={cn(
           'px-4 py-3 cursor-pointer transition-colors duration-100 hover:bg-ml-glass-accent/[0.04]',
           expanded && 'bg-ml-glass-accent/[0.03]',
         )}
@@ -133,7 +133,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
           <span class="text-[11px] text-ml-glass-fg/55 tabular-nums">{timeAgo(op.ts)}</span>
         </div>
         <p
-          class={clsx('text-[13px] text-ml-glass-fg/85 leading-relaxed m-0', !expanded && 'line-clamp-2')}
+          class={cn('text-[13px] text-ml-glass-fg/85 leading-relaxed m-0', !expanded && 'line-clamp-2')}
           style={{
             textDecoration: status === 'resolved' ? 'line-through' : 'none',
             opacity: status === 'resolved' ? 0.5 : 1,
@@ -216,7 +216,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                     ref={replyRef}
                     placeholder="Write a reply..."
                     rows={1}
-                    class={clsx(
+                    class={cn(
                       'w-full bg-ml-glass-accent/[0.06] border border-ml-glass-fg/[0.1] rounded-lg px-3 py-2',
                       'text-ml-glass-fg/80 text-[12px] leading-relaxed',
                       'resize-none outline-none min-h-8 max-h-[100px]',
@@ -278,9 +278,10 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
   );
 }
 
+const STATUS_VALUES = ['open', 'in_progress', 'resolved'] as const satisfies readonly CommentStatus[];
 const FILTER_OPTIONS: { value: CommentStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
-  ...Object.entries(STATUS_LABELS).map(([value, label]) => ({ value: value as CommentStatus, label })),
+  ...STATUS_VALUES.map((value) => ({ value, label: STATUS_LABELS[value] })),
 ];
 
 function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
@@ -311,10 +312,10 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   let selectionCount = 0;
   for (const op of allOps) {
     if (op.tool === 'text') {
-      items.push({ kind: 'text', op: op as TextOp });
+      items.push({ kind: 'text', op });
       textCount++;
     } else if (op.tool === 'selection') {
-      items.push({ kind: 'selection', op: op as SelectionOp });
+      items.push({ kind: 'selection', op });
       selectionCount++;
     }
   }
@@ -380,7 +381,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                 key={f.value}
                 type="button"
                 onClick={() => (commentFilter.value = f.value)}
-                class={clsx(
+                class={cn(
                   'text-[11.5px] font-medium px-2.5 py-1 rounded-lg border-none cursor-pointer transition-[color,background-color] duration-150',
                   filter === f.value
                     ? 'bg-ml-glass-fg/12 text-ml-glass-fg'
@@ -490,14 +491,14 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   );
 }
 
-const PANEL_BASE = clsx(glass.surface, 'flex flex-col overflow-hidden');
+const PANEL_BASE = cn(glass.surface, 'flex flex-col overflow-hidden');
 const PANEL_TRANSITION = 'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]';
 
 export function AnnotationPanel(props: BodyProps) {
   const visible = showAnnotationPanel.value;
   return (
     <div
-      class={clsx(
+      class={cn(
         'absolute top-3 right-3 bottom-3 w-[340px] z-40',
         PANEL_TRANSITION,
         PANEL_BASE,
@@ -513,7 +514,7 @@ export function DockedAnnotationPanel(props: BodyProps) {
   const visible = showAnnotationPanel.value;
   return (
     <div
-      class={clsx(
+      class={cn(
         'shrink-0 my-3 ml-3 rounded-2xl',
         PANEL_TRANSITION,
         PANEL_BASE,

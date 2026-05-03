@@ -1,4 +1,4 @@
-import { clsx } from 'clsx';
+import { cn } from '@marklayer/types';
 import { glass } from '../lib/glass';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
@@ -11,7 +11,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
 
   return (
     <div
-      class={clsx('absolute pointer-events-auto cursor-pointer', 'group/pin', glass.font)}
+      class={cn('absolute pointer-events-auto cursor-pointer', 'group/pin', glass.font)}
       style={{ left, top }}
       data-doc-x={op.x}
       data-doc-y={op.y}
@@ -33,7 +33,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
 
         {/* Hover card */}
         <div
-          class={clsx(
+          class={cn(
             'absolute',
             flipV ? 'bottom-0' : 'top-0',
             flipH ? 'right-[calc(100%+10px)]' : 'left-[calc(100%+10px)]',
@@ -60,14 +60,14 @@ export function CommentPin({ op }: { op: CommentOp }) {
             </span>
           </div>
 
-          <div class={clsx(glass.divider, 'mx-3')} />
+          <div class={cn(glass.divider, 'mx-3')} />
 
           {/* Body */}
           <div class="px-3.5 py-3">
             <p class="text-ml-glass-fg/90 text-[13px] leading-[1.55] break-words whitespace-pre-wrap m-0">{op.text}</p>
           </div>
 
-          <div class={clsx(glass.divider, 'mx-3')} />
+          <div class={cn(glass.divider, 'mx-3')} />
 
           {/* Footer */}
           <div class="px-3.5 py-2 flex items-center gap-1.5">

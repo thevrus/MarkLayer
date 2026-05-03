@@ -32,11 +32,11 @@ export async function loadProject(
   try {
     const res = await fetch(`${API_BASE}p/${id}`);
     if (!res.ok) return null;
-    const json = (await res.json()) as {
+    const json = await res.json<{
       pages: { id: string; ops: DrawOp[]; url: string | null; width: number | null }[];
       createdAt: number | null;
       expiresAt: number | null;
-    };
+    }>();
     return {
       pages: json.pages.map((p) => ({ id: p.id, url: p.url, width: p.width, ops: p.ops })),
       createdAt: json.createdAt,

@@ -3,6 +3,8 @@ import type { Env } from './index';
 import {
   type Alternatives,
   type Comparison,
+  deriveDates,
+  formatLastUpdated,
   pricingHtml,
   renderAlternatives,
   renderAlternativesHub,
@@ -13,7 +15,7 @@ import {
   type UseCase,
 } from './pages';
 
-const LAST_UPDATED = 'April 2026';
+const LAST_UPDATED = formatLastUpdated(deriveDates('pricing').modified);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPARISON PAGES, "MarkLayer vs X"

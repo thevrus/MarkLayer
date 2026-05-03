@@ -1,6 +1,7 @@
 import { computed, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createDraftStore } from './drafts';
+import { ELEMENT_INSPECTOR_HEADING } from './selector';
 import type { CommentMeta, CommentOp, CommentStatus, DrawOp, Peer, SelectionOp, Tool } from './types';
 
 const drafts = createDraftStore({
@@ -20,18 +21,24 @@ export const activeTool = signal<Tool>('navigate');
 
 const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
 
+function lsSet(key: string, value: string | null) {
+  try {
+    value === null ? _ls?.removeItem(key) : _ls?.setItem(key, value);
+  } catch {
+    /* */
+  }
+}
+
 export type Theme = 'system' | 'light' | 'dark';
-export const theme = signal<Theme>((_ls?.getItem('ml-theme') as Theme) || 'system');
+const isTheme = (v: unknown): v is Theme => v === 'system' || v === 'light' || v === 'dark';
+const storedTheme = _ls?.getItem('ml-theme');
+export const theme = signal<Theme>(isTheme(storedTheme) ? storedTheme : 'system');
 export function cycleTheme() {
   const systemDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
   const order: Theme[] = systemDark ? ['system', 'light'] : ['system', 'dark'];
   const next = order[(order.indexOf(theme.value) + 1) % order.length];
   theme.value = next;
-  try {
-    next === 'system' ? _ls?.removeItem('ml-theme') : _ls?.setItem('ml-theme', next);
-  } catch {
-    /* */
-  }
+  lsSet('ml-theme', next === 'system' ? null : next);
   const root = typeof document !== 'undefined' ? document.documentElement.classList : null;
   root?.remove('light', 'dark');
   next !== 'system' && root?.add(next);
@@ -41,19 +48,24 @@ export const color = signal(_ls?.getItem('ml-color') || '#f43f5e');
 
 export function setColor(c: string) {
   color.value = c;
-  try {
-    _ls?.setItem('ml-color', c);
-  } catch {
-    /* */
-  }
+  lsSet('ml-color', c);
 }
 
 export const lineWidth = signal(2);
+
+export const toolbarMinimized = signal(_ls?.getItem('ml-toolbar-min') === '1');
+
+export function toggleToolbarMinimized() {
+  const next = !toolbarMinimized.value;
+  toolbarMinimized.value = next;
+  lsSet('ml-toolbar-min', next ? '1' : null);
+}
 
 export const operations = signal<DrawOp[]>([]);
 export const undoStack = signal<(DrawOp | { type: 'clear'; ops: DrawOp[] })[]>([]);
 export const commentCounter = computed(() => comments.value.length);
 export const showShareDialog = signal(false);
+
 export const peers = signal<Map<string, Peer>>(new Map());
 /** Total peers including self (peers map excludes local user) */
 export const peerCount = computed(() => peers.value.size + 1);
@@ -136,23 +148,13 @@ export const localUser = {
   color: savedCursorColor || freshCursorColor,
 };
 // Persist on first visit so color stays stable
-if (!savedName || !savedCursorColor) {
-  try {
-    if (!savedName) _ls?.setItem('ml-username', localUser.name);
-    if (!savedCursorColor) _ls?.setItem('ml-usercolor', localUser.color);
-  } catch {
-    /* */
-  }
-}
+if (!savedName) lsSet('ml-username', localUser.name);
+if (!savedCursorColor) lsSet('ml-usercolor', localUser.color);
 
 export function setUserName(name: string) {
   const trimmed = name.trim() || `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`;
   localUser.name = trimmed;
-  try {
-    _ls?.setItem('ml-username', trimmed);
-  } catch {
-    /* */
-  }
+  lsSet('ml-username', trimmed);
   onProfileChange.value?.(localUser.name, localUser.color);
 }
 
@@ -187,6 +189,55 @@ export function copyText(text: string, label = 'Copied!') {
   );
 }
 
+/** A stacked element-inspect entry awaiting bulk copy to an LLM. */
+export interface InspectorStackItem {
+  id: string;
+  selector: string;
+  comment: string;
+  /** Element snapshot markdown (from formatForAI), without any user task wrapper. */
+  markdown: string;
+}
+
+export const inspectorStack = signal<InspectorStackItem[]>([]);
+export const inspectorStackOpen = signal(false);
+
+export function addToInspectorStack(item: Omit<InspectorStackItem, 'id'>) {
+  inspectorStack.value = [...inspectorStack.value, { ...item, id: nanoid() }];
+  inspectorStackOpen.value = true;
+}
+
+export function removeFromInspectorStack(id: string) {
+  inspectorStack.value = inspectorStack.value.filter((i) => i.id !== id);
+  if (!inspectorStack.value.length) inspectorStackOpen.value = false;
+}
+
+export function clearInspectorStack() {
+  inspectorStack.value = [];
+  inspectorStackOpen.value = false;
+}
+
+/** Build a single LLM-ready prompt that bundles every stacked element + task. */
+export function buildInspectorStackPrompt(): string {
+  const items = inspectorStack.value;
+  const headingPrefix = `${ELEMENT_INSPECTOR_HEADING}\n\n`;
+  const blocks = items.map((it, i) => {
+    const body = it.markdown.startsWith(headingPrefix) ? it.markdown.slice(headingPrefix.length) : it.markdown;
+    const heading = it.comment ? `## Task ${i + 1}: ${it.comment}` : `## Element ${i + 1}`;
+    return `${heading}\n\n${body.trim()}`;
+  });
+  const header = `# Element changes (${items.length} task${items.length === 1 ? '' : 's'})`;
+  return `${header}\n\n${blocks.join('\n\n---\n\n')}\n`;
+}
+
+export function copyInspectorStack() {
+  const items = inspectorStack.value;
+  if (!items.length) {
+    toast('Stack is empty', 'info');
+    return;
+  }
+  copyText(buildInspectorStackPrompt(), `Copied ${items.length} task${items.length === 1 ? '' : 's'} for AI!`);
+}
+
 // Single-pass partition of operations into comments, selections, root comments, and reply map
 const _opIndex = computed(() => {
   const allComments: CommentOp[] = [];
@@ -195,20 +246,19 @@ const _opIndex = computed(() => {
   const replies = new Map<string, CommentOp[]>();
   for (const op of operations.value) {
     if (op.tool === 'comment') {
-      const c = op as CommentOp;
-      allComments.push(c);
-      if (c.parentId) {
-        let arr = replies.get(c.parentId);
+      allComments.push(op);
+      if (op.parentId) {
+        let arr = replies.get(op.parentId);
         if (!arr) {
           arr = [];
-          replies.set(c.parentId, arr);
+          replies.set(op.parentId, arr);
         }
-        arr.push(c);
+        arr.push(op);
       } else {
-        roots.push(c);
+        roots.push(op);
       }
     } else if (op.tool === 'selection') {
-      allSelections.push(op as SelectionOp);
+      allSelections.push(op);
     }
   }
   return { allComments, allSelections, roots, replies };
@@ -243,8 +293,15 @@ export const STATUS_LABELS: Record<CommentStatus, string> = {
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
 /** True while user is actively drawing (mousedown on canvas) */
 export const isDrawingActive = signal(false);
-export const FREEHAND: Set<string> = new Set(['pen', 'eraser', 'highlight']);
-export const SHAPES: Set<string> = new Set(['rectangle', 'circle', 'line', 'arrow']);
+export type FreehandTool = 'pen' | 'eraser' | 'highlight';
+export type ShapeTool = 'rectangle' | 'circle' | 'line' | 'arrow';
+
+export const FREEHAND = {
+  has: (t: string): t is FreehandTool => t === 'pen' || t === 'eraser' || t === 'highlight',
+};
+export const SHAPES = {
+  has: (t: string): t is ShapeTool => t === 'rectangle' || t === 'circle' || t === 'line' || t === 'arrow',
+};
 
 export const TOOLS: Tool[] = [
   'navigate',
@@ -288,9 +345,9 @@ export function pushOp(op: DrawOp) {
 
 /** Create and push a reply to an existing comment */
 export function pushReply(parentOp: { id: string; x: number; y: number }, text: string) {
-  pushOp({
+  const op: CommentOp = {
     id: nanoid(),
-    tool: 'comment' as const,
+    tool: 'comment',
     num: commentCounter.value + 1,
     text,
     x: parentOp.x,
@@ -301,7 +358,8 @@ export function pushReply(parentOp: { id: string; x: number; y: number }, text: 
     parentId: parentOp.id,
     author: localUser.name,
     meta: getCommentMeta(),
-  } as DrawOp);
+  };
+  pushOp(op);
 }
 
 export function setOpStatus(opId: string, status: CommentStatus) {
@@ -367,8 +425,8 @@ export const undoRedoFlash = signal(0);
 export function undo() {
   const ops = operations.value;
   const stack = undoStack.value;
-  if (!ops.length && stack.length && 'type' in stack[stack.length - 1]) {
-    const last = stack[stack.length - 1] as { type: 'clear'; ops: DrawOp[] };
+  const last = stack[stack.length - 1];
+  if (!ops.length && last && 'type' in last) {
     operations.value = last.ops;
     undoStack.value = stack.slice(0, -1);
     return;
@@ -396,7 +454,7 @@ export function redo() {
 export function clearAll() {
   const ops = operations.value;
   if (!ops.length) return;
-  if (!confirm('Clear all annotations?')) return;
+  if (!confirm("Clear all annotations on this page? This can't be undone.")) return;
   undoStack.value = [...undoStack.value, { type: 'clear' as const, ops: structuredClone(ops) }];
   operations.value = [];
   onCleared.value?.();

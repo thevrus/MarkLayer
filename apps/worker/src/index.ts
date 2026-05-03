@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { api } from './api';
 import { generateOgImage } from './og';
-import { aboutHtml } from './pages';
+import { aboutHtml, deriveDates } from './pages';
 import { privacyHtml } from './privacy';
 import { proxy } from './proxy';
 import { mountSeoRoutes, SEO_URLS } from './seo';
@@ -76,7 +76,7 @@ app.get('/s/:id', async (c) => {
   const res = await c.env.ASSETS.fetch(new Request(new URL('/', reqUrl)));
   let html = await res.text();
   const ogImage = `${reqUrl.origin}/og/${annotationId}.png?domain=${encodeURIComponent(domain)}`;
-  const title = `MarkLayer \u2014 Annotations on ${domain}`;
+  const title = `MarkLayer \u00b7 Annotations on ${domain}`;
   html = html
     .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${reqUrl.href}">`)
     .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}">`)
@@ -120,7 +120,7 @@ app.get('/p/:id', async (c) => {
   let html = await res.text();
   const ogImage = `${reqUrl.origin}/og/${projectId}.png?domain=${encodeURIComponent(domain)}`;
   const pagesLabel = pageCount > 0 ? ` (${pageCount} pages)` : '';
-  const title = `MarkLayer — Annotations on ${domain}${pagesLabel}`;
+  const title = `MarkLayer · Annotations on ${domain}${pagesLabel}`;
   html = html
     .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${reqUrl.href}">`)
     .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}">`)
@@ -213,7 +213,7 @@ const LLMS_TXT = `# MarkLayer
 
 > 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up.
 
-MarkLayer is a Chrome extension that lets you draw, comment, and mark up any live website — then share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
+MarkLayer is a Chrome extension that lets you draw, comment, and mark up any live website, then share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
 
 ## Pricing
 
@@ -284,25 +284,25 @@ Free. There is no paid plan. There is no trial. There is no per-seat pricing. Ev
 1. Install the MarkLayer Chrome extension (free, no account)
 2. Navigate to any webpage and click the MarkLayer icon
 3. Draw, comment, or highlight anything on the page
-4. Click "Share" to get a link anyone can open — no extension needed on their end
+4. Click "Share" to get a link anyone can open. No extension needed on their end
 5. Collaborate in real time with live cursors
 
 ## FAQ
 
 Q: Is MarkLayer really free?
-A: Yes — 100% free. No paid plan, no trial, no per-seat pricing, no usage cap.
+A: Yes. 100% free. No paid plan, no trial, no per-seat pricing, no usage cap.
 
 Q: Is MarkLayer anonymous?
 A: Yes. No sign-up, no email, no profile, no login. No personal data is collected.
 
 Q: Does the other person need the extension installed?
-A: No. Anyone can view annotations via the share link — no install required.
+A: No. Anyone can view annotations via the share link. No install required.
 
 Q: Does it work on any website?
 A: Yes, MarkLayer works on any webpage.
 
 Q: Can multiple people annotate at the same time?
-A: Yes — real-time live cursors let unlimited collaborators work together.
+A: Yes. Real-time live cursors let unlimited collaborators work together.
 
 ## Contact
 
@@ -316,13 +316,13 @@ app.get('/llms.txt', (c) =>
   c.body(LLMS_TXT, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
 );
 
-const LLMS_FULL_TXT = `# MarkLayer — Full Reference
+const LLMS_FULL_TXT = `# MarkLayer · Full Reference
 
 > 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up, no payment.
 
 ## What is MarkLayer?
 
-MarkLayer is a free, anonymous, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link — the recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
+MarkLayer is a free, anonymous, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link. The recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
 
 The two defining principles are **free** (no paid plan, no trial, no per-seat pricing, no usage cap) and **anonymous** (no sign-up, no email, no profile, no login, no personal data collection).
 
@@ -337,7 +337,7 @@ Freehand drawing, shapes, arrows, and lines. Users can mark up any page with pre
 Multiple users can annotate the same page simultaneously. Live cursors show each participant's position and name in real time, powered by WebSockets and Cloudflare Durable Objects.
 
 ### Shareable Links
-One click generates a share link. Anyone who opens the link sees the annotated page in their browser — no extension, no account, no install required. The link loads the original webpage with annotations overlaid.
+One click generates a share link. Anyone who opens the link sees the annotated page in their browser. No extension, no account, no install required. The link loads the original webpage with annotations overlaid.
 
 ### Threaded Comments
 Users can pin comments to any spot on the page. Comments support threaded replies, making it easy to have contextual conversations directly on the webpage rather than in external tools like Slack or email.
@@ -371,7 +371,7 @@ MarkLayer is completely free with no paywall, trial period, or premium tier. The
 3. Click the MarkLayer icon in the browser toolbar to activate the annotation overlay
 4. Use the floating toolbar to draw, add shapes, arrows, or pin comments
 5. Click "Share" to generate a unique link
-6. Send the link to anyone — they see the annotated page in their browser without needing the extension
+6. Send the link to anyone. They see the annotated page in their browser without needing the extension
 7. For real-time collaboration, multiple users can open the same share link and annotate simultaneously
 
 ## Use Cases
@@ -386,7 +386,7 @@ MarkLayer is completely free with no paywall, trial period, or premium tier. The
 ## Frequently Asked Questions
 
 Q: Does the other person need the extension installed?
-A: No. Anyone can view annotations via the share link — no install required. The share link loads the original page with annotations overlaid in a web app.
+A: No. Anyone can view annotations via the share link. No install required. The share link loads the original page with annotations overlaid in a web app.
 
 Q: Is it really free?
 A: Yes. No account, no paywall, no trial period. MarkLayer is open source.
@@ -395,7 +395,7 @@ Q: Does it work on any website?
 A: Yes, MarkLayer works on any webpage. The extension injects a transparent overlay on top of any page content.
 
 Q: Can multiple people annotate at the same time?
-A: Yes — real-time cursors let you collaborate live on any page. Changes appear instantly for all participants.
+A: Yes. Real-time cursors let you collaborate live on any page. Changes appear instantly for all participants.
 
 Q: Is my data private?
 A: Yes. Annotations stay on your device until you choose to share. There is no tracking, no public profiles, and no social feed.
@@ -418,19 +418,33 @@ app.get('/llms-full.txt', (c) =>
   c.body(LLMS_FULL_TXT, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
 );
 
-const SITEMAP_LASTMOD = '2026-04-28';
+/** Pick a stable per-URL slug for date derivation so each sitemap entry has its own lastmod. */
+function sitemapLastmod(path: string): string {
+  if (path === '/') return deriveDates('home').modified;
+  if (path === '/compare') return deriveDates('hub-compare').modified;
+  if (path === '/alternatives') return deriveDates('hub-alternatives').modified;
+  if (path === '/use-cases') return deriveDates('hub-use-cases').modified;
+  if (path.startsWith('/vs/')) return deriveDates(path.slice(4)).modified;
+  if (path.startsWith('/alternatives/')) return deriveDates(`alt-${path.slice(14)}`).modified;
+  if (path.startsWith('/for/')) return deriveDates(`for-${path.slice(5)}`).modified;
+  if (path === '/pricing') return deriveDates('pricing').modified;
+  if (path === '/about') return deriveDates('about').modified;
+  if (path === '/privacy') return deriveDates('privacy').modified;
+  return deriveDates(path).modified;
+}
+
 const SEO_URL_ENTRIES = SEO_URLS.map(
   (path) =>
-    `  <url><loc>https://marklayer.app${path}</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
+    `  <url><loc>https://marklayer.app${path}</loc><lastmod>${sitemapLastmod(path)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
 ).join('\n');
 
 const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://marklayer.app/</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://marklayer.app/</loc><lastmod>${sitemapLastmod('/')}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
 ${SEO_URL_ENTRIES}
-  <url><loc>https://marklayer.app/privacy</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://marklayer.app/llms.txt</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
-  <url><loc>https://marklayer.app/llms-full.txt</loc><lastmod>${SITEMAP_LASTMOD}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://marklayer.app/privacy</loc><lastmod>${sitemapLastmod('/privacy')}</lastmod><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://marklayer.app/llms.txt</loc><lastmod>${sitemapLastmod('/about')}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://marklayer.app/llms-full.txt</loc><lastmod>${sitemapLastmod('/about')}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
 </urlset>`;
 
 app.get('/sitemap.xml', (c) =>
