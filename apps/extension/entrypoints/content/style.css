@@ -82,17 +82,6 @@
   }
 }
 
-@keyframes toolbarIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(12px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;

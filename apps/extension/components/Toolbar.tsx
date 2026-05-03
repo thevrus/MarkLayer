@@ -420,18 +420,6 @@ export function Toolbar() {
     });
   }, [minimized]);
 
-  useLayoutEffect(() => {
-    const tb = tbRef.current;
-    if (!tb || prefersReducedMotion()) return;
-    tb.animate(
-      [
-        { opacity: 0, transform: 'translateX(-50%) translateY(12px) scale(0.96)' },
-        { opacity: 1, transform: 'translateX(-50%) translateY(0) scale(1)' },
-      ],
-      { duration: 350, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
-    );
-  }, []);
-
   useSignalEffect(() => {
     const active = isDrawingActive.value;
     // Cancel previous fade so animations don't accumulate on the element

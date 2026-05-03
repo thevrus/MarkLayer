@@ -10,7 +10,7 @@ export default defineConfig({
     name: 'MarkLayer — Webpage Annotator & Visual Feedback Tool',
     description:
       'Free annotation tool for Chrome. Draw, comment, and mark up any webpage, then share a link instantly. No account required.',
-    version: '0.2.2',
+    version: '0.2.3',
     action: {},
     permissions: ['activeTab', 'scripting'],
   },

@@ -1,5 +1,6 @@
+import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { glass } from '../lib/glass';
 import { getShareUrl, loadAnnotations, parseUrlHash, saveAnnotations, setAnnotationId } from '../lib/share';
 import {
@@ -118,10 +119,20 @@ export function App() {
     t !== 'system' && host.classList.add(t === 'dark' ? 'ml-dark' : 'ml-light');
   });
 
-  if (!visible.value) return null;
+  const [mounted, setMounted] = useState(visible.value);
+  useSignalEffect(() => {
+    if (visible.value) {
+      setMounted(true);
+      return;
+    }
+    const id = setTimeout(() => setMounted(false), 200);
+    return () => clearTimeout(id);
+  });
+
+  if (!mounted) return null;
 
   return (
-    <>
+    <div class={cn('transition-opacity duration-200 ease-out', visible.value ? 'opacity-100' : 'opacity-0')}>
       <Canvas />
       <CommentLayer />
       <SelectionLayer />
@@ -142,6 +153,6 @@ export function App() {
           ))}
         </div>
       )}
-    </>
+    </div>
   );
 }
