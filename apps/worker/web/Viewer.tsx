@@ -106,6 +106,7 @@ import { localVideoStream, useVoiceRoom, videoActive, voiceActive, voiceLevel, v
 import { WebCommentPin } from './WebCommentPin';
 import { WebCommentPopover } from './WebCommentPopover';
 import { WebInspectorLayer } from './WebInspectorLayer';
+import { WebMeasureLayer } from './WebMeasureLayer';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
 
@@ -930,7 +931,8 @@ export default function Viewer() {
     tool !== 'comment' &&
     tool !== 'text' &&
     tool !== 'selection' &&
-    tool !== 'inspect';
+    tool !== 'inspect' &&
+    tool !== 'measure';
   const showTextCursor = !readonly && tool === 'text';
   const showCommentCursor = !readonly && tool === 'comment';
   const comments = commentsComputed.value;
@@ -1341,6 +1343,7 @@ export default function Viewer() {
             )}
 
             {!readonly && <WebInspectorLayer frameRef={frameRef} />}
+            {!readonly && <WebMeasureLayer frameRef={frameRef} />}
             <CursorLayer scale={1} scrollY={iframeScrollY.value} />
           </div>
 

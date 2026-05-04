@@ -10,7 +10,7 @@ const BORDER = `oklch(0.65 0.16 ${HUE} / 0.85)`;
 const GLOW = `oklch(0.65 0.16 ${HUE} / 0.18)`;
 const PANEL = `oklch(0.22 0.015 ${HUE} / 0.96)`;
 
-interface MeasureState {
+export interface MeasureState {
   el: Element;
   rect: DOMRect;
 }
@@ -21,7 +21,7 @@ function isExtensionElement(el: Element | null): boolean {
   return !!el.closest('mark-layer');
 }
 
-function ElementOutline({ rect, dashed }: { rect: DOMRect; dashed?: boolean }) {
+export function ElementOutline({ rect, dashed }: { rect: DOMRect; dashed?: boolean }) {
   return (
     <div
       class="fixed z-2147483646 pointer-events-none rounded-xs animate-[fadeIn_120ms_ease-out]"
@@ -72,7 +72,7 @@ function Label({
 }
 
 /** Width label below the rect, height label to the right. */
-function SizeRuler({ rect }: { rect: DOMRect }) {
+export function SizeRuler({ rect }: { rect: DOMRect }) {
   const w = Math.round(rect.width);
   const h = Math.round(rect.height);
   return (
@@ -103,7 +103,7 @@ function GapLine({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: n
 }
 
 /** Edge-to-edge gap on each axis where the rects don't overlap. */
-function GapMeasurements({ a, b }: { a: DOMRect; b: DOMRect }) {
+export function GapMeasurements({ a, b }: { a: DOMRect; b: DOMRect }) {
   // Midpoint of the vertical-overlap region (or of the gap, if rects don't overlap vertically).
   // (max(top), min(bottom)) describes the overlap; when rects are disjoint vertically, the same
   // formula lands inside the gap, which is exactly where a horizontal connector should sit.
@@ -135,7 +135,7 @@ function GapMeasurements({ a, b }: { a: DOMRect; b: DOMRect }) {
   return <>{out}</>;
 }
 
-function HintBadge() {
+export function HintBadge() {
   return (
     <div
       class="fixed left-1/2 -translate-x-1/2 z-2147483647 pointer-events-none top-5
@@ -248,12 +248,13 @@ export function MeasureLayer() {
     };
   });
 
+  // !important wins against arbitrary page CSS that targets links/buttons/inputs.
   useSignalEffect(() => {
     if (activeTool.value !== 'measure') return;
-    document.body.style.cursor = 'crosshair';
-    return () => {
-      document.body.style.cursor = '';
-    };
+    const style = document.createElement('style');
+    style.textContent = '*, *::before, *::after { cursor: crosshair !important; }';
+    document.head.appendChild(style);
+    return () => style.remove();
   });
 
   if (activeTool.value !== 'measure') return null;

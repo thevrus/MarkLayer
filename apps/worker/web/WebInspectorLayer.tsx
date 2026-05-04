@@ -9,14 +9,8 @@ import { getSelector, type SelectedInfo, snapshotElement } from '@ext/lib/select
 import { activeTool } from '@ext/lib/state';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { createPortal } from 'preact/compat';
-import { useCallback, useEffect, useRef } from 'preact/hooks';
-import { cssScale, iframeScrollY } from './signals';
-
-// Cross-realm: iframe DOM nodes are instances of the iframe's Element, not the host's,
-// so `e.target instanceof Element` always returns false here. Check nodeType instead.
-function isElementNode(v: EventTarget | null): v is Element {
-  return v !== null && 'nodeType' in v && v.nodeType === 1;
-}
+import { useCallback, useRef } from 'preact/hooks';
+import { isElementNode, rectsEqual, toViewportRect, useIframeOverlay, useIframeRectSync } from './iframeOverlay';
 
 export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const selected = useSignal<SelectedInfo | null>(null);
@@ -28,101 +22,59 @@ export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFram
   const selectorTimer = useRef(0);
   const lastEl = useRef<Element | null>(null);
 
-  const toViewportRect = useCallback(
-    (el: Element): DOMRect | null => {
-      const frame = frameRef.current;
-      if (!frame) return null;
-      const frameRect = frame.getBoundingClientRect();
-      const scale = cssScale.value;
-      const elRect = el.getBoundingClientRect();
-      return new DOMRect(
-        frameRect.left + elRect.left * scale,
-        frameRect.top + elRect.top * scale,
-        elRect.width * scale,
-        elRect.height * scale,
-      );
-    },
-    [frameRef],
-  );
-
   const clearHover = useCallback(() => {
     hover.value = null;
     lastEl.current = null;
     clearTimeout(selectorTimer.current);
   }, [hover]);
 
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame) return;
+  useIframeOverlay(frameRef, ({ win, doc, frame }) => {
+    const onMove = (e: MouseEvent) => {
+      if (activeTool.value !== 'inspect') return;
+      if (selectedElRef.current) return;
+      const el = isElementNode(e.target) ? e.target : null;
+      if (!el || el === doc.documentElement || el === doc.body) {
+        hover.value = null;
+        return;
+      }
+      if (el === lastEl.current) return;
+      lastEl.current = el;
 
-    let detach: (() => void) | undefined;
+      const rect = toViewportRect(frame, el);
+      hover.value = { el, rect, selector: null, component: null };
 
-    const attach = () => {
-      const win = frame.contentWindow;
-      const doc = frame.contentDocument;
-      if (!win || !doc) return;
-
-      const onMove = (e: MouseEvent) => {
-        if (activeTool.value !== 'inspect') return;
-        if (selectedElRef.current) return;
-        const el = isElementNode(e.target) ? e.target : null;
-        if (!el || el === doc.documentElement || el === doc.body) {
-          hover.value = null;
-          return;
-        }
-        if (el === lastEl.current) return;
-        lastEl.current = el;
-
-        const rect = toViewportRect(el);
-        if (!rect) return;
-        hover.value = { el, rect, selector: null, component: null };
-
-        clearTimeout(selectorTimer.current);
-        selectorTimer.current = window.setTimeout(() => {
-          if (lastEl.current !== el) return;
-          hover.value = { el, rect, selector: getSelector(el), component: null };
-        }, 80);
-      };
-
-      const onClick = (e: MouseEvent) => {
-        if (activeTool.value !== 'inspect') return;
-        const el = isElementNode(e.target) ? e.target : null;
-        if (!el || el === doc.documentElement || el === doc.body) return;
-        e.preventDefault();
-        e.stopPropagation();
-        clearHover();
-        const selector = getSelector(el);
-        const rect = toViewportRect(el);
-        if (!rect) return;
-        selectedSelectorRef.current = selector;
-        selectedElRef.current = el;
-        selected.value = snapshotElement(el, selector, rect);
-      };
-
-      win.addEventListener('mousemove', onMove, true);
-      win.addEventListener('click', onClick, true);
-
-      detach = () => {
-        try {
-          win.removeEventListener('mousemove', onMove, true);
-          win.removeEventListener('click', onClick, true);
-        } catch {
-          /* iframe may have navigated */
-        }
-      };
+      clearTimeout(selectorTimer.current);
+      selectorTimer.current = window.setTimeout(() => {
+        if (lastEl.current !== el) return;
+        hover.value = { el, rect, selector: getSelector(el), component: null };
+      }, 80);
     };
 
-    attach();
-    const onLoad = () => {
-      detach?.();
-      attach();
+    const onClick = (e: MouseEvent) => {
+      if (activeTool.value !== 'inspect') return;
+      const el = isElementNode(e.target) ? e.target : null;
+      if (!el || el === doc.documentElement || el === doc.body) return;
+      e.preventDefault();
+      e.stopPropagation();
+      clearHover();
+      const selector = getSelector(el);
+      const rect = toViewportRect(frame, el);
+      selectedSelectorRef.current = selector;
+      selectedElRef.current = el;
+      selected.value = snapshotElement(el, selector, rect);
     };
-    frame.addEventListener('load', onLoad);
+
+    win.addEventListener('mousemove', onMove, true);
+    win.addEventListener('click', onClick, true);
     return () => {
-      detach?.();
-      frame.removeEventListener('load', onLoad);
+      try {
+        win.removeEventListener('mousemove', onMove, true);
+        win.removeEventListener('click', onClick, true);
+      } catch {
+        /* iframe may have navigated */
+      }
     };
-  }, [frameRef, clearHover, toViewportRect, hover, selected]);
+  });
 
   useSignalEffect(() => {
     if (activeTool.value === 'inspect') return;
@@ -137,59 +89,39 @@ export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFram
     selectedElRef.current = null;
   });
 
-  useSignalEffect(() => {
-    if (!hasSelected.value) return;
+  useIframeRectSync(
+    () => hasSelected.value,
+    () => {
+      const frame = frameRef.current;
+      if (!frame) return;
+      let el = selectedElRef.current;
+      if (el && !el.isConnected) {
+        const doc = frame.contentDocument;
+        const sel = selectedSelectorRef.current;
+        el = doc && sel ? (doc.querySelector(sel) ?? null) : null;
+        selectedElRef.current = el;
+      }
+      if (!el) {
+        selected.value = null;
+        return;
+      }
+      const rect = toViewportRect(frame, el);
+      const cur = selected.peek();
+      if (!cur) return;
+      if (rectsEqual(rect, cur.rect)) return;
+      selected.value = { ...cur, rect };
+    },
+  );
 
-    let raf = 0;
-    const sync = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        let el = selectedElRef.current;
-        if (el && !el.isConnected) {
-          const doc = frameRef.current?.contentDocument;
-          const sel = selectedSelectorRef.current;
-          el = doc && sel ? (doc.querySelector(sel) ?? null) : null;
-          selectedElRef.current = el;
-        }
-        if (!el) {
-          selected.value = null;
-          return;
-        }
-        const rect = toViewportRect(el);
-        const cur = selected.peek();
-        if (!rect || !cur) return;
-        if (
-          cur.rect.x === rect.x &&
-          cur.rect.y === rect.y &&
-          cur.rect.width === rect.width &&
-          cur.rect.height === rect.height
-        ) {
-          return;
-        }
-        selected.value = { ...cur, rect };
-      });
-    };
-
-    const unsubScroll = iframeScrollY.subscribe(sync);
-    const unsubScale = cssScale.subscribe(sync);
-    window.addEventListener('resize', sync);
-
-    return () => {
-      cancelAnimationFrame(raf);
-      unsubScroll();
-      unsubScale();
-      window.removeEventListener('resize', sync);
-    };
-  });
-
+  // !important wins against arbitrary page CSS that targets links/buttons/inputs.
   useSignalEffect(() => {
     if (activeTool.value !== 'inspect') return;
     const doc = frameRef.current?.contentDocument;
-    if (!doc?.body) return;
-    doc.body.style.cursor = 'crosshair';
-    return () => {
-      if (doc.body) doc.body.style.cursor = '';
-    };
+    if (!doc?.head) return;
+    const style = doc.createElement('style');
+    style.textContent = '*, *::before, *::after { cursor: crosshair !important; }';
+    doc.head.appendChild(style);
+    return () => style.remove();
   });
 
   if (activeTool.value !== 'inspect') return null;
