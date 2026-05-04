@@ -1,8 +1,8 @@
 {
   "name": "marklayer",
   "devDependencies": {
-    "@biomejs/biome": "^2.4.13",
-    "turbo": "^2.9.6",
+    "@biomejs/biome": "^2.4.14",
+    "turbo": "^2.9.9",
     "typescript": "^6.0.3"
   },
   "packageManager": "bun@1.3.13",

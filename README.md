@@ -13,11 +13,14 @@
 ## ✨ Features
 
 - 🖊️ **Drawing tools** — pen, highlighter, eraser, shapes, arrows, text
+- 🎯 **Element inspector** — pick any element to copy a stable selector and an AI-ready markdown snapshot (computed styles, parent layout, viewport, framework component for React / Vue / Svelte)
+- 📏 **Measure tool** — see element dimensions and edge-to-edge gaps between any two elements
 - 💬 **Threaded comments** — pin anywhere, reply inline, track status
 - ✍️ **Text selection** — highlight text and annotate it
 - 👥 **Real-time collaboration** — live cursors, drawings, and comments via WebSocket
 - 🎙️ **Voice & video chat** — peer-to-peer via WebRTC with TURN fallback
-- 🔗 **Shareable links** — one link with OG preview cards
+- 🔗 **Shareable links** — one link with OG preview cards (disabled on localhost / private hosts)
+- 🧰 **Customizable toolbar** — drag tools to reorder; layout persists across sessions
 - 💾 **Draft auto-save** — annotations persist locally and restore on revisit
 - 📸 **Export to PNG** — save annotations as an image
 - 🔒 **Privacy-first** — no accounts, no tracking, auto-expires after 30 days

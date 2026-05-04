@@ -25,6 +25,25 @@ export function getShareUrl(): string {
   return `${APP_ORIGIN}/s/${ensureAnnotationId()}`;
 }
 
+/**
+ * Share links round-trip through marklayer.app/s/<id>, which fetches the original page
+ * server-side. Localhost / private addresses / file:// pages are unreachable from there,
+ * so the link would resolve to a broken viewer.
+ */
+export function isShareableUrl(url: string = window.location.href): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
+    const h = u.hostname;
+    if (h === 'localhost' || h === '0.0.0.0' || h === '[::1]' || h === '::1') return false;
+    if (h.endsWith('.localhost') || h.endsWith('.local')) return false;
+    if (/^127\.\d+\.\d+\.\d+$/.test(h)) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Save ops to server. Returns true on success. */
 export async function saveAnnotations(ops: DrawOp[]): Promise<boolean> {
   const id = ensureAnnotationId();

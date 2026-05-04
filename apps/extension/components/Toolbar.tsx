@@ -4,6 +4,7 @@ import type { RefObject } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
+import { isShareableUrl } from '../lib/share';
 import {
   activeTool,
   clearAll,
@@ -11,15 +12,17 @@ import {
   cycleTheme,
   isDrawingActive,
   lineWidth,
+  moveTool,
   onExportPng,
+  operations,
   redo,
   SHORTCUTS,
   setColor,
   showShareDialog,
-  TOOLS,
   theme,
   toggleToolbarMinimized,
   toolbarMinimized,
+  toolOrder,
   undo,
 } from '../lib/state';
 import { Tooltip } from './Tooltip';
@@ -45,6 +48,8 @@ function ToolBtn({
   accent,
   accentColor,
   round,
+  reorderIndex,
+  onReorder,
 }: {
   name: string;
   active?: boolean;
@@ -54,13 +59,43 @@ function ToolBtn({
   accent?: boolean;
   accentColor?: string;
   round?: boolean;
+  reorderIndex?: number;
+  onReorder?: (from: number, to: number) => void;
 }) {
   const variant = !active ? 'idle' : accent ? 'accent' : 'plain';
+  const draggable = reorderIndex !== undefined && onReorder !== undefined;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={tip}
+      data-tool={draggable ? name : undefined}
+      draggable={draggable}
+      onDragStart={
+        draggable
+          ? (e) => {
+              e.dataTransfer?.setData('text/plain', String(reorderIndex));
+              if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+            }
+          : undefined
+      }
+      onDragOver={
+        draggable
+          ? (e) => {
+              e.preventDefault();
+              if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            }
+          : undefined
+      }
+      onDrop={
+        draggable
+          ? (e) => {
+              e.preventDefault();
+              const from = Number(e.dataTransfer?.getData('text/plain'));
+              if (Number.isInteger(from) && from !== reorderIndex) onReorder(from, reorderIndex);
+            }
+          : undefined
+      }
       class={cn(
         'group relative appearance-none border-none p-2 cursor-pointer',
         'leading-none inline-flex items-center justify-center min-w-[36px] min-h-[36px]',
@@ -261,15 +296,16 @@ const HISTORY_ACTIONS = [
   { id: 'clear', icon: 'clear', tip: 'Clear all', fn: clearAll },
 ];
 
-const EXTRA_ACTIONS = [
-  {
-    id: 'share',
-    icon: 'share',
-    tip: 'Share',
-    fn: () => {
-      showShareDialog.value = true;
-    },
+const SHARE_ACTION = {
+  id: 'share',
+  icon: 'share',
+  tip: 'Share',
+  fn: () => {
+    showShareDialog.value = true;
   },
+};
+
+const EXTRA_ACTIONS = [
   {
     id: 'download',
     icon: 'download',
@@ -297,14 +333,51 @@ function MinimizedToolbar({ onExpand, drag }: { onExpand: () => void; drag: Drag
   );
 }
 
+function useFlipReorder(deps: unknown[]) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const prevRectsRef = useRef<Map<string, DOMRect>>(new Map());
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const buttons = container.querySelectorAll<HTMLElement>('[data-tool]');
+    const next = new Map<string, DOMRect>();
+    for (const btn of buttons) {
+      const tool = btn.dataset.tool;
+      if (tool) next.set(tool, btn.getBoundingClientRect());
+    }
+    if (!prefersReducedMotion()) {
+      for (const btn of buttons) {
+        const tool = btn.dataset.tool;
+        if (!tool) continue;
+        const prev = prevRectsRef.current.get(tool);
+        const cur = next.get(tool);
+        if (!prev || !cur) continue;
+        const dx = prev.left - cur.left;
+        const dy = prev.top - cur.top;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+        for (const a of btn.getAnimations()) a.cancel();
+        btn.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }], {
+          duration: 280,
+          easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+        });
+      }
+    }
+    prevRectsRef.current = next;
+  }, deps);
+
+  return containerRef;
+}
+
 function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: DragApi }) {
   const [collapsed, setCollapsed] = useState(true);
+  const toolsRef = useFlipReorder([toolOrder.value]);
 
   return (
     <div class="flex flex-col gap-1.5">
       <div class="flex items-center gap-0.5">
-        <div class="flex gap-0.5 items-center">
-          {TOOLS.map((t) => (
+        <div ref={toolsRef} class="flex gap-0.5 items-center">
+          {toolOrder.value.map((t, i) => (
             <ToolBtn
               key={t}
               name={t}
@@ -314,6 +387,8 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
               shortcut={SHORTCUTS[t]}
               accent={t !== 'navigate'}
               accentColor={color.value}
+              reorderIndex={i}
+              onReorder={moveTool}
             />
           ))}
         </div>
@@ -332,6 +407,13 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
             <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.tip} shortcut={a.shortcut} />
           ))}
         </div>
+
+        {operations.value.length > 0 && isShareableUrl() && (
+          <>
+            <div class={glass.sep} />
+            <ToolBtn name={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} />
+          </>
+        )}
 
         <DragGrip drag={drag} />
 

@@ -1,3 +1,7 @@
+import { detectFrameworkComponent, type FrameworkComponent } from './fiber-bridge';
+
+export type { FrameworkComponent } from './fiber-bridge';
+
 // Test/automation hooks — most stable identifier any sensible app exposes
 const STABLE_ATTRS = ['data-testid', 'data-test-id', 'data-test', 'data-cy', 'data-qa'] as const;
 
@@ -341,6 +345,85 @@ const TEXT_PROPS = new Set(['color', 'font-size', 'font-weight', 'font-family'])
 // Tags that don't render their own text content — text styles are inherited but irrelevant.
 const NON_TEXT_TAGS = new Set(['img', 'video', 'audio', 'iframe', 'canvas', 'svg', 'embed', 'object']);
 
+const FLEX_LAYOUT_KEYS = ['flex-direction', 'align-items', 'justify-content', 'flex-wrap', 'gap'] as const;
+const GRID_LAYOUT_KEYS = ['grid-template-columns', 'grid-template-rows', 'gap'] as const;
+
+let _tailwindCache: boolean | null = null;
+
+/**
+ * Detect whether the page uses Tailwind by sniffing its preflight signature in any
+ * accessible stylesheet — Tailwind 3+ emits `--tw-*` custom properties on `*` selectors.
+ * Cached at module level (fresh per page navigation, since content scripts are re-injected).
+ * Skips cross-origin stylesheets (cssRules access throws).
+ */
+export function detectTailwind(doc: Document = document): boolean {
+  if (_tailwindCache !== null) return _tailwindCache;
+  for (const sheet of doc.styleSheets) {
+    try {
+      const rules = sheet.cssRules;
+      const limit = Math.min(rules.length, 50);
+      for (let i = 0; i < limit; i++) {
+        if (rules[i].cssText.includes('--tw-')) {
+          _tailwindCache = true;
+          return true;
+        }
+      }
+    } catch {
+      // Cross-origin stylesheet — can't read
+    }
+  }
+  _tailwindCache = false;
+  return false;
+}
+
+/**
+ * Layout context contributed by the parent — usually more decisive than the element's own
+ * styles for explaining how the element is positioned. Returns null when the parent uses
+ * default block flow (nothing interesting to report).
+ */
+export function getParentLayout(el: Element): Record<string, string> | null {
+  const parent = el.parentElement;
+  if (!parent) return null;
+  const cs = getComputedStyle(parent);
+  const display = cs.display;
+  const isFlex = display === 'flex' || display === 'inline-flex';
+  const isGrid = display === 'grid' || display === 'inline-grid';
+  if (!isFlex && !isGrid) return null;
+  const out: Record<string, string> = { display };
+  const keys = isFlex ? FLEX_LAYOUT_KEYS : GRID_LAYOUT_KEYS;
+  for (const k of keys) {
+    const v = cs.getPropertyValue(k);
+    if (!SKIP_VALUES.has(v)) out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Serialize the element to outerHTML, but collapse subtrees deeper than maxDepth into a
+ * `<!-- N children -->` comment so the AI sees structure without paragraphs of markup.
+ * Caps total length so very-attribute-heavy elements (style="…") don't blow up the prompt.
+ */
+export function truncateOuterHTML(el: Element, maxDepth = 2, maxLen = 600): string {
+  const clone = el.cloneNode(true) as Element;
+  const trim = (node: Element, depth: number): void => {
+    if (depth >= maxDepth) {
+      if (node.children.length > 0) {
+        const count = node.children.length;
+        node.replaceChildren(node.ownerDocument.createComment(` ${count} children `));
+      }
+      return;
+    }
+    for (const child of Array.from(node.children)) trim(child, depth + 1);
+  };
+  trim(clone, 0);
+  const html = clone.outerHTML;
+  if (html.length <= maxLen) return html;
+  let cut = html.slice(0, maxLen - 1);
+  // Avoid splitting a UTF-16 surrogate pair (emoji, astral chars) — leave a lone surrogate behind.
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+  return `${cut}…`;
+}
+
 /** Extract key computed styles, returned with kebab-case keys */
 export function getKeyStyles(el: Element): Record<string, string> {
   const cs = getComputedStyle(el);
@@ -377,35 +460,77 @@ const TEXT_MAX = 120;
 // Picking <body> or large articles otherwise rebuilds MB-sized strings just to slice 120 chars.
 const TEXT_SAMPLE = TEXT_MAX * 8;
 
-/** Collapse whitespace and truncate element text to a short, single-line summary. */
+/**
+ * Collapse whitespace and truncate element text to a short, single-line summary.
+ * Uses innerText (not textContent) so block-level boundaries become spaces — otherwise
+ * "<h2>Step 2</h2><h3>02</h3>Tell us..." renders as "Step 202Tell us...".
+ * innerText forces a layout, but inspector picks are infrequent.
+ */
 function summarizeText(el: Element): { text: string; truncated: boolean } {
-  const cleaned = (el.textContent ?? '').slice(0, TEXT_SAMPLE).replace(/\s+/g, ' ').trim();
+  const raw = el instanceof HTMLElement ? el.innerText : (el.textContent ?? '');
+  const cleaned = raw.slice(0, TEXT_SAMPLE).replace(/\s+/g, ' ').trim();
   return {
     text: cleaned.slice(0, TEXT_MAX),
     truncated: cleaned.length > TEXT_MAX,
   };
 }
 
+export interface FormatForAIOptions {
+  styles?: Record<string, string>;
+  rect?: { width: number; height: number };
+  /** Pre-computed component info; pass `null` to skip detection, omit to detect lazily. */
+  component?: FrameworkComponent | null;
+  /** Pre-computed text summary; omit to recompute. `summarizeText` calls innerText (forces layout). */
+  textSummary?: { text: string; truncated: boolean };
+  /** Pre-computed CSS stack; pass `null` to skip detection, omit to detect lazily. */
+  cssStack?: CssStack | null;
+}
+
 /** Format element info as markdown for AI tools */
-export function formatForAI(
-  el: Element,
-  selector: string,
-  styles?: Record<string, string>,
-  rect?: { width: number; height: number },
-): string {
-  const dims = rect ?? el.getBoundingClientRect();
-  const resolved = styles ?? getKeyStyles(el);
-  const { text, truncated } = summarizeText(el);
+export function formatForAI(el: Element, selector: string, opts: FormatForAIOptions = {}): string {
+  const dims = opts.rect ?? el.getBoundingClientRect();
+  const resolved = opts.styles ?? getKeyStyles(el);
+  const { text, truncated } = opts.textSummary ?? summarizeText(el);
+
+  const doc = el.ownerDocument;
+  const win = doc.defaultView ?? window;
 
   let md = `${ELEMENT_INSPECTOR_HEADING}\n\n`;
+  if (win.location.href) {
+    const title = doc.title.trim();
+    md += title ? `**Page:** ${title} — ${win.location.href}\n` : `**Page:** ${win.location.href}\n`;
+  }
   md += `**Selector:** \`${selector}\`\n`;
-  if (el.classList.length) md += `**Classes:** \`${Array.from(el.classList).join(' ')}\`\n`;
+  const fwc = opts.component === undefined ? detectFrameworkComponent(el) : opts.component;
+  if (fwc) {
+    if (fwc.chain.length) md += `**${fwc.framework} Component:** ${fwc.chain.join(' ← ')}\n`;
+    if (fwc.source) {
+      const col = fwc.source.columnNumber !== undefined ? `:${fwc.source.columnNumber}` : '';
+      md += `**Source:** ${fwc.source.fileName}:${fwc.source.lineNumber}${col}\n`;
+    }
+  }
+  const cssStack = opts.cssStack === undefined ? (detectTailwind(doc) ? 'Tailwind' : null) : opts.cssStack;
+  if (cssStack) md += `**CSS Stack:** ${cssStack}\n`;
   md += `**Size:** ${Math.round(dims.width)}×${Math.round(dims.height)}px\n`;
+  const dpr = win.devicePixelRatio;
+  const dprPart = dpr !== 1 ? ` @ ${dpr}x` : '';
+  md += `**Viewport:** ${win.innerWidth}×${win.innerHeight}px${dprPart}\n`;
   if (text) md += `**Text:** "${truncated ? `${text}…` : text}"\n`;
+
+  md += `\n**Markup:**\n\`\`\`html\n${truncateOuterHTML(el)}\n\`\`\`\n`;
 
   if (Object.keys(resolved).length) {
     md += '\n**Computed Styles:**\n```css\n';
     for (const [k, v] of Object.entries(resolved)) {
+      md += `${k}: ${v};\n`;
+    }
+    md += '```\n';
+  }
+
+  const parentLayout = getParentLayout(el);
+  if (parentLayout) {
+    md += '\n**Parent Layout:**\n```css\n';
+    for (const [k, v] of Object.entries(parentLayout)) {
       md += `${k}: ${v};\n`;
     }
     md += '```\n';
@@ -428,6 +553,8 @@ export function formatForAI(
   return md;
 }
 
+export type CssStack = 'Tailwind';
+
 /** Snapshot element data for the inspector panel */
 export interface SelectedInfo {
   selector: string;
@@ -438,19 +565,29 @@ export interface SelectedInfo {
   styles: Record<string, string>;
   text: string;
   markdown: string;
+  viewport: { width: number; height: number; dpr: number };
+  component: FrameworkComponent | null;
+  cssStack: CssStack | null;
 }
 
 export function snapshotElement(el: Element, selector: string, viewportRect: DOMRect): SelectedInfo {
   const styles = getKeyStyles(el);
+  const component = detectFrameworkComponent(el);
+  const textSummary = summarizeText(el);
+  const cssStack: CssStack | null = detectTailwind(el.ownerDocument) ? 'Tailwind' : null;
+  const win = el.ownerDocument.defaultView ?? window;
   return {
     selector,
     tag: el.tagName.toLowerCase(),
     id: el.id,
-    classes: Array.from(el.classList).join(' '),
+    classes: el.classList.value,
     rect: viewportRect,
     styles,
-    text: summarizeText(el).text,
-    markdown: formatForAI(el, selector, styles, viewportRect),
+    text: textSummary.text,
+    markdown: formatForAI(el, selector, { styles, rect: viewportRect, component, textSummary, cssStack }),
+    viewport: { width: win.innerWidth, height: win.innerHeight, dpr: win.devicePixelRatio },
+    component,
+    cssStack,
   };
 }
 

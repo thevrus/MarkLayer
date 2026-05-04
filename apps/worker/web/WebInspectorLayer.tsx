@@ -75,12 +75,12 @@ export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFram
 
         const rect = toViewportRect(el);
         if (!rect) return;
-        hover.value = { el, rect, selector: null };
+        hover.value = { el, rect, selector: null, component: null };
 
         clearTimeout(selectorTimer.current);
         selectorTimer.current = window.setTimeout(() => {
           if (lastEl.current !== el) return;
-          hover.value = { el, rect, selector: getSelector(el) };
+          hover.value = { el, rect, selector: getSelector(el), component: null };
         }, 80);
       };
 

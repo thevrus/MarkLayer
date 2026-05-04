@@ -18,6 +18,7 @@ import {
 import { Canvas } from './Canvas';
 import { CommentLayer } from './CommentLayer';
 import { InspectorLayer } from './InspectorLayer';
+import { MeasureLayer } from './MeasureLayer';
 import { SelectionLayer } from './SelectionLayer';
 import { TextLayer } from './TextLayer';
 import { Toolbar } from './Toolbar';
@@ -138,6 +139,7 @@ export function App() {
       <SelectionLayer />
       <TextLayer />
       <InspectorLayer />
+      <MeasureLayer />
       <Toolbar />
       {toasts.value.length > 0 && (
         <div class="fixed top-5 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">

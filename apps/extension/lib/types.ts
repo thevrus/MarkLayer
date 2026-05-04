@@ -28,4 +28,5 @@ export type Tool =
   | 'text'
   | 'selection'
   | 'eraser'
-  | 'inspect';
+  | 'inspect'
+  | 'measure';

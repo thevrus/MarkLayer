@@ -1,7 +1,7 @@
 {
   "name": "@marklayer/extension",
   "private": true,
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -13,19 +13,20 @@
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
-    "@preact/preset-vite": "^2.10.4",
-    "@tailwindcss/vite": "^4.2.1",
-    "tailwindcss": "^4.2.1",
-    "typescript": "^5.9.3",
-    "wxt": "^0.20.20"
+    "@preact/preset-vite": "^2.10.5",
+    "@tailwindcss/vite": "^4.2.4",
+    "tailwindcss": "^4.2.4",
+    "typescript": "^6.0.3",
+    "wxt": "^0.20.25"
   },
   "dependencies": {
     "@marklayer/types": "workspace:*",
-    "@preact/signals": "^2.8.2",
+    "@preact/signals": "^2.9.0",
     "idb-keyval": "^6.2.2",
-    "lucide-preact": "^0.577.0",
-    "nanoid": "^5.1.7",
+    "lucide-preact": "^1.14.0",
+    "nanoid": "^5.1.11",
     "perfect-freehand": "^1.2.3",
-    "preact": "^10.29.0"
+    "preact": "^10.29.1",
+    "simple-icons": "^16.18.1"
   }
 }

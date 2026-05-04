@@ -316,7 +316,45 @@ export const TOOLS: Tool[] = [
   'selection',
   'eraser',
   'inspect',
+  'measure',
 ];
+
+const TOOL_SET: ReadonlySet<string> = new Set(TOOLS);
+const isTool = (v: unknown): v is Tool => typeof v === 'string' && TOOL_SET.has(v);
+
+function loadToolOrder(): Tool[] {
+  try {
+    const raw = _ls?.getItem('ml-tool-order');
+    if (!raw) return TOOLS;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return TOOLS;
+    const seen = new Set<Tool>();
+    const order: Tool[] = [];
+    for (const v of parsed) {
+      if (isTool(v) && !seen.has(v)) {
+        seen.add(v);
+        order.push(v);
+      }
+    }
+    // Append any tools added in code that aren't in the saved order yet
+    for (const t of TOOLS) if (!seen.has(t)) order.push(t);
+    return order;
+  } catch {
+    return TOOLS;
+  }
+}
+
+export const toolOrder = signal<Tool[]>(loadToolOrder());
+
+export function moveTool(from: number, to: number) {
+  const arr = toolOrder.value;
+  if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return;
+  const next = arr.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  toolOrder.value = next;
+  lsSet('ml-tool-order', JSON.stringify(next));
+}
 
 export const SHORTCUT_MAP: Record<string, Tool> = {
   V: 'navigate',
@@ -331,6 +369,7 @@ export const SHORTCUT_MAP: Record<string, Tool> = {
   S: 'selection',
   E: 'eraser',
   I: 'inspect',
+  M: 'measure',
 };
 export const SHORTCUTS: Partial<Record<Tool, string>> = Object.fromEntries(
   Object.entries(SHORTCUT_MAP).map(([k, v]) => [v, k]),

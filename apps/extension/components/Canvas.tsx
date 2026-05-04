@@ -258,7 +258,12 @@ export function Canvas() {
 
   const tool = activeTool.value;
   const showCanvas =
-    isDrawingTool(tool) && tool !== 'comment' && tool !== 'selection' && tool !== 'inspect' && tool !== 'text';
+    isDrawingTool(tool) &&
+    tool !== 'comment' &&
+    tool !== 'selection' &&
+    tool !== 'inspect' &&
+    tool !== 'measure' &&
+    tool !== 'text';
 
   return (
     <>

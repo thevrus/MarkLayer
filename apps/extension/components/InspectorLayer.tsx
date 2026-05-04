@@ -2,8 +2,9 @@ import { cn } from '@marklayer/types';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { detectFrameworkComponent, type FrameworkComponent } from '../lib/fiber-bridge';
 import { glass } from '../lib/glass';
-import { Icon } from '../lib/icons';
+import { BrandIcon, type BrandIconName, Icon } from '../lib/icons';
 import { getSelector, type SelectedInfo, shortClassLabel, snapshotElement } from '../lib/selector';
 import {
   activeTool,
@@ -22,7 +23,34 @@ export interface HoverState {
   rect: DOMRect;
   /** Lazily filled after an 80ms debounce — `getSelector` walks the DOM. */
   selector: string | null;
+  /** Lazily filled after the same debounce — costs a CustomEvent round-trip to the bridge. */
+  component: FrameworkComponent | null;
 }
+
+/** Hue per framework — React cyan, Vue green, Svelte orange. Match brand colors approximately. */
+const FRAMEWORK_HUES: Record<FrameworkComponent['framework'], number> = { React: 220, Vue: 155, Svelte: 30 };
+
+function frameworkColor(framework: FrameworkComponent['framework']): string {
+  return `oklch(0.88 0.11 ${FRAMEWORK_HUES[framework]})`;
+}
+
+function frameworkBadgeStyle(framework: FrameworkComponent['framework']) {
+  const hue = FRAMEWORK_HUES[framework];
+  return {
+    background: `oklch(0.65 0.16 ${hue} / 0.24)`,
+    color: `oklch(0.88 0.11 ${hue})`,
+  };
+}
+
+const FRAMEWORK_BRAND: Record<FrameworkComponent['framework'], BrandIconName> = {
+  React: 'react',
+  Vue: 'vue',
+  Svelte: 'svelte',
+};
+
+const sectionHeader = 'text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]';
+
+const metaLabel = 'text-[10px] text-ml-glass-fg/55 font-semibold uppercase tracking-[0.06em] tabular-nums';
 
 export function HoverHighlight({ state }: { state: HoverState }) {
   const { rect } = state;
@@ -47,11 +75,12 @@ export function HoverHighlight({ state }: { state: HoverState }) {
 }
 
 function HoverTooltip({ state }: { state: HoverState }) {
-  const { el, rect, selector } = state;
+  const { el, rect, selector, component } = state;
   const tag = el.tagName.toLowerCase();
   const id = el.id;
   const classes = shortClassLabel(el);
   const top = Math.max(4, rect.top - 32);
+  const componentName = component?.chain[0];
   return (
     <div
       class="fixed z-2147483647 pointer-events-none inline-flex items-center gap-2 rounded-[8px]
@@ -71,6 +100,24 @@ function HoverTooltip({ state }: { state: HoverState }) {
         transition: 'left 80ms ease, top 80ms ease, opacity 120ms ease',
       }}
     >
+      {component && componentName && (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '2px 6px 2px 5px',
+            borderRadius: 5,
+            fontWeight: 600,
+            fontSize: 10.5,
+            letterSpacing: '0.01em',
+            ...frameworkBadgeStyle(component.framework),
+          }}
+        >
+          <BrandIcon name={FRAMEWORK_BRAND[component.framework]} size={11} />
+          {componentName}
+        </span>
+      )}
       <span
         style={{
           padding: '2px 6px',
@@ -204,7 +251,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
           onPointerUp={onDragPointerUp}
           onPointerCancel={onDragPointerUp}
         >
-          <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Element Inspector</span>
+          <span class={sectionHeader}>Element Inspector</span>
           <button
             type="button"
             aria-label="Close inspector"
@@ -263,7 +310,6 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                      active:scale-[0.96]"
             >
               Add to stack
-              <kbd class="text-[10px] text-ml-glass-fg/55 font-mono leading-none">⇧⌘↵</kbd>
             </button>
             <button
               type="button"
@@ -277,7 +323,6 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                      active:scale-[0.96]"
             >
               Copy
-              <kbd class="text-[10px] text-ml-glass-fg/55 font-mono leading-none">⌘↵</kbd>
             </button>
           </div>
         </div>
@@ -286,9 +331,9 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       <div class={cn(glass.divider, 'mx-3.5 shrink-0')} />
 
       <div class="overflow-y-auto min-h-0">
-        <div class="px-4 py-2.5">
+        <div class="px-4 pt-2.5 pb-3">
           <div class="flex items-center justify-between mb-1.5">
-            <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Selector</span>
+            <span class={sectionHeader}>Selector</span>
             <button
               type="button"
               onClick={copySelector}
@@ -300,43 +345,90 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
           </div>
           <code
             class="block text-[11.5px] text-ml-glass-fg bg-ml-glass-fg/4 border border-ml-glass-fg/12
-                   rounded-lg px-3 py-1.5 break-all font-mono leading-relaxed select-all max-h-[60px] overflow-y-auto"
+                   rounded-xl px-3 py-2 wrap-break-word font-mono leading-[1.55] select-all max-h-17 overflow-y-auto"
           >
             {state.selector}
           </code>
         </div>
 
-        <div class="px-4 pb-2">
-          <div class="flex flex-wrap gap-x-4 gap-y-1 text-[11.5px]">
-            <span>
-              <span class="text-ml-glass-fg/55 font-medium">Tag </span>
-              <span class="text-ml-glass-fg font-mono">&lt;{state.tag}&gt;</span>
-            </span>
-            <span>
-              <span class="text-ml-glass-fg/55 font-medium">Size </span>
-              <span class="text-ml-glass-fg font-mono tabular-nums">
-                {Math.round(state.rect.width)}×{Math.round(state.rect.height)}
-              </span>
-            </span>
-          </div>
-          {state.id && (
-            <div class="text-[11.5px] mt-1">
-              <span class="text-ml-glass-fg/55 font-medium">ID </span>
-              <span class="text-ml-glass-fg font-mono">{state.id}</span>
-            </div>
-          )}
-          {state.classes && (
-            <div class="text-[11.5px] mt-1">
-              <span class="text-ml-glass-fg/55 font-medium">Classes </span>
-              <span class="text-ml-glass-fg/85 font-mono text-[10.5px] break-all line-clamp-2">{state.classes}</span>
-            </div>
-          )}
-          {state.text && (
-            <div class="text-[11.5px] mt-1">
-              <span class="text-ml-glass-fg/55 font-medium">Text </span>
-              <span class="text-ml-glass-fg/80 italic line-clamp-2">"{state.text}"</span>
-            </div>
-          )}
+        <div class={cn(glass.divider, 'mx-3.5')} />
+
+        <div class="px-4 pt-3 pb-3">
+          <dl class="grid grid-cols-[58px_1fr] gap-x-3 gap-y-1.5 items-baseline text-[11.5px]">
+            <dt class={metaLabel}>Tag</dt>
+            <dd class="text-ml-glass-fg font-mono">&lt;{state.tag}&gt;</dd>
+
+            <dt class={metaLabel}>Size</dt>
+            <dd class="text-ml-glass-fg font-mono tabular-nums">
+              {Math.round(state.rect.width)}×{Math.round(state.rect.height)}
+            </dd>
+
+            <dt class={metaLabel}>Viewport</dt>
+            <dd class="text-ml-glass-fg font-mono tabular-nums">
+              {state.viewport.width}×{state.viewport.height}
+              {state.viewport.dpr !== 1 && <span class="text-ml-glass-fg/55"> @ {state.viewport.dpr}x</span>}
+            </dd>
+
+            {state.component?.chain.length ? (
+              <>
+                <dt
+                  class={cn(metaLabel, 'inline-flex items-center gap-1')}
+                  style={{ color: frameworkColor(state.component.framework) }}
+                >
+                  <BrandIcon name={FRAMEWORK_BRAND[state.component.framework]} size={11} />
+                  {state.component.framework}
+                </dt>
+                <dd class="text-ml-glass-fg font-mono wrap-break-word">{state.component.chain.join(' ← ')}</dd>
+              </>
+            ) : null}
+
+            {state.cssStack === 'Tailwind' && (
+              <>
+                <dt class={cn(metaLabel, 'inline-flex items-center gap-1')} style={{ color: 'oklch(0.78 0.13 200)' }}>
+                  <BrandIcon name="tailwind" size={11} />
+                  CSS
+                </dt>
+                <dd class="text-ml-glass-fg font-mono">Tailwind</dd>
+              </>
+            )}
+
+            {state.component?.source && (
+              <>
+                <dt class={metaLabel}>Source</dt>
+                <dd class="text-ml-glass-fg font-mono break-all">
+                  {shortenSourcePath(state.component.source.fileName)}
+                  <span class="text-ml-glass-fg/55">:{state.component.source.lineNumber}</span>
+                </dd>
+              </>
+            )}
+
+            {state.id && (
+              <>
+                <dt class={metaLabel}>ID</dt>
+                <dd class="text-ml-glass-fg font-mono wrap-break-word">{state.id}</dd>
+              </>
+            )}
+
+            {state.classes && (
+              <>
+                <dt class={metaLabel}>Classes</dt>
+                <dd class="text-ml-glass-fg/90 font-mono text-[10.5px] leading-[1.55] wrap-break-word line-clamp-3">
+                  {state.classes}
+                </dd>
+              </>
+            )}
+
+            {state.text && (
+              <>
+                <dt class={metaLabel}>Text</dt>
+                <dd class="text-ml-glass-fg/85 leading-snug line-clamp-2">
+                  <span class="text-ml-glass-fg/40">“</span>
+                  {state.text}
+                  <span class="text-ml-glass-fg/40">”</span>
+                </dd>
+              </>
+            )}
+          </dl>
         </div>
 
         {Object.keys(state.styles).length > 0 && (
@@ -363,7 +455,12 @@ function StylesSection({ styles }: { styles: Record<string, string> }) {
         aria-expanded={open.value}
         class="group flex items-center justify-between w-full bg-transparent border-none cursor-pointer p-0 text-left"
       >
-        <span class="inline-flex items-center gap-1.5 text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em] group-hover:text-ml-glass-fg/85 transition-colors">
+        <span
+          class={cn(
+            sectionHeader,
+            'inline-flex items-center gap-1.5 group-hover:text-ml-glass-fg/85 transition-colors',
+          )}
+        >
           Styles
           <span class="text-ml-glass-fg/45 font-medium normal-case tracking-normal tabular-nums">{count}</span>
         </span>
@@ -389,6 +486,12 @@ function StylesSection({ styles }: { styles: Record<string, string> }) {
 function stackItemLabel(selector: string): string {
   const last = selector.split('>').pop()?.trim() ?? selector;
   return last.replace(/:nth-(of-type|child)\([^)]+\)/g, '') || selector;
+}
+
+/** Compress an absolute source path to last 2 segments for the panel UI; full path stays in markdown. */
+function shortenSourcePath(path: string): string {
+  const parts = path.split('/').filter(Boolean);
+  return parts.length <= 2 ? path : `…/${parts.slice(-2).join('/')}`;
 }
 
 /**
@@ -557,12 +660,12 @@ export function InspectorLayer() {
       lastEl.current = el;
 
       const rect = el.getBoundingClientRect();
-      hover.value = { el, rect, selector: null };
+      hover.value = { el, rect, selector: null, component: null };
 
       clearTimeout(selectorTimer.current);
       selectorTimer.current = window.setTimeout(() => {
         if (lastEl.current !== el) return;
-        hover.value = { el, rect, selector: getSelector(el) };
+        hover.value = { el, rect, selector: getSelector(el), component: detectFrameworkComponent(el) };
       }, 80);
     };
 
