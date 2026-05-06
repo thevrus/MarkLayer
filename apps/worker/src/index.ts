@@ -229,11 +229,25 @@ Free. There is no paid plan. There is no trial. There is no per-seat pricing. Ev
 ## Features
 
 - Drawing tools: Freehand drawing, shapes, arrows, and lines on any webpage
+- Threaded comments: Pin comments to any spot on the page
+- Inspector: Point at any element to capture its CSS selector and an AI-ready prompt for handoff to coding agents
+- Multi-inspect: Select multiple elements in one pass for bulk handoff
+- Measure: Pixel-precise distance and dimension measurement on any page
+- Area: Capture a rectangular region with a note attached
+- Quick grab: Hold Alt to arm element capture without switching tools
 - Real-time collaboration: Live cursors with unlimited collaborators per session
 - Shareable links: Recipients don't need the extension or an account to view
-- Threaded comments: Pin comments to any spot on the page
 - Works on any website: Production, staging, internal tools, third-party sites
 - Open source and self-hostable
+
+## For AI coding agents (MCP)
+
+MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that turns annotations into a structured work queue for AI coding agents like Claude Code. Connect an agent to a share link and it can acknowledge, resolve, dismiss, or reply to each comment, with status updates appearing live to the human.
+
+Install in Claude Code: claude mcp add marklayer -- npx -y marklayer-mcp
+
+- Package: https://www.npmjs.com/package/marklayer-mcp
+- Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
 
 ## Use cases
 
@@ -304,6 +318,12 @@ A: Yes, MarkLayer works on any webpage.
 Q: Can multiple people annotate at the same time?
 A: Yes. Real-time live cursors let unlimited collaborators work together.
 
+Q: What is the inspector tool?
+A: Point at any element on a page and MarkLayer captures its CSS selector and a copy-ready prompt for AI coding agents. Paste it into Claude Code or another agent and it has enough context to make the edit.
+
+Q: Can I send annotations to an AI coding agent?
+A: Yes. MarkLayer ships an MCP server (marklayer-mcp) that lets agents like Claude Code watch a share link and process comments as a work queue.
+
 ## Contact
 
 Email: rusinvadym@gmail.com
@@ -342,6 +362,21 @@ One click generates a share link. Anyone who opens the link sees the annotated p
 ### Threaded Comments
 Users can pin comments to any spot on the page. Comments support threaded replies, making it easy to have contextual conversations directly on the webpage rather than in external tools like Slack or email.
 
+### Inspector
+Point at any element on a page and MarkLayer captures the CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Designed as the bridge between visual feedback and AI-driven code edits — the user points, the agent gets enough context to act.
+
+### Multi-Inspect
+Select multiple elements in one pass to bulk-handoff a UI region to an AI agent. Each selected element contributes a selector and snippet to the combined prompt.
+
+### Measure
+Pixel-precise distance and dimension measurement directly on any rendered page. Drag from any point to any other; MarkLayer reports width, height, and distance in CSS pixels.
+
+### Area
+Drag to capture a rectangular region of a page and attach a note. The captured frame travels with the share link as a first-class annotation.
+
+### Quick Grab
+Hold the Alt key to temporarily arm element capture without switching tools — release to revert. Lets users move fluidly between annotating and inspecting.
+
 ### No Sign-up Required
 There is no registration, no email verification, and no onboarding flow. Users install the extension and start annotating immediately.
 
@@ -354,6 +389,23 @@ MarkLayer works on any webpage without exceptions. The extension injects a trans
 ### Free and Open Source
 MarkLayer is completely free with no paywall, trial period, or premium tier. The source code is available on GitHub under an open-source license.
 
+## AI Coding Agent Integration (MCP)
+
+MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that bridges visual feedback to AI coding agents. When a designer or PM annotates a page, the agent receives the comments as a structured work queue: it can acknowledge each item, post replies, resolve with a summary, or dismiss with a reason. Status updates appear live to the human in their browser.
+
+Install in Claude Code:
+
+    claude mcp add marklayer -- npx -y marklayer-mcp
+
+Pre-connect to a specific room:
+
+    claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123
+
+Available tools: marklayer_connect_room, marklayer_room_info, marklayer_list_annotations, marklayer_get_annotation, marklayer_watch_annotations, marklayer_acknowledge, marklayer_resolve, marklayer_dismiss, marklayer_reply.
+
+- Package: https://www.npmjs.com/package/marklayer-mcp
+- Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
+
 ## Technical Architecture
 
 - **Frontend:** Preact with Preact Signals for state management, Tailwind CSS for styling
@@ -362,6 +414,7 @@ MarkLayer is completely free with no paywall, trial period, or premium tier. The
 - **Database:** Cloudflare D1 (SQLite)
 - **Real-time:** WebSockets via Cloudflare Durable Objects
 - **Storage:** Cloudflare R2 for OG images
+- **Agent bridge:** MCP server (marklayer-mcp) for AI coding agent integration
 - **Build:** Bun workspaces, Turborepo, Vite
 
 ## How It Works
@@ -378,6 +431,8 @@ MarkLayer is completely free with no paywall, trial period, or premium tier. The
 
 - **Design review:** Annotate mockups or staging sites with visual feedback
 - **QA and bug reporting:** Circle bugs, add arrows, and describe issues in context
+- **AI-driven dev loop:** Inspect broken UI, hand the selector and prompt to a coding agent, watch the fix land
+- **Async code review:** Annotate a deployed page; the agent processes comments as a work queue via MCP
 - **Content review:** Highlight text, suggest edits, and comment on live articles
 - **Client feedback:** Share annotated pages with clients who don't need any tools installed
 - **Education:** Teachers can annotate web resources for students
@@ -403,11 +458,19 @@ A: Yes. Annotations stay on your device until you choose to share. There is no t
 Q: What browsers are supported?
 A: MarkLayer works on Chrome and Chromium-based browsers (Edge, Brave, Arc, etc.).
 
+Q: What is the inspector tool?
+A: Point at any element on a page and MarkLayer captures its CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Paste the prompt into Claude Code or another agent and it has the context needed to make the edit.
+
+Q: Can I hand annotations to an AI coding agent?
+A: Yes. MarkLayer publishes an MCP server (marklayer-mcp on npm) that connects to a share link and exposes annotations as a structured work queue. Agents like Claude Code can watch for new comments and acknowledge, resolve, dismiss, or reply.
+
 ## Links
 
 - Website: https://marklayer.app
 - Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
 - GitHub: https://github.com/thevrus/MarkLayer
+- MCP server (npm): https://www.npmjs.com/package/marklayer-mcp
+- MCP server (source): https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
 - Privacy Policy: https://marklayer.app/privacy
 
 ## Contact
