@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
+import { pickElementAtPoint } from '../lib/selector';
 import { activeTool, comments } from '../lib/state';
 import { CommentPin } from './CommentPin';
 import { CommentPopover } from './CommentPopover';
 
+interface PopoverState {
+  x: number;
+  y: number;
+  el: Element | null;
+}
+
 export function CommentLayer() {
-  const [popover, setPopover] = useState<{ x: number; y: number } | null>(null);
+  const [popover, setPopover] = useState<PopoverState | null>(null);
   const [, forceUpdate] = useState(0);
 
   // Reposition pins on scroll
@@ -18,7 +25,7 @@ export function CommentLayer() {
     if (activeTool.value !== 'comment') return;
     const x = e.clientX + scrollX;
     const y = e.clientY + scrollY;
-    setPopover({ x, y });
+    setPopover({ x, y, el: pickElementAtPoint(e.clientX, e.clientY) });
   }, []);
 
   return (
@@ -37,7 +44,7 @@ export function CommentLayer() {
       ))}
 
       {/* Input popover */}
-      {popover && <CommentPopover x={popover.x} y={popover.y} onClose={() => setPopover(null)} />}
+      {popover && <CommentPopover x={popover.x} y={popover.y} el={popover.el} onClose={() => setPopover(null)} />}
     </div>
   );
 }

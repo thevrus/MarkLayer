@@ -156,7 +156,7 @@ export function ProjectTabs() {
               onClick={() => switchTo(i)}
               class={cn(
                 'inline-flex items-center gap-1.5 h-7 pl-2.5 rounded-lg text-[12px] font-medium border-none cursor-pointer bg-transparent',
-                'text-inherit transition-all duration-150 active:scale-[0.97]',
+                'text-inherit transition-all duration-150 active:scale-[0.94]',
                 canDelete ? 'pr-1' : 'pr-2.5',
               )}
               title={p.url ?? `Page ${i + 1}`}

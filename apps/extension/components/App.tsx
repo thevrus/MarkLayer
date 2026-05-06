@@ -1,73 +1,98 @@
 import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
+import { tinykeys } from 'tinykeys';
 import { glass } from '../lib/glass';
-import { getShareUrl, loadAnnotations, parseUrlHash, saveAnnotations, setAnnotationId } from '../lib/share';
+import { loadAnnotations, parseUrlHash, setAnnotationId } from '../lib/share';
 import {
   activeTool,
+  blockInteractions,
+  markersVisible,
   operations,
   redo,
   SHORTCUT_MAP,
+  showSettings,
   showShareDialog,
   theme,
-  toast,
   toasts,
   undo,
   visible,
 } from '../lib/state';
+import { AreaLayer } from './AreaLayer';
 import { Canvas } from './Canvas';
 import { CommentLayer } from './CommentLayer';
+import { ContextMenu } from './ContextMenu';
 import { InspectorLayer } from './InspectorLayer';
+import { InspectorMarkerLayer } from './InspectorMarkerLayer';
 import { MeasureLayer } from './MeasureLayer';
+import { MultiInspectLayer } from './MultiInspectLayer';
+import { QuickGrabLayer } from './QuickGrabLayer';
 import { SelectionLayer } from './SelectionLayer';
+import { ShareDialog } from './ShareDialog';
 import { TextLayer } from './TextLayer';
 import { Toolbar } from './Toolbar';
 
 export function App() {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Alt+A toggles extension visibility
-      if (e.altKey && e.key.toLowerCase() === 'a') {
+    // Composed path lets us peek through the shadow root the page might be sitting in,
+    // so an input focused inside another extension or the proxied iframe still counts.
+    const editableTarget = (e: KeyboardEvent): HTMLElement | null => {
+      const t = e.composedPath()[0];
+      if (!(t instanceof HTMLElement)) return null;
+      const tag = t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return t;
+      return null;
+    };
+    const guard = (fn: (e: KeyboardEvent) => void) => (e: KeyboardEvent) => {
+      if (!visible.value || editableTarget(e)) return;
+      fn(e);
+    };
+
+    const bindings: Record<string, (e: KeyboardEvent) => void> = {
+      'Alt+KeyA': (e) => {
         e.preventDefault();
         visible.value = !visible.value;
-        return;
-      }
-      if (!visible.value) return;
-      // Check composedPath to see through shadow DOM
-      const target = e.composedPath()[0];
-      if (!(target instanceof HTMLElement)) return;
-      const tag = target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) {
-        if (e.key === 'Escape') target.blur();
-        return;
-      }
-      if (e.ctrlKey || e.metaKey) {
-        const k = e.key.toLowerCase();
-        if (k === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          undo();
-          return;
-        }
-        if (k === 'y' || (e.shiftKey && k === 'z')) {
-          e.preventDefault();
-          redo();
-          return;
-        }
-        return;
-      }
-      const m = SHORTCUT_MAP[e.key.toUpperCase()];
-      if (m) {
-        activeTool.value = m;
+      },
+      '$mod+KeyZ': guard((e) => {
         e.preventDefault();
-        return;
-      }
-      if (e.key === 'Escape') {
+        undo();
+      }),
+      '$mod+Shift+KeyZ': guard((e) => {
+        e.preventDefault();
+        redo();
+      }),
+      '$mod+KeyY': guard((e) => {
+        e.preventDefault();
+        redo();
+      }),
+      Escape: (e) => {
+        if (!visible.value) return;
+        const t = editableTarget(e);
+        if (t) {
+          t.blur();
+          return;
+        }
+        if (showSettings.value) {
+          showSettings.value = false;
+          e.preventDefault();
+          return;
+        }
+        if (showShareDialog.value) {
+          showShareDialog.value = false;
+          e.preventDefault();
+          return;
+        }
         activeTool.value = 'navigate';
         e.preventDefault();
-      }
+      },
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    for (const [letter, tool] of Object.entries(SHORTCUT_MAP)) {
+      bindings[`Key${letter}`] = guard((e) => {
+        activeTool.value = tool;
+        e.preventDefault();
+      });
+    }
+    return tinykeys(window, bindings);
   }, []);
 
   // Warn before leaving page with unsaved drawings
@@ -78,25 +103,6 @@ export function App() {
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
-
-  // Intercept share → copy link immediately, save in background
-  useSignalEffect(() => {
-    if (!showShareDialog.value) return;
-    showShareDialog.value = false;
-    const ops = operations.value;
-    if (!ops.length) {
-      toast('Draw something first', 'info');
-      return;
-    }
-    const url = getShareUrl();
-    navigator.clipboard.writeText(url).then(
-      () => toast('Link copied!', 'success'),
-      () => toast('Failed to copy link', 'error'),
-    );
-    saveAnnotations(ops).then((ok) => {
-      if (!ok) toast('Failed to save — link may not work', 'error');
-    });
-  });
 
   // Load shared annotations from URL hash
   useEffect(() => {
@@ -120,6 +126,14 @@ export function App() {
     t !== 'system' && host.classList.add(t === 'dark' ? 'ml-dark' : 'ml-light');
   });
 
+  // Hiding markers implies review mode — drop back to navigate so users don't
+  // try to draw on an invisible canvas.
+  useSignalEffect(() => {
+    if (!markersVisible.value && activeTool.value !== 'navigate') {
+      activeTool.value = 'navigate';
+    }
+  });
+
   const [mounted, setMounted] = useState(visible.value);
   useSignalEffect(() => {
     if (visible.value) {
@@ -132,15 +146,46 @@ export function App() {
 
   if (!mounted) return null;
 
+  // Drawing/measure/inspect tools own their own pointer capture, so the markers
+  // toggle only fades the placed-pin overlays — the active tool stays usable.
+  const showMarkers = markersVisible.value;
+  const blocking = blockInteractions.value;
+
   return (
     <div class={cn('transition-opacity duration-200 ease-out', visible.value ? 'opacity-100' : 'opacity-0')}>
-      <Canvas />
-      <CommentLayer />
-      <SelectionLayer />
-      <TextLayer />
+      {blocking && (
+        <div
+          aria-hidden="true"
+          class="fixed inset-0 z-2147483640"
+          style={{ background: 'transparent', cursor: 'default' }}
+          onClickCapture={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onMouseDownCapture={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        />
+      )}
+      <div
+        class={cn('transition-opacity duration-200 ease-out', showMarkers ? 'opacity-100' : 'opacity-0')}
+        style={{ pointerEvents: showMarkers ? undefined : 'none' }}
+      >
+        <Canvas />
+        <CommentLayer />
+        <SelectionLayer />
+        <TextLayer />
+        <AreaLayer />
+        <InspectorMarkerLayer />
+      </div>
       <InspectorLayer />
+      <MultiInspectLayer />
       <MeasureLayer />
+      <QuickGrabLayer />
       <Toolbar />
+      <ShareDialog />
+      <ContextMenu />
       {toasts.value.length > 0 && (
         <div class="fixed top-5 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">
           {toasts.value.map((t) => (

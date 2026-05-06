@@ -1,4 +1,5 @@
 export type {
+  AreaOp,
   BaseOp,
   CircleOp,
   CommentMeta,
@@ -7,6 +8,7 @@ export type {
   DeviceMode,
   DrawOp,
   FreehandOp,
+  InspectOp,
   LineOp,
   Peer,
   Point,
@@ -29,4 +31,6 @@ export type Tool =
   | 'selection'
   | 'eraser'
   | 'inspect'
-  | 'measure';
+  | 'multiInspect'
+  | 'measure'
+  | 'area';

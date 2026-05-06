@@ -1,9 +1,12 @@
+import { ContextMenu } from '@ext/components/ContextMenu';
 import { Toolbar } from '@ext/components/Toolbar';
 import { Tooltip } from '@ext/components/Tooltip';
+import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
 import {
   activeTool,
+  areas,
   color,
   comments as commentsComputed,
   cycleTheme,
@@ -103,10 +106,13 @@ import {
   useRealtimeSync,
 } from './useRealtimeSync';
 import { localVideoStream, useVoiceRoom, videoActive, voiceActive, voiceLevel, voiceMuted } from './useVoiceRoom';
+import { WebAreaLayer } from './WebAreaLayer';
+import { WebAreaShape } from './WebAreaShape';
 import { WebCommentPin } from './WebCommentPin';
 import { WebCommentPopover } from './WebCommentPopover';
 import { WebInspectorLayer } from './WebInspectorLayer';
 import { WebMeasureLayer } from './WebMeasureLayer';
+import { WebMultiInspectLayer } from './WebMultiInspectLayer';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
 
@@ -155,7 +161,7 @@ function InfoPanel() {
   return (
     <div
       class={cn(
-        'absolute top-3 left-3 bottom-3 w-[300px] z-40 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
+        'absolute top-3 left-3 bottom-3 w-[300px] z-40 transition-all duration-300 ease-ml-spring',
         glass.surface,
         'flex flex-col overflow-hidden',
         showInfoPanel.value ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none',
@@ -367,26 +373,76 @@ export default function Viewer() {
     return () => clearTimeout(timer);
   });
 
-  // Export PNG
+  // Export PNG. Captures the live page (iframe content) plus the drawing canvas
+  // composited together via modern-screenshot's `domToBlob`. The proxy serves
+  // pages same-origin so the iframe's contentDocument is accessible to the
+  // capture pass. Falls back to a canvas-only PNG if DOM capture throws — same
+  // shape as the previous behavior, so we never lose the export.
   useEffect(() => {
-    onExportPng.value = () => {
+    onExportPng.value = async () => {
       const canvas = canvasRef.current;
-      if (!canvas) return;
-      canvas.toBlob((blob) => {
-        if (!blob) return;
+      const inner = innerRef.current;
+      const downloadBlob = (blob: Blob) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `marklayer-${Date.now()}.png`;
         a.click();
         URL.revokeObjectURL(url);
-        toast('PNG exported!', 'success');
-      });
+      };
+      const fallbackToCanvas = () => {
+        if (!canvas) return;
+        canvas.toBlob((b) => {
+          if (b) {
+            downloadBlob(b);
+            toast('PNG exported (drawings only)', 'success');
+          }
+        });
+      };
+      if (!inner) return fallbackToCanvas();
+      try {
+        const { domToBlob } = await import('modern-screenshot');
+        const blob = await domToBlob(inner, {
+          backgroundColor: '#ffffff',
+          scale: window.devicePixelRatio || 1,
+        });
+        if (blob) {
+          downloadBlob(blob);
+          toast('PNG exported!', 'success');
+        } else {
+          fallbackToCanvas();
+        }
+      } catch {
+        fallbackToCanvas();
+      }
     };
     return () => {
       onExportPng.value = null;
     };
   }, []);
+
+  // Mirror the freeze toggle into the iframe document. The host-side toggle
+  // (Settings panel) calls `freezeDocument(document)`, which only affects the
+  // host — but for the web preview the page being inspected lives inside the
+  // iframe, so we re-apply the same freeze inside `frame.contentDocument`.
+  // The iframe doc may swap when the user navigates the proxied page, so we
+  // also re-freeze on `load` while the toggle is on.
+  useSignalEffect(() => {
+    if (!animationsFrozen.value) return;
+    const frame = frameRef.current;
+    const doc = frame?.contentDocument;
+    if (doc) freezeDocument(doc);
+    const onLoad = () => {
+      const next = frame?.contentDocument;
+      if (next && animationsFrozen.peek()) freezeDocument(next);
+    };
+    frame?.addEventListener('load', onLoad);
+    return () => {
+      frame?.removeEventListener('load', onLoad);
+      const cur = frame?.contentDocument;
+      if (cur) thawDocument(cur);
+    };
+  });
 
   // Auto-save reminder — ops sync in real-time, so just confirm on close
   useEffect(() => {
@@ -932,7 +988,9 @@ export default function Viewer() {
     tool !== 'text' &&
     tool !== 'selection' &&
     tool !== 'inspect' &&
-    tool !== 'measure';
+    tool !== 'measure' &&
+    tool !== 'area' &&
+    tool !== 'multiInspect';
   const showTextCursor = !readonly && tool === 'text';
   const showCommentCursor = !readonly && tool === 'comment';
   const comments = commentsComputed.value;
@@ -1094,7 +1152,7 @@ export default function Viewer() {
                 </div>
               ))}
             {peers.value.size > 3 && (
-              <div class="w-7 h-7 rounded-full bg-[#e5e5e5] dark:bg-[#404040] text-[#555] dark:text-[#ccc] text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] tabular-nums">
+              <div class="w-7 h-7 rounded-full bg-ml-glass-fg/10 text-ml-glass-fg/70 text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] tabular-nums">
                 +{peers.value.size - 3}
               </div>
             )}
@@ -1309,6 +1367,12 @@ export default function Viewer() {
               ))}
             </div>
 
+            <div class="absolute inset-0 pointer-events-none overflow-hidden">
+              {areas.value.filter(opMatchesDevice).map((op) => (
+                <WebAreaShape key={op.id} op={op} scale={1} scrollY={iframeScrollY.value} />
+              ))}
+            </div>
+
             <div
               class="absolute inset-0"
               style={{ pointerEvents: showTextCursor ? 'auto' : 'none', cursor: showTextCursor ? 'text' : 'default' }}
@@ -1344,6 +1408,8 @@ export default function Viewer() {
 
             {!readonly && <WebInspectorLayer frameRef={frameRef} />}
             {!readonly && <WebMeasureLayer frameRef={frameRef} />}
+            {!readonly && <WebAreaLayer frameRef={frameRef} />}
+            {!readonly && <WebMultiInspectLayer frameRef={frameRef} />}
             <CursorLayer scale={1} scrollY={iframeScrollY.value} />
           </div>
 
@@ -1380,6 +1446,7 @@ export default function Viewer() {
       </div>
 
       {!readonly && <Toolbar />}
+      <ContextMenu />
 
       {readonly && (
         <div

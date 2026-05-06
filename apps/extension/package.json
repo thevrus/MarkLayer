@@ -1,7 +1,7 @@
 {
   "name": "@marklayer/extension",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -27,6 +27,7 @@
     "nanoid": "^5.1.11",
     "perfect-freehand": "^1.2.3",
     "preact": "^10.29.1",
-    "simple-icons": "^16.18.1"
+    "simple-icons": "^16.18.1",
+    "tinykeys": "^3.0.0"
   }
 }

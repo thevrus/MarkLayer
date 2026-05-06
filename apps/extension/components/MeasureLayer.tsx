@@ -1,6 +1,7 @@
 import { useSignal, useSignalEffect } from '@preact/signals';
 import type { JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
+import { isExtensionElement } from '../lib/selector';
 import { activeTool } from '../lib/state';
 
 const HUE = 200;
@@ -13,12 +14,6 @@ const PANEL = `oklch(0.22 0.015 ${HUE} / 0.96)`;
 export interface MeasureState {
   el: Element;
   rect: DOMRect;
-}
-
-function isExtensionElement(el: Element | null): boolean {
-  if (!el) return true;
-  if (el.tagName === 'MARK-LAYER') return true;
-  return !!el.closest('mark-layer');
 }
 
 export function ElementOutline({ rect, dashed }: { rect: DOMRect; dashed?: boolean }) {

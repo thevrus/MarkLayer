@@ -1,9 +1,22 @@
-import { cn } from '@marklayer/types';
+import { cn, type TargetElement } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { submitBtn, textareaCls } from '../lib/buttons';
 import { glass } from '../lib/glass';
 import { hexToRgba } from '../lib/renderer';
-import { activeTool, color, lineWidth, localUser, pushOp, selections, setOpStatus } from '../lib/state';
+import { captureTarget } from '../lib/selector';
+import {
+  activeTool,
+  color,
+  copyText,
+  deleteOp,
+  lineWidth,
+  localUser,
+  openContextMenu,
+  pushOp,
+  selections,
+  setOpStatus,
+} from '../lib/state';
 import type { SelectionOp, SelectionRect } from '../lib/types';
 
 interface PopoverState {
@@ -11,6 +24,7 @@ interface PopoverState {
   y: number;
   text: string;
   rects: SelectionRect[];
+  target: TargetElement | undefined;
 }
 
 function SelectionHighlight({ op }: { op: SelectionOp }) {
@@ -28,7 +42,9 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
             top: r.y - scrollY,
             width: r.width,
             height: r.height,
-            background: resolved ? 'rgba(107,114,128,0.1)' : hexToRgba(op.color, highlightAlpha),
+            background: resolved
+              ? 'color-mix(in oklch, var(--color-ml-resolved) 10%, transparent)'
+              : hexToRgba(op.color, highlightAlpha),
             borderRadius: 2,
             mixBlendMode: 'multiply',
           }}
@@ -42,8 +58,19 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           width: 8,
           height: 8,
         }}
+        onContextMenu={(e) =>
+          openContextMenu(e, [
+            {
+              label: resolved ? 'Reopen' : 'Resolve',
+              icon: 'check',
+              onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
+            },
+            { label: 'Copy text', icon: 'copy', onClick: () => copyText(op.text, 'Selection copied') },
+            { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
+          ])
+        }
       >
-        <div class="w-2 h-2 rounded-full" style={{ background: resolved ? '#6b7280' : op.color }} />
+        <div class="w-2 h-2 rounded-full" style={{ background: resolved ? 'var(--color-ml-resolved)' : op.color }} />
         {/* Hover card */}
         <div
           class={cn(
@@ -81,7 +108,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   );
 }
 
-function SelectionPopover({ x, y, text, rects, onClose }: PopoverState & { onClose: () => void }) {
+function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState & { onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -101,6 +128,7 @@ function SelectionPopover({ x, y, text, rects, onClose }: PopoverState & { onClo
         lineWidth: lineWidth.value,
         ts: Date.now(),
         author: localUser.name,
+        target,
       };
       pushOp(op);
     }
@@ -148,18 +176,7 @@ function SelectionPopover({ x, y, text, rects, onClose }: PopoverState & { onClo
               commit(false);
             }
           }}
-          class={cn(
-            'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-xl px-3.5 py-2.5',
-            'text-ml-glass-fg text-[13.5px] leading-relaxed',
-            'resize-none outline-none min-h-10 max-h-[140px]',
-            'caret-[oklch(0.65_0.15_300)]',
-            'transition-[border-color,background-color,box-shadow] duration-150',
-            'focus:border-[oklch(0.65_0.15_300/0.5)]',
-            'focus:shadow-[0_0_0_3px_oklch(0.65_0.15_300/0.12),inset_0_0.5px_0_oklch(1_0_0/0.04)]',
-            'focus:bg-ml-glass-fg/6',
-            'placeholder:text-ml-glass-fg/45',
-            glass.font,
-          )}
+          class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
         />
       </div>
@@ -177,19 +194,7 @@ function SelectionPopover({ x, y, text, rects, onClose }: PopoverState & { onClo
           </kbd>
           <span class="text-[11px] text-ml-glass-fg/55 font-medium">skip comment</span>
         </div>
-        <button
-          type="button"
-          onClick={() => commit(true)}
-          class="px-4 py-1.5 text-[12px] font-semibold rounded-[10px] border-none cursor-pointer
-                 bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
-                 text-white outline-none
-                 shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
-                 transition-[box-shadow,transform] duration-150
-                 hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
-                 hover:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_2px_16px_oklch(0.65_0.15_300/0.2)]
-                 focus-visible:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_0_0_3px_oklch(0.65_0.15_300/0.35)]
-                 active:scale-[0.96]"
-        >
+        <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵
         </button>
       </div>
@@ -233,12 +238,20 @@ export function SelectionLayer() {
 
       if (rects.length === 0) return;
 
+      // Snapshot the enclosing element now — once the popover textarea takes
+      // focus the user's selection collapses and we lose this context.
+      const range0 = sel.getRangeAt(0);
+      const ancestor = range0.commonAncestorContainer;
+      const targetEl: Element | null =
+        ancestor.nodeType === Node.ELEMENT_NODE ? (ancestor as Element) : ancestor.parentElement;
+
       const lastRect = rects[rects.length - 1];
       setPopover({
         x: lastRect.x + lastRect.width,
         y: lastRect.y + lastRect.height,
         text,
         rects,
+        target: targetEl ? captureTarget(targetEl) : undefined,
       });
     });
   }, []);

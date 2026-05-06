@@ -1,34 +1,30 @@
 import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import type { RefObject } from 'preact';
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
-import { isShareableUrl } from '../lib/share';
 import {
   activeTool,
   clearAll,
   color,
-  cycleTheme,
+  connectionStatus,
+  inspectorStack,
   isDrawingActive,
-  lineWidth,
   moveTool,
-  onExportPng,
   operations,
   redo,
   SHORTCUTS,
-  setColor,
+  showSettings,
   showShareDialog,
-  theme,
   toggleToolbarMinimized,
   toolbarMinimized,
   toolOrder,
   undo,
 } from '../lib/state';
+import type { Tool } from '../lib/types';
+import { SettingsPanel } from './SettingsPanel';
 import { Tooltip } from './Tooltip';
-
-const COLORS = ['#b462f5', '#f43f5e', '#f97316', '#facc15', '#22c55e', '#3b82f6', '#ffffff', '#1e1e1e'];
-const LINE_WIDTHS = [1, 2, 3, 5, 8, 12, 20];
 
 const prefersReducedMotion = () =>
   typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -49,7 +45,10 @@ function ToolBtn({
   accentColor,
   round,
   reorderIndex,
-  onReorder,
+  onReorderPointerDown,
+  dragging,
+  suppressTooltip,
+  anchor,
 }: {
   name: string;
   active?: boolean;
@@ -60,94 +59,117 @@ function ToolBtn({
   accentColor?: string;
   round?: boolean;
   reorderIndex?: number;
-  onReorder?: (from: number, to: number) => void;
+  onReorderPointerDown?: (e: PointerEvent, tool: string, index: number) => void;
+  dragging?: boolean;
+  suppressTooltip?: boolean;
+  anchor?: string;
 }) {
   const variant = !active ? 'idle' : accent ? 'accent' : 'plain';
-  const draggable = reorderIndex !== undefined && onReorder !== undefined;
+  const reorderable = reorderIndex !== undefined && onReorderPointerDown !== undefined;
+  const accentStyle =
+    variant === 'accent' && accentColor
+      ? {
+          color: accentColor,
+          background: `color-mix(in oklch, ${accentColor} 18%, transparent)`,
+        }
+      : undefined;
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={tip}
-      data-tool={draggable ? name : undefined}
-      draggable={draggable}
-      onDragStart={
-        draggable
-          ? (e) => {
-              e.dataTransfer?.setData('text/plain', String(reorderIndex));
-              if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-            }
-          : undefined
-      }
-      onDragOver={
-        draggable
-          ? (e) => {
-              e.preventDefault();
-              if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-            }
-          : undefined
-      }
-      onDrop={
-        draggable
-          ? (e) => {
-              e.preventDefault();
-              const from = Number(e.dataTransfer?.getData('text/plain'));
-              if (Number.isInteger(from) && from !== reorderIndex) onReorder(from, reorderIndex);
-            }
-          : undefined
-      }
+      data-tool={reorderable ? name : undefined}
+      data-dragging={dragging ? '' : undefined}
+      data-ml-anchor={anchor}
+      onPointerDown={reorderable ? (e) => onReorderPointerDown(e, name, reorderIndex) : undefined}
       class={cn(
-        'group relative appearance-none border-none p-2 cursor-pointer',
-        'leading-none inline-flex items-center justify-center min-w-[36px] min-h-[36px]',
-        'transition-all duration-150 ease-out outline-none',
+        'group relative appearance-none border-none p-1.5 cursor-pointer touch-none',
+        'leading-none inline-flex items-center justify-center min-w-7.5 min-h-7.5',
+        'transition-[background,box-shadow,color,opacity,scale] duration-150 ease-out outline-none',
         'hover:bg-ml-glass-fg/[0.08] hover:shadow-[inset_0_0.5px_0_var(--ml-glass-border)]',
-        'active:bg-ml-glass-fg/[0.04] active:scale-[0.94]',
+        !dragging && 'active:bg-ml-glass-fg/4 active:scale-[0.94]',
         'focus-visible:ring-2 focus-visible:ring-ml-glass-fg/40 focus-visible:ring-offset-0',
         round ? 'rounded-full' : 'rounded-xl',
         TOOLBTN_VARIANTS[variant],
+        dragging && 'scale-110 z-10 cursor-grabbing shadow-[0_10px_28px_-6px_oklch(0_0_0/0.45)]',
       )}
-      style={
-        variant === 'accent' && accentColor
-          ? {
-              color: accentColor,
-              background: `color-mix(in oklch, ${accentColor} 18%, transparent)`,
-            }
-          : undefined
-      }
+      style={accentStyle}
     >
       <Icon name={name} />
-      <Tooltip text={tip} shortcut={shortcut} />
+      {!suppressTooltip && <Tooltip text={tip} shortcut={shortcut} />}
     </button>
   );
 }
 
 type DragApi = {
   dragging: boolean;
-  start: (e: MouseEvent | TouchEvent) => void;
+  start: (e: PointerEvent) => void;
   reset: () => void;
 };
 
 function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
   const [dragging, setDragging] = useState(false);
-  const offsetRef = useRef({ x: 0, y: 0 });
 
   const start = useCallback(
-    (e: MouseEvent | TouchEvent) => {
-      e.stopPropagation();
-      if ('touches' in e) e.preventDefault();
+    (e: PointerEvent) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
       const el = ref.current;
       if (!el) return;
-      setDragging(true);
+      e.stopPropagation();
+
+      const pointerId = e.pointerId;
+
+      // Measure FIRST so r reflects the toolbar's current on-screen
+      // position (Tailwind's `left-1/2` + `-translate-x-1/2` together).
+      // We then atomically swap to absolute coords + cleared transforms in
+      // one synchronous batch — no paint happens between mutations, so the
+      // toolbar stays put.
       const r = el.getBoundingClientRect();
-      const c = 'touches' in e ? e.touches[0] : e;
-      offsetRef.current = { x: c.clientX - r.left, y: c.clientY - r.top };
+      const w = r.width;
+      const h = r.height;
+      const baseX = r.left;
+      const baseY = r.top;
+      const offX = e.clientX - baseX;
+      const offY = e.clientY - baseY;
+
+      // Cancel WAAPI animations (entrance scale, fade) and clear the legacy
+      // `transform`. We pin `left`/`top` once to the current position and
+      // drive movement via the `translate` CSS property — changes to
+      // `translate` are compositor-only, while changes to `left`/`top`
+      // would invalidate layout on every pointermove and re-rasterize the
+      // expensive backdrop-filter, which made the drag feel laggy.
       for (const a of el.getAnimations()) a.cancel();
-      Object.assign(el.style, {
-        transform: 'none',
-        left: `${r.left}px`,
-        bottom: 'auto',
-        top: `${r.top}px`,
-      });
+      el.style.transform = 'none';
+      el.style.translate = '0 0';
+      el.style.left = `${baseX}px`;
+      el.style.top = `${baseY}px`;
+      el.style.bottom = 'auto';
+
+      // Listen on document — pointer capture on the grip is fragile when
+      // the grip's parent (toolbar) is being repositioned mid-drag.
+      // Filtering by pointerId ignores secondary pointers (multi-touch).
+      const onMove = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        if (ev.cancelable) ev.preventDefault();
+        const x = Math.min(Math.max(ev.clientX - offX, 0), innerWidth - w);
+        const y = Math.min(Math.max(ev.clientY - offY, 0), innerHeight - h);
+        el.style.translate = `${x - baseX}px ${y - baseY}px`;
+      };
+
+      const onEnd = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onEnd);
+        document.removeEventListener('pointercancel', onEnd);
+        setDragging(false);
+      };
+
+      // Attach synchronously — a state-change-triggered useEffect would
+      // miss the first pointermoves and jump the toolbar on first move.
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onEnd);
+      document.addEventListener('pointercancel', onEnd);
+      setDragging(true);
     },
     [ref],
   );
@@ -159,33 +181,8 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
     el.style.top = '';
     el.style.bottom = '';
     el.style.transform = '';
+    el.style.translate = '';
   }, [ref]);
-
-  useEffect(() => {
-    if (!dragging) return;
-    const onMove = (e: MouseEvent | TouchEvent) => {
-      if ('cancelable' in e && e.cancelable) e.preventDefault();
-      const el = ref.current;
-      if (!el) return;
-      const c = 'touches' in e ? e.touches[0] : e;
-      const r = el.getBoundingClientRect();
-      const x = Math.min(Math.max(c.clientX - offsetRef.current.x, 0), innerWidth - r.width);
-      const y = Math.min(Math.max(c.clientY - offsetRef.current.y, 0), innerHeight - r.height);
-      el.style.left = `${x}px`;
-      el.style.top = `${y}px`;
-    };
-    const end = () => setDragging(false);
-    document.addEventListener('mousemove', onMove, { passive: false });
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('mouseup', end);
-    document.addEventListener('touchend', end);
-    return () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('mouseup', end);
-      document.removeEventListener('touchend', end);
-    };
-  }, [dragging, ref]);
 
   return { dragging, start, reset };
 }
@@ -193,11 +190,10 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
 function DragGrip({ drag }: { drag: DragApi }) {
   return (
     <div
-      onMouseDown={drag.start}
-      onTouchStart={drag.start}
+      onPointerDown={drag.start}
       aria-hidden="true"
       class={cn(
-        'w-3 h-5 cursor-grab shrink-0 opacity-30 mx-1',
+        'w-3 h-5 cursor-grab shrink-0 opacity-30 mx-1 touch-none',
         'hover:opacity-50 transition-opacity duration-200',
         'bg-[radial-gradient(circle,var(--ml-glass-grip)_0.8px,transparent_0.8px)]',
         '[background-size:5px_5px] bg-center bg-repeat',
@@ -207,88 +203,10 @@ function DragGrip({ drag }: { drag: DragApi }) {
   );
 }
 
-function ColorPicker() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div class="group relative">
-      <button
-        type="button"
-        aria-label="Pick color"
-        aria-haspopup="true"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        class={cn(
-          'w-6 h-6 rounded-full border-2 border-ml-glass-fg/[0.12] cursor-pointer',
-          'transition-all duration-150 hover:scale-110 hover:border-ml-glass-fg/25',
-        )}
-        style={{ background: color.value }}
-      />
-      {open && (
-        <div
-          role="menu"
-          class={cn(
-            'absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 z-10',
-            glass.surfaceSmall,
-            '!rounded-[10px] p-2 flex gap-1.5',
-          )}
-        >
-          {COLORS.map((c) => (
-            <button
-              type="button"
-              key={c}
-              role="menuitemradio"
-              aria-label={`Color ${c}`}
-              aria-checked={color.value === c}
-              onClick={() => {
-                setColor(c);
-                setOpen(false);
-              }}
-              class={cn(
-                'w-5 h-5 rounded-full border-2 cursor-pointer transition-all duration-150 hover:scale-125',
-                color.value === c
-                  ? 'border-ml-glass-fg/60 scale-110'
-                  : 'border-ml-glass-fg/[0.08] hover:border-ml-glass-fg/25',
-              )}
-              style={{ background: c }}
-            />
-          ))}
-        </div>
-      )}
-      <Tooltip text="Color" />
-    </div>
-  );
-}
-
-function StrokeWidthSelect() {
-  return (
-    <div class="group relative">
-      <select
-        aria-label="Stroke width"
-        value={lineWidth.value}
-        onChange={(e) => (lineWidth.value = +e.currentTarget.value)}
-        class={cn(
-          'h-7 px-2 rounded-lg border border-ml-glass-fg/[0.08] bg-ml-glass-accent/[0.05]',
-          'text-ml-glass-fg/50 text-[11px] font-medium cursor-pointer outline-none',
-          'transition-all duration-150',
-          'hover:border-ml-glass-fg/[0.16] hover:bg-ml-glass-accent/[0.08] hover:text-ml-glass-fg/80',
-          'focus-visible:border-[oklch(0.65_0.15_300/0.5)] focus-visible:bg-ml-glass-accent/8',
-          'focus-visible:text-ml-glass-fg/80',
-          'focus-visible:shadow-[0_0_0_3px_oklch(0.65_0.15_300/0.18)]',
-          glass.font,
-        )}
-      >
-        {LINE_WIDTHS.map((v) => (
-          <option key={v} value={v} class="bg-[oklch(0.13_0.01_280)] text-[oklch(0.85_0_0)]">
-            {v}px
-          </option>
-        ))}
-      </select>
-      <Tooltip text="Stroke" />
-    </div>
-  );
-}
-
-const lbl = (t: string) => t[0].toUpperCase() + t.slice(1);
+const TOOL_LABELS: Partial<Record<Tool, string>> = {
+  multiInspect: 'Multi-select',
+};
+const lbl = (t: Tool) => TOOL_LABELS[t] ?? t[0].toUpperCase() + t.slice(1);
 
 const HISTORY_ACTIONS = [
   { id: 'undo', icon: 'undo', tip: 'Undo', shortcut: '⌘Z', fn: undo },
@@ -305,16 +223,50 @@ const SHARE_ACTION = {
   },
 };
 
-const EXTRA_ACTIONS = [
-  {
-    id: 'download',
-    icon: 'download',
-    tip: 'Export PNG',
-    fn: () => {
-      onExportPng.value?.();
-    },
-  },
-];
+function ConnectionDot() {
+  const status = connectionStatus.value;
+  // Surface the dot only as an alert — connected is the expected steady state.
+  if (!status || status === 'connected') return null;
+  const colors = {
+    connecting: 'var(--ml-state-yellow)',
+    disconnected: 'var(--ml-state-red)',
+  } as const;
+  const labels = {
+    connecting: 'Reconnecting…',
+    disconnected: 'Disconnected',
+  } as const;
+  return (
+    <span
+      role="status"
+      class="relative inline-flex items-center justify-center w-2 h-2 rounded-full mx-1.5 shrink-0"
+      style={{
+        color: colors[status],
+        backgroundColor: colors[status],
+        animation: status === 'disconnected' ? undefined : 'mlStatusPulse 2.4s ease-in-out infinite',
+      }}
+      title={labels[status]}
+    >
+      <span class="sr-only">{labels[status]}</span>
+    </span>
+  );
+}
+
+function CountBadge({ value }: { value: number }) {
+  if (value <= 0) return null;
+  return (
+    <span
+      class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full inline-flex items-center justify-center
+             text-[10px] font-bold tabular-nums leading-none pointer-events-none"
+      style={{
+        background: 'var(--ml-state-blue)',
+        color: 'white',
+        boxShadow: '0 0 0 2px var(--ml-glass-bg), 0 1px 3px oklch(0 0 0 / 0.25)',
+      }}
+    >
+      {value > 99 ? '99+' : value}
+    </span>
+  );
+}
 
 function MinimizedToolbar({ onExpand, drag }: { onExpand: () => void; drag: DragApi }) {
   return (
@@ -340,28 +292,47 @@ function useFlipReorder(deps: unknown[]) {
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const buttons = container.querySelectorAll<HTMLElement>('[data-tool]');
-    const next = new Map<string, DOMRect>();
+    const buttons = container.querySelectorAll<HTMLElement>('[data-tool]:not([data-dragging])');
+    // Snapshot visual rects FIRST (before cancelling any in-flight animations).
+    // For elements mid-FLIP, this captures the actual visual position the user
+    // is seeing, so the next animation can resume from there without a jump.
+    const visualPrev = new Map<string, DOMRect>();
     for (const btn of buttons) {
       const tool = btn.dataset.tool;
-      if (tool) next.set(tool, btn.getBoundingClientRect());
+      if (tool) visualPrev.set(tool, btn.getBoundingClientRect());
     }
+    // Now cancel any in-flight animations, then measure layout-only rects.
+    // After cancel, the inline transform is gone — the rect equals the post-
+    // reorder CSS layout position, which is the target of the new animation.
     if (!prefersReducedMotion()) {
+      for (const btn of buttons) {
+        for (const a of btn.getAnimations()) a.cancel();
+      }
       for (const btn of buttons) {
         const tool = btn.dataset.tool;
         if (!tool) continue;
-        const prev = prevRectsRef.current.get(tool);
-        const cur = next.get(tool);
-        if (!prev || !cur) continue;
-        const dx = prev.left - cur.left;
-        const dy = prev.top - cur.top;
+        const prev = prevRectsRef.current.get(tool) ?? visualPrev.get(tool);
+        const visual = visualPrev.get(tool);
+        const cur = btn.getBoundingClientRect();
+        if (!prev || !visual || !cur) continue;
+        // Use the visual mid-animation position if it differs from the last
+        // committed layout (i.e., a previous FLIP was still in flight).
+        const fromLeft = Math.abs(visual.left - prev.left) > 0.5 ? visual.left : prev.left;
+        const fromTop = Math.abs(visual.top - prev.top) > 0.5 ? visual.top : prev.top;
+        const dx = fromLeft - cur.left;
+        const dy = fromTop - cur.top;
         if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
-        for (const a of btn.getAnimations()) a.cancel();
         btn.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }], {
           duration: 280,
           easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
         });
       }
+    }
+    // Record final layout rects (post-cancel) as the reference for next render.
+    const next = new Map<string, DOMRect>();
+    for (const btn of buttons) {
+      const tool = btn.dataset.tool;
+      if (tool) next.set(tool, btn.getBoundingClientRect());
     }
     prevRectsRef.current = next;
   }, deps);
@@ -369,84 +340,207 @@ function useFlipReorder(deps: unknown[]) {
   return containerRef;
 }
 
+function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
+  const [draggingTool, setDraggingTool] = useState<string | null>(null);
+  const suppressClickRef = useRef(false);
+
+  const onPointerDown = useCallback(
+    (e: PointerEvent, tool: string, fromIndex: number) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      e.stopPropagation();
+      const pointerId = e.pointerId;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let activated = false;
+      let to = fromIndex;
+
+      // Cursor-follow state, captured at activation.
+      let draggedBtn: HTMLElement | null = null;
+      let itemStep = 0;
+      let activationCx = 0;
+      let activationCy = 0;
+      let lastDx = 0;
+      let lastDy = 0;
+
+      const onMove = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        if (!activated) {
+          if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+          activated = true;
+          setDraggingTool(tool);
+          // Snapshot layout geometry so we can compute the dragged button's
+          // visual offset from its current CSS slot on every pointermove
+          // (slots don't move; the dragged button does).
+          const container = containerRef.current;
+          if (container) {
+            const all = Array.from(container.querySelectorAll<HTMLElement>('[data-tool]'));
+            const r0 = all[0]?.getBoundingClientRect();
+            const r1 = all[1]?.getBoundingClientRect();
+            // Slot pitch — distance between consecutive buttons. Used to
+            // cancel out the CSS-slot displacement caused by optimistic
+            // reorders so the dragged button stays glued to the cursor.
+            itemStep = r0 && r1 ? r1.left - r0.left : (r0?.width ?? 0);
+            draggedBtn = all[fromIndex] ?? null;
+          }
+          activationCx = ev.clientX;
+          activationCy = ev.clientY;
+        }
+        const container = containerRef.current;
+        if (!container) return;
+        // Filtered to exclude the dragged button (which has data-dragging).
+        // Each remaining button represents an insertion slot. The result `next`
+        // is a target index in toolOrder for moveTool(): cursor before all → 0,
+        // cursor past all → buttons.length (insert at end), otherwise the index
+        // of the first non-dragged button whose midpoint is past the cursor.
+        const buttons = container.querySelectorAll<HTMLElement>('[data-tool]:not([data-dragging])');
+        let next = buttons.length;
+        for (let i = 0; i < buttons.length; i++) {
+          const r = buttons[i].getBoundingClientRect();
+          if (ev.clientX < r.left + r.width / 2) {
+            next = i;
+            break;
+          }
+        }
+        if (next !== to) {
+          // Optimistically reorder so the user sees a live preview; FLIP
+          // smooths each cross for the OTHER buttons (the dragged button is
+          // excluded via [data-dragging] and its position is set manually).
+          moveTool(to, next);
+          to = next;
+        }
+        // Cursor-follow: translate the dragged button so the cursor stays at
+        // the same point on it. Compensate for slot drift caused by optimistic
+        // reorders — when `to` moves by 1, the button's CSS slot shifts by
+        // itemStep, so we subtract that to keep visual position smooth.
+        if (draggedBtn) {
+          const dx = (fromIndex - to) * itemStep + (ev.clientX - activationCx);
+          const dy = ev.clientY - activationCy;
+          draggedBtn.style.translate = `${dx}px ${dy}px`;
+          lastDx = dx;
+          lastDy = dy;
+        }
+      };
+
+      const onEnd = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onEnd);
+        document.removeEventListener('pointercancel', onEnd);
+        if (!activated) return;
+        // Spring-back: animate translate from cursor offset to 0 with a slight
+        // overshoot. We clear inline `translate` first so once the WAAPI ends
+        // (no fill) the element settles to CSS default (0) — no jump back to
+        // lastDx as inline reasserts.
+        if (draggedBtn) {
+          const btn = draggedBtn;
+          btn.style.translate = '';
+          btn.animate([{ translate: `${lastDx}px ${lastDy}px` }, { translate: '0 0' }], {
+            duration: 320,
+            easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+          });
+        }
+        setDraggingTool(null);
+        // The click that follows pointerup may fire on a different element
+        // than where pointerdown landed (because the dragged button moved).
+        // Set a flag now and clear after the click has had a chance to
+        // dispatch — setTimeout(0) runs after the synthesized click event.
+        suppressClickRef.current = true;
+        setTimeout(() => {
+          suppressClickRef.current = false;
+        }, 0);
+      };
+
+      // Listen on document — pointermove on the button itself stops firing
+      // once the cursor leaves it (no pointer capture), and capture is
+      // fragile when the button is being repositioned mid-drag.
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onEnd);
+      document.addEventListener('pointercancel', onEnd);
+    },
+    [containerRef],
+  );
+
+  const consumeClickSuppression = () => {
+    if (!suppressClickRef.current) return false;
+    suppressClickRef.current = false;
+    return true;
+  };
+
+  return { draggingTool, onPointerDown, consumeClickSuppression };
+}
+
 function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: DragApi }) {
-  const [collapsed, setCollapsed] = useState(true);
-  const toolsRef = useFlipReorder([toolOrder.value]);
+  const tools = toolOrder.value;
+  const toolsRef = useFlipReorder([tools]);
+  const reorder = useToolReorder(toolsRef);
 
   return (
-    <div class="flex flex-col gap-1.5">
-      <div class="flex items-center gap-0.5">
-        <div ref={toolsRef} class="flex gap-0.5 items-center">
-          {toolOrder.value.map((t, i) => (
+    <div class="flex items-center gap-0.5">
+      <div ref={toolsRef} class="flex gap-0.5 items-center">
+        {tools.map((t) => {
+          const realIndex = toolOrder.value.indexOf(t);
+          const showStackBadge = t === 'inspect' && inspectorStack.value.length > 0;
+          const isDragging = reorder.draggingTool === t;
+          const onClick = () => {
+            if (reorder.consumeClickSuppression()) return;
+            activeTool.value = t;
+          };
+          const btn = (
             <ToolBtn
               key={t}
               name={t}
               active={activeTool.value === t}
-              onClick={() => (activeTool.value = t)}
+              onClick={onClick}
               tip={lbl(t)}
               shortcut={SHORTCUTS[t]}
               accent={t !== 'navigate'}
               accentColor={color.value}
-              reorderIndex={i}
-              onReorder={moveTool}
+              reorderIndex={realIndex}
+              onReorderPointerDown={reorder.onPointerDown}
+              dragging={isDragging}
+              suppressTooltip={reorder.draggingTool !== null}
             />
-          ))}
-        </div>
-
-        <div class={glass.sep} />
-
-        <div class="flex gap-1.5 items-center">
-          <ColorPicker />
-          <StrokeWidthSelect />
-        </div>
-
-        <div class={glass.sep} />
-
-        <div class="flex gap-0.5 items-center">
-          {HISTORY_ACTIONS.map((a) => (
-            <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.tip} shortcut={a.shortcut} />
-          ))}
-        </div>
-
-        {operations.value.length > 0 && isShareableUrl() && (
-          <>
-            <div class={glass.sep} />
-            <ToolBtn name={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} />
-          </>
-        )}
-
-        <DragGrip drag={drag} />
-
-        <ToolBtn name="minimize" onClick={onMinimize} tip="Minimize" />
-
-        <button
-          type="button"
-          aria-label={collapsed ? 'Expand toolbar' : 'Collapse toolbar'}
-          aria-expanded={!collapsed}
-          onClick={() => setCollapsed(!collapsed)}
-          class={cn(
-            'appearance-none bg-transparent border-none text-ml-glass-fg/20 cursor-pointer p-1.5',
-            'inline-flex place-items-center rounded-lg transition-all duration-150 outline-none',
-            'hover:text-ml-glass-fg/50 hover:bg-ml-glass-accent/[0.07]',
-            'focus-visible:ring-2 focus-visible:ring-ml-glass-fg/40',
-          )}
-        >
-          <Icon name={collapsed ? 'chevDown' : 'chevUp'} size={12} />
-        </button>
+          );
+          if (!showStackBadge) return btn;
+          return (
+            <span key={t} class={cn('relative inline-flex', isDragging && 'z-10')}>
+              {btn}
+              <CountBadge value={inspectorStack.value.length} />
+            </span>
+          );
+        })}
       </div>
 
-      {!collapsed && (
-        <div class="flex items-center gap-0.5 pt-1.5 border-t border-ml-glass-fg/[0.04]">
-          {EXTRA_ACTIONS.map((a) => (
-            <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.tip} />
-          ))}
-          <ToolBtn
-            name={theme.value === 'dark' ? 'moon' : 'sun'}
-            onClick={cycleTheme}
-            tip={theme.value === 'system' ? 'System' : theme.value === 'dark' ? 'Dark' : 'Light'}
-          />
-        </div>
+      <div class={glass.sep} />
+
+      <div class="flex gap-0.5 items-center">
+        {HISTORY_ACTIONS.map((a) => (
+          <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.tip} shortcut={a.shortcut} />
+        ))}
+      </div>
+
+      {(operations.value.length > 0 || inspectorStack.value.length > 0) && (
+        <>
+          <div class={glass.sep} />
+          <ToolBtn name={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} />
+        </>
       )}
+
+      <DragGrip drag={drag} />
+
+      <ConnectionDot />
+
+      <ToolBtn name="minimize" onClick={onMinimize} tip="Minimize" />
+
+      <ToolBtn
+        name="settings"
+        active={showSettings.value}
+        onClick={() => {
+          showSettings.value = !showSettings.value;
+        }}
+        tip="Settings"
+        anchor="settings"
+      />
     </div>
   );
 }
@@ -457,6 +551,24 @@ export function Toolbar() {
   const flipFromRef = useRef<DOMRect | null>(null);
   const drag = useDrag(tbRef);
   const fadeAnimRef = useRef<Animation | null>(null);
+
+  // One-shot entrance on first mount (skipped under prefers-reduced-motion).
+  // useLayoutEffect runs before paint, so `fill: 'both'` applies the start
+  // keyframe synchronously without a one-frame flash at full size.
+  // We animate the individual `scale` property (CSS Transform L2) instead of
+  // `transform`, so the Tailwind `-translate-x-1/2` keeps centering us — a full
+  // `transform` keyframe would replace that translate and shift the toolbar.
+  useLayoutEffect(() => {
+    const tb = tbRef.current;
+    if (!tb || prefersReducedMotion()) return;
+    tb.animate(
+      [
+        { opacity: 0, scale: 0.94 },
+        { opacity: 1, scale: 1 },
+      ],
+      { duration: 240, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'both' },
+    );
+  }, []);
 
   const onToggleMinimize = () => {
     const tb = tbRef.current;
@@ -515,21 +627,24 @@ export function Toolbar() {
   });
 
   return (
-    <div
-      ref={tbRef}
-      class={cn(
-        'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 select-none',
-        glass.surface,
-        glass.font,
-        'text-ml-glass-fg/80 max-w-[calc(100dvw-24px)] w-max',
-        minimized ? 'p-1' : 'p-2.5',
-      )}
-    >
-      {minimized ? (
-        <MinimizedToolbar onExpand={onToggleMinimize} drag={drag} />
-      ) : (
-        <ExpandedToolbar onMinimize={onToggleMinimize} drag={drag} />
-      )}
-    </div>
+    <>
+      <div
+        ref={tbRef}
+        class={cn(
+          'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 select-none',
+          glass.surface,
+          glass.font,
+          'text-ml-glass-fg/80 max-w-[calc(100dvw-24px)] w-max',
+          minimized ? 'p-1' : 'p-2',
+        )}
+      >
+        {minimized ? (
+          <MinimizedToolbar onExpand={onToggleMinimize} drag={drag} />
+        ) : (
+          <ExpandedToolbar onMinimize={onToggleMinimize} drag={drag} />
+        )}
+      </div>
+      <SettingsPanel />
+    </>
   );
 }

@@ -16,6 +16,25 @@ export function toViewportRect(frame: HTMLIFrameElement, el: Element): DOMRect {
   return new DOMRect(fr.left + r.left * s, fr.top + r.top * s, r.width * s, r.height * s);
 }
 
+interface RectLike {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Translate iframe-local rects (e.g. from `Range.getClientRects`) to host viewport coords. */
+export function toViewportRects(frame: HTMLIFrameElement, rects: ArrayLike<RectLike>): RectLike[] {
+  const fr = frame.getBoundingClientRect();
+  const s = cssScale.value;
+  const out: RectLike[] = [];
+  for (let i = 0; i < rects.length; i++) {
+    const r = rects[i];
+    out.push({ x: fr.left + r.x * s, y: fr.top + r.y * s, width: r.width * s, height: r.height * s });
+  }
+  return out;
+}
+
 export function rectsEqual(a: DOMRectReadOnly, b: DOMRectReadOnly): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }

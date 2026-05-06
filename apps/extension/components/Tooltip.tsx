@@ -7,12 +7,15 @@ export function Tooltip({
   text,
   shortcut,
   placement = 'top',
+  wrap = false,
 }: {
   text: string;
   shortcut?: string;
   placement?: Placement;
+  /** Allow long descriptive text to wrap onto multiple lines (default: single-line). */
+  wrap?: boolean;
 }) {
-  const pos = placement === 'top' ? 'bottom-full mb-2.5' : 'top-full mt-2.5';
+  const pos = placement === 'top' ? 'bottom-full mb-3.5' : 'top-full mt-3.5';
   return (
     <div
       class={cn(
@@ -23,7 +26,13 @@ export function Tooltip({
         pos,
       )}
     >
-      <div class={cn(glass.surfaceSmall, '!rounded-[10px] px-2.5 py-1.5 flex items-center gap-2 whitespace-nowrap')}>
+      <div
+        class={cn(
+          glass.surfaceSmall,
+          'rounded-[10px] px-2.5 py-1.5 flex items-center gap-2',
+          wrap ? 'w-44 leading-snug' : 'whitespace-nowrap',
+        )}
+      >
         <span class="text-[11px] text-ml-glass-fg/70 font-medium tracking-[0.01em]">{text}</span>
         {shortcut && (
           <kbd

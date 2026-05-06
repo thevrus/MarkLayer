@@ -1,22 +1,32 @@
 import { cn } from '@marklayer/types';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
+import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { secondaryBtn, textareaCls } from '../lib/buttons';
 import { detectFrameworkComponent, type FrameworkComponent } from '../lib/fiber-bridge';
 import { glass } from '../lib/glass';
 import { BrandIcon, type BrandIconName, Icon } from '../lib/icons';
-import { getSelector, type SelectedInfo, shortClassLabel, snapshotElement } from '../lib/selector';
+import { getSelector, isExtensionElement, type SelectedInfo, shortClassLabel, snapshotElement } from '../lib/selector';
 import {
   activeTool,
   addToInspectorStack,
   clearInspectorStack,
+  color,
+  connectionStatus,
   copyInspectorStack,
   copyText,
   inspectorStack,
   inspectorStackOpen,
+  lineWidth,
+  localUser,
+  outputDetail,
+  pushOp,
   removeFromInspectorStack,
+  showFrameworkBadges,
   toast,
 } from '../lib/state';
+import type { InspectOp } from '../lib/types';
 
 export interface HoverState {
   el: Element;
@@ -63,9 +73,9 @@ export function HoverHighlight({ state }: { state: HoverState }) {
           top: rect.top,
           width: rect.width,
           height: rect.height,
-          background: 'oklch(0.65 0.15 300 / 0.07)',
+          background: 'color-mix(in oklch, var(--color-ml-accent) 7%, transparent)',
           boxShadow:
-            '0 0 0 1.5px oklch(0.65 0.15 300 / 0.85), 0 0 0 4px oklch(0.65 0.15 300 / 0.16), 0 0 16px oklch(0.65 0.15 300 / 0.22)',
+            '0 0 0 1.5px color-mix(in oklch, var(--color-ml-accent) 85%, transparent), 0 0 0 4px color-mix(in oklch, var(--color-ml-accent) 16%, transparent), 0 0 16px color-mix(in oklch, var(--color-ml-accent) 22%, transparent)',
           transition: 'left 80ms ease, top 80ms ease, width 80ms ease, height 80ms ease',
         }}
       />
@@ -100,7 +110,7 @@ function HoverTooltip({ state }: { state: HoverState }) {
         transition: 'left 80ms ease, top 80ms ease, opacity 120ms ease',
       }}
     >
-      {component && componentName && (
+      {showFrameworkBadges.value && component && componentName && (
         <span
           style={{
             display: 'inline-flex',
@@ -122,7 +132,7 @@ function HoverTooltip({ state }: { state: HoverState }) {
         style={{
           padding: '2px 6px',
           borderRadius: 5,
-          background: 'oklch(0.65 0.15 300 / 0.22)',
+          background: 'color-mix(in oklch, var(--color-ml-accent) 22%, transparent)',
           color: 'oklch(0.86 0.08 300)',
           fontWeight: 600,
           fontSize: 10.5,
@@ -178,6 +188,32 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
     toast(`Added to stack (${count})`, 'success', 2000);
     onClose();
   };
+
+  // Push an InspectOp into the room so an MCP-connected agent can pick it up.
+  // Only available when a room is connected — outside the worker viewer there's
+  // no realtime sync wired, so the op would just persist locally with no
+  // listener, which would be confusing.
+  const sendToAgent = () => {
+    const comment = taRef.current?.value.trim() || '';
+    const op: InspectOp = {
+      id: nanoid(),
+      tool: 'inspect',
+      color: color.value,
+      lineWidth: lineWidth.value,
+      selector: state.selector,
+      tag: state.tag,
+      comment: comment || undefined,
+      markdown: state.markdown,
+      rect: { x: state.rect.x, y: state.rect.y, width: state.rect.width, height: state.rect.height },
+      ts: Date.now(),
+      author: localUser.name,
+      status: 'open',
+    };
+    pushOp(op);
+    toast('Sent to agent', 'success', 2000);
+    onClose();
+  };
+  const canSend = connectionStatus.value === 'connected';
 
   // Drag-to-reposition. Offset is applied as a transform on top of the auto-anchored
   // base position so the panel keeps following the element on scroll while honoring
@@ -280,18 +316,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                 onClose();
               }
             }}
-            class={cn(
-              'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-xl px-3.5 py-2.5',
-              'text-ml-glass-fg text-[13.5px] leading-relaxed',
-              'resize-none outline-none min-h-10 max-h-[100px]',
-              'caret-[oklch(0.65_0.15_300)]',
-              'transition-[border-color,background-color,box-shadow] duration-150',
-              'focus:border-[oklch(0.65_0.15_300/0.5)]',
-              'focus:shadow-[0_0_0_3px_oklch(0.65_0.15_300/0.12),inset_0_0.5px_0_oklch(1_0_0/0.04)]',
-              'focus:bg-ml-glass-fg/6',
-              'placeholder:text-ml-glass-fg/45',
-              glass.font,
-            )}
+            class={cn(textareaCls, 'w-full min-h-10 max-h-[100px]', glass.font)}
             style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
           />
         </div>
@@ -302,12 +327,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
               type="button"
               onClick={addToStack}
               title="Collect multiple element changes, then copy them as one prompt"
-              class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px]
-                     cursor-pointer whitespace-nowrap
-                     bg-ml-glass-fg/6 text-ml-glass-fg/85 border border-ml-glass-fg/15
-                     transition-[background-color,border-color,color,transform] duration-150
-                     hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg hover:border-ml-glass-fg/25
-                     active:scale-[0.96]"
+              class={cn(secondaryBtn, 'flex-1')}
             >
               Add to stack
             </button>
@@ -315,15 +335,20 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
               type="button"
               onClick={copyForAI}
               title="Copy prompt to clipboard"
-              class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px]
-                     cursor-pointer whitespace-nowrap
-                     bg-ml-glass-fg/6 text-ml-glass-fg/85 border border-ml-glass-fg/15
-                     transition-[background-color,border-color,color,transform] duration-150
-                     hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg hover:border-ml-glass-fg/25
-                     active:scale-[0.96]"
+              class={cn(secondaryBtn, 'flex-1')}
             >
               Copy
             </button>
+            {canSend && (
+              <button
+                type="button"
+                onClick={sendToAgent}
+                title="Push to the connected room — an MCP-watching agent will pick it up"
+                class={cn(secondaryBtn, 'flex-1')}
+              >
+                Send
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -369,7 +394,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
               {state.viewport.dpr !== 1 && <span class="text-ml-glass-fg/55"> @ {state.viewport.dpr}x</span>}
             </dd>
 
-            {state.component?.chain.length ? (
+            {showFrameworkBadges.value && state.component?.chain.length ? (
               <>
                 <dt
                   class={cn(metaLabel, 'inline-flex items-center gap-1')}
@@ -417,18 +442,17 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                 </dd>
               </>
             )}
-
-            {state.text && (
-              <>
-                <dt class={metaLabel}>Text</dt>
-                <dd class="text-ml-glass-fg/85 leading-snug line-clamp-2">
-                  <span class="text-ml-glass-fg/40">“</span>
-                  {state.text}
-                  <span class="text-ml-glass-fg/40">”</span>
-                </dd>
-              </>
-            )}
           </dl>
+
+          {state.text && (
+            <blockquote
+              class="mt-3 px-3 py-2 rounded-lg text-[12px] italic leading-snug line-clamp-3
+                     bg-(--ml-syntax-bg) text-(--ml-syntax-quote)
+                     border-l-2 border-ml-glass-fg/15"
+            >
+              {state.text}
+            </blockquote>
+          )}
         </div>
 
         {Object.keys(state.styles).length > 0 && (
@@ -468,16 +492,24 @@ function StylesSection({ styles }: { styles: Record<string, string> }) {
           <Icon name={open.value ? 'chevUp' : 'chevDown'} size={12} />
         </span>
       </button>
-      {open.value && (
-        <div class="mt-1.5 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10.5px] font-mono animate-[fadeIn_140ms_ease-out]">
-          {Object.entries(styles).map(([k, v]) => (
-            <div key={k} class="contents">
-              <span class="text-ml-glass-fg/65">{k}</span>
-              <span class="text-ml-glass-fg/85 truncate">{v}</span>
-            </div>
-          ))}
+      <div
+        class="grid transition-[grid-template-rows] duration-300 ease-ml-spring"
+        style={{ gridTemplateRows: open.value ? '1fr' : '0fr' }}
+      >
+        <div class="overflow-hidden min-h-0">
+          <div
+            class="mt-2 px-2.5 py-2 rounded-lg bg-(--ml-syntax-bg)
+                   grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10.5px] font-mono leading-normal"
+          >
+            {Object.entries(styles).map(([k, v]) => (
+              <div key={k} class="contents">
+                <span class="text-(--ml-syntax-property) font-semibold">{k}</span>
+                <span class="text-(--ml-syntax-value) truncate">{v}</span>
+              </div>
+            ))}
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -528,7 +560,7 @@ export function InspectorStackPanel() {
       >
         <span
           class="inline-flex items-center justify-center min-w-5.5 h-5.5 px-1.5 rounded-full text-[11px] font-bold tabular-nums
-                 bg-[oklch(0.65_0.15_300/0.22)] text-[oklch(0.86_0.08_300)]"
+                 bg-ml-accent/22 text-[oklch(0.86_0.08_300)]"
         >
           {items.length}
         </span>
@@ -605,26 +637,20 @@ export function InspectorStackPanel() {
 export function SelectedHighlight({ rect }: { rect: DOMRect }) {
   return (
     <div
-      class="fixed z-2147483646 pointer-events-none border-2 border-[oklch(0.65_0.15_300)] rounded-sm
+      class="fixed z-2147483646 pointer-events-none border-2 border-ml-accent rounded-sm
              animate-[fadeIn_140ms_ease-out]"
       style={{
         left: rect.left - 2,
         top: rect.top - 2,
         width: rect.width + 4,
         height: rect.height + 4,
-        background: 'oklch(0.65 0.15 300 / 0.1)',
-        boxShadow: '0 0 0 4px oklch(0.65 0.15 300 / 0.12), 0 0 24px oklch(0.65 0.15 300 / 0.2)',
+        background: 'color-mix(in oklch, var(--color-ml-accent) 10%, transparent)',
+        boxShadow:
+          '0 0 0 4px color-mix(in oklch, var(--color-ml-accent) 12%, transparent), 0 0 24px color-mix(in oklch, var(--color-ml-accent) 20%, transparent)',
         transition: 'left 120ms ease, top 120ms ease, width 120ms ease, height 120ms ease',
       }}
     />
   );
-}
-
-function isExtensionElement(el: Element | null): boolean {
-  if (!el) return true;
-  if (el.tagName === 'MARK-LAYER') return true;
-  if (el.hasAttribute('data-marklayer-inspect')) return true;
-  return !!el.closest('mark-layer');
 }
 
 export function InspectorLayer() {
@@ -645,7 +671,7 @@ export function InspectorLayer() {
   const pick = (el: Element) => {
     clearHover();
     selectedElRef.current = el;
-    selected.value = snapshotElement(el, getSelector(el), el.getBoundingClientRect());
+    selected.value = snapshotElement(el, getSelector(el), el.getBoundingClientRect(), outputDetail.value);
   };
 
   useEffect(() => {

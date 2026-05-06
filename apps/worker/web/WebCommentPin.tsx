@@ -1,9 +1,18 @@
 import { glass } from '@ext/lib/glass';
-import { getReplies, pushReply, setOpStatus } from '@ext/lib/state';
+import {
+  copyText,
+  deleteOp,
+  getCommentStatus,
+  getReplies,
+  openContextMenu,
+  pushReply,
+  STATUS_STYLES,
+  setOpStatus,
+} from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { CommentOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
-import { Check } from 'lucide-preact';
+import { Check, HelpCircle, Loader2 } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
 import { cssScale } from './signals';
 
@@ -19,7 +28,12 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
   const cs = cssScale.value;
   const flipH = (left + 320) * cs > window.innerWidth;
   const flipV = (top + 400) * cs > window.innerHeight;
-  const resolved = op.resolved;
+  const status = getCommentStatus(op);
+  const resolved = status === 'resolved';
+  const inProgress = status === 'in_progress';
+  const dismissed = status === 'dismissed';
+  const styles = STATUS_STYLES[status];
+  const showBadge = status !== 'open';
   const replies = getReplies(op.id);
   const [showReply, setShowReply] = useState(false);
   const replyRef = useRef<HTMLTextAreaElement>(null);
@@ -35,8 +49,24 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
     setShowReply(false);
   };
 
+  const onContextMenu = (e: MouseEvent) => {
+    openContextMenu(e, [
+      {
+        label: resolved ? 'Reopen' : 'Resolve',
+        icon: 'check',
+        onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
+      },
+      { label: 'Copy text', icon: 'copy', onClick: () => copyText(op.text, 'Comment copied') },
+      { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
+    ]);
+  };
+
   return (
-    <div class={cn('absolute pointer-events-auto cursor-pointer group/pin', glass.font)} style={{ left, top }}>
+    <div
+      class={cn('absolute pointer-events-auto cursor-pointer group/pin', glass.font)}
+      style={{ left, top }}
+      onContextMenu={onContextMenu}
+    >
       <div class="relative -translate-x-1/2 -translate-y-1/2">
         {/* Pin dot */}
         <div
@@ -47,15 +77,23 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                  group-hover/pin:scale-[1.15] group-hover/pin:shadow-[0_0_0_2.5px_oklch(1_0_0/0.12),0_4px_20px_oklch(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/0.25)]"
           style={{
             background: `linear-gradient(to bottom, color-mix(in oklch, ${op.color} 100%, white 20%), ${op.color})`,
+            opacity: styles.pinOpacity,
           }}
         >
           {op.num}
-          {resolved && (
-            <div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-green-500 text-white text-[9px] font-bold grid place-items-center shadow-sm border border-ml-glass-fg/80">
-              <Check size={9} strokeWidth={2.5} aria-hidden="true" />
+          {showBadge && (
+            <div
+              role="img"
+              aria-label={styles.label}
+              class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full text-white grid place-items-center shadow-sm border border-ml-glass-fg/80"
+              style={{ background: styles.bg }}
+            >
+              {resolved && <Check size={9} strokeWidth={2.5} aria-hidden="true" />}
+              {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
+              {dismissed && <HelpCircle size={9} strokeWidth={2.5} aria-hidden="true" />}
             </div>
           )}
-          {replies.length > 0 && !resolved && (
+          {replies.length > 0 && !resolved && !dismissed && (
             <div class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-white text-[8px] font-bold text-black/70 grid place-items-center shadow-sm">
               {replies.length}
             </div>
@@ -81,11 +119,11 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
           onClick={(e) => e.stopPropagation()}
         >
           {/* Root comment */}
-          <div style={{ padding: '12px 14px 8px' }} class="flex items-center gap-2.5">
+          <div class="flex items-center gap-2.5 pt-3 px-3.5 pb-2">
             <div
-              class="rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
+              class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
                      shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
-              style={{ background: op.color, width: 20, height: 20 }}
+              style={{ background: op.color }}
             >
               {op.num}
             </div>
@@ -95,30 +133,33 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
             <span class="text-[10.5px] text-ml-glass-fg/55 font-medium tabular-nums">{timeAgo(op.ts)}</span>
           </div>
 
-          <div style={{ padding: '4px 14px 10px' }}>
-            <p
-              style={{
-                margin: 0,
-                color: 'color-mix(in srgb, var(--color-ml-glass-fg) 90%, transparent)',
-                fontSize: '13px',
-                lineHeight: 1.55,
-                wordBreak: 'break-word',
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {op.text}
-            </p>
+          {(op.assignedAgent || dismissed) && (
+            <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
+              {op.assignedAgent && (
+                <span
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                  style={{ background: 'oklch(0.7 0.16 60 / 0.15)', color: styles.color }}
+                >
+                  {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
+                  {op.assignedAgent}
+                </span>
+              )}
+              {dismissed && op.dismissReason && (
+                <span class="text-[10.5px] italic text-ml-glass-fg/65">{op.dismissReason}</span>
+              )}
+            </div>
+          )}
+
+          <div class="pt-1 px-3.5 pb-2.5">
+            <p class="m-0 text-ml-glass-fg/90 text-[13px] leading-[1.55] break-words whitespace-pre-wrap">{op.text}</p>
           </div>
 
           {/* Replies */}
           {replies.length > 0 && (
             <div>
-              <div
-                style={{ margin: '0 12px', height: 1 }}
-                class="bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
-              />
+              <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
               {replies.map((reply) => (
-                <div key={reply.id} style={{ padding: '8px 14px' }} class="border-l-2 border-ml-glass-fg/[0.06] ml-3">
+                <div key={reply.id} class="px-3.5 py-2 border-l-2 border-ml-glass-fg/[0.06] ml-3">
                   <div class="flex items-center gap-2 mb-1">
                     <div
                       class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0"
@@ -129,16 +170,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                     <span class="text-[11px] text-ml-glass-fg/75 font-semibold">{reply.author || 'Anonymous'}</span>
                     <span class="text-[10px] text-ml-glass-fg/50 tabular-nums">{timeAgo(reply.ts)}</span>
                   </div>
-                  <p
-                    style={{
-                      margin: 0,
-                      color: 'color-mix(in srgb, var(--color-ml-glass-fg) 85%, transparent)',
-                      fontSize: '12.5px',
-                      lineHeight: 1.55,
-                      wordBreak: 'break-word',
-                      whiteSpace: 'pre-wrap',
-                    }}
-                  >
+                  <p class="m-0 text-ml-glass-fg/85 text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap">
                     {reply.text}
                   </p>
                 </div>
@@ -147,14 +179,11 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
           )}
 
           {/* Divider */}
-          <div
-            style={{ margin: '0 12px', height: 1 }}
-            class="bg-gradient-to-r from-transparent via-white/[0.07] to-transparent"
-          />
+          <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
 
           {/* Reply input */}
           {showReply ? (
-            <div style={{ padding: '8px 12px 10px' }}>
+            <div class="pt-2 px-3 pb-2.5">
               <textarea
                 name="reply"
                 ref={replyRef}
@@ -164,8 +193,8 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
                   'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-lg px-3 py-2',
                   'text-ml-glass-fg text-[12.5px] leading-relaxed',
                   'resize-none outline-none min-h-8 max-h-[80px]',
-                  'caret-[oklch(0.65_0.15_300)]',
-                  'focus:border-[oklch(0.65_0.15_300/0.5)] focus:bg-ml-glass-fg/6',
+                  'caret-ml-accent',
+                  'focus:border-ml-accent/50 focus:bg-ml-glass-fg/6',
                   'placeholder:text-ml-glass-fg/45',
                   glass.font,
                 )}
@@ -201,7 +230,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
               </div>
             </div>
           ) : (
-            <div style={{ padding: '8px 14px 10px' }} class="flex items-center gap-2">
+            <div class="flex items-center gap-2 pt-2 px-3.5 pb-2.5">
               <button
                 type="button"
                 onClick={() => {

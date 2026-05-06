@@ -1,6 +1,7 @@
 import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from '@ext/lib/export-text';
 import { glass } from '@ext/lib/glass';
 import {
+  areas,
   color,
   commentFilter,
   copyText,
@@ -16,9 +17,10 @@ import {
   toast,
 } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
-import type { CommentOp, CommentStatus, DeviceMode, DrawOp, SelectionOp, TextOp } from '@ext/lib/types';
+import type { AreaOp, CommentOp, CommentStatus, DeviceMode, DrawOp, SelectionOp, TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import {
+  BoxSelect,
   Check,
   ClipboardCopy,
   Download,
@@ -40,24 +42,30 @@ interface BodyProps {
 type AnnotationItem =
   | { kind: 'comment'; op: CommentOp; replyCount: number }
   | { kind: 'text'; op: TextOp }
-  | { kind: 'selection'; op: SelectionOp };
+  | { kind: 'selection'; op: SelectionOp }
+  | { kind: 'area'; op: AreaOp };
 
 const STATUS_COLORS: Record<CommentStatus, string> = {
-  open: '#3b82f6',
-  in_progress: '#f59e0b',
-  resolved: '#22c55e',
+  open: 'var(--ml-state-blue)',
+  in_progress: 'var(--ml-state-yellow)',
+  resolved: 'var(--ml-state-green)',
+  dismissed: 'var(--color-ml-resolved)',
 };
 const STATUS_ACTIONS: Record<CommentStatus, string> = {
   open: 'Mark in progress',
   in_progress: 'Resolve',
   resolved: 'Reopen',
+  dismissed: 'Reopen',
 };
 
 function StatusBadge({ status }: { status: CommentStatus }) {
   return (
     <span
       class="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md"
-      style={{ color: STATUS_COLORS[status], background: `${STATUS_COLORS[status]}20` }}
+      style={{
+        color: STATUS_COLORS[status],
+        background: `color-mix(in oklch, ${STATUS_COLORS[status]} 14%, transparent)`,
+      }}
     >
       {STATUS_LABELS[status]}
     </span>
@@ -123,7 +131,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
         <div class="flex items-center gap-2 mb-1.5">
           <div
             class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0"
-            style={{ background: status === 'resolved' ? '#6b7280' : op.color }}
+            style={{ background: status === 'resolved' ? 'var(--color-ml-resolved)' : op.color }}
           >
             {status === 'resolved' ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : op.num}
           </div>
@@ -155,7 +163,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
               e.stopPropagation();
               onScrollTo(op.x, op.y);
             }}
-            class="text-[11px] font-medium text-ml-glass-fg/55 hover:text-[oklch(0.65_0.15_300)] bg-transparent border-none cursor-pointer p-0 transition-colors"
+            class="text-[11px] font-medium text-ml-glass-fg/55 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
           >
             Go to
           </button>
@@ -301,7 +309,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   const filter = commentFilter.value;
 
   const items: AnnotationItem[] = [];
-  const statusCounts: Record<CommentStatus, number> = { open: 0, in_progress: 0, resolved: 0 };
+  const statusCounts: Record<CommentStatus, number> = { open: 0, in_progress: 0, resolved: 0, dismissed: 0 };
   for (const c of rootComments.value) {
     const s = getCommentStatus(c);
     statusCounts[s]++;
@@ -319,7 +327,13 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
       selectionCount++;
     }
   }
-  const itemY = (item: AnnotationItem) => (item.kind === 'selection' ? (item.op.rects[0]?.y ?? 0) : item.op.y);
+  const areaList = areas.value;
+  for (const op of areaList) items.push({ kind: 'area', op });
+  const itemY = (item: AnnotationItem) => {
+    if (item.kind === 'selection') return item.op.rects[0]?.y ?? 0;
+    if (item.kind === 'area') return Math.min(item.op.startY, item.op.endY);
+    return item.op.y;
+  };
   items.sort((a, b) => itemY(a) - itemY(b));
 
   return (
@@ -334,6 +348,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               {statusCounts.resolved > 0 && <span class="text-green-500/80"> · {statusCounts.resolved} resolved</span>}
               {textCount > 0 && ` · ${textCount} text`}
               {selectionCount > 0 && ` · ${selectionCount} selection`}
+              {areaList.length > 0 && ` · ${areaList.length} area`}
             </span>
           </div>
           <div class="flex items-center gap-0.5">
@@ -411,6 +426,69 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
             return <CommentThread key={item.op.id} op={item.op} onScrollTo={onScrollTo} />;
           }
 
+          if (item.kind === 'area') {
+            const { op } = item;
+            const minX = Math.min(op.startX, op.endX);
+            const minY = Math.min(op.startY, op.endY);
+            const w = Math.abs(op.endX - op.startX);
+            const h = Math.abs(op.endY - op.startY);
+            const areaResolved = op.status === 'resolved';
+            return (
+              <div key={op.id} class="border-b border-ml-glass-fg/[0.06]">
+                <button
+                  type="button"
+                  class="w-full text-left px-4 py-3
+                         bg-transparent cursor-pointer transition-colors duration-100
+                         hover:bg-ml-glass-accent/[0.04]"
+                  onClick={() => onScrollTo(minX, minY)}
+                >
+                  <div class="flex items-center gap-2 mb-1">
+                    <BoxSelect
+                      size={12}
+                      color={areaResolved ? 'var(--color-ml-resolved)' : op.color}
+                      aria-hidden="true"
+                    />
+                    <span class="text-[11px] text-ml-glass-fg/40 font-medium flex-1">Area</span>
+                    <DeviceBadge device={op.device} />
+                    {areaResolved && <StatusBadge status="resolved" />}
+                  </div>
+                  {op.comment ? (
+                    <p
+                      class="text-[12px] text-ml-glass-fg/80 m-0 line-clamp-2 leading-relaxed"
+                      style={{
+                        textDecoration: areaResolved ? 'line-through' : 'none',
+                        opacity: areaResolved ? 0.5 : 1,
+                      }}
+                    >
+                      {op.comment}
+                    </p>
+                  ) : (
+                    <p class="text-[12px] text-ml-glass-fg/45 m-0 italic">No comment</p>
+                  )}
+                  <p class="text-[10px] text-ml-glass-fg/30 m-0 mt-1 tabular-nums">
+                    {Math.round(w)} × {Math.round(h)} px
+                  </p>
+                </button>
+                <div class="flex items-center gap-3 px-4 pb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => onScrollTo(minX, minY)}
+                    class="text-[10px] text-ml-glass-fg/25 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
+                  >
+                    Go to
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpStatus(op.id, areaResolved ? 'open' : 'resolved')}
+                    class="text-[10px] text-ml-glass-fg/25 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer p-0 transition-colors"
+                  >
+                    {areaResolved ? 'Reopen' : 'Resolve'}
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
           if (item.kind === 'selection') {
             const { op } = item;
             const firstRect = op.rects[0];
@@ -425,7 +503,11 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
                 >
                   <div class="flex items-center gap-2 mb-1">
-                    <TextSelect size={12} color={selResolved ? '#6b7280' : op.color} aria-hidden="true" />
+                    <TextSelect
+                      size={12}
+                      color={selResolved ? 'var(--color-ml-resolved)' : op.color}
+                      aria-hidden="true"
+                    />
                     <span class="text-[11px] text-ml-glass-fg/40 font-medium flex-1">Selection</span>
                     <DeviceBadge device={op.device} />
                     {selResolved && <StatusBadge status="resolved" />}
@@ -449,7 +531,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   <button
                     type="button"
                     onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
-                    class="text-[10px] text-ml-glass-fg/25 hover:text-[oklch(0.65_0.15_300)] bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class="text-[10px] text-ml-glass-fg/25 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
                   >
                     Go to
                   </button>
@@ -492,7 +574,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
 }
 
 const PANEL_BASE = cn(glass.surface, 'flex flex-col overflow-hidden');
-const PANEL_TRANSITION = 'transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]';
+const PANEL_TRANSITION = 'transition-all duration-300 ease-ml-spring';
 
 export function AnnotationPanel(props: BodyProps) {
   const visible = showAnnotationPanel.value;

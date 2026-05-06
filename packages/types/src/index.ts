@@ -1,109 +1,204 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { z } from 'zod/mini';
 
 export function cn(...inputs: ClassValue[]): string {
   return twMerge(clsx(inputs));
 }
 
-export interface Point {
-  x: number;
-  y: number;
-}
+// === Ops: schemas + inferred types (single source of truth) ===
 
-export type DeviceMode = 'desktop' | 'tablet' | 'mobile';
+export const pointSchema = z.object({ x: z.number(), y: z.number() });
+export type Point = z.infer<typeof pointSchema>;
+
+export const deviceModeSchema = z.enum(['desktop', 'tablet', 'mobile']);
+export type DeviceMode = z.infer<typeof deviceModeSchema>;
+
+const baseOp = {
+  id: z.string(),
+  color: z.string(),
+  lineWidth: z.number(),
+  /** Viewport size this annotation was drawn on */
+  device: z.optional(deviceModeSchema),
+};
 
 export interface BaseOp {
   id: string;
   color: string;
   lineWidth: number;
-  /** Viewport size this annotation was drawn on */
   device?: DeviceMode;
 }
 
-export interface FreehandOp extends BaseOp {
-  tool: 'pen' | 'eraser' | 'highlight';
-  points: Point[];
-  compositeOperation: string;
-}
+export const freehandOpSchema = z.object({
+  ...baseOp,
+  tool: z.enum(['pen', 'eraser', 'highlight']),
+  points: z.array(pointSchema),
+  compositeOperation: z.string(),
+});
+export type FreehandOp = z.infer<typeof freehandOpSchema>;
 
-export interface RectOp extends BaseOp {
-  tool: 'rectangle';
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-}
+export const rectOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('rectangle'),
+  startX: z.number(),
+  startY: z.number(),
+  endX: z.number(),
+  endY: z.number(),
+});
+export type RectOp = z.infer<typeof rectOpSchema>;
 
-export interface LineOp extends BaseOp {
-  tool: 'line';
-  arrow?: boolean;
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-}
+export const lineOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('line'),
+  arrow: z.optional(z.boolean()),
+  startX: z.number(),
+  startY: z.number(),
+  endX: z.number(),
+  endY: z.number(),
+});
+export type LineOp = z.infer<typeof lineOpSchema>;
 
-export interface CircleOp extends BaseOp {
-  tool: 'circle';
-  centerX: number;
-  centerY: number;
-  radius: number;
-}
+export const circleOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('circle'),
+  centerX: z.number(),
+  centerY: z.number(),
+  radius: z.number(),
+});
+export type CircleOp = z.infer<typeof circleOpSchema>;
 
-export type CommentStatus = 'open' | 'in_progress' | 'resolved';
+export const commentStatusSchema = z.enum(['open', 'in_progress', 'resolved', 'dismissed']);
+export type CommentStatus = z.infer<typeof commentStatusSchema>;
 
-export interface CommentMeta {
-  url?: string;
-  viewport?: { width: number; height: number };
-  browser?: string;
-  os?: string;
-}
+/**
+ * Element context attached to an annotation so an MCP-connected agent can locate
+ * what was being referenced without round-tripping back to the page. `markdown`
+ * is the same `formatForAI()` payload the Inspect tool uses, so all annotation
+ * tools converge on a single agent-readable shape.
+ */
+export const targetElementSchema = z.object({
+  selector: z.string(),
+  tag: z.string(),
+  markdown: z.string(),
+  rect: z.optional(z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })),
+});
+export type TargetElement = z.infer<typeof targetElementSchema>;
 
-export interface CommentOp extends BaseOp {
-  tool: 'comment';
-  num: number;
-  text: string;
-  x: number;
-  y: number;
-  ts: number;
-  resolved?: boolean;
-  status?: CommentStatus;
-  parentId?: string;
-  author?: string;
-  meta?: CommentMeta;
-}
+export const commentMetaSchema = z.object({
+  url: z.optional(z.string()),
+  viewport: z.optional(z.object({ width: z.number(), height: z.number() })),
+  browser: z.optional(z.string()),
+  os: z.optional(z.string()),
+});
+export type CommentMeta = z.infer<typeof commentMetaSchema>;
 
-export interface TextOp extends BaseOp {
-  tool: 'text';
-  text: string;
-  x: number;
-  y: number;
-  fontSize: number;
-}
+export const commentOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('comment'),
+  num: z.number(),
+  text: z.string(),
+  x: z.number(),
+  y: z.number(),
+  ts: z.number(),
+  resolved: z.optional(z.boolean()),
+  status: z.optional(commentStatusSchema),
+  parentId: z.optional(z.string()),
+  author: z.optional(z.string()),
+  meta: z.optional(commentMetaSchema),
+  assignedAgent: z.optional(z.string()),
+  dismissReason: z.optional(z.string()),
+  target: z.optional(targetElementSchema),
+});
+export type CommentOp = z.infer<typeof commentOpSchema>;
 
-export interface SelectionRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+export const textOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('text'),
+  text: z.string(),
+  x: z.number(),
+  y: z.number(),
+  fontSize: z.number(),
+});
+export type TextOp = z.infer<typeof textOpSchema>;
 
-export interface SelectionOp extends BaseOp {
-  tool: 'selection';
-  /** The actual selected text string */
-  text: string;
-  /** Bounding rectangles from getClientRects(), in document coordinates */
-  rects: SelectionRect[];
-  /** Optional comment attached to the selection */
-  comment?: string;
-  ts: number;
-  author?: string;
-  status?: CommentStatus;
-}
+export const selectionRectSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+export type SelectionRect = z.infer<typeof selectionRectSchema>;
 
-export type DrawOp = FreehandOp | RectOp | LineOp | CircleOp | CommentOp | TextOp | SelectionOp;
+export const selectionOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('selection'),
+  text: z.string(),
+  rects: z.array(selectionRectSchema),
+  comment: z.optional(z.string()),
+  ts: z.number(),
+  author: z.optional(z.string()),
+  status: z.optional(commentStatusSchema),
+  assignedAgent: z.optional(z.string()),
+  dismissReason: z.optional(z.string()),
+  target: z.optional(targetElementSchema),
+});
+export type SelectionOp = z.infer<typeof selectionOpSchema>;
 
-/** Peer presence for live cursors */
+/** Rectangular region annotation with optional comment — "this whole section feels off." */
+export const areaOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('area'),
+  startX: z.number(),
+  startY: z.number(),
+  endX: z.number(),
+  endY: z.number(),
+  comment: z.optional(z.string()),
+  ts: z.number(),
+  author: z.optional(z.string()),
+  status: z.optional(commentStatusSchema),
+  assignedAgent: z.optional(z.string()),
+  dismissReason: z.optional(z.string()),
+  target: z.optional(targetElementSchema),
+});
+export type AreaOp = z.infer<typeof areaOpSchema>;
+
+/**
+ * Element-inspector handoff. Captures the selector, the element rect, and the full
+ * markdown snapshot at the moment of inspection so an MCP-connected agent has
+ * everything it needs to act without rehydrating the page.
+ */
+export const inspectOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('inspect'),
+  selector: z.string(),
+  tag: z.string(),
+  comment: z.optional(z.string()),
+  markdown: z.string(),
+  rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
+  ts: z.number(),
+  author: z.optional(z.string()),
+  status: z.optional(commentStatusSchema),
+  assignedAgent: z.optional(z.string()),
+  dismissReason: z.optional(z.string()),
+});
+export type InspectOp = z.infer<typeof inspectOpSchema>;
+
+export const drawOpSchema = z.discriminatedUnion('tool', [
+  freehandOpSchema,
+  rectOpSchema,
+  lineOpSchema,
+  circleOpSchema,
+  commentOpSchema,
+  textOpSchema,
+  selectionOpSchema,
+  areaOpSchema,
+  inspectOpSchema,
+]);
+export type DrawOp = z.infer<typeof drawOpSchema>;
+
+export const opsArraySchema = z.array(drawOpSchema);
+
+/** Peer presence for live cursors. Runtime-only state — not on the wire. */
 export interface Peer {
   id: string;
   name: string;
@@ -112,3 +207,40 @@ export interface Peer {
   tool?: string;
   lastSeen: number;
 }
+
+// === Wire protocol ===
+
+/**
+ * RTC signaling carries arbitrary SDP/ICE blobs that we forward verbatim.
+ * Match these types separately and pass through; do not run them through `clientMsgSchema`.
+ */
+export const RTC_MESSAGE_TYPES = ['rtc_offer', 'rtc_answer', 'rtc_ice'] as const;
+export type RtcMessageType = (typeof RTC_MESSAGE_TYPES)[number];
+
+/**
+ * Operational client→server messages, strictly validated at the WS boundary.
+ * Excludes RTC signaling (see RTC_MESSAGE_TYPES).
+ */
+export const clientMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('op'), op: drawOpSchema }),
+  z.object({
+    type: z.literal('update_op'),
+    opId: z.string(),
+    patch: z.record(z.string(), z.unknown()),
+  }),
+  z.object({ type: z.literal('undo'), opId: z.string() }),
+  z.object({ type: z.literal('clear') }),
+  z.object({ type: z.literal('ping') }),
+  z.object({
+    type: z.literal('cursor'),
+    x: z.number(),
+    y: z.number(),
+    tool: z.optional(z.string()),
+  }),
+  z.object({
+    type: z.literal('profile'),
+    name: z.optional(z.string()),
+    color: z.optional(z.string()),
+  }),
+]);
+export type ClientMsg = z.infer<typeof clientMsgSchema>;

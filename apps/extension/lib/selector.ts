@@ -1,6 +1,59 @@
+import type { TargetElement } from '@marklayer/types';
 import { detectFrameworkComponent, type FrameworkComponent } from './fiber-bridge';
 
 export type { FrameworkComponent } from './fiber-bridge';
+
+/**
+ * True for any element belonging to MarkLayer's own injected UI. Used by every
+ * tool layer when picking the underlying page element so we never attribute
+ * a comment/area/inspect target to our own toolbar or pin.
+ */
+export function isExtensionElement(el: Element | null): boolean {
+  if (!el) return true;
+  if (el.tagName === 'MARK-LAYER') return true;
+  if (el.hasAttribute?.('data-marklayer-inspect')) return true;
+  return !!el.closest?.('mark-layer');
+}
+
+/**
+ * Pick the topmost page element at viewport (x, y), skipping extension UI and
+ * the document root — anchoring an annotation to `<body>` or `<html>` is never
+ * what the user means. Pass a `doc` (e.g. an iframe's contentDocument) to pick
+ * inside that frame; the extension-UI skip only applies to the host document.
+ */
+export function pickElementAtPoint(x: number, y: number, doc: Document = document): Element | null {
+  const stack = doc.elementsFromPoint(x, y);
+  for (const el of stack) {
+    if (doc === document && isExtensionElement(el)) continue;
+    if (el === doc.body || el === doc.documentElement) continue;
+    return el;
+  }
+  return null;
+}
+
+/**
+ * Snapshot an element into the agent-readable target shape. Used by Comment,
+ * Area, and Selection tools so MCP-connected agents see the same selector +
+ * markdown context that the dedicated Inspect tool produces. The element's
+ * own ownerDocument/defaultView provides the scroll origin, so this works
+ * uniformly for host-page and iframe elements.
+ */
+export function captureTarget(el: Element): TargetElement {
+  const selector = getSelector(el);
+  const rect = el.getBoundingClientRect();
+  const win = el.ownerDocument.defaultView ?? window;
+  return {
+    selector,
+    tag: el.tagName.toLowerCase(),
+    markdown: formatForAI(el, selector),
+    rect: {
+      x: rect.x + win.scrollX,
+      y: rect.y + win.scrollY,
+      width: rect.width,
+      height: rect.height,
+    },
+  };
+}
 
 // Test/automation hooks — most stable identifier any sensible app exposes
 const STABLE_ATTRS = ['data-testid', 'data-test-id', 'data-test', 'data-cy', 'data-qa'] as const;
@@ -484,14 +537,27 @@ export interface FormatForAIOptions {
   textSummary?: { text: string; truncated: boolean };
   /** Pre-computed CSS stack; pass `null` to skip detection, omit to detect lazily. */
   cssStack?: CssStack | null;
+  /** Verbatim text the user highlighted, included so AI agents can grep for the exact string. */
+  selectedText?: string;
+  /**
+   * Verbosity tier (strict superset ladder, matching Agentation):
+   *   compact   — selector + size only
+   *   standard  — adds component, viewport, text, markup HTML  (default)
+   *   detailed  — adds parent layout + ancestor hierarchy
+   *   forensic  — adds computed styles
+   */
+  detail?: OutputDetail;
 }
+
+export type OutputDetail = 'compact' | 'standard' | 'detailed' | 'forensic';
+
+const DETAIL_RANK: Record<OutputDetail, number> = { compact: 0, standard: 1, detailed: 2, forensic: 3 };
+const atLeast = (level: OutputDetail, threshold: OutputDetail) => DETAIL_RANK[level] >= DETAIL_RANK[threshold];
 
 /** Format element info as markdown for AI tools */
 export function formatForAI(el: Element, selector: string, opts: FormatForAIOptions = {}): string {
+  const detail: OutputDetail = opts.detail ?? 'standard';
   const dims = opts.rect ?? el.getBoundingClientRect();
-  const resolved = opts.styles ?? getKeyStyles(el);
-  const { text, truncated } = opts.textSummary ?? summarizeText(el);
-
   const doc = el.ownerDocument;
   const win = doc.defaultView ?? window;
 
@@ -501,6 +567,11 @@ export function formatForAI(el: Element, selector: string, opts: FormatForAIOpti
     md += title ? `**Page:** ${title} — ${win.location.href}\n` : `**Page:** ${win.location.href}\n`;
   }
   md += `**Selector:** \`${selector}\`\n`;
+  md += `**Size:** ${Math.round(dims.width)}×${Math.round(dims.height)}px\n`;
+
+  // Compact stops here — just enough for an agent to grep and locate the element.
+  if (!atLeast(detail, 'standard')) return md;
+
   const fwc = opts.component === undefined ? detectFrameworkComponent(el) : opts.component;
   if (fwc) {
     if (fwc.chain.length) md += `**${fwc.framework} Component:** ${fwc.chain.join(' ← ')}\n`;
@@ -511,21 +582,20 @@ export function formatForAI(el: Element, selector: string, opts: FormatForAIOpti
   }
   const cssStack = opts.cssStack === undefined ? (detectTailwind(doc) ? 'Tailwind' : null) : opts.cssStack;
   if (cssStack) md += `**CSS Stack:** ${cssStack}\n`;
-  md += `**Size:** ${Math.round(dims.width)}×${Math.round(dims.height)}px\n`;
   const dpr = win.devicePixelRatio;
   const dprPart = dpr !== 1 ? ` @ ${dpr}x` : '';
   md += `**Viewport:** ${win.innerWidth}×${win.innerHeight}px${dprPart}\n`;
+  const { text, truncated } = opts.textSummary ?? summarizeText(el);
   if (text) md += `**Text:** "${truncated ? `${text}…` : text}"\n`;
+  if (opts.selectedText) {
+    // Collapse internal newlines so the quote stays on one line for grep-friendly AI output.
+    const oneLine = opts.selectedText.replace(/\s+/g, ' ').trim();
+    if (oneLine) md += `**Selected text:** "${oneLine}"\n`;
+  }
 
   md += `\n**Markup:**\n\`\`\`html\n${truncateOuterHTML(el)}\n\`\`\`\n`;
 
-  if (Object.keys(resolved).length) {
-    md += '\n**Computed Styles:**\n```css\n';
-    for (const [k, v] of Object.entries(resolved)) {
-      md += `${k}: ${v};\n`;
-    }
-    md += '```\n';
-  }
+  if (!atLeast(detail, 'detailed')) return md;
 
   const parentLayout = getParentLayout(el);
   if (parentLayout) {
@@ -550,6 +620,17 @@ export function formatForAI(el: Element, selector: string, opts: FormatForAIOpti
     md += `\n**Hierarchy:** ${ancestry.reverse().join(' > ')}\n`;
   }
 
+  if (!atLeast(detail, 'forensic')) return md;
+
+  const resolved = opts.styles ?? getKeyStyles(el);
+  if (Object.keys(resolved).length) {
+    md += '\n**Computed Styles:**\n```css\n';
+    for (const [k, v] of Object.entries(resolved)) {
+      md += `${k}: ${v};\n`;
+    }
+    md += '```\n';
+  }
+
   return md;
 }
 
@@ -570,7 +651,55 @@ export interface SelectedInfo {
   cssStack: CssStack | null;
 }
 
-export function snapshotElement(el: Element, selector: string, viewportRect: DOMRect): SelectedInfo {
+/**
+ * Structured view of a comment whose body was generated by `formatForAI`. Used
+ * by `CommentPin` to render the hover card with the same labeled layout as the
+ * live Inspect panel instead of dumping a wall of markdown.
+ */
+export interface ParsedInspectorComment {
+  /** The user's typed instruction, if any (from the leading `## Task` block). */
+  task: string | null;
+  /** Field rows in the order they appear, e.g. [['Selector', '`h1`'], ['Size', '576×189px'], ...]. */
+  fields: Array<[label: string, value: string]>;
+  /** Markup HTML inside the trailing fenced code block, if present. */
+  markup: string | null;
+}
+
+const INSPECTOR_FIELD_RE = /^\*\*([^*]+):\*\*\s*(.+)$/;
+const INSPECTOR_MARKUP_RE = /\n\*\*Markup:\*\*\s*\n```html\n([\s\S]*?)\n```/;
+
+export function parseInspectorComment(text: string): ParsedInspectorComment | null {
+  if (!text.includes(ELEMENT_INSPECTOR_HEADING)) return null;
+
+  let task: string | null = null;
+  let body = text;
+  if (text.startsWith('## Task')) {
+    const split = text.indexOf(ELEMENT_INSPECTOR_HEADING);
+    if (split > 0) {
+      task = text.slice('## Task'.length, split).trim() || null;
+      body = text.slice(split);
+    }
+  }
+
+  const markupMatch = body.match(INSPECTOR_MARKUP_RE);
+  const markup = markupMatch ? markupMatch[1].trim() : null;
+  const beforeMarkup = markupMatch ? body.slice(0, markupMatch.index) : body;
+
+  const fields: Array<[string, string]> = [];
+  for (const line of beforeMarkup.split('\n')) {
+    const m = line.match(INSPECTOR_FIELD_RE);
+    if (m) fields.push([m[1].trim(), m[2].trim()]);
+  }
+
+  return { task, fields, markup };
+}
+
+export function snapshotElement(
+  el: Element,
+  selector: string,
+  viewportRect: DOMRect,
+  detail: OutputDetail = 'standard',
+): SelectedInfo {
   const styles = getKeyStyles(el);
   const component = detectFrameworkComponent(el);
   const textSummary = summarizeText(el);
@@ -584,7 +713,7 @@ export function snapshotElement(el: Element, selector: string, viewportRect: DOM
     rect: viewportRect,
     styles,
     text: textSummary.text,
-    markdown: formatForAI(el, selector, { styles, rect: viewportRect, component, textSummary, cssStack }),
+    markdown: formatForAI(el, selector, { styles, rect: viewportRect, component, textSummary, cssStack, detail }),
     viewport: { width: win.innerWidth, height: win.innerHeight, dpr: win.devicePixelRatio },
     component,
     cssStack,

@@ -1,8 +1,10 @@
 import {
+  connectionStatus,
   localUser,
   onCleared,
   onCursorMove,
   onOpPushed,
+  onOpUpdated,
   onProfileChange,
   onUndone,
   operations,
@@ -98,6 +100,7 @@ export function useRealtimeSync(annotationId: string) {
         name: localUser.name,
         color: localUser.color,
       });
+      connectionStatus.value = 'connecting';
       const ws = new WebSocket(`${protocol}//${location.host}/ws/${annotationId}?${params}`);
       wsRef.current = ws;
 
@@ -106,6 +109,7 @@ export function useRealtimeSync(annotationId: string) {
 
       ws.onopen = () => {
         connected.value = true;
+        connectionStatus.value = 'connected';
         retryRef.current = 0;
         const pending = pendingRef.current;
         pendingRef.current = [];
@@ -157,6 +161,18 @@ export function useRealtimeSync(annotationId: string) {
                 operations.value = [...operations.value, msg.op];
               }
               break;
+            case 'update_op': {
+              const opId: string | undefined = msg.opId;
+              const patch = msg.patch;
+              if (!opId || !patch || typeof patch !== 'object') break;
+              const ops = operations.value;
+              const idx = ops.findIndex((o) => o.id === opId);
+              if (idx === -1) break;
+              const next = ops.slice();
+              next[idx] = { ...ops[idx], ...patch } as DrawOp;
+              operations.value = next;
+              break;
+            }
             case 'undo':
               operations.value = operations.value.filter((o) => o.id !== msg.opId);
               break;
@@ -246,9 +262,12 @@ export function useRealtimeSync(annotationId: string) {
         connected.value = false;
         wsRef.current = null;
         if (!destroyed) {
+          connectionStatus.value = 'connecting';
           const delay = Math.min(1000 * 2 ** retryRef.current, 10000);
           retryRef.current++;
           setTimeout(connect, delay);
+        } else {
+          connectionStatus.value = 'disconnected';
         }
       };
 
@@ -272,6 +291,7 @@ export function useRealtimeSync(annotationId: string) {
     };
 
     onOpPushed.value = (op: DrawOp) => sendMsg({ type: 'op', op });
+    onOpUpdated.value = (opId: string, patch: Record<string, unknown>) => sendMsg({ type: 'update_op', opId, patch });
     onUndone.value = (opId: string) => sendMsg({ type: 'undo', opId });
     onCleared.value = () => sendMsg({ type: 'clear' });
     onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });
@@ -292,7 +312,9 @@ export function useRealtimeSync(annotationId: string) {
 
     return () => {
       destroyed = true;
+      connectionStatus.value = null;
       onOpPushed.value = null;
+      onOpUpdated.value = null;
       onUndone.value = null;
       onCleared.value = null;
       onCursorMove.value = null;

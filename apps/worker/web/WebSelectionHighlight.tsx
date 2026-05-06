@@ -1,6 +1,6 @@
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
-import { setOpStatus } from '@ext/lib/state';
+import { copyText, deleteOp, openContextMenu, setOpStatus } from '@ext/lib/state';
 import type { SelectionOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 
@@ -53,6 +53,17 @@ export function WebSelectionHighlight({ op, scale: s, scrollY }: Props) {
           width: (maxX - minX) * s,
           height: (maxY - minY) * s,
         }}
+        onContextMenu={(e) =>
+          openContextMenu(e, [
+            {
+              label: resolved ? 'Reopen' : 'Resolve',
+              icon: 'check',
+              onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
+            },
+            { label: 'Copy text', icon: 'copy', onClick: () => copyText(op.text, 'Selection copied') },
+            { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
+          ])
+        }
       >
         {/* Hover card */}
         <div

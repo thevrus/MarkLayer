@@ -4,6 +4,12 @@
   --color-ml-glass-fg: #000;
   --color-ml-glass-accent: oklch(0 0 0 / 0.06);
   --color-ml-glass-muted: oklch(0 0 0 / 0.03);
+  /* Brand accent — used for primary submit buttons, focus rings, caret. */
+  --color-ml-accent: oklch(0.65 0.15 300);
+  /* Resolved/muted neutral — used for done-state chips and de-emphasized swatches. */
+  --color-ml-resolved: oklch(0.55 0 0);
+  /* Spring easing for entrance/exit motion. */
+  --ease-ml-spring: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @layer base {
@@ -21,6 +27,19 @@
     --ml-glass-sep: oklch(0 0 0 / 0.12);
     --ml-glass-divider: oklch(0 0 0 / 0.09);
     --ml-glass-grip: oklch(0 0 0 / 0.9);
+
+    /* Semantic state colors — used for active/success/error/warning UI */
+    --ml-state-blue: oklch(0.62 0.18 250);
+    --ml-state-green: oklch(0.62 0.17 145);
+    --ml-state-red: oklch(0.62 0.22 25);
+    --ml-state-yellow: oklch(0.78 0.16 85);
+    --ml-state-accent: oklch(0.65 0.15 300);
+
+    /* Syntax highlighting (monokai-inspired) for inspector code blocks */
+    --ml-syntax-bg: oklch(0 0 0 / 0.04);
+    --ml-syntax-property: oklch(0.55 0.2 295);
+    --ml-syntax-value: oklch(0 0 0 / 0.78);
+    --ml-syntax-quote: oklch(0 0 0 / 0.62);
   }
 
   @media (prefers-color-scheme: dark) {
@@ -28,6 +47,8 @@
       --color-ml-glass-fg: #fff;
       --color-ml-glass-accent: oklch(1 0 0 / 0.12);
       --color-ml-glass-muted: oklch(1 0 0 / 0.06);
+      --color-ml-accent: oklch(0.78 0.13 300);
+      --color-ml-resolved: oklch(0.65 0 0);
       --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
       --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
       --ml-glass-border: oklch(1 0 0 / 0.18);
@@ -44,6 +65,17 @@
       --ml-glass-sep: oklch(1 0 0 / 0.12);
       --ml-glass-divider: oklch(1 0 0 / 0.1);
       --ml-glass-grip: oklch(1 0 0 / 0.9);
+
+      --ml-state-blue: oklch(0.72 0.17 250);
+      --ml-state-green: oklch(0.78 0.18 145);
+      --ml-state-red: oklch(0.7 0.2 25);
+      --ml-state-yellow: oklch(0.85 0.17 85);
+      --ml-state-accent: oklch(0.78 0.13 300);
+
+      --ml-syntax-bg: oklch(1 0 0 / 0.05);
+      --ml-syntax-property: oklch(0.78 0.15 295);
+      --ml-syntax-value: oklch(1 0 0 / 0.85);
+      --ml-syntax-quote: oklch(1 0 0 / 0.6);
     }
   }
 
@@ -52,6 +84,8 @@
     --color-ml-glass-fg: #fff;
     --color-ml-glass-accent: oklch(1 0 0 / 0.12);
     --color-ml-glass-muted: oklch(1 0 0 / 0.06);
+    --color-ml-accent: oklch(0.78 0.13 300);
+    --color-ml-resolved: oklch(0.65 0 0);
     --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
     --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
     --ml-glass-border: oklch(1 0 0 / 0.18);
@@ -68,6 +102,17 @@
     --ml-glass-sep: oklch(1 0 0 / 0.12);
     --ml-glass-divider: oklch(1 0 0 / 0.1);
     --ml-glass-grip: oklch(1 0 0 / 0.9);
+
+    --ml-state-blue: oklch(0.72 0.17 250);
+    --ml-state-green: oklch(0.78 0.18 145);
+    --ml-state-red: oklch(0.7 0.2 25);
+    --ml-state-yellow: oklch(0.85 0.17 85);
+    --ml-state-accent: oklch(0.78 0.13 300);
+
+    --ml-syntax-bg: oklch(1 0 0 / 0.05);
+    --ml-syntax-property: oklch(0.78 0.15 295);
+    --ml-syntax-value: oklch(1 0 0 / 0.85);
+    --ml-syntax-quote: oklch(1 0 0 / 0.6);
   }
 }
 
@@ -88,5 +133,58 @@
   }
   to {
     opacity: 1;
+  }
+}
+
+/* Bouncy spring entrance for floating surfaces (toolbar, panels). */
+@keyframes mlSpringIn {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-8deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes mlPanelIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Connection-state pulse for the toolbar status dot. Color is set on `background-color`
+ * so the same keyframe works for green/yellow/red via the host class. */
+@keyframes mlStatusPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+/* Reduce motion for users who request it: complete animations instantly and
+ * stop infinite loops (status pulse, spinners). Transitions stay snappy too.
+ * Scoped under :host so it only applies inside the extension's shadow root.
+ * `!important` is required to win over Tailwind utility classes and inline
+ * animation styles — this is the WCAG-recommended pattern. */
+@media (prefers-reduced-motion: reduce) {
+  :host *,
+  :host *::before,
+  :host *::after {
+    /* biome-ignore lint: required to override Tailwind utilities and inline animation styles for a11y */
+    animation-duration: 0.01ms !important;
+    /* biome-ignore lint: required to override Tailwind utilities and inline animation styles for a11y */
+    animation-iteration-count: 1 !important;
+    /* biome-ignore lint: required to override Tailwind utilities and inline animation styles for a11y */
+    transition-duration: 0.01ms !important;
   }
 }

@@ -1,8 +1,21 @@
 import { computed, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createDraftStore } from './drafts';
-import { ELEMENT_INSPECTOR_HEADING } from './selector';
-import type { CommentMeta, CommentOp, CommentStatus, DrawOp, Peer, SelectionOp, Tool } from './types';
+import { ELEMENT_INSPECTOR_HEADING, type OutputDetail } from './selector';
+
+export type { OutputDetail };
+
+import type {
+  AreaOp,
+  CommentMeta,
+  CommentOp,
+  CommentStatus,
+  DrawOp,
+  InspectOp,
+  Peer,
+  SelectionOp,
+  Tool,
+} from './types';
 
 const drafts = createDraftStore({
   key: `ml-draft-${location.href.split('#')[0]}`,
@@ -44,6 +57,8 @@ export function cycleTheme() {
   next !== 'system' && root?.add(next);
 }
 
+export const PALETTE = ['#b462f5', '#3b82f6', '#06b6d4', '#22c55e', '#facc15', '#f97316', '#f43f5e'];
+
 export const color = signal(_ls?.getItem('ml-color') || '#f43f5e');
 
 export function setColor(c: string) {
@@ -59,6 +74,72 @@ export function toggleToolbarMinimized() {
   const next = !toolbarMinimized.value;
   toolbarMinimized.value = next;
   lsSet('ml-toolbar-min', next ? '1' : null);
+}
+
+/** Show the framework component badge (React/Vue/Svelte) in the inspector hover + panel. */
+export const showFrameworkBadges = signal(_ls?.getItem('ml-framework-badges') !== '0');
+
+export function toggleFrameworkBadges() {
+  const next = !showFrameworkBadges.value;
+  showFrameworkBadges.value = next;
+  lsSet('ml-framework-badges', next ? null : '0');
+}
+
+/** Show all annotation markers (pins, highlights, drawings, areas). When false, the canvas + overlays still render the active tool, but committed ops are hidden. */
+export const markersVisible = signal(_ls?.getItem('ml-markers-visible') !== '0');
+
+export function toggleMarkersVisible() {
+  const next = !markersVisible.value;
+  markersVisible.value = next;
+  lsSet('ml-markers-visible', next ? null : '0');
+}
+
+/** Swallow page clicks while extension is open — useful when annotating links/buttons that would otherwise navigate. */
+export const blockInteractions = signal(_ls?.getItem('ml-block-interactions') === '1');
+
+export function toggleBlockInteractions() {
+  const next = !blockInteractions.value;
+  blockInteractions.value = next;
+  lsSet('ml-block-interactions', next ? '1' : null);
+}
+
+/** Auto-clear the inspector stack after copy/send so the next handoff starts fresh. */
+export const clearOnCopyEnabled = signal(_ls?.getItem('ml-clear-on-copy') === '1');
+
+export function toggleClearOnCopy() {
+  const next = !clearOnCopyEnabled.value;
+  clearOnCopyEnabled.value = next;
+  lsSet('ml-clear-on-copy', next ? '1' : null);
+}
+
+/** Transient open state for the floating settings panel. Not persisted. */
+export const showSettings = signal(false);
+
+/**
+ * Realtime sync status. `null` = no room joined (extension on a normal page).
+ * Set by `useRealtimeSync` in the web viewer; toolbar shows a pulse dot when non-null.
+ */
+export type ConnectionStatus = null | 'connecting' | 'connected' | 'disconnected';
+export const connectionStatus = signal<ConnectionStatus>(null);
+
+/**
+ * Verbosity of the AI markdown emitted by `formatForAI`, modeled on Agentation's
+ * four-tier ladder (defined in `selector.ts`). Each level is a strict superset.
+ */
+export const isOutputDetail = (v: unknown): v is OutputDetail =>
+  v === 'compact' || v === 'standard' || v === 'detailed' || v === 'forensic';
+const storedOutputDetail = _ls?.getItem('ml-output-detail');
+// Migrate the previous two-tier values: 'full' was the everything-on option.
+const initialOutputDetail: OutputDetail = isOutputDetail(storedOutputDetail)
+  ? storedOutputDetail
+  : storedOutputDetail === 'full'
+    ? 'forensic'
+    : 'standard';
+export const outputDetail = signal<OutputDetail>(initialOutputDetail);
+
+export function setOutputDetail(v: OutputDetail) {
+  outputDetail.value = v;
+  lsSet('ml-output-detail', v === 'standard' ? null : v);
 }
 
 export const operations = signal<DrawOp[]>([]);
@@ -160,6 +241,12 @@ export function setUserName(name: string) {
 
 // Callback for WebSocket sync — set by useRealtimeSync hook
 export const onOpPushed = signal<((op: DrawOp) => void) | null>(null);
+/**
+ * Patch is a partial-op shape (subset of fields on the matching DrawOp variant).
+ * We keep it loosely typed at the wire boundary because the server merges it
+ * generically before persisting / broadcasting.
+ */
+export const onOpUpdated = signal<((opId: string, patch: Record<string, unknown>) => void) | null>(null);
 export const onUndone = signal<((opId: string) => void) | null>(null);
 export const onCleared = signal<(() => void) | null>(null);
 export const onCursorMove = signal<((x: number, y: number, tool: string) => void) | null>(null);
@@ -236,12 +323,15 @@ export function copyInspectorStack() {
     return;
   }
   copyText(buildInspectorStackPrompt(), `Copied ${items.length} task${items.length === 1 ? '' : 's'} for AI!`);
+  if (clearOnCopyEnabled.value) clearInspectorStack();
 }
 
-// Single-pass partition of operations into comments, selections, root comments, and reply map
+// Single-pass partition of operations into comments, selections, areas, inspects, root comments, and reply map
 const _opIndex = computed(() => {
   const allComments: CommentOp[] = [];
   const allSelections: SelectionOp[] = [];
+  const allAreas: AreaOp[] = [];
+  const allInspects: InspectOp[] = [];
   const roots: CommentOp[] = [];
   const replies = new Map<string, CommentOp[]>();
   for (const op of operations.value) {
@@ -259,13 +349,19 @@ const _opIndex = computed(() => {
       }
     } else if (op.tool === 'selection') {
       allSelections.push(op);
+    } else if (op.tool === 'area') {
+      allAreas.push(op);
+    } else if (op.tool === 'inspect') {
+      allInspects.push(op);
     }
   }
-  return { allComments, allSelections, roots, replies };
+  return { allComments, allSelections, allAreas, allInspects, roots, replies };
 });
 
 export const comments = computed(() => _opIndex.value.allComments);
 export const selections = computed(() => _opIndex.value.allSelections);
+export const areas = computed(() => _opIndex.value.allAreas);
+export const inspects = computed(() => _opIndex.value.allInspects);
 export const rootComments = computed(() => _opIndex.value.roots);
 
 /** Get replies for a given comment id (O(1) lookup) */
@@ -284,10 +380,43 @@ export function getCommentStatus(op: CommentOp): CommentStatus {
   return op.status || (op.resolved ? 'resolved' : 'open');
 }
 
+/**
+ * Visual styling for a comment status badge.
+ * Used by both the extension and the web viewer pins.
+ */
+export const STATUS_STYLES: Record<
+  CommentStatus,
+  { color: string; bg: string; ring: string; pinOpacity: number; label: string }
+> = {
+  open: { color: 'transparent', bg: 'transparent', ring: 'transparent', pinOpacity: 1, label: 'Open' },
+  in_progress: {
+    color: 'oklch(0.7 0.16 60)',
+    bg: 'oklch(0.7 0.16 60)',
+    ring: 'oklch(1 0 0 / 0.8)',
+    pinOpacity: 1,
+    label: 'In progress',
+  },
+  resolved: {
+    color: 'oklch(0.7 0.18 145)',
+    bg: 'oklch(0.7 0.18 145)',
+    ring: 'oklch(1 0 0 / 0.8)',
+    pinOpacity: 1,
+    label: 'Resolved',
+  },
+  dismissed: {
+    color: 'oklch(0.6 0 0)',
+    bg: 'oklch(0.6 0 0)',
+    ring: 'oklch(1 0 0 / 0.6)',
+    pinOpacity: 0.55,
+    label: 'Dismissed',
+  },
+};
+
 export const STATUS_LABELS: Record<CommentStatus, string> = {
   open: 'Open',
   in_progress: 'In Progress',
   resolved: 'Resolved',
+  dismissed: 'Dismissed',
 };
 
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
@@ -314,8 +443,10 @@ export const TOOLS: Tool[] = [
   'text',
   'comment',
   'selection',
+  'area',
   'eraser',
   'inspect',
+  'multiInspect',
   'measure',
 ];
 
@@ -367,8 +498,10 @@ export const SHORTCUT_MAP: Record<string, Tool> = {
   T: 'text',
   C: 'comment',
   S: 'selection',
+  G: 'area',
   E: 'eraser',
   I: 'inspect',
+  X: 'multiInspect',
   M: 'measure',
 };
 export const SHORTCUTS: Partial<Record<Tool, string>> = Object.fromEntries(
@@ -402,19 +535,24 @@ export function pushReply(parentOp: { id: string; x: number; y: number }, text: 
 }
 
 export function setOpStatus(opId: string, status: CommentStatus) {
-  let updated: DrawOp | undefined;
+  let patch: Partial<CommentOp> | Partial<SelectionOp> | undefined;
   operations.value = operations.value.map((op) => {
     if (op.id !== opId) return op;
     if (op.tool === 'comment') {
-      updated = { ...op, status, resolved: status === 'resolved' };
-    } else if (op.tool === 'selection') {
-      updated = { ...op, status };
-    } else {
-      return op;
+      if (getCommentStatus(op) === status) return op;
+      const p: Partial<CommentOp> = { status, resolved: status === 'resolved' };
+      patch = p;
+      return { ...op, ...p };
     }
-    return updated;
+    if (op.tool === 'selection') {
+      if ((op.status ?? 'open') === status) return op;
+      const p: Partial<SelectionOp> = { status };
+      patch = p;
+      return { ...op, ...p };
+    }
+    return op;
   });
-  if (updated) onOpPushed.value?.(updated);
+  if (patch) onOpUpdated.value?.(opId, patch);
 }
 
 /** @deprecated Use setOpStatus instead */
@@ -498,4 +636,41 @@ export function clearAll() {
   operations.value = [];
   onCleared.value?.();
   drafts.clear();
+}
+
+/** Remove a single op by id. Mirrors `undo` on the wire so peers see it. */
+export function deleteOp(id: string) {
+  const ops = operations.value;
+  const op = ops.find((o) => o.id === id);
+  if (!op) return;
+  operations.value = ops.filter((o) => o.id !== id);
+  onUndone.value?.(id);
+  drafts.scheduleSave();
+}
+
+/**
+ * Singleton context-menu state. A pin sets this on right-click; the renderer in App.tsx
+ * shows the menu and clears the signal on outside-click / Esc / item-select.
+ */
+export interface ContextMenuItem {
+  label: string;
+  icon?: string;
+  onClick: () => void;
+  danger?: boolean;
+}
+export interface ContextMenuState {
+  x: number;
+  y: number;
+  items: ContextMenuItem[];
+}
+export const contextMenu = signal<ContextMenuState | null>(null);
+
+export function openContextMenu(e: MouseEvent, items: ContextMenuItem[]) {
+  e.preventDefault();
+  e.stopPropagation();
+  contextMenu.value = { x: e.clientX, y: e.clientY, items };
+}
+
+export function closeContextMenu() {
+  contextMenu.value = null;
 }

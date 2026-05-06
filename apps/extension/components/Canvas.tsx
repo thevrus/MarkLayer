@@ -263,7 +263,8 @@ export function Canvas() {
     tool !== 'selection' &&
     tool !== 'inspect' &&
     tool !== 'measure' &&
-    tool !== 'text';
+    tool !== 'text' &&
+    tool !== 'area';
 
   return (
     <>

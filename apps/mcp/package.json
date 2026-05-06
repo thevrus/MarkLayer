@@ -1,0 +1,45 @@
+{
+  "name": "marklayer-mcp",
+  "version": "0.1.2",
+  "description": "MCP server that bridges MarkLayer annotations to AI coding agents.",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://marklayer.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/thevrus/MarkLayer.git",
+    "directory": "apps/mcp"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "annotations",
+    "marklayer",
+    "ai",
+    "coding-agent"
+  ],
+  "bin": {
+    "marklayer-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.20.0",
+    "nanoid": "^5.1.11",
+    "ws": "^8.18.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@marklayer/types": "workspace:*",
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "^6.0.3"
+  }
+}
