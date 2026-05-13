@@ -1,8 +1,18 @@
 import { cn } from '@marklayer/types';
 import { Check, HelpCircle, Loader2 } from 'lucide-preact';
+import { applyAnchorDelta } from '../lib/anchor';
 import { glass } from '../lib/glass';
 import { type ParsedInspectorComment, parseInspectorComment } from '../lib/selector';
-import { copyText, deleteOp, getCommentStatus, openContextMenu, STATUS_STYLES, setOpStatus } from '../lib/state';
+import {
+  copyText,
+  deleteOp,
+  getCommentStatus,
+  hostMutationTick,
+  openContextMenu,
+  STATUS_STYLES,
+  scrollTick,
+  setOpStatus,
+} from '../lib/state';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
 
@@ -67,8 +77,11 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
 }
 
 export function CommentPin({ op }: { op: CommentOp }) {
-  const left = op.x - scrollX;
-  const top = op.y - scrollY;
+  scrollTick.value; // subscribe so positions track host-page scroll without parent re-renders
+  hostMutationTick.value; // re-resolve anchor on SPA route / DOM reflow
+  const { x: docX, y: docY, strategy } = applyAnchorDelta(op.target, { docX: op.x, docY: op.y });
+  const left = docX - scrollX;
+  const top = docY - scrollY;
   const cardWidth = 320;
   const flipH = left + cardWidth + 20 > window.innerWidth;
   const flipV = top > window.innerHeight / 2;
@@ -97,6 +110,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
       style={{ left, top }}
       data-doc-x={op.x}
       data-doc-y={op.y}
+      data-anchor-drift={strategy === 'text' ? 'text' : undefined}
       onContextMenu={onContextMenu}
     >
       <div class="relative -translate-x-1/2 -translate-y-1/2">

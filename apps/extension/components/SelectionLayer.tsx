@@ -1,6 +1,7 @@
 import { cn, type TargetElement } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { applyAnchorDelta } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { glass } from '../lib/glass';
 import { hexToRgba } from '../lib/renderer';
@@ -10,10 +11,12 @@ import {
   color,
   copyText,
   deleteOp,
+  hostMutationTick,
   lineWidth,
   localUser,
   openContextMenu,
   pushOp,
+  scrollTick,
   selections,
   setOpStatus,
 } from '../lib/state';
@@ -28,8 +31,18 @@ interface PopoverState {
 }
 
 function SelectionHighlight({ op }: { op: SelectionOp }) {
+  scrollTick.value; // subscribe so highlights track host-page scroll
+  hostMutationTick.value; // re-resolve anchor on SPA route / DOM reflow
   const resolved = op.status === 'resolved';
   const highlightAlpha = resolved ? 0.1 : 0.25;
+  // Re-anchor against the captured element's CURRENT top-left when possible.
+  // The offset was recorded relative to the first rect at capture time, so
+  // shifting every rect by the same delta keeps the multi-rect highlight
+  // shape coherent.
+  const firstRect = op.rects[0];
+  const { dx, dy, strategy } = firstRect
+    ? applyAnchorDelta(op.target, { docX: firstRect.x, docY: firstRect.y })
+    : { dx: 0, dy: 0, strategy: null };
 
   return (
     <>
@@ -38,8 +51,8 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           key={`${op.id}-${i}`}
           class="absolute pointer-events-none"
           style={{
-            left: r.x - scrollX,
-            top: r.y - scrollY,
+            left: r.x + dx - scrollX,
+            top: r.y + dy - scrollY,
             width: r.width,
             height: r.height,
             background: resolved
@@ -53,11 +66,12 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
       <div
         class="absolute pointer-events-auto group/sel"
         style={{
-          left: op.rects[0].x - scrollX - 4,
-          top: op.rects[0].y - scrollY - 4,
+          left: op.rects[0].x + dx - scrollX - 4,
+          top: op.rects[0].y + dy - scrollY - 4,
           width: 8,
           height: 8,
         }}
+        data-anchor-drift={strategy === 'text' ? 'text' : undefined}
         onContextMenu={(e) =>
           openContextMenu(e, [
             {
@@ -129,6 +143,7 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
         ts: Date.now(),
         author: localUser.name,
         target,
+        captureViewport: { width: window.innerWidth, height: window.innerHeight },
       };
       pushOp(op);
     }
@@ -204,14 +219,9 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
 
 export function SelectionLayer() {
   const [popover, setPopover] = useState<PopoverState | null>(null);
-  const [, forceUpdate] = useState(0);
 
-  // Reposition highlights on scroll
-  useEffect(() => {
-    const onScroll = () => forceUpdate((n) => n + 1);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  // Highlight repositioning on scroll happens inside SelectionHighlight via
+  // the shared `scrollTick` signal — no per-layer forceUpdate needed.
 
   // Listen for text selection — always attached, check signal inside handler
   const onMouseUp = useCallback(() => {
@@ -245,13 +255,14 @@ export function SelectionLayer() {
       const targetEl: Element | null =
         ancestor.nodeType === Node.ELEMENT_NODE ? (ancestor as Element) : ancestor.parentElement;
 
+      const firstRect = rects[0];
       const lastRect = rects[rects.length - 1];
       setPopover({
         x: lastRect.x + lastRect.width,
         y: lastRect.y + lastRect.height,
         text,
         rects,
-        target: targetEl ? captureTarget(targetEl) : undefined,
+        target: targetEl ? captureTarget(targetEl, { x: firstRect.x, y: firstRect.y }) : undefined,
       });
     });
   }, []);

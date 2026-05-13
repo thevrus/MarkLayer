@@ -37,7 +37,8 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
         author: localUser.name,
         status: 'open',
         meta: getCommentMeta(),
-        target: el ? captureTarget(el) : undefined,
+        target: el ? captureTarget(el, { x, y }) : undefined,
+        captureViewport: { width: window.innerWidth, height: window.innerHeight },
       });
     }
     onClose();

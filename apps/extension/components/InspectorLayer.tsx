@@ -208,6 +208,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       ts: Date.now(),
       author: localUser.name,
       status: 'open',
+      captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };
     pushOp(op);
     toast('Sent to agent', 'success', 2000);

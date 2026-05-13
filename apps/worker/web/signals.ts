@@ -27,6 +27,37 @@ export const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAge
 export const iframeScrollY = signal(0);
 /** CSS transform scale — how much the locked container is visually scaled to fit the viewer */
 export const cssScale = signal(1);
+/**
+ * Bumped (RAF-debounced) when the proxied iframe's DOM mutates so element-anchored
+ * annotation components re-resolve their selectors against the new layout.
+ * Subscribed by WebCommentPin / WebAreaShape / WebSelectionHighlight.
+ * Wired by Viewer once the iframe is ready (see attachIframeMutationObserver).
+ */
+export const iframeMutationTick = signal(0);
+
+/**
+ * Watch the iframe's document for DOM mutations and bump `iframeMutationTick`
+ * once per RAF. Returns a teardown to disconnect the observer + cancel the RAF.
+ * Cheap when the iframe is idle: MutationObserver is native and the RAF coalesces
+ * bursts.
+ */
+export function attachIframeMutationObserver(doc: Document): () => void {
+  let pending = false;
+  const flush = () => {
+    pending = false;
+    iframeMutationTick.value++;
+  };
+  const obs = new MutationObserver(() => {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(flush);
+  });
+  obs.observe(doc, { subtree: true, childList: true, attributes: true, characterData: false });
+  return () => {
+    obs.disconnect();
+    pending = false;
+  };
+}
 export const isLanding = signal(true);
 export const urlReady = signal(false);
 export const commentPopover = signal<{ x: number; y: number } | null>(null);

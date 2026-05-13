@@ -7,6 +7,8 @@ import { loadAnnotations, parseUrlHash, setAnnotationId } from '../lib/share';
 import {
   activeTool,
   blockInteractions,
+  ensureHostMutationObserver,
+  ensureScrollTickListener,
   markersVisible,
   operations,
   redo,
@@ -102,6 +104,15 @@ export function App() {
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // Single rAF-coalesced scroll listener feeds every annotation layer that
+  // repositions on scroll, replacing per-component listeners.
+  // Pair with the host-page MutationObserver so element-anchored ops
+  // re-resolve their selectors when the page reflows or SPA-routes.
+  useEffect(() => {
+    ensureScrollTickListener();
+    ensureHostMutationObserver();
   }, []);
 
   // Load shared annotations from URL hash

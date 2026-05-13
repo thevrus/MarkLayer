@@ -3,12 +3,75 @@ import { clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType } from '@markla
 
 interface Env {
   DB: D1Database;
+  TURN_KEY_ID?: string;
+  TURN_KEY_TOKEN?: string;
 }
 
 interface PeerInfo {
   id: string;
   name: string;
   color: string;
+}
+
+const DEFAULT_COLOR = '#8b5cf6';
+const COLOR_RE = /^#[0-9a-f]{6}$/i;
+const MAX_NAME_LEN = 64;
+
+function sanitizeName(n: unknown, fallback = 'Anonymous'): string {
+  if (typeof n !== 'string') return fallback;
+  const trimmed = n.trim().slice(0, MAX_NAME_LEN);
+  return trimmed || fallback;
+}
+
+function sanitizeColor(c: unknown, fallback = DEFAULT_COLOR): string {
+  return typeof c === 'string' && COLOR_RE.test(c) ? c : fallback;
+}
+
+// TURN creds are tied to the worker's key (not per-room), so a module-level
+// cache works for all DO instances on this isolate. `turnPromise` coalesces
+// concurrent first-time fetches.
+const STUN_ONLY: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
+const TURN_TTL_SECONDS = 3600;
+const STUN_FALLBACK_TTL_MS = 60_000;
+let turnCache: { iceServers: RTCIceServer[]; expiresAt: number } | null = null;
+let turnPromise: Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> | null = null;
+
+async function fetchIceServers(env: Env): Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> {
+  if (!env.TURN_KEY_ID || !env.TURN_KEY_TOKEN) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
+  try {
+    const res = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate-ice-servers`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env.TURN_KEY_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ttl: TURN_TTL_SECONDS }),
+      },
+    );
+    if (!res.ok) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
+    const data = (await res.json()) as { iceServers?: RTCIceServer[] };
+    if (!data.iceServers?.length) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
+    // Refresh well before expiry.
+    return { iceServers: data.iceServers, ttlMs: (TURN_TTL_SECONDS * 1000) / 2 };
+  } catch {
+    return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
+  }
+}
+
+async function getIceServers(env: Env): Promise<RTCIceServer[]> {
+  if (turnCache && turnCache.expiresAt > Date.now()) return turnCache.iceServers;
+  if (turnPromise) return (await turnPromise).iceServers;
+  // Set the cache inside the awaited promise so a caller arriving between
+  // promise-settle and the next microtask still sees the result without
+  // starting a duplicate fetch.
+  turnPromise = fetchIceServers(env).then((result) => {
+    turnCache = { iceServers: result.iceServers, expiresAt: Date.now() + result.ttlMs };
+    return result;
+  });
+  try {
+    return (await turnPromise).iceServers;
+  } finally {
+    turnPromise = null;
+  }
 }
 
 function isPeerInfo(v: unknown): v is PeerInfo {
@@ -104,15 +167,16 @@ export class AnnotationRoom extends DurableObject<Env> {
     if (!id) return new Response('Missing id', { status: 400 });
 
     const peerId = url.searchParams.get('peerId') || crypto.randomUUID();
-    const peerName = url.searchParams.get('name') || 'Anonymous';
-    const peerColor = url.searchParams.get('color') || '#8b5cf6';
+    const peerName = sanitizeName(url.searchParams.get('name'));
+    const peerColor = sanitizeColor(url.searchParams.get('color'));
 
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1], [id]);
     pair[1].serializeAttachment({ id: peerId, name: peerName, color: peerColor });
 
-    const ops = await this.getOps(id);
-    // Send init + current peer list
+    // Run getOps and the TURN fetch concurrently — both are network-bound and
+    // independent, so this hides the TURN latency behind D1's read RTT.
+    const [ops, iceServers] = await Promise.all([this.getOps(id), getIceServers(this.env)]);
     const peerList = this.getPeerList();
     pair[1].send(
       JSON.stringify({
@@ -123,6 +187,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         expiresAt: this.expiresAt,
         url: this.url,
         width: this.width,
+        iceServers,
       }),
     );
 
@@ -227,8 +292,8 @@ export class AnnotationRoom extends DurableObject<Env> {
         if (!info) return;
         const next: PeerInfo = {
           id: info.id,
-          name: msg.name || info.name,
-          color: msg.color || info.color,
+          name: sanitizeName(msg.name, info.name),
+          color: sanitizeColor(msg.color, info.color),
         };
         ws.serializeAttachment(next);
         this.broadcast(JSON.stringify({ type: 'profile', peerId: next.id, name: next.name, color: next.color }), ws);

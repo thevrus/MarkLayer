@@ -14,12 +14,22 @@ export type Point = z.infer<typeof pointSchema>;
 export const deviceModeSchema = z.enum(['desktop', 'tablet', 'mobile']);
 export type DeviceMode = z.infer<typeof deviceModeSchema>;
 
+/**
+ * Viewport (in CSS pixels) of the window/iframe the annotation was drawn on.
+ * Used at render time to scale or reproject ops when the current viewport
+ * differs from the one the user drew on (different screen size, device mode,
+ * iframe width). Optional for backwards compat with pre-anchor ops.
+ */
+export const captureViewportSchema = z.object({ width: z.number(), height: z.number() });
+export type CaptureViewport = z.infer<typeof captureViewportSchema>;
+
 const baseOp = {
   id: z.string(),
   color: z.string(),
   lineWidth: z.number(),
   /** Viewport size this annotation was drawn on */
   device: z.optional(deviceModeSchema),
+  captureViewport: z.optional(captureViewportSchema),
 };
 
 export interface BaseOp {
@@ -27,6 +37,7 @@ export interface BaseOp {
   color: string;
   lineWidth: number;
   device?: DeviceMode;
+  captureViewport?: CaptureViewport;
 }
 
 export const freehandOpSchema = z.object({
@@ -81,6 +92,21 @@ export const targetElementSchema = z.object({
   tag: z.string(),
   markdown: z.string(),
   rect: z.optional(z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })),
+  /**
+   * Element-local offset from the target's top-left (in document px) to the
+   * annotation's anchor point at capture time. Lets the renderer reproject the
+   * annotation when the page reflows: `current_element_rect + offset`.
+   * Both fields present together or both absent.
+   */
+  offsetX: z.optional(z.number()),
+  offsetY: z.optional(z.number()),
+  /**
+   * Normalized text fingerprint (first ~50 chars of trimmed innerText) used
+   * as a fallback resolver strategy when the primary selector no longer
+   * matches a unique element — e.g. a class redesign churned the selector
+   * but the visible label didn't change.
+   */
+  text: z.optional(z.string()),
 });
 export type TargetElement = z.infer<typeof targetElementSchema>;
 

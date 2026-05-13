@@ -1,9 +1,11 @@
 import { ContextMenu } from '@ext/components/ContextMenu';
 import { Toolbar } from '@ext/components/Toolbar';
 import { Tooltip } from '@ext/components/Tooltip';
+import { captureScale } from '@ext/lib/anchor';
 import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze';
 import { glass } from '@ext/lib/glass';
-import { hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
+import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
+import { isLikelyEmbedHostile } from '@ext/lib/share';
 import {
   activeTool,
   areas,
@@ -71,6 +73,7 @@ import { Logo, TextInputOverlay } from './shared';
 import {
   API_BASE,
   annotationId,
+  attachIframeMutationObserver,
   commentPopover,
   cssScale,
   currentPageIdx,
@@ -281,6 +284,7 @@ function InfoPanel() {
 export default function Viewer() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const iframeLoaded = useSignal(false);
+  const renderFailed = useSignal<null | 'timeout' | 'no-marker' | 'iframe-error'>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -288,6 +292,8 @@ export default function Viewer() {
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
   const snapshotRef = useRef<ImageData | null>(null);
+  const shiftHeldRef = useRef(false);
+  const lastPosRef = useRef<Point | null>(null);
 
   const scrollToAnnotation = useCallback((_x: number, y: number) => {
     try {
@@ -352,6 +358,7 @@ export default function Viewer() {
   useSignalEffect(() => {
     pageUrl.value;
     iframeLoaded.value = false;
+    renderFailed.value = null;
   });
 
   const renderStartRef = useRef(0);
@@ -369,7 +376,10 @@ export default function Viewer() {
     const loaded = iframeLoaded.value;
     if (!url || loaded) return;
     renderStartRef.current = performance.now();
-    const timer = window.setTimeout(() => captureRenderFailed('timeout'), 12_000);
+    const timer = window.setTimeout(() => {
+      captureRenderFailed('timeout');
+      if (!iframeLoaded.peek()) renderFailed.value = 'timeout';
+    }, 12_000);
     return () => clearTimeout(timer);
   });
 
@@ -458,10 +468,16 @@ export default function Viewer() {
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
+    let detachMutationObserver: (() => void) | null = null;
     const setupFrame = () => {
       try {
         const win = frame.contentWindow;
         if (!win?.document.body) return;
+        // Re-attach the mutation observer per `load` so it tracks the new
+        // document. Old observer is detached automatically by GC, but call
+        // teardown to release the closure-held RAF state too.
+        detachMutationObserver?.();
+        detachMutationObserver = attachIframeMutationObserver(win.document);
         win.addEventListener('scroll', () => {
           iframeScrollY.value = win.scrollY || 0;
           // Break follow mode on user-initiated scroll
@@ -480,9 +496,9 @@ export default function Viewer() {
           },
           { passive: true },
         );
-        win.addEventListener('keydown', (e) => {
+        const forwardKey = (type: 'keydown' | 'keyup') => (e: KeyboardEvent) => {
           window.dispatchEvent(
-            new KeyboardEvent('keydown', {
+            new KeyboardEvent(type, {
               key: e.key,
               code: e.code,
               metaKey: e.metaKey,
@@ -491,7 +507,9 @@ export default function Viewer() {
               altKey: e.altKey,
             }),
           );
-        });
+        };
+        win.addEventListener('keydown', forwardKey('keydown'));
+        win.addEventListener('keyup', forwardKey('keyup'));
         // Forward cursor position from iframe so peers see it even when navigate tool is active
         win.addEventListener('mousemove', (e) => {
           onCursorMove.value?.(e.clientX, e.clientY + (win.scrollY || 0), activeTool.value);
@@ -513,6 +531,7 @@ export default function Viewer() {
     frame.addEventListener('load', setupFrame);
     return () => {
       frame.removeEventListener('load', setupFrame);
+      detachMutationObserver?.();
       onFollowScroll.value = null;
     };
   }, []);
@@ -711,8 +730,14 @@ export default function Viewer() {
     for (const op of operations.value) {
       if (op.tool === 'comment' || op.tool === 'selection') continue;
       if (!opMatchesDevice(op)) continue;
-      if (!inView(opBounds(op), 0, scrollY, canvasW, canvasH)) continue;
-      renderOp(ctx, op, 0, 0);
+      const scale = captureScale(op.captureViewport);
+      const bounds = opBounds(op);
+      const scaledBounds =
+        bounds && scale !== 1
+          ? { x: bounds.x * scale, y: bounds.y * scale, w: bounds.w * scale, h: bounds.h * scale }
+          : bounds;
+      if (!inView(scaledBounds, 0, scrollY, canvasW, canvasH)) continue;
+      renderOp(ctx, op, 0, 0, scale);
     }
     ctx.restore();
   }, []);
@@ -729,6 +754,8 @@ export default function Viewer() {
       isDrawingActive.value = true;
       const pos = canvasCoords(e);
       startPtRef.current = pos;
+      lastPosRef.current = pos;
+      shiftHeldRef.current = e.shiftKey;
       const ctx = canvasRef.current?.getContext('2d');
       if (!ctx) return;
       applyTool(ctx);
@@ -749,62 +776,87 @@ export default function Viewer() {
     [canvasCoords, applyTool],
   );
 
+  const renderPreview = useCallback(() => {
+    if (!drawingRef.current) return;
+    const tool = activeTool.value;
+    const ctx = canvasRef.current?.getContext('2d');
+    const pos = lastPosRef.current;
+    if (!ctx || !pos) return;
+    const scrollOff = iframeScrollY.value;
+    const sp = startPtRef.current;
+
+    if (FREEHAND.has(tool)) {
+      if (!snapshotRef.current) return;
+      const path = currentPathRef.current;
+      if (!path) return;
+      ctx.putImageData(snapshotRef.current, 0, 0);
+      ctx.save();
+      ctx.translate(0, -scrollOff);
+      if (shiftHeldRef.current) {
+        const start = path.points[0];
+        const end = constrainEnd(tool, start.x, start.y, pos.x, pos.y);
+        renderOp(ctx, { ...path, points: [start, end] }, 0, 0);
+      } else if (path.points.length > 1) {
+        renderOp(ctx, path, 0, 0);
+      }
+      ctx.restore();
+      return;
+    }
+
+    if (SHAPES.has(tool) && snapshotRef.current) {
+      ctx.putImageData(snapshotRef.current, 0, 0);
+      ctx.beginPath();
+      const { x: ex, y: ey } = shiftHeldRef.current
+        ? constrainEnd(tool, sp.x, sp.y, pos.x, pos.y)
+        : { x: pos.x, y: pos.y };
+      const vsx = sp.x;
+      const vsy = sp.y - scrollOff;
+      const vex = ex;
+      const vey = ey - scrollOff;
+      applyTool(ctx);
+      switch (tool) {
+        case 'rectangle':
+          ctx.strokeRect(vsx, vsy, vex - vsx, vey - vsy);
+          break;
+        case 'circle': {
+          const r = Math.hypot(vex - vsx, vey - vsy);
+          ctx.arc(vsx, vsy, r, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+        }
+        case 'line':
+        case 'arrow':
+          ctx.moveTo(vsx, vsy);
+          ctx.lineTo(vex, vey);
+          ctx.stroke();
+          if (tool === 'arrow') {
+            const angle = Math.atan2(vey - vsy, vex - vsx);
+            const headLen = Math.max(10, ctx.lineWidth * 4);
+            ctx.beginPath();
+            ctx.moveTo(vex, vey);
+            ctx.lineTo(vex - headLen * Math.cos(angle - Math.PI / 6), vey - headLen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(vex, vey);
+            ctx.lineTo(vex - headLen * Math.cos(angle + Math.PI / 6), vey - headLen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+          }
+          break;
+      }
+    }
+  }, [applyTool]);
+
   const onMove = useCallback(
     (e: MouseEvent) => {
       if (!drawingRef.current) return;
       const tool = activeTool.value;
       const pos = canvasCoords(e);
-      const ctx = canvasRef.current?.getContext('2d');
-      if (!ctx) return;
-      const scrollOff = iframeScrollY.value;
-      if (FREEHAND.has(tool)) {
-        currentPathRef.current?.points.push(pos);
-        if (snapshotRef.current) ctx.putImageData(snapshotRef.current, 0, 0);
-        if (currentPathRef.current && currentPathRef.current.points.length > 1) {
-          ctx.save();
-          ctx.translate(0, -scrollOff);
-          renderOp(ctx, currentPathRef.current, 0, 0);
-          ctx.restore();
-        }
-      } else if (snapshotRef.current && SHAPES.has(tool)) {
-        ctx.putImageData(snapshotRef.current, 0, 0);
-        ctx.beginPath();
-        const sp = startPtRef.current;
-        const vsx = sp.x,
-          vsy = sp.y - scrollOff;
-        const vex = pos.x,
-          vey = pos.y - scrollOff;
-        applyTool(ctx);
-        switch (tool) {
-          case 'rectangle':
-            ctx.strokeRect(vsx, vsy, vex - vsx, vey - vsy);
-            break;
-          case 'circle': {
-            const r = Math.hypot(vex - vsx, vey - vsy);
-            ctx.arc(vsx, vsy, r, 0, Math.PI * 2);
-            ctx.stroke();
-            break;
-          }
-          case 'line':
-          case 'arrow':
-            ctx.moveTo(vsx, vsy);
-            ctx.lineTo(vex, vey);
-            ctx.stroke();
-            if (tool === 'arrow') {
-              const angle = Math.atan2(vey - vsy, vex - vsx);
-              const headLen = Math.max(10, ctx.lineWidth * 4);
-              ctx.beginPath();
-              ctx.moveTo(vex, vey);
-              ctx.lineTo(vex - headLen * Math.cos(angle - Math.PI / 6), vey - headLen * Math.sin(angle - Math.PI / 6));
-              ctx.moveTo(vex, vey);
-              ctx.lineTo(vex - headLen * Math.cos(angle + Math.PI / 6), vey - headLen * Math.sin(angle + Math.PI / 6));
-              ctx.stroke();
-            }
-            break;
-        }
-      }
+      lastPosRef.current = pos;
+      shiftHeldRef.current = e.shiftKey;
+      // Freehand accumulates points unless Shift is locking the stroke to a
+      // straight line from the start.
+      if (FREEHAND.has(tool) && !shiftHeldRef.current) currentPathRef.current?.points.push(pos);
+      renderPreview();
     },
-    [canvasCoords, applyTool],
+    [canvasCoords, renderPreview],
   );
 
   const onUp = useCallback(
@@ -813,11 +865,17 @@ export default function Viewer() {
       drawingRef.current = false;
       isDrawingActive.value = false;
       const tool = activeTool.value;
-      const pos = canvasCoords(e);
+      shiftHeldRef.current = e.shiftKey;
+      const rawPos = canvasCoords(e);
       const sp = startPtRef.current;
+      const pos = shiftHeldRef.current ? constrainEnd(tool, sp.x, sp.y, rawPos.x, rawPos.y) : rawPos;
       if (FREEHAND.has(tool) && currentPathRef.current) {
         snapshotRef.current = null;
-        currentPathRef.current.points.push(pos);
+        if (shiftHeldRef.current) {
+          currentPathRef.current.points = [currentPathRef.current.points[0], pos];
+        } else {
+          currentPathRef.current.points.push(pos);
+        }
         if (currentPathRef.current.points.length > 1) {
           if (tool !== 'eraser') currentPathRef.current.points = simplify(currentPathRef.current.points, 1.5);
           pushDeviceOp(currentPathRef.current);
@@ -855,6 +913,22 @@ export default function Viewer() {
     },
     [canvasCoords],
   );
+
+  // Iframe forwards keydown/keyup to host `window`, so a single host-window binding catches
+  // Shift events regardless of focus side.
+  useEffect(() => {
+    const setShift = (next: boolean) => {
+      if (shiftHeldRef.current === next) return;
+      shiftHeldRef.current = next;
+      renderPreview();
+    };
+    const unbindDown = tinykeys(window, { Shift: () => setShift(true) });
+    const unbindUp = tinykeys(window, { Shift: () => setShift(false) }, { event: 'keyup' });
+    return () => {
+      unbindDown();
+      unbindUp();
+    };
+  }, [renderPreview]);
 
   // Re-render canvas when operations, scroll, or device mode change
   useSignalEffect(() => {
@@ -1310,12 +1384,43 @@ export default function Viewer() {
               transformOrigin: 'top left',
             }}
           >
-            {!iframeLoaded.value && pageUrl.value && (
-              <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
+            {renderFailed.value && pageUrl.value ? (
+              <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white px-8 text-center">
                 <Logo size={48} />
-                <Loader2 size={32} class="animate-spin text-violet-500" aria-hidden="true" />
-                <p class="text-sm text-zinc-400">Loading page…</p>
+                <h2 class="text-base font-semibold text-zinc-800 m-0">
+                  {isLikelyEmbedHostile(pageUrl.value) ? 'This site blocks embedding' : "We couldn't load this page"}
+                </h2>
+                <p class="text-sm text-zinc-500 max-w-md leading-snug m-0">
+                  {isLikelyEmbedHostile(pageUrl.value)
+                    ? 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.'
+                    : 'The page took too long, was blocked, or returned an error. The annotations are saved — try the extension on the live page, or share a different URL.'}
+                </p>
+                <div class="flex items-center gap-2">
+                  <a
+                    href={pageUrl.value}
+                    target="_blank"
+                    rel="noreferrer"
+                    class="px-4 py-2 rounded-lg bg-zinc-900 text-white text-[13px] font-medium hover:bg-zinc-800"
+                  >
+                    Open original site
+                  </a>
+                  <a
+                    href="/"
+                    class="px-4 py-2 rounded-lg border border-zinc-200 text-zinc-700 text-[13px] font-medium hover:bg-zinc-50"
+                  >
+                    Back home
+                  </a>
+                </div>
               </div>
+            ) : (
+              !iframeLoaded.value &&
+              pageUrl.value && (
+                <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
+                  <Logo size={48} />
+                  <Loader2 size={32} class="animate-spin text-violet-500" aria-hidden="true" />
+                  <p class="text-sm text-zinc-400">Loading page…</p>
+                </div>
+              )
             )}
             <iframe
               ref={frameRef}
@@ -1329,8 +1434,12 @@ export default function Viewer() {
                 const doc = frameRef.current?.contentDocument;
                 if (doc?.documentElement?.dataset?.marklayer === '1') return;
                 captureRenderFailed('no-marker', { body_preview: doc?.body?.textContent?.slice(0, 200) });
+                renderFailed.value = 'no-marker';
               }}
-              onError={() => captureRenderFailed('iframe-error')}
+              onError={() => {
+                captureRenderFailed('iframe-error');
+                renderFailed.value = 'iframe-error';
+              }}
               class={cn(
                 'w-full h-full border-none bg-white',
                 !iframeLoaded.value && 'invisible',
@@ -1357,19 +1466,37 @@ export default function Viewer() {
               }}
             >
               {comments.filter(opMatchesDevice).map((c) => (
-                <WebCommentPin key={c.id} op={c} scale={1} scrollY={iframeScrollY.value} />
+                <WebCommentPin
+                  key={c.id}
+                  op={c}
+                  scale={1}
+                  scrollY={iframeScrollY.value}
+                  frameDoc={frameRef.current?.contentDocument}
+                />
               ))}
             </div>
 
             <div class="absolute inset-0 pointer-events-none overflow-hidden">
               {selections.value.filter(opMatchesDevice).map((op) => (
-                <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={iframeScrollY.value} />
+                <WebSelectionHighlight
+                  key={op.id}
+                  op={op}
+                  scale={1}
+                  scrollY={iframeScrollY.value}
+                  frameDoc={frameRef.current?.contentDocument}
+                />
               ))}
             </div>
 
             <div class="absolute inset-0 pointer-events-none overflow-hidden">
               {areas.value.filter(opMatchesDevice).map((op) => (
-                <WebAreaShape key={op.id} op={op} scale={1} scrollY={iframeScrollY.value} />
+                <WebAreaShape
+                  key={op.id}
+                  op={op}
+                  scale={1}
+                  scrollY={iframeScrollY.value}
+                  frameDoc={frameRef.current?.contentDocument}
+                />
               ))}
             </div>
 
@@ -1389,6 +1516,7 @@ export default function Viewer() {
                 scrollY={iframeScrollY.value}
                 onCommit={(text) => {
                   if (text && textInput.value) {
+                    const frameWin = frameRef.current?.contentWindow;
                     const op: TextOp = {
                       id: nanoid(),
                       tool: 'text',
@@ -1398,6 +1526,9 @@ export default function Viewer() {
                       fontSize: Math.max(14, lineWidth.value * 6),
                       color: color.value,
                       lineWidth: lineWidth.value,
+                      captureViewport: frameWin
+                        ? { width: frameWin.innerWidth, height: frameWin.innerHeight }
+                        : { width: window.innerWidth, height: window.innerHeight },
                     };
                     pushDeviceOp(op);
                   }

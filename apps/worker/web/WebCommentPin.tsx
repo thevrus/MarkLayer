@@ -1,3 +1,4 @@
+import { applyAnchorDelta } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import {
   copyText,
@@ -14,17 +15,29 @@ import type { CommentOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import { Check, HelpCircle, Loader2 } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
-import { cssScale } from './signals';
+import { cssScale, iframeMutationTick } from './signals';
 
 interface Props {
   op: CommentOp;
   scale: number;
   scrollY: number;
+  /** Iframe contentDocument so element selectors resolve against the proxied page. */
+  frameDoc?: Document | null;
 }
 
-export function WebCommentPin({ op, scale: s, scrollY }: Props) {
-  const left = op.x * s;
-  const top = op.y * s - scrollY;
+export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
+  // Subscribe to iframe DOM mutations so we re-resolve the anchor when the
+  // proxied page lazy-loads or reflows. No-op for ops without a target.
+  iframeMutationTick.value;
+  const {
+    x: docX,
+    y: docY,
+    strategy,
+  } = frameDoc
+    ? applyAnchorDelta(op.target, { docX: op.x, docY: op.y }, { doc: frameDoc, win: frameDoc.defaultView ?? undefined })
+    : { x: op.x, y: op.y, strategy: null };
+  const left = docX * s;
+  const top = docY * s - scrollY;
   const cs = cssScale.value;
   const flipH = (left + 320) * cs > window.innerWidth;
   const flipV = (top + 400) * cs > window.innerHeight;
@@ -65,6 +78,7 @@ export function WebCommentPin({ op, scale: s, scrollY }: Props) {
     <div
       class={cn('absolute pointer-events-auto cursor-pointer group/pin', glass.font)}
       style={{ left, top }}
+      data-anchor-drift={strategy === 'text' ? 'text' : undefined}
       onContextMenu={onContextMenu}
     >
       <div class="relative -translate-x-1/2 -translate-y-1/2">

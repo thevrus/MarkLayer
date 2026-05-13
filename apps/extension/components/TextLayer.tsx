@@ -78,6 +78,7 @@ export function TextLayer() {
                 fontSize: Math.max(14, lineWidth.value * 6),
                 color: color.value,
                 lineWidth: lineWidth.value,
+                captureViewport: { width: window.innerWidth, height: window.innerHeight },
               };
               pushOp(op);
             }

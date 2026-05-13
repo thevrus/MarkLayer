@@ -44,6 +44,28 @@ export function isShareableUrl(url: string = window.location.href): boolean {
   }
 }
 
+// Sites whose pages reliably break in the share viewer: JS frame-busters,
+// origin-bound API tokens, or asset URLs tied to the original host. The
+// proxy can strip X-Frame-Options/CSP but can't unwind these.
+const EMBED_HOSTILE_HOSTS = [
+  'youtube.com',
+  'youtu.be',
+  'tiktok.com',
+  'instagram.com',
+  'x.com',
+  'twitter.com',
+  'facebook.com',
+];
+
+export function isLikelyEmbedHostile(url: string = window.location.href): boolean {
+  try {
+    const h = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+    return EMBED_HOSTILE_HOSTS.some((host) => h === host || h.endsWith(`.${host}`));
+  } catch {
+    return false;
+  }
+}
+
 /** Save ops to server. Returns true on success. */
 export async function saveAnnotations(ops: DrawOp[]): Promise<boolean> {
   const id = ensureAnnotationId();

@@ -1,19 +1,30 @@
+import { applyAnchorDelta } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
 import { copyText, deleteOp, openContextMenu, setOpStatus } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
+import { iframeMutationTick } from './signals';
 
 interface Props {
   op: AreaOp;
   scale: number;
   scrollY: number;
+  frameDoc?: Document | null;
 }
 
-export function WebAreaShape({ op, scale: s, scrollY }: Props) {
+export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
+  iframeMutationTick.value; // re-resolve anchor when iframe DOM mutates
   const resolved = op.status === 'resolved';
-  const x = Math.min(op.startX, op.endX);
-  const y = Math.min(op.startY, op.endY);
+  const storedX = Math.min(op.startX, op.endX);
+  const storedY = Math.min(op.startY, op.endY);
+  const { x, y, strategy } = frameDoc
+    ? applyAnchorDelta(
+        op.target,
+        { docX: storedX, docY: storedY },
+        { doc: frameDoc, win: frameDoc.defaultView ?? undefined },
+      )
+    : { x: storedX, y: storedY, strategy: null };
   const w = Math.abs(op.endX - op.startX);
   const h = Math.abs(op.endY - op.startY);
   const stroke = resolved ? 'var(--color-ml-resolved)' : op.color;
@@ -32,6 +43,7 @@ export function WebAreaShape({ op, scale: s, scrollY }: Props) {
           boxShadow: `inset 0 0 0 1.5px ${stroke}`,
           opacity: resolved ? 0.7 : 1,
         }}
+        data-anchor-drift={strategy === 'text' ? 'text' : undefined}
       />
       <div
         class="absolute pointer-events-auto"

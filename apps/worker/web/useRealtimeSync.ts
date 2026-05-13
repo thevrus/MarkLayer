@@ -30,6 +30,12 @@ export const serverWidth = signal<number | null>(null);
 export const wsSend = signal<((msg: unknown) => void) | null>(null);
 /** Callback for incoming WebRTC signaling messages */
 export const onRtcMessage = signal<((msg: { type: string; from: string; [k: string]: unknown }) => void) | null>(null);
+/** ICE servers bundled into the WS init message — used by useVoiceRoom. */
+export const turnIceServers = signal<RTCIceServer[] | null>(null);
+
+function isIceServerArray(v: unknown): v is RTCIceServer[] {
+  return Array.isArray(v) && v.every((s) => !!s && typeof s === 'object' && 'urls' in s);
+}
 
 export const localPeerId = nanoid();
 
@@ -144,6 +150,7 @@ export function useRealtimeSync(annotationId: string) {
               if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
               if (msg.url) serverUrl.value = msg.url;
               if (msg.width) serverWidth.value = msg.width;
+              if (isIceServerArray(msg.iceServers)) turnIceServers.value = msg.iceServers;
               // Initialize peer list from server
               if (msg.peers) {
                 const map = new Map<string, Peer>();
@@ -320,6 +327,7 @@ export function useRealtimeSync(annotationId: string) {
       onCursorMove.value = null;
       onProfileChange.value = null;
       wsSend.value = null;
+      turnIceServers.value = null;
       clearInterval(pruneInterval);
       document.removeEventListener('visibilitychange', onVisible);
       if (cursorTimer) clearTimeout(cursorTimer);

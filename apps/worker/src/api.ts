@@ -7,26 +7,13 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return !!v && typeof v === 'object' && !Array.isArray(v);
 }
 
-const STUN_FALLBACK = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }],
-};
-
 const api = new Hono<Env>();
 api.use('*', cors());
 
-// Generate short-lived TURN credentials for WebRTC
-api.get('/turn', async (c) => {
-  const keyId = c.env.TURN_KEY_ID;
-  const token = c.env.TURN_KEY_TOKEN;
-  if (!keyId || !token) return c.json(STUN_FALLBACK);
-  const res = await fetch(`https://rtc.live.cloudflare.com/v1/turn/keys/${keyId}/credentials/generate-ice-servers`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ttl: 86400 }),
-  });
-  if (!res.ok) return c.json(STUN_FALLBACK);
-  return c.json(await res.json());
-});
+// TURN credentials are bundled into the WS `init` message from AnnotationRoom
+// instead of being served from a public endpoint — see annotation-room.ts.
+// This ties cred issuance to an authenticated room join, eliminating the free
+// TURN-relay-for-the-internet risk of an open /api/turn endpoint.
 
 // ---------- Annotations ----------
 

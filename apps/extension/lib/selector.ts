@@ -31,27 +31,51 @@ export function pickElementAtPoint(x: number, y: number, doc: Document = documen
   return null;
 }
 
+/** Collapse runs of whitespace to a single space and trim. */
+export function normalizeText(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+/** Normalized short text fingerprint for fallback element resolution. */
+export const FINGERPRINT_LEN = 50;
+export function textFingerprint(el: Element): string | undefined {
+  const raw = el instanceof HTMLElement ? el.innerText : (el.textContent ?? '');
+  if (!raw) return undefined;
+  // Slice first to bound the cost on large nodes — even a 50-char fingerprint
+  // doesn't need to walk MB of text.
+  const cleaned = normalizeText(raw.slice(0, FINGERPRINT_LEN * 4));
+  if (!cleaned) return undefined;
+  return cleaned.slice(0, FINGERPRINT_LEN);
+}
+
 /**
  * Snapshot an element into the agent-readable target shape. Used by Comment,
  * Area, and Selection tools so MCP-connected agents see the same selector +
  * markdown context that the dedicated Inspect tool produces. The element's
  * own ownerDocument/defaultView provides the scroll origin, so this works
  * uniformly for host-page and iframe elements.
+ *
+ * `anchorDocXY` (optional) is the annotation's anchor point in document px
+ * (e.g. comment pin position, area top-left, selection's first rect origin).
+ * When provided, the returned target carries `offsetX/offsetY` — the offset
+ * from the element's top-left to that anchor — so the renderer can reproject
+ * the annotation against the element's *current* rect on screens where the
+ * page has reflowed.
  */
-export function captureTarget(el: Element): TargetElement {
+export function captureTarget(el: Element, anchorDocXY?: { x: number; y: number }): TargetElement {
   const selector = getSelector(el);
   const rect = el.getBoundingClientRect();
   const win = el.ownerDocument.defaultView ?? window;
+  const docX = rect.x + win.scrollX;
+  const docY = rect.y + win.scrollY;
   return {
     selector,
     tag: el.tagName.toLowerCase(),
     markdown: formatForAI(el, selector),
-    rect: {
-      x: rect.x + win.scrollX,
-      y: rect.y + win.scrollY,
-      width: rect.width,
-      height: rect.height,
-    },
+    rect: { x: docX, y: docY, width: rect.width, height: rect.height },
+    offsetX: anchorDocXY ? anchorDocXY.x - docX : undefined,
+    offsetY: anchorDocXY ? anchorDocXY.y - docY : undefined,
+    text: textFingerprint(el),
   };
 }
 

@@ -1,29 +1,41 @@
+import { applyAnchorDelta } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
 import { copyText, deleteOp, openContextMenu, setOpStatus } from '@ext/lib/state';
 import type { SelectionOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
+import { iframeMutationTick } from './signals';
 
 interface Props {
   op: SelectionOp;
   scale: number;
   scrollY: number;
+  frameDoc?: Document | null;
 }
 
-export function WebSelectionHighlight({ op, scale: s, scrollY }: Props) {
+export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props) {
+  iframeMutationTick.value; // re-resolve anchor when iframe DOM mutates
   if (!op.rects.length) return null;
   const resolved = op.status === 'resolved';
+  const firstRect = op.rects[0];
+  const { dx, dy, strategy } = frameDoc
+    ? applyAnchorDelta(
+        op.target,
+        { docX: firstRect.x, docY: firstRect.y },
+        { doc: frameDoc, win: frameDoc.defaultView ?? undefined },
+      )
+    : { dx: 0, dy: 0, strategy: null };
 
-  // Compute bounding box of all rects for the hover target
+  // Compute bounding box of all rects (after anchor shift) for the hover target
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
   for (const r of op.rects) {
-    minX = Math.min(minX, r.x);
-    minY = Math.min(minY, r.y);
-    maxX = Math.max(maxX, r.x + r.width);
-    maxY = Math.max(maxY, r.y + r.height);
+    minX = Math.min(minX, r.x + dx);
+    minY = Math.min(minY, r.y + dy);
+    maxX = Math.max(maxX, r.x + dx + r.width);
+    maxY = Math.max(maxY, r.y + dy + r.height);
   }
 
   return (
@@ -34,8 +46,8 @@ export function WebSelectionHighlight({ op, scale: s, scrollY }: Props) {
           key={i}
           class="absolute pointer-events-none"
           style={{
-            left: r.x * s,
-            top: r.y * s - scrollY,
+            left: (r.x + dx) * s,
+            top: (r.y + dy) * s - scrollY,
             width: r.width * s,
             height: r.height * s,
             background: resolved ? 'rgba(107,114,128,0.1)' : hexToRgba(op.color, 0.25),
@@ -53,6 +65,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY }: Props) {
           width: (maxX - minX) * s,
           height: (maxY - minY) * s,
         }}
+        data-anchor-drift={strategy === 'text' ? 'text' : undefined}
         onContextMenu={(e) =>
           openContextMenu(e, [
             {

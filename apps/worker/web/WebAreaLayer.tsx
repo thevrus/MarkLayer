@@ -1,5 +1,5 @@
 import { AreaPopover, type DraftAreaState, type DraftRect, rectFromDraft } from '@ext/components/AreaLayer';
-import { hexToRgba } from '@ext/lib/renderer';
+import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
 import { activeTool, color, lineWidth, localUser, pushOp } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
@@ -8,6 +8,7 @@ import { useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
 import { useRef } from 'preact/hooks';
+import { tinykeys } from 'tinykeys';
 import { isElementNode, useIframeOverlay } from './iframeOverlay';
 import { cssScale, iframeScrollY } from './signals';
 
@@ -16,6 +17,16 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
   const pending = useSignal<DraftRect | null>(null);
   const winRef = useRef<Window | null>(null);
   const docRef = useRef<Document | null>(null);
+  const lastRaw = useRef<{ x: number; y: number } | null>(null);
+  const shiftHeld = useRef(false);
+
+  const applyConstraint = () => {
+    const d = draft.value;
+    const raw = lastRaw.current;
+    if (!d || !raw) return;
+    const { x, y } = shiftHeld.current ? constrainEnd('rectangle', d.startDocX, d.startDocY, raw.x, raw.y) : raw;
+    draft.value = { ...d, curDocX: x, curDocY: y };
+  };
 
   useIframeOverlay(frameRef, ({ win, doc }) => {
     winRef.current = win;
@@ -28,6 +39,8 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       e.stopPropagation();
       const dx = e.clientX + win.scrollX;
       const dy = e.clientY + win.scrollY;
+      lastRaw.current = { x: dx, y: dy };
+      shiftHeld.current = e.shiftKey;
       draft.value = { startDocX: dx, startDocY: dy, curDocX: dx, curDocY: dy };
       const target = isElementNode(e.target) ? e.target : doc.documentElement;
       try {
@@ -41,7 +54,9 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       const d = draft.value;
       if (!d) return;
       e.preventDefault();
-      draft.value = { ...d, curDocX: e.clientX + win.scrollX, curDocY: e.clientY + win.scrollY };
+      lastRaw.current = { x: e.clientX + win.scrollX, y: e.clientY + win.scrollY };
+      shiftHeld.current = e.shiftKey;
+      applyConstraint();
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -49,7 +64,12 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       if (!d) return;
       e.preventDefault();
       e.stopPropagation();
-      const r = rectFromDraft(d);
+      shiftHeld.current = e.shiftKey;
+      lastRaw.current = { x: e.clientX + win.scrollX, y: e.clientY + win.scrollY };
+      const { x, y } = shiftHeld.current
+        ? constrainEnd('rectangle', d.startDocX, d.startDocY, lastRaw.current.x, lastRaw.current.y)
+        : lastRaw.current;
+      const r = rectFromDraft({ ...d, curDocX: x, curDocY: y });
       draft.value = null;
       if (r.w < 6 || r.h < 6) return;
       pending.value = r;
@@ -61,6 +81,17 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       e.preventDefault();
       e.stopPropagation();
     };
+
+    // Bind on both windows so focus on either side of the iframe boundary toggles the constraint.
+    const setShift = (next: boolean) => {
+      if (shiftHeld.current === next) return;
+      shiftHeld.current = next;
+      if (draft.value) applyConstraint();
+    };
+    const unbindShiftFrameDown = tinykeys(win, { Shift: () => setShift(true) });
+    const unbindShiftFrameUp = tinykeys(win, { Shift: () => setShift(false) }, { event: 'keyup' });
+    const unbindShiftHostDown = tinykeys(window, { Shift: () => setShift(true) });
+    const unbindShiftHostUp = tinykeys(window, { Shift: () => setShift(false) }, { event: 'keyup' });
 
     win.addEventListener('pointerdown', onPointerDown, true);
     win.addEventListener('pointermove', onPointerMove, true);
@@ -77,6 +108,10 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       } catch {
         /* iframe may have navigated */
       }
+      unbindShiftFrameDown();
+      unbindShiftFrameUp();
+      unbindShiftHostDown();
+      unbindShiftHostUp();
     };
   });
 
@@ -130,7 +165,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       const cx = r.x + r.w / 2 - win.scrollX;
       const cy = r.y + r.h / 2 - win.scrollY;
       const el = pickElementAtPoint(cx, cy, doc);
-      if (el) target = captureTarget(el);
+      if (el) target = captureTarget(el, { x: r.x, y: r.y });
     }
     const op: AreaOp = {
       id: nanoid(),
@@ -145,6 +180,9 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       ts: Date.now(),
       author: localUser.name,
       target,
+      captureViewport: win
+        ? { width: win.innerWidth, height: win.innerHeight }
+        : { width: window.innerWidth, height: window.innerHeight },
     };
     pushOp(op);
     pending.value = null;

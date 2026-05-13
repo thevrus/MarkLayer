@@ -1,11 +1,13 @@
 import { cn } from '@marklayer/types';
-import { signal, useSignal, useSignalEffect } from '@preact/signals';
+import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
-import { useCallback, useRef } from 'preact/hooks';
+import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { tinykeys } from 'tinykeys';
+import { applyAnchorDelta } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { glass } from '../lib/glass';
-import { hexToRgba } from '../lib/renderer';
+import { constrainEnd, hexToRgba } from '../lib/renderer';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
 import {
   activeTool,
@@ -13,10 +15,12 @@ import {
   color,
   copyText,
   deleteOp,
+  hostMutationTick,
   lineWidth,
   localUser,
   openContextMenu,
   pushOp,
+  scrollTick,
   setOpStatus,
 } from '../lib/state';
 import type { AreaOp } from '../lib/types';
@@ -46,15 +50,18 @@ export function rectFromDraft(d: DraftAreaState): DraftRect {
   };
 }
 
-// Bumped on window scroll so AreaShape components reposition. Module-level so
-// a single listener serves every shape (attached lazily by AreaLayer).
-const scrollTick = signal(0);
-
 function AreaShape({ op }: { op: AreaOp }) {
   scrollTick.value; // subscribe — repositions when window scrolls
+  hostMutationTick.value; // re-resolve anchor on SPA route / DOM reflow
   const resolved = op.status === 'resolved';
-  const x = Math.min(op.startX, op.endX) - scrollX;
-  const y = Math.min(op.startY, op.endY) - scrollY;
+  // Re-anchor the rect's top-left to the captured element's CURRENT position
+  // when possible. Width/height are kept as drawn — the user pinned a region
+  // size that doesn't follow the element, just its position.
+  const storedX = Math.min(op.startX, op.endX);
+  const storedY = Math.min(op.startY, op.endY);
+  const { x: ax, y: ay, strategy } = applyAnchorDelta(op.target, { docX: storedX, docY: storedY });
+  const x = ax - scrollX;
+  const y = ay - scrollY;
   const w = Math.abs(op.endX - op.startX);
   const h = Math.abs(op.endY - op.startY);
   const stroke = resolved ? 'var(--color-ml-resolved)' : op.color;
@@ -93,6 +100,7 @@ function AreaShape({ op }: { op: AreaOp }) {
           opacity: resolved ? 0.7 : 1,
           cursor: 'default',
         }}
+        data-anchor-drift={strategy === 'text' ? 'text' : undefined}
         onContextMenu={onAreaContextMenu}
       />
       <div
@@ -239,17 +247,19 @@ export function AreaPopover({
 export function AreaLayer() {
   const draft = useSignal<DraftAreaState | null>(null);
   const pending = useSignal<DraftRect | null>(null);
+  const lastRaw = useRef<{ x: number; y: number } | null>(null);
+  const shiftHeld = useRef(false);
 
-  // Only listen for scroll when there are committed shapes to reposition;
-  // pages without areas don't need the per-frame signal updates.
-  useSignalEffect(() => {
-    if (!areas.value.length) return;
-    const onScroll = () => {
-      scrollTick.value++;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  });
+  // Scroll repositioning happens inside AreaShape via the shared `scrollTick`
+  // signal; the listener is wired once in App.tsx.
+
+  const applyConstraint = useCallback(() => {
+    const d = draft.value;
+    const raw = lastRaw.current;
+    if (!d || !raw) return;
+    const { x, y } = shiftHeld.current ? constrainEnd('rectangle', d.startDocX, d.startDocY, raw.x, raw.y) : raw;
+    draft.value = { ...d, curDocX: x, curDocY: y };
+  }, [draft]);
 
   const onPointerDown = useCallback(
     (e: TargetedEvent<HTMLDivElement, PointerEvent>) => {
@@ -258,6 +268,8 @@ export function AreaLayer() {
       e.preventDefault();
       const dx = e.clientX + scrollX;
       const dy = e.clientY + scrollY;
+      lastRaw.current = { x: dx, y: dy };
+      shiftHeld.current = e.shiftKey;
       draft.value = { startDocX: dx, startDocY: dy, curDocX: dx, curDocY: dy };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
@@ -268,9 +280,11 @@ export function AreaLayer() {
     (e: TargetedEvent<HTMLDivElement, PointerEvent>) => {
       const d = draft.value;
       if (!d) return;
-      draft.value = { ...d, curDocX: e.clientX + scrollX, curDocY: e.clientY + scrollY };
+      lastRaw.current = { x: e.clientX + scrollX, y: e.clientY + scrollY };
+      shiftHeld.current = e.shiftKey;
+      applyConstraint();
     },
-    [draft],
+    [draft, applyConstraint],
   );
 
   const onPointerUp = useCallback(
@@ -278,7 +292,12 @@ export function AreaLayer() {
       const d = draft.value;
       if (!d) return;
       e.currentTarget.releasePointerCapture(e.pointerId);
-      const r = rectFromDraft(d);
+      shiftHeld.current = e.shiftKey;
+      lastRaw.current = { x: e.clientX + scrollX, y: e.clientY + scrollY };
+      const { x, y } = shiftHeld.current
+        ? constrainEnd('rectangle', d.startDocX, d.startDocY, lastRaw.current.x, lastRaw.current.y)
+        : lastRaw.current;
+      const r = rectFromDraft({ ...d, curDocX: x, curDocY: y });
       draft.value = null;
       if (r.w < 6 || r.h < 6) return;
       pending.value = r;
@@ -306,7 +325,8 @@ export function AreaLayer() {
       comment: comment || undefined,
       ts: Date.now(),
       author: localUser.name,
-      target: el ? captureTarget(el) : undefined,
+      target: el ? captureTarget(el, { x: r.x, y: r.y }) : undefined,
+      captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };
     pushOp(op);
     pending.value = null;
@@ -315,6 +335,20 @@ export function AreaLayer() {
   const cancel = () => {
     pending.value = null;
   };
+
+  useEffect(() => {
+    const setShift = (next: boolean) => {
+      if (shiftHeld.current === next) return;
+      shiftHeld.current = next;
+      if (draft.value) applyConstraint();
+    };
+    const unbindDown = tinykeys(window, { Shift: () => setShift(true) });
+    const unbindUp = tinykeys(window, { Shift: () => setShift(false) }, { event: 'keyup' });
+    return () => {
+      unbindDown();
+      unbindUp();
+    };
+  }, [draft, applyConstraint]);
 
   // Show the rect both while dragging (`draft`) and while the comment popover
   // is open (`pending`) — otherwise the area visually disappears the moment

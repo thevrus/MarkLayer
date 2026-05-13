@@ -422,6 +422,59 @@ export const STATUS_LABELS: Record<CommentStatus, string> = {
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
 /** True while user is actively drawing (mousedown on canvas) */
 export const isDrawingActive = signal(false);
+
+/**
+ * Bumped at most once per animation frame on host-page scroll. Components
+ * whose layout depends on `scrollX/scrollY` (CommentPin, AreaShape,
+ * SelectionHighlight) subscribe via `scrollTick.value` to reposition.
+ *
+ * Single shared listener — `ensureScrollTickListener()` attaches once on
+ * first call (idempotent) and never detaches; `passive: true` keeps scroll
+ * cheap, and rAF coalesces bursts so re-renders track frames, not events.
+ */
+export const scrollTick = signal(0);
+let _scrollListenerAttached = false;
+let _scrollRaf = 0;
+export function ensureScrollTickListener() {
+  if (_scrollListenerAttached || typeof window === 'undefined') return;
+  _scrollListenerAttached = true;
+  const onScroll = () => {
+    if (_scrollRaf) return;
+    _scrollRaf = requestAnimationFrame(() => {
+      _scrollRaf = 0;
+      scrollTick.value++;
+    });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+}
+
+/**
+ * Bumped (RAF-coalesced) when the host page's DOM mutates so element-
+ * anchored annotations re-resolve their selectors against the new layout.
+ * Mirrors the worker's `iframeMutationTick` pattern. Subscribed by the
+ * same components that subscribe to `scrollTick`. Wired once via
+ * `ensureHostMutationObserver()`.
+ */
+export const hostMutationTick = signal(0);
+let _hostObserverAttached = false;
+let _hostObserver: MutationObserver | null = null;
+let _hostMutRaf = 0;
+export function ensureHostMutationObserver() {
+  if (_hostObserverAttached || typeof window === 'undefined' || typeof MutationObserver === 'undefined') return;
+  _hostObserverAttached = true;
+  _hostObserver = new MutationObserver(() => {
+    if (_hostMutRaf) return;
+    _hostMutRaf = requestAnimationFrame(() => {
+      _hostMutRaf = 0;
+      hostMutationTick.value++;
+    });
+  });
+  // characterData omitted: text-only edits don't move element rects, and
+  // observing them turns idle pages with live tickers into per-frame
+  // mutation streams. childList + attributes covers the cases our
+  // selector resolution actually cares about.
+  _hostObserver.observe(document.body, { subtree: true, childList: true, attributes: true });
+}
 export type FreehandTool = 'pen' | 'eraser' | 'highlight';
 export type ShapeTool = 'rectangle' | 'circle' | 'line' | 'arrow';
 

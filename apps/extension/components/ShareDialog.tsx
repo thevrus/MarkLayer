@@ -1,10 +1,10 @@
 import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
-import { Bot, Check, Copy, Link2, MonitorOff, X } from 'lucide-preact';
+import { AlertTriangle, Bot, Check, Copy, Link2, MonitorOff, X } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { glass } from '../lib/glass';
-import { getShareUrl, isShareableUrl, saveAnnotations } from '../lib/share';
+import { getShareUrl, isLikelyEmbedHostile, isShareableUrl, saveAnnotations } from '../lib/share';
 import {
   clearInspectorStack,
   color,
@@ -151,6 +151,7 @@ export function ShareDialog() {
   const claudeCommand = `${CLAUDE_COMMAND_PREFIX}${roomId}`;
   const npxCommand = `${NPX_COMMAND_PREFIX}${roomId}`;
   const shareable = isShareableUrl();
+  const embedHostile = shareable && isLikelyEmbedHostile();
 
   return (
     <div
@@ -198,6 +199,18 @@ export function ShareDialog() {
               </code>
               <CopyButton value={shareUrl} label="Copy link" />
             </div>
+            {embedHostile && (
+              <div
+                class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-amber-400/10 border border-amber-400/25
+                       text-[11.5px] text-ml-glass-fg/75 leading-snug"
+              >
+                <AlertTriangle size={12} class="shrink-0 mt-px text-amber-400/90" aria-hidden="true" />
+                <span>
+                  This site usually blocks embedding, so the public viewer may not load. Annotations still sync to
+                  agents via the command below.
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div
