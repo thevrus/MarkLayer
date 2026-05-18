@@ -211,9 +211,9 @@ app.get('/robots.txt', (c) =>
 
 const LLMS_TXT = `# MarkLayer
 
-> 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up.
+> 100% free, 100% anonymous webpage annotation tool. Free web app and Chrome extension. No account, no email, no sign-up.
 
-MarkLayer is a Chrome extension that lets you draw, comment, and mark up any live website, then share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
+MarkLayer is a free web app and Chrome extension for annotating any live webpage. Paste any URL on https://marklayer.app to draw, comment, and mark up the page in your browser. No install required. The free Chrome extension is also available for in-place annotation on sites the web app cannot embed (behind a login or with strict embed policies). Share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
 
 ## Pricing
 
@@ -295,11 +295,20 @@ Install in Claude Code: claude mcp add marklayer -- npx -y marklayer-mcp
 
 ## How It Works
 
+### Option A: Use the free web app (no install)
+
+1. Open https://marklayer.app and paste any URL into the annotation field
+2. Draw, comment, or highlight anything on the page
+3. Click "Share" to get a link anyone can open. No extension or account needed
+4. Collaborate in real time with live cursors
+
+### Option B: Install the free Chrome extension
+
 1. Install the MarkLayer Chrome extension (free, no account)
 2. Navigate to any webpage and click the MarkLayer icon
 3. Draw, comment, or highlight anything on the page
 4. Click "Share" to get a link anyone can open. No extension needed on their end
-5. Collaborate in real time with live cursors
+5. Use this option for sites the web app cannot embed (behind a login or with strict embed policies)
 
 ## FAQ
 
@@ -308,6 +317,9 @@ A: Yes. 100% free. No paid plan, no trial, no per-seat pricing, no usage cap.
 
 Q: Is MarkLayer anonymous?
 A: Yes. No sign-up, no email, no profile, no login. No personal data is collected.
+
+Q: Do I need to install anything to use MarkLayer?
+A: No. The web app at https://marklayer.app lets you paste any URL and start annotating in your browser. No install, no account. The Chrome extension is optional, for sites the web app cannot embed.
 
 Q: Does the other person need the extension installed?
 A: No. Anyone can view annotations via the share link. No install required.
