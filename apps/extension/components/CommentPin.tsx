@@ -106,7 +106,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
 
   return (
     <div
-      class={cn('absolute pointer-events-auto cursor-pointer', 'group/pin', glass.font)}
+      class={cn('absolute pointer-events-auto cursor-pointer hover:z-50', 'group/pin', glass.font)}
       style={{ left, top }}
       data-doc-x={op.x}
       data-doc-y={op.y}

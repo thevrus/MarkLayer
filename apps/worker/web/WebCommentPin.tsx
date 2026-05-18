@@ -76,7 +76,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
 
   return (
     <div
-      class={cn('absolute pointer-events-auto cursor-pointer group/pin', glass.font)}
+      class={cn('absolute pointer-events-auto cursor-pointer hover:z-50 group/pin', glass.font)}
       style={{ left, top }}
       data-anchor-drift={strategy === 'text' ? 'text' : undefined}
       onContextMenu={onContextMenu}
