@@ -40,6 +40,7 @@ import { cn } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import {
   Calendar,
+  ChevronDown,
   Copy,
   Hash,
   Info,
@@ -63,10 +64,11 @@ import {
   X,
 } from 'lucide-preact';
 import { nanoid } from 'nanoid';
-import posthog from 'posthog-js';
+import { lazy, Suspense } from 'preact/compat';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
+import { capture } from './analytics';
 import { CursorLayer } from './CursorLayer';
 import { ProjectTabs } from './ProjectTabs';
 import { Logo, TextInputOverlay } from './shared';
@@ -98,6 +100,9 @@ import {
   showInfoPanel,
   textInput,
   timeAgo,
+  type ViewerZoom,
+  viewerZoom,
+  ZOOM_PRESETS,
 } from './signals';
 import {
   connected,
@@ -108,16 +113,20 @@ import {
   serverWidth,
   useRealtimeSync,
 } from './useRealtimeSync';
-import { localVideoStream, useVoiceRoom, videoActive, voiceActive, voiceLevel, voiceMuted } from './useVoiceRoom';
+import { localVideoStream, videoActive, voiceActive, voiceLevel, voiceMuted } from './voiceSignals';
 import { WebAreaLayer } from './WebAreaLayer';
 import { WebAreaShape } from './WebAreaShape';
 import { WebCommentPin } from './WebCommentPin';
 import { WebCommentPopover } from './WebCommentPopover';
+import { WebGuideLayer } from './WebGuideLayer';
 import { WebInspectorLayer } from './WebInspectorLayer';
 import { WebMeasureLayer } from './WebMeasureLayer';
 import { WebMultiInspectLayer } from './WebMultiInspectLayer';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
+
+// WebRTC engine lives in its own chunk — only fetched when a user joins voice/video.
+const VoiceEngine = lazy(() => import('./VoiceEngine'));
 
 /* ─── InfoPanel (viewer-only, keeps useRealtimeSync out of shared.tsx) ─── */
 
@@ -132,6 +141,11 @@ const TOOL_LABELS: Record<string, string> = {
   comment: 'Comments',
   selection: 'Selections',
 };
+
+function zoomLabel(z: ViewerZoom): string {
+  if (z === 'auto') return 'Auto';
+  return `${Math.round(z * 100)}%`;
+}
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: string; value: string }) {
   return (
@@ -288,6 +302,8 @@ export default function Viewer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
+  const zoomMenuOpen = useSignal(false);
+  const zoomRef = useRef<HTMLDivElement>(null);
   const drawingRef = useRef(false);
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
@@ -305,7 +321,36 @@ export default function Viewer() {
   }, []);
 
   useRealtimeSync(annotationId.value);
-  useVoiceRoom(localPeerId);
+  const voiceMounted = voiceActive.value || videoActive.value;
+
+  // Close zoom menu when clicking outside.
+  // Re-runs when iframeLoaded flips so we also catch clicks inside the iframe document,
+  // which don't bubble to the host document.
+  useSignalEffect(() => {
+    if (!zoomMenuOpen.value) return;
+    iframeLoaded.value; // subscribe so we reattach after iframe (re)loads
+    const onDown = (e: MouseEvent) => {
+      const t = e.target;
+      if (!(t instanceof Node) || !zoomRef.current?.contains(t)) zoomMenuOpen.value = false;
+    };
+    document.addEventListener('mousedown', onDown);
+    const iframeWin = frameRef.current?.contentWindow;
+    let iframeAttached: Window | null = null;
+    try {
+      iframeWin?.addEventListener('mousedown', onDown);
+      iframeAttached = iframeWin ?? null;
+    } catch {
+      /* cross-origin iframe — host listener still works for toolbar clicks */
+    }
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      try {
+        iframeAttached?.removeEventListener('mousedown', onDown);
+      } catch {
+        /* ignore */
+      }
+    };
+  });
 
   // Fill page URL / width from server when using short URLs
   useSignalEffect(() => {
@@ -363,7 +408,7 @@ export default function Viewer() {
 
   const renderStartRef = useRef(0);
   const captureRenderFailed = (reason: 'timeout' | 'no-marker' | 'iframe-error', extra?: Record<string, unknown>) => {
-    posthog.capture('page_render_failed', {
+    capture('page_render_failed', {
       url: pageUrl.value,
       reason,
       duration_ms: Math.round(performance.now() - renderStartRef.current),
@@ -715,7 +760,8 @@ export default function Viewer() {
     const viewerH = viewer ? viewer.clientHeight : window.innerHeight;
     const dev = deviceMode.value;
     const refW = dev === 'desktop' ? originalWidth.value || viewerW : DEVICE_WIDTHS[dev];
-    const cs = refW && viewerW ? viewerW / refW : 1;
+    const z = viewerZoom.value;
+    const cs = !refW || !viewerW ? 1 : z === 'auto' ? Math.min(1, viewerW / refW) : z;
     if (cssScale.value !== cs) cssScale.value = cs;
     const canvasW = refW;
     const canvasH = Math.round(viewerH / cs);
@@ -1063,6 +1109,7 @@ export default function Viewer() {
     tool !== 'selection' &&
     tool !== 'inspect' &&
     tool !== 'measure' &&
+    tool !== 'guide' &&
     tool !== 'area' &&
     tool !== 'multiInspect';
   const showTextCursor = !readonly && tool === 'text';
@@ -1091,7 +1138,12 @@ export default function Viewer() {
   }
 
   return (
-    <div class={cn('h-screen flex flex-col bg-ml-bg-viewer', glass.font)}>
+    <div class={cn('h-screen flex flex-col bg-ml-bg-device', glass.font)}>
+      {voiceMounted && (
+        <Suspense fallback={null}>
+          <VoiceEngine localPeerId={localPeerId} />
+        </Suspense>
+      )}
       {/* Mobile gate */}
       <div class="md:hidden fixed inset-0 z-2147483647 bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Geist',system-ui,sans-serif]">
         <Logo size={48} />
@@ -1108,10 +1160,10 @@ export default function Viewer() {
       <div class="flex items-center gap-3 px-4 h-[48px] z-50 shrink-0 bg-[var(--ml-glass-bg)] backdrop-blur-[80px] backdrop-saturate-[1.9] backdrop-brightness-[1.1] shadow-[0_1px_3px_oklch(0_0_0/0.08)]">
         <a
           href="/"
-          class="flex items-center gap-2 no-underline shrink-0 group cursor-pointer rounded-lg px-2 py-1 -ml-2 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150"
+          class="flex items-center gap-1 no-underline shrink-0 group cursor-pointer rounded-lg px-2 py-1 -ml-2 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150"
         >
           <Logo size={24} />
-          <span class="text-[14px] font-bold tracking-[-0.02em] text-ml-glass-fg group-hover:text-ml-glass-fg transition-colors">
+          <span class="text-[14px] font-semibold text-ml-glass-fg group-hover:text-ml-glass-fg transition-colors">
             MarkLayer
           </span>
         </a>
@@ -1186,6 +1238,47 @@ export default function Viewer() {
               <Tooltip text={`${mode.charAt(0).toUpperCase() + mode.slice(1)} viewport`} placement="bottom" />
             </button>
           ))}
+        </div>
+
+        {/* Zoom picker */}
+        <div ref={zoomRef} class="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => (zoomMenuOpen.value = !zoomMenuOpen.value)}
+            class={cn(
+              'group relative h-8 px-2 rounded-lg flex items-center gap-1 cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+              'text-[12px] font-medium tabular-nums min-w-14 justify-center',
+              zoomMenuOpen.value
+                ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
+                : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
+            )}
+          >
+            {zoomLabel(viewerZoom.value)}
+            <ChevronDown size={12} aria-hidden="true" />
+            <Tooltip text="Zoom" placement="bottom" />
+          </button>
+          {zoomMenuOpen.value && (
+            <div class={cn(glass.surfaceSmall, 'absolute top-full mt-1 right-0 z-10 py-1 min-w-28')}>
+              {ZOOM_PRESETS.map((preset) => (
+                <button
+                  key={String(preset.value)}
+                  type="button"
+                  onClick={() => {
+                    viewerZoom.value = preset.value;
+                    zoomMenuOpen.value = false;
+                  }}
+                  class={cn(
+                    'w-full px-3 py-1.5 text-center text-[12px] font-medium tabular-nums cursor-pointer border-none transition-colors',
+                    viewerZoom.value === preset.value
+                      ? 'bg-ml-glass-accent/[0.10] text-ml-glass-fg'
+                      : 'bg-transparent text-ml-glass-fg/70 hover:bg-ml-glass-accent/[0.08] hover:text-ml-glass-fg',
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div class={glass.sep} />
@@ -1355,23 +1448,26 @@ export default function Viewer() {
       <ProjectTabs />
 
       {/* Viewer */}
-      <div
-        class={cn(
-          'flex-1 relative overflow-hidden',
-          deviceMode.value !== 'desktop' && 'flex items-stretch justify-center bg-ml-bg-device',
-        )}
-      >
+      <div class="flex-1 w-full relative overflow-hidden flex items-stretch justify-center bg-ml-bg-device">
         <div
           id="viewer"
           ref={viewerRef}
           class={cn(
             'relative h-full',
             deviceMode.value === 'desktop'
-              ? 'w-full overflow-hidden'
+              ? originalWidth.value > 0 || cssScale.value !== 1
+                ? 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)]'
+                : 'w-full overflow-hidden'
               : 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)] bg-white',
           )}
           style={
-            deviceMode.value !== 'desktop' ? { width: DEVICE_WIDTHS[deviceMode.value], maxWidth: '100%' } : undefined
+            deviceMode.value === 'desktop'
+              ? originalWidth.value > 0
+                ? { width: originalWidth.value * cssScale.value, maxWidth: '100%' }
+                : cssScale.value !== 1
+                  ? { width: `${cssScale.value * 100}%`, maxWidth: '100%' }
+                  : undefined
+              : { width: DEVICE_WIDTHS[deviceMode.value] * cssScale.value, maxWidth: '100%' }
           }
         >
           <div
@@ -1539,6 +1635,7 @@ export default function Viewer() {
 
             {!readonly && <WebInspectorLayer frameRef={frameRef} />}
             {!readonly && <WebMeasureLayer frameRef={frameRef} />}
+            {!readonly && <WebGuideLayer frameRef={frameRef} />}
             {!readonly && <WebAreaLayer frameRef={frameRef} />}
             {!readonly && <WebMultiInspectLayer frameRef={frameRef} />}
             <CursorLayer scale={1} scrollY={iframeScrollY.value} />

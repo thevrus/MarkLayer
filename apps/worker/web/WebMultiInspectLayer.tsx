@@ -1,5 +1,6 @@
 import { InspectorStackPanel } from '@ext/components/InspectorLayer';
 import { MultiSelectPopover, SelectedOutline } from '@ext/components/MultiInspectLayer';
+import { injectCrosshairCursor } from '@ext/lib/dom';
 import { getSelector, snapshotElement } from '@ext/lib/selector';
 import { activeTool, addToInspectorStack, inspectorStack, outputDetail, toast } from '@ext/lib/state';
 import { useSignal, useSignalEffect } from '@preact/signals';
@@ -167,15 +168,9 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
     }
   });
 
-  // Crosshair cursor inside the iframe while active.
   useSignalEffect(() => {
     if (activeTool.value !== 'multiInspect') return;
-    const doc = frameRef.current?.contentDocument;
-    if (!doc?.head) return;
-    const style = doc.createElement('style');
-    style.textContent = '*, *::before, *::after { cursor: crosshair !important; }';
-    doc.head.appendChild(style);
-    return () => style.remove();
+    return injectCrosshairCursor(frameRef.current?.contentDocument);
   });
 
   // Reposition outlines on iframe scroll/scale/resize.

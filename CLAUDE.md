@@ -70,11 +70,14 @@ packages/types/     # Shared types & Zod schemas (DrawOp union, CommentOp, Peer,
 - **Preact, not React** — use `preact/hooks`, `@preact/signals`. Vite aliases `react` and `react-dom` to `preact/compat` (worker) and WXT's preact preset handles the extension.
 - **Single quotes, always semicolons** — enforced by Biome (line width 120, 2-space indent).
 - **No `any`** — `noExplicitAny: error` in Biome.
-- **Avoid `as` casts** and **prefer signals over `useEffect`** (see auto-memory) — fix upstream types, use Zod parsing or guards; derive with `useSignalEffect` / computed signals.
+- **Avoid `as` casts** — never reach for `as Foo` to silence the type checker. Fix the upstream type, narrow with a runtime guard (`instanceof`, `typeof`, `in`), destructure with a typed iteration, or parse with Zod. The only acceptable casts are `as const` for literal narrowing and unavoidable DOM interop (e.g. `as unknown as ...` at a single, commented boundary). Same applies to non-null `!` assertions.
+- **Prefer signals over `useEffect`** — derive shared state with `useSignalEffect` / `useComputed`; reach for `useEffect` only when integrating with non-signal-aware APIs.
+- **Keyboard handling uses `tinykeys`** (already a dep) — not raw `addEventListener('keydown')`. Pair a keydown + a `{ event: 'keyup' }` call to track held modifiers (Alt, Shift). Iframe-scoped tools register on both iframe `win` and host `window`.
 - **Cloudflare only** for infra — D1, Durable Objects, R2, Workers.
 - Worker imports extension components via `@ext/*` path alias (`apps/worker → apps/extension`).
 - State management uses Preact Signals (not `useState` for shared state). Extension state lives in `apps/extension/lib/state.ts`; web state in `apps/worker/web/signals.ts`.
 - Zod schemas in `packages/types` are the source of truth — derive TS types via `z.infer`, parse all wire data.
+- **Always import from `zod/mini`, never `zod`** — Mini is tree-shakable and meaningfully smaller in the extension content script and Worker bundles we ship. Use the functional API: `z.optional(s)`, `z.nullable(s)`, `s.check(z.minLength(1), z.int(), z.gte(1), z.lte(600))`, `z.enum([...])`, `z.discriminatedUnion(...)`, `z.record(z.string(), z.unknown())`. Do not introduce the classic chained API (`s.min(1)`, `s.optional()`, `s.email()`) — it pulls in the full builder and defeats the savings. `safeParse` and `z.infer` work unchanged.
 - IDs generated with `nanoid`.
 
 ## Architecture Notes

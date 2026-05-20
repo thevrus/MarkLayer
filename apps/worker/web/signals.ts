@@ -84,6 +84,35 @@ const initDevice = new URLSearchParams(location.search).get('device');
 export const deviceMode = signal<DeviceMode>(isDeviceMode(initDevice) ? initDevice : 'desktop');
 export const DEVICE_WIDTHS: Record<DeviceMode, number> = { desktop: 0, tablet: 768, mobile: 390 };
 
+/**
+ * Viewer zoom for the iframe+canvas composite.
+ * - 'auto' (default): clamp at 1× max; downscale when viewer is narrower than capture.
+ * - number: explicit factor (0.5, 0.75, 1).
+ * Drawings stay pixel-aligned at any zoom because the iframe and canvas share the same transform wrapper.
+ */
+export type ViewerZoom = number | 'auto';
+export const ZOOM_PRESETS: { value: ViewerZoom; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 0.5, label: '50%' },
+  { value: 0.75, label: '75%' },
+  { value: 1, label: '100%' },
+];
+
+const _zoomLs = typeof localStorage !== 'undefined' ? localStorage : null;
+function parseStoredZoom(raw: string | null): ViewerZoom {
+  if (raw === 'auto') return raw;
+  const n = Number(raw);
+  return ZOOM_PRESETS.some((p) => p.value === n) ? n : 'auto';
+}
+export const viewerZoom = signal<ViewerZoom>(parseStoredZoom(_zoomLs?.getItem('ml-zoom') ?? null));
+effect(() => {
+  try {
+    _zoomLs?.setItem('ml-zoom', String(viewerZoom.value));
+  } catch {
+    /* quota / private mode */
+  }
+});
+
 // Sync device mode to URL
 effect(() => {
   const dev = deviceMode.value;

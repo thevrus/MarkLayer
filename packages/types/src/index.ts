@@ -209,6 +209,20 @@ export const inspectOpSchema = z.object({
 });
 export type InspectOp = z.infer<typeof inspectOpSchema>;
 
+/**
+ * Figma-style ruler guide — a viewport-wide horizontal or vertical line stored
+ * in document coords. Lives in the op stream so it persists with the rest of
+ * the annotation (localStorage draft, D1, peer broadcast). `color`/`lineWidth`
+ * come from baseOp but the renderer ignores them — guides have a fixed style.
+ */
+export const guideOpSchema = z.object({
+  ...baseOp,
+  tool: z.literal('guide'),
+  orientation: z.enum(['horizontal', 'vertical']),
+  position: z.number(),
+});
+export type GuideOp = z.infer<typeof guideOpSchema>;
+
 export const drawOpSchema = z.discriminatedUnion('tool', [
   freehandOpSchema,
   rectOpSchema,
@@ -219,6 +233,7 @@ export const drawOpSchema = z.discriminatedUnion('tool', [
   selectionOpSchema,
   areaOpSchema,
   inspectOpSchema,
+  guideOpSchema,
 ]);
 export type DrawOp = z.infer<typeof drawOpSchema>;
 

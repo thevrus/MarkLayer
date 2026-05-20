@@ -24,6 +24,7 @@ import { AreaLayer } from './AreaLayer';
 import { Canvas } from './Canvas';
 import { CommentLayer } from './CommentLayer';
 import { ContextMenu } from './ContextMenu';
+import { GuideLayer } from './GuideLayer';
 import { InspectorLayer } from './InspectorLayer';
 import { InspectorMarkerLayer } from './InspectorMarkerLayer';
 import { MeasureLayer } from './MeasureLayer';
@@ -193,6 +194,7 @@ export function App() {
       <InspectorLayer />
       <MultiInspectLayer />
       <MeasureLayer />
+      <GuideLayer />
       <QuickGrabLayer />
       <Toolbar />
       <ShareDialog />

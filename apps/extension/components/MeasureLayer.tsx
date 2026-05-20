@@ -1,6 +1,18 @@
 import { useSignal, useSignalEffect } from '@preact/signals';
-import type { JSX } from 'preact';
+import { nanoid } from 'nanoid';
+import { Fragment, type JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
+import { tinykeys } from 'tinykeys';
+import { injectCrosshairCursor } from '../lib/dom';
+import {
+  type ContainerLines,
+  type DistanceOverlay,
+  getContainerLines,
+  getDistanceOverlay,
+  nextAnchorElement,
+  type RectLike,
+  type TraverseDir,
+} from '../lib/measure';
 import { isExtensionElement } from '../lib/selector';
 import { activeTool } from '../lib/state';
 
@@ -10,13 +22,24 @@ const BG = `oklch(0.65 0.16 ${HUE} / 0.10)`;
 const BORDER = `oklch(0.65 0.16 ${HUE} / 0.85)`;
 const GLOW = `oklch(0.65 0.16 ${HUE} / 0.18)`;
 const PANEL = `oklch(0.22 0.015 ${HUE} / 0.96)`;
+const ALT_BORDER = `oklch(0.7 0.19 30 / 0.9)`;
 
 export interface MeasureState {
+  id: string;
   el: Element;
   rect: DOMRect;
 }
 
-export function ElementOutline({ rect, dashed }: { rect: DOMRect; dashed?: boolean }) {
+export function ElementOutline({
+  rect,
+  dashed,
+  variant = 'primary',
+}: {
+  rect: RectLike;
+  dashed?: boolean;
+  variant?: 'primary' | 'alt';
+}) {
+  const stroke = variant === 'alt' ? ALT_BORDER : BORDER;
   return (
     <div
       class="fixed z-2147483646 pointer-events-none rounded-xs animate-[fadeIn_120ms_ease-out]"
@@ -26,7 +49,7 @@ export function ElementOutline({ rect, dashed }: { rect: DOMRect; dashed?: boole
         width: rect.width,
         height: rect.height,
         background: dashed ? 'transparent' : BG,
-        outline: `1.5px ${dashed ? 'dashed' : 'solid'} ${BORDER}`,
+        outline: `1.5px ${dashed ? 'dashed' : 'solid'} ${stroke}`,
         boxShadow: dashed ? 'none' : `0 0 0 4px ${GLOW}`,
         transition: 'left 80ms ease, top 80ms ease, width 80ms ease, height 80ms ease',
       }}
@@ -39,11 +62,13 @@ function Label({
   y,
   text,
   anchor = 'center',
+  variant = 'primary',
 }: {
   x: number;
   y: number;
   text: string;
   anchor?: 'center' | 'start' | 'end';
+  variant?: 'primary' | 'alt';
 }) {
   const tx = anchor === 'start' ? '0%' : anchor === 'end' ? '-100%' : '-50%';
   return (
@@ -56,8 +81,8 @@ function Label({
         padding: '2px 6px',
         borderRadius: 4,
         background: PANEL,
-        color: FG,
-        border: `1px solid ${BORDER}`,
+        color: variant === 'alt' ? 'oklch(0.88 0.12 30)' : FG,
+        border: `1px solid ${variant === 'alt' ? ALT_BORDER : BORDER}`,
         boxShadow: '0 2px 8px oklch(0 0 0 / 0.3)',
       }}
     >
@@ -66,14 +91,13 @@ function Label({
   );
 }
 
-/** Width label below the rect, height label to the right. */
-export function SizeRuler({ rect }: { rect: DOMRect }) {
+export function SizeRuler({ rect }: { rect: RectLike }) {
   const w = Math.round(rect.width);
   const h = Math.round(rect.height);
   return (
     <>
-      <Label x={rect.left + rect.width / 2} y={rect.bottom + 14} text={`width: ${w}px`} />
-      <Label x={rect.right + 12} y={rect.top + rect.height / 2} text={`height: ${h}px`} anchor="start" />
+      <Label x={rect.left + rect.width / 2} y={rect.top + rect.height + 14} text={`width: ${w}px`} />
+      <Label x={rect.left + rect.width + 12} y={rect.top + rect.height / 2} text={`height: ${h}px`} anchor="start" />
     </>
   );
 }
@@ -97,40 +121,171 @@ function GapLine({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: n
   );
 }
 
-/** Edge-to-edge gap on each axis where the rects don't overlap. */
-export function GapMeasurements({ a, b }: { a: DOMRect; b: DOMRect }) {
+export function GapMeasurements({ a, b }: { a: RectLike; b: RectLike }) {
+  const aRight = a.left + a.width;
+  const aBottom = a.top + a.height;
+  const bRight = b.left + b.width;
+  const bBottom = b.top + b.height;
+
   // Midpoint of the vertical-overlap region (or of the gap, if rects don't overlap vertically).
   // (max(top), min(bottom)) describes the overlap; when rects are disjoint vertically, the same
   // formula lands inside the gap, which is exactly where a horizontal connector should sit.
-  const midY = (Math.max(a.top, b.top) + Math.min(a.bottom, b.bottom)) / 2;
-  const midX = (Math.max(a.left, b.left) + Math.min(a.right, b.right)) / 2;
+  const midY = (Math.max(a.top, b.top) + Math.min(aBottom, bBottom)) / 2;
+  const midX = (Math.max(a.left, b.left) + Math.min(aRight, bRight)) / 2;
 
   const out: JSX.Element[] = [];
 
-  if (b.left > a.right) {
-    const dx = Math.round(b.left - a.right);
-    out.push(<GapLine key="hr" x1={a.right} y1={midY} x2={b.left} y2={midY} />);
-    out.push(<Label key="hr-l" x={(a.right + b.left) / 2} y={midY - 12} text={`${dx}px`} />);
-  } else if (a.left > b.right) {
-    const dx = Math.round(a.left - b.right);
-    out.push(<GapLine key="hl" x1={b.right} y1={midY} x2={a.left} y2={midY} />);
-    out.push(<Label key="hl-l" x={(b.right + a.left) / 2} y={midY - 12} text={`${dx}px`} />);
+  if (b.left > aRight) {
+    const dx = Math.round(b.left - aRight);
+    out.push(<GapLine key="hr" x1={aRight} y1={midY} x2={b.left} y2={midY} />);
+    out.push(<Label key="hr-l" x={(aRight + b.left) / 2} y={midY - 12} text={`${dx}px`} />);
+  } else if (a.left > bRight) {
+    const dx = Math.round(a.left - bRight);
+    out.push(<GapLine key="hl" x1={bRight} y1={midY} x2={a.left} y2={midY} />);
+    out.push(<Label key="hl-l" x={(bRight + a.left) / 2} y={midY - 12} text={`${dx}px`} />);
   }
 
-  if (b.top > a.bottom) {
-    const dy = Math.round(b.top - a.bottom);
-    out.push(<GapLine key="vd" x1={midX} y1={a.bottom} x2={midX} y2={b.top} />);
-    out.push(<Label key="vd-l" x={midX} y={(a.bottom + b.top) / 2} text={`${dy}px`} />);
-  } else if (a.top > b.bottom) {
-    const dy = Math.round(a.top - b.bottom);
-    out.push(<GapLine key="vu" x1={midX} y1={b.bottom} x2={midX} y2={a.top} />);
-    out.push(<Label key="vu-l" x={midX} y={(b.bottom + a.top) / 2} text={`${dy}px`} />);
+  if (b.top > aBottom) {
+    const dy = Math.round(b.top - aBottom);
+    out.push(<GapLine key="vd" x1={midX} y1={aBottom} x2={midX} y2={b.top} />);
+    out.push(<Label key="vd-l" x={midX} y={(aBottom + b.top) / 2} text={`${dy}px`} />);
+  } else if (a.top > bBottom) {
+    const dy = Math.round(a.top - bBottom);
+    out.push(<GapLine key="vu" x1={midX} y1={bBottom} x2={midX} y2={a.top} />);
+    out.push(<Label key="vu-l" x={midX} y={(bBottom + a.top) / 2} text={`${dy}px`} />);
   }
 
   return <>{out}</>;
 }
 
-export function HintBadge() {
+export function AltDistanceOverlay({ overlay }: { overlay: DistanceOverlay }) {
+  const out: JSX.Element[] = [];
+
+  if (overlay.horizontal && overlay.horizontal.value > 0.5) {
+    const h = overlay.horizontal;
+    out.push(
+      <div
+        key="h-line"
+        class="fixed z-2147483646 pointer-events-none"
+        style={{
+          left: Math.min(h.x1, h.x2),
+          top: h.y,
+          width: Math.abs(h.x2 - h.x1),
+          height: 0,
+          borderTop: `1.5px solid ${ALT_BORDER}`,
+        }}
+      />,
+    );
+    out.push(
+      <Label key="h-label" x={(h.x1 + h.x2) / 2} y={h.y - 12} text={`${Math.round(h.value)}px`} variant="alt" />,
+    );
+  }
+
+  if (overlay.vertical && overlay.vertical.value > 0.5) {
+    const v = overlay.vertical;
+    out.push(
+      <div
+        key="v-line"
+        class="fixed z-2147483646 pointer-events-none"
+        style={{
+          left: v.x,
+          top: Math.min(v.y1, v.y2),
+          width: 0,
+          height: Math.abs(v.y2 - v.y1),
+          borderLeft: `1.5px solid ${ALT_BORDER}`,
+        }}
+      />,
+    );
+    out.push(
+      <Label
+        key="v-label"
+        x={v.x + 14}
+        y={(v.y1 + v.y2) / 2}
+        text={`${Math.round(v.value)}px`}
+        anchor="start"
+        variant="alt"
+      />,
+    );
+  }
+
+  for (let i = 0; i < overlay.connectors.length; i++) {
+    const c = overlay.connectors[i];
+    const horizontal = Math.abs(c.y1 - c.y2) < 0.5;
+    out.push(
+      <div
+        key={`c-${i}`}
+        class="fixed z-2147483646 pointer-events-none"
+        style={{
+          left: Math.min(c.x1, c.x2),
+          top: Math.min(c.y1, c.y2),
+          width: horizontal ? Math.abs(c.x2 - c.x1) : 0,
+          height: horizontal ? 0 : Math.abs(c.y2 - c.y1),
+          borderTop: horizontal ? `1px dashed ${ALT_BORDER}` : 'none',
+          borderLeft: horizontal ? 'none' : `1px dashed ${ALT_BORDER}`,
+        }}
+      />,
+    );
+  }
+
+  return <>{out}</>;
+}
+
+/** Dashed lines from a rect to its container's four edges (Alt + no hover). */
+export function ContainerLinesOverlay({ lines }: { lines: ContainerLines }) {
+  const items: JSX.Element[] = [];
+  const vSides = ['top', 'bottom'] as const;
+  const hSides = ['left', 'right'] as const;
+  for (const side of vSides) {
+    const v = lines[side];
+    if (v.value < 0.5) continue;
+    items.push(
+      <div
+        key={`cl-${side}`}
+        class="fixed z-2147483646 pointer-events-none"
+        style={{
+          left: v.x,
+          top: Math.min(v.y1, v.y2),
+          width: 0,
+          height: Math.abs(v.y2 - v.y1),
+          borderLeft: `1px dashed ${ALT_BORDER}`,
+        }}
+      />,
+    );
+    items.push(
+      <Label
+        key={`cl-${side}-l`}
+        x={v.x + 10}
+        y={(v.y1 + v.y2) / 2}
+        text={`${Math.round(v.value)}px`}
+        anchor="start"
+        variant="alt"
+      />,
+    );
+  }
+  for (const side of hSides) {
+    const h = lines[side];
+    if (h.value < 0.5) continue;
+    items.push(
+      <div
+        key={`cl-${side}`}
+        class="fixed z-2147483646 pointer-events-none"
+        style={{
+          left: Math.min(h.x1, h.x2),
+          top: h.y,
+          width: Math.abs(h.x2 - h.x1),
+          height: 0,
+          borderTop: `1px dashed ${ALT_BORDER}`,
+        }}
+      />,
+    );
+    items.push(
+      <Label key={`cl-${side}-l`} x={(h.x1 + h.x2) / 2} y={h.y - 10} text={`${Math.round(h.value)}px`} variant="alt" />,
+    );
+  }
+  return <>{items}</>;
+}
+
+export function HintBadge({ text }: { text?: string } = {}) {
   return (
     <div
       class="fixed left-1/2 -translate-x-1/2 z-2147483647 pointer-events-none top-5
@@ -143,17 +298,64 @@ export function HintBadge() {
         boxShadow: '0 6px 20px oklch(0 0 0 / 0.35)',
       }}
     >
-      Click an element to anchor, then hover another to measure
+      {text ?? 'Click to pin · hold Alt for distances · Tab walks the DOM'}
     </div>
   );
 }
 
+/** Shared rendering for any number of pinned anchors + alt/hover overlay. */
+export function MeasureOverlayContent({
+  anchors,
+  hover,
+  altPressed,
+  viewport,
+  getContainerRect,
+}: {
+  anchors: MeasureState[];
+  hover: MeasureState | null;
+  altPressed: boolean;
+  viewport: RectLike;
+  /** Returns the rect of `el`'s relevant container in the same coord system as anchor rects. */
+  getContainerRect?: (el: Element) => RectLike | null;
+}) {
+  const primary = anchors[anchors.length - 1] ?? null;
+  const showAlt = altPressed && !!primary;
+  const altOverlay = showAlt && hover && hover.el !== primary.el ? getDistanceOverlay(primary.rect, hover.rect) : null;
+  const containerLines =
+    showAlt && !hover ? getContainerLines(primary.rect, getContainerRect?.(primary.el) ?? viewport) : null;
+
+  return (
+    <>
+      {!anchors.length && !hover && <HintBadge />}
+      {anchors.map((a) => (
+        <Fragment key={a.id}>
+          <ElementOutline rect={a.rect} />
+          <SizeRuler rect={a.rect} />
+        </Fragment>
+      ))}
+      {!showAlt && hover && <ElementOutline rect={hover.rect} dashed={!!primary} />}
+      {!showAlt && hover && <SizeRuler rect={hover.rect} />}
+      {!showAlt && primary && hover && hover.el !== primary.el && <GapMeasurements a={primary.rect} b={hover.rect} />}
+      {altOverlay && hover && (
+        <>
+          <ElementOutline rect={hover.rect} variant="alt" dashed />
+          <AltDistanceOverlay overlay={altOverlay} />
+        </>
+      )}
+      {containerLines && <ContainerLinesOverlay lines={containerLines} />}
+    </>
+  );
+}
+
 export function MeasureLayer() {
+  const anchors = useSignal<MeasureState[]>([]);
   const hover = useSignal<MeasureState | null>(null);
-  const anchor = useSignal<MeasureState | null>(null);
+  const altPressed = useSignal(false);
   const lastEl = useRef<Element | null>(null);
 
   useEffect(() => {
+    const isAnchored = (el: Element) => anchors.peek().some((a) => a.el === el);
+
     const onMove = (e: MouseEvent) => {
       if (activeTool.value !== 'measure') return;
       const el = e.target instanceof Element ? e.target : null;
@@ -162,14 +364,14 @@ export function MeasureLayer() {
         lastEl.current = null;
         return;
       }
-      if (anchor.value && el === anchor.value.el) {
+      if (isAnchored(el)) {
         hover.value = null;
         lastEl.current = null;
         return;
       }
       if (el === lastEl.current) return;
       lastEl.current = el;
-      hover.value = { el, rect: el.getBoundingClientRect() };
+      hover.value = { id: 'hover', el, rect: el.getBoundingClientRect() };
     };
 
     const onClick = (e: MouseEvent) => {
@@ -178,31 +380,84 @@ export function MeasureLayer() {
       if (!el || isExtensionElement(el)) return;
       e.preventDefault();
       e.stopPropagation();
-      if (anchor.value && el === anchor.value.el) {
-        anchor.value = null;
+      const cur = anchors.peek();
+      const existing = cur.findIndex((a) => a.el === el);
+      if (existing >= 0) {
+        anchors.value = cur.filter((_, i) => i !== existing);
       } else {
-        anchor.value = { el, rect: el.getBoundingClientRect() };
+        anchors.value = [...cur, { id: nanoid(), el, rect: el.getBoundingClientRect() }];
         hover.value = null;
         lastEl.current = null;
       }
     };
 
-    const onKeyDown = (e: KeyboardEvent) => {
+    const traverse = (dir: TraverseDir) => {
+      const cur = anchors.peek();
+      const primary = cur[cur.length - 1];
+      if (!primary) return false;
+      const next = nextAnchorElement(primary.el, dir, isExtensionElement);
+      if (!next) return false;
+      anchors.value = [...cur.slice(0, -1), { id: primary.id, el: next, rect: next.getBoundingClientRect() }];
+      hover.value = null;
+      lastEl.current = null;
+      return true;
+    };
+
+    const tryTraverse = (e: KeyboardEvent, dir: TraverseDir) => {
       if (activeTool.value !== 'measure') return;
-      if (e.key === 'Escape' && anchor.value) {
+      if (!traverse(dir)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    const onBlur = () => {
+      altPressed.value = false;
+    };
+
+    const popPrimary = (e: KeyboardEvent) => {
+      if (activeTool.value !== 'measure' || !anchors.peek().length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      anchors.value = anchors.peek().slice(0, -1);
+    };
+    const unbindDown = tinykeys(window, {
+      Alt: () => {
+        if (activeTool.value === 'measure') altPressed.value = true;
+      },
+      Escape: (e) => {
+        if (activeTool.value !== 'measure' || !anchors.peek().length) return;
         e.preventDefault();
         e.stopPropagation();
-        anchor.value = null;
-      }
-    };
+        anchors.value = [];
+      },
+      Backspace: popPrimary,
+      Delete: popPrimary,
+      Tab: (e) => tryTraverse(e, 'parent'),
+      'Shift+Tab': (e) => tryTraverse(e, 'child'),
+      ArrowDown: (e) => tryTraverse(e, 'next'),
+      ArrowRight: (e) => tryTraverse(e, 'next'),
+      ArrowUp: (e) => tryTraverse(e, 'prev'),
+      ArrowLeft: (e) => tryTraverse(e, 'prev'),
+    });
+    const unbindUp = tinykeys(
+      window,
+      {
+        Alt: () => {
+          altPressed.value = false;
+        },
+      },
+      { event: 'keyup' },
+    );
 
     window.addEventListener('mousemove', onMove, true);
     window.addEventListener('click', onClick, true);
-    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('mousemove', onMove, true);
       window.removeEventListener('click', onClick, true);
-      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('blur', onBlur);
+      unbindDown();
+      unbindUp();
     };
   }, []);
 
@@ -210,26 +465,38 @@ export function MeasureLayer() {
   useSignalEffect(() => {
     if (activeTool.value === 'measure') return;
     hover.value = null;
-    anchor.value = null;
+    anchors.value = [];
+    altPressed.value = false;
     lastEl.current = null;
   });
 
   useSignalEffect(() => {
     if (activeTool.value !== 'measure') return;
     let raf = 0;
-    const refresh = (cur: MeasureState | null): MeasureState | null => {
+    const refresh = <T extends MeasureState>(cur: T | null): T | null => {
       if (!cur) return null;
       if (!cur.el.isConnected) return null;
       const r = cur.el.getBoundingClientRect();
       const p = cur.rect;
       if (r.x === p.x && r.y === p.y && r.width === p.width && r.height === p.height) return cur;
-      return { el: cur.el, rect: r };
+      return { ...cur, rect: r };
     };
     const sync = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const a = refresh(anchor.peek());
-        if (a !== anchor.peek()) anchor.value = a;
+        const curAnchors = anchors.peek();
+        let changed = false;
+        const next: MeasureState[] = [];
+        for (const a of curAnchors) {
+          const refreshed = refresh(a);
+          if (!refreshed) {
+            changed = true;
+            continue;
+          }
+          if (refreshed !== a) changed = true;
+          next.push(refreshed);
+        }
+        if (changed) anchors.value = next;
         const h = refresh(hover.peek());
         if (h !== hover.peek()) hover.value = h;
       });
@@ -243,28 +510,24 @@ export function MeasureLayer() {
     };
   });
 
-  // !important wins against arbitrary page CSS that targets links/buttons/inputs.
   useSignalEffect(() => {
     if (activeTool.value !== 'measure') return;
-    const style = document.createElement('style');
-    style.textContent = '*, *::before, *::after { cursor: crosshair !important; }';
-    document.head.appendChild(style);
-    return () => style.remove();
+    return injectCrosshairCursor(document);
   });
 
   if (activeTool.value !== 'measure') return null;
 
-  const a = anchor.value;
-  const h = hover.value;
-
   return (
-    <>
-      {!a && <HintBadge />}
-      {a && <ElementOutline rect={a.rect} />}
-      {a && <SizeRuler rect={a.rect} />}
-      {h && <ElementOutline rect={h.rect} dashed={!!a} />}
-      {h && <SizeRuler rect={h.rect} />}
-      {a && h && <GapMeasurements a={a.rect} b={h.rect} />}
-    </>
+    <MeasureOverlayContent
+      anchors={anchors.value}
+      hover={hover.value}
+      altPressed={altPressed.value}
+      viewport={{ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }}
+      getContainerRect={(el) => {
+        const p = el.parentElement;
+        if (!p || p === document.body || p === document.documentElement) return null;
+        return p.getBoundingClientRect();
+      }}
+    />
   );
 }

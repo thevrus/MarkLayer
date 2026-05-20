@@ -11,26 +11,26 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@cloudflare/vite-plugin": "^1.35.0",
+    "@cloudflare/vite-plugin": "^1.37.1",
     "@marklayer/types": "workspace:*",
     "@posthog/react": "^1.9.0",
     "@preact/signals": "^2.9.0",
     "@resvg/resvg-wasm": "^2.6.2",
-    "hono": "^4.12.16",
-    "lucide-preact": "^1.14.0",
+    "hono": "^4.12.19",
+    "lucide-preact": "^1.16.0",
     "modern-screenshot": "^4.7.0",
     "nanoid": "^5.1.11",
-    "posthog-js": "^1.372.8",
-    "preact": "^10.29.1",
+    "posthog-js": "^1.374.1",
+    "preact": "^10.29.2",
     "tinykeys": "^3.0.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260504.1",
-    "@tailwindcss/vite": "^4.2.4",
-    "tailwindcss": "^4.2.4",
+    "@cloudflare/workers-types": "^4.20260518.1",
+    "@tailwindcss/vite": "^4.3.0",
+    "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8",
-    "wrangler": "^4.87.0"
+    "wrangler": "^4.92.0"
   }
 }

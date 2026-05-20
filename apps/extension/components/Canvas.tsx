@@ -441,6 +441,7 @@ export function Canvas() {
     tool !== 'selection' &&
     tool !== 'inspect' &&
     tool !== 'measure' &&
+    tool !== 'guide' &&
     tool !== 'text' &&
     tool !== 'area';
 

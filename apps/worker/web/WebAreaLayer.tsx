@@ -1,4 +1,5 @@
 import { AreaPopover, type DraftAreaState, type DraftRect, rectFromDraft } from '@ext/components/AreaLayer';
+import { injectCrosshairCursor } from '@ext/lib/dom';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
 import { activeTool, color, lineWidth, localUser, pushOp } from '@ext/lib/state';
@@ -123,15 +124,9 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
     }
   });
 
-  // Crosshair cursor inside the iframe while area tool is active. Mirrors WebInspectorLayer.
   useSignalEffect(() => {
     if (activeTool.value !== 'area') return;
-    const doc = frameRef.current?.contentDocument;
-    if (!doc?.head) return;
-    const style = doc.createElement('style');
-    style.textContent = '*, *::before, *::after { cursor: crosshair !important; }';
-    doc.head.appendChild(style);
-    return () => style.remove();
+    return injectCrosshairCursor(frameRef.current?.contentDocument);
   });
 
   // Subscribe to iframeScrollY so the preview repositions while the user holds-and-drags

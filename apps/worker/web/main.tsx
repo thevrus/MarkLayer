@@ -1,22 +1,20 @@
-import posthog from 'posthog-js';
+import { theme } from '@ext/lib/state';
+import { effect } from '@preact/signals';
 import { render } from 'preact';
 import { App } from './App';
+import { initAnalytics } from './analytics';
 import './style.css';
 
-const phKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
-const phHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST;
-if (phKey) {
-  posthog.init(phKey, {
-    api_host: phHost,
-    defaults: '2026-01-30',
-    ip: false,
-    autocapture: false,
-    capture_pageview: true,
-    capture_pageleave: true,
-    capture_exceptions: true,
-  });
-}
+effect(() => {
+  const t = theme.value;
+  const cls = document.documentElement.classList;
+  cls.remove('light', 'dark');
+  t !== 'system' && cls.add(t);
+});
 
 const root = document.getElementById('app')!;
 root.innerHTML = '';
 render(<App />, root);
+
+const phKey = import.meta.env.VITE_PUBLIC_POSTHOG_KEY;
+if (phKey) initAnalytics(phKey, import.meta.env.VITE_PUBLIC_POSTHOG_HOST);

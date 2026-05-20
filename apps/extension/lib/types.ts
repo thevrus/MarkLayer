@@ -8,6 +8,7 @@ export type {
   DeviceMode,
   DrawOp,
   FreehandOp,
+  GuideOp,
   InspectOp,
   LineOp,
   Peer,
@@ -33,4 +34,5 @@ export type Tool =
   | 'inspect'
   | 'multiInspect'
   | 'measure'
+  | 'guide'
   | 'area';

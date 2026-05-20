@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono } from 'hono/tiny';
 import { api } from './api';
 import { generateOgImage } from './og';
 import { aboutHtml, deriveDates } from './pages';

@@ -11,6 +11,7 @@ import type {
   CommentOp,
   CommentStatus,
   DrawOp,
+  GuideOp,
   InspectOp,
   Peer,
   SelectionOp,
@@ -45,16 +46,12 @@ function lsSet(key: string, value: string | null) {
 export type Theme = 'system' | 'light' | 'dark';
 const isTheme = (v: unknown): v is Theme => v === 'system' || v === 'light' || v === 'dark';
 const storedTheme = _ls?.getItem('ml-theme');
-export const theme = signal<Theme>(isTheme(storedTheme) ? storedTheme : 'system');
+export const theme = signal<Theme>(isTheme(storedTheme) ? storedTheme : 'light');
 export function cycleTheme() {
-  const systemDark = typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
-  const order: Theme[] = systemDark ? ['system', 'light'] : ['system', 'dark'];
+  const order: Theme[] = ['light', 'dark', 'system'];
   const next = order[(order.indexOf(theme.value) + 1) % order.length];
   theme.value = next;
-  lsSet('ml-theme', next === 'system' ? null : next);
-  const root = typeof document !== 'undefined' ? document.documentElement.classList : null;
-  root?.remove('light', 'dark');
-  next !== 'system' && root?.add(next);
+  lsSet('ml-theme', next);
 }
 
 export const PALETTE = ['#b462f5', '#3b82f6', '#06b6d4', '#22c55e', '#facc15', '#f97316', '#f43f5e'];
@@ -501,6 +498,7 @@ export const TOOLS: Tool[] = [
   'inspect',
   'multiInspect',
   'measure',
+  'guide',
 ];
 
 const TOOL_SET: ReadonlySet<string> = new Set(TOOLS);
@@ -556,6 +554,7 @@ export const SHORTCUT_MAP: Record<string, Tool> = {
   I: 'inspect',
   X: 'multiInspect',
   M: 'measure',
+  U: 'guide',
 };
 export const SHORTCUTS: Partial<Record<Tool, string>> = Object.fromEntries(
   Object.entries(SHORTCUT_MAP).map(([k, v]) => [v, k]),
@@ -653,6 +652,21 @@ export const onExportPng = signal<(() => void) | null>(null);
 export const undoRedoFlash = signal(0);
 
 export function undo() {
+  // While the guide tool is active, ⌘Z pops the most recent guide op specifically —
+  // even if a non-guide op was added later — so guide scratch work feels independent.
+  if (activeTool.value === 'guide') {
+    const ops = operations.value;
+    for (let i = ops.length - 1; i >= 0; i--) {
+      if (ops[i].tool === 'guide') {
+        const removed = ops[i];
+        operations.value = ops.filter((_, idx) => idx !== i);
+        onUndone.value?.(removed.id);
+        undoRedoFlash.value++;
+        drafts.scheduleSave();
+        return;
+      }
+    }
+  }
   const ops = operations.value;
   const stack = undoStack.value;
   const last = stack[stack.length - 1];
@@ -699,6 +713,71 @@ export function deleteOp(id: string) {
   operations.value = ops.filter((o) => o.id !== id);
   onUndone.value?.(id);
   drafts.scheduleSave();
+}
+
+/**
+ * Figma-style ruler guides — viewport-anchored horizontal/vertical lines. Stored
+ * as ops in the main op stream so they persist across reloads (localStorage draft
+ * in the extension, D1 + DO broadcast on the web). The `guides` signal is a
+ * computed view over `operations` filtered to `tool: 'guide'`.
+ */
+export type Orientation = 'horizontal' | 'vertical';
+export type Guide = GuideOp;
+export const guides = computed<GuideOp[]>(() => operations.value.filter((op): op is GuideOp => op.tool === 'guide'));
+export const selectedGuideId = signal<string | null>(null);
+
+export function addGuide(orientation: Orientation, position: number): GuideOp {
+  const op: GuideOp = {
+    id: nanoid(),
+    tool: 'guide',
+    color: color.value,
+    lineWidth: lineWidth.value,
+    orientation,
+    position,
+  };
+  pushOp(op);
+  return op;
+}
+
+function patchGuide(id: string, patch: Partial<Pick<GuideOp, 'orientation' | 'position'>>) {
+  let applied = false;
+  operations.value = operations.value.map((op) => {
+    if (op.id !== id || op.tool !== 'guide') return op;
+    if (
+      (patch.position === undefined || patch.position === op.position) &&
+      (patch.orientation === undefined || patch.orientation === op.orientation)
+    ) {
+      return op;
+    }
+    applied = true;
+    return { ...op, ...patch };
+  });
+  if (applied) {
+    onOpUpdated.value?.(id, patch);
+    drafts.scheduleSave();
+  }
+}
+
+export function updateGuide(id: string, position: number) {
+  patchGuide(id, { position });
+}
+
+// newPosition is required: the stored `position` swaps axes on flip, so without supplying the
+// new (perpendicular) coord the flipped guide would jump to an arbitrary spot.
+export function flipGuide(id: string, newPosition: number) {
+  const g = guides.value.find((p) => p.id === id);
+  if (!g) return;
+  patchGuide(id, { orientation: g.orientation === 'vertical' ? 'horizontal' : 'vertical', position: newPosition });
+}
+
+export function removeGuide(id: string) {
+  if (selectedGuideId.value === id) selectedGuideId.value = null;
+  deleteOp(id);
+}
+
+export function clearGuides() {
+  selectedGuideId.value = null;
+  for (const g of guides.value) deleteOp(g.id);
 }
 
 /**

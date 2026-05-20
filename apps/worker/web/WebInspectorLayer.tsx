@@ -5,6 +5,7 @@ import {
   SelectedHighlight,
   SelectedPanel,
 } from '@ext/components/InspectorLayer';
+import { injectCrosshairCursor } from '@ext/lib/dom';
 import { getSelector, type SelectedInfo, snapshotElement } from '@ext/lib/selector';
 import { activeTool } from '@ext/lib/state';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
@@ -113,15 +114,9 @@ export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFram
     },
   );
 
-  // !important wins against arbitrary page CSS that targets links/buttons/inputs.
   useSignalEffect(() => {
     if (activeTool.value !== 'inspect') return;
-    const doc = frameRef.current?.contentDocument;
-    if (!doc?.head) return;
-    const style = doc.createElement('style');
-    style.textContent = '*, *::before, *::after { cursor: crosshair !important; }';
-    doc.head.appendChild(style);
-    return () => style.remove();
+    return injectCrosshairCursor(frameRef.current?.contentDocument);
   });
 
   if (activeTool.value !== 'inspect') return null;

@@ -2,7 +2,7 @@ import { peers } from '@ext/lib/state';
 import { useEffect, useRef } from 'preact/hooks';
 import { CursorArrow } from './CursorArrow';
 import { followingPeer } from './signals';
-import { peerVideoStreams, voiceSpeaking } from './useVoiceRoom';
+import { peerVideoStreams, voiceSpeaking } from './voiceSignals';
 
 interface Props {
   scale: number;

@@ -1,6 +1,6 @@
 import { opsArraySchema } from '@marklayer/types';
-import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { Hono } from 'hono/tiny';
 import type { Env } from './index';
 
 function isRecord(v: unknown): v is Record<string, unknown> {

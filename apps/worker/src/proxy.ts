@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono } from 'hono/tiny';
 import type { Env } from './index';
 import { captureServer } from './posthog';
 

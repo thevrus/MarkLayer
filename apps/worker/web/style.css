@@ -7,7 +7,7 @@
   /* Page surfaces */
   --color-ml-bg: #fbfaf9;
   --color-ml-bg-viewer: #f5f5f5;
-  --color-ml-bg-device: #e8e5e0;
+  --color-ml-bg-device: #e5e5e5;
   --color-ml-fg: #1a1a1a;
   --color-ml-btn: #1a1a1a;
   --color-ml-btn-hover: #333;
@@ -72,9 +72,9 @@
   /* Dark: system preference OR manual .dark class */
   @media (prefers-color-scheme: dark) {
     :root:not(.light) {
-      --color-ml-bg: #111110;
-      --color-ml-bg-viewer: #1a1a1a;
-      --color-ml-bg-device: #0e0e0e;
+      --color-ml-bg: #888888;
+      --color-ml-bg-viewer: #888888;
+      --color-ml-bg-device: #888888;
       --color-ml-fg: #e8e5e0;
       --color-ml-btn: #e8e5e0;
       --color-ml-btn-hover: #d4d0ca;
@@ -117,9 +117,9 @@
   }
 
   :root.dark {
-    --color-ml-bg: #111110;
-    --color-ml-bg-viewer: #1a1a1a;
-    --color-ml-bg-device: #0e0e0e;
+    --color-ml-bg: #888888;
+    --color-ml-bg-viewer: #888888;
+    --color-ml-bg-device: #888888;
     --color-ml-fg: #e8e5e0;
     --color-ml-btn: #e8e5e0;
     --color-ml-btn-hover: #d4d0ca;
