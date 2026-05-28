@@ -36,6 +36,16 @@ const STUN_FALLBACK_TTL_MS = 60_000;
 let turnCache: { iceServers: RTCIceServer[]; expiresAt: number } | null = null;
 let turnPromise: Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> | null = null;
 
+// Cloudflare's response includes :53 URLs that Chrome and Firefox silently block.
+// Leaving them in the iceServers list causes wasted candidate-pair churn and can
+// mask working relays. https://developers.cloudflare.com/realtime/turn/ #gotchas.
+function stripPort53(server: RTCIceServer): RTCIceServer | null {
+  const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+  const kept = urls.filter((u) => typeof u === 'string' && !u.includes(':53'));
+  if (kept.length === 0) return null;
+  return { ...server, urls: kept };
+}
+
 async function fetchIceServers(env: Env): Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> {
   if (!env.TURN_KEY_ID || !env.TURN_KEY_TOKEN) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
   try {
@@ -50,8 +60,9 @@ async function fetchIceServers(env: Env): Promise<{ iceServers: RTCIceServer[]; 
     if (!res.ok) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
     const data = (await res.json()) as { iceServers?: RTCIceServer[] };
     if (!data.iceServers?.length) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
-    // Refresh well before expiry.
-    return { iceServers: data.iceServers, ttlMs: (TURN_TTL_SECONDS * 1000) / 2 };
+    const cleaned = data.iceServers.map(stripPort53).filter((s): s is RTCIceServer => s !== null);
+    if (cleaned.length === 0) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
+    return { iceServers: cleaned, ttlMs: (TURN_TTL_SECONDS * 1000) / 2 };
   } catch {
     return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
   }
@@ -217,6 +228,19 @@ export class AnnotationRoom extends DurableObject<Env> {
     // the strict client schema and are forwarded as-is to the targeted peer.
     const rawType = (raw as { type?: unknown }).type;
     if (typeof rawType === 'string' && (RTC_MESSAGE_TYPES as readonly string[]).includes(rawType)) {
+      if (rawType === 'rtc_request_ice') {
+        // Sender wants fresh TURN creds (likely an ICE restart in progress).
+        // Broadcast to every socket in the room — if only the requester updates,
+        // its peer keeps stale creds and the restart half-completes once the
+        // remote relay rejects the old auth. Clients no-op when the URL set is
+        // unchanged (see iceServersEqual in useRealtimeSync).
+        getIceServers(this.env)
+          .then((iceServers) => {
+            this.broadcast(JSON.stringify({ type: 'ice_refresh', iceServers }));
+          })
+          .catch(() => {});
+        return;
+      }
       this.relayRtc(ws, raw as { type: RtcMessageType; to?: unknown });
       return;
     }
@@ -282,6 +306,21 @@ export class AnnotationRoom extends DurableObject<Env> {
             x: msg.x,
             y: msg.y,
             tool: msg.tool,
+          }),
+          ws,
+        );
+        return;
+      }
+      case 'ripple': {
+        const info = this.getPeerInfo(ws);
+        if (!info) return;
+        this.broadcast(
+          JSON.stringify({
+            type: 'ripple',
+            peerId: info.id,
+            color: info.color,
+            x: msg.x,
+            y: msg.y,
           }),
           ws,
         );

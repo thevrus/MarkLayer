@@ -129,11 +129,11 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
         win.removeEventListener('mousemove', onMove, true);
         win.removeEventListener('mousedown', onDown, true);
         win.removeEventListener('mouseup', onUp, true);
+        unbindDown();
+        unbindUp();
       } catch {
-        /* iframe may have navigated */
+        /* iframe may have navigated cross-origin */
       }
-      unbindDown();
-      unbindUp();
     };
   });
 

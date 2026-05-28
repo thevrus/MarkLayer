@@ -20,6 +20,7 @@
     "wxt": "^0.20.26"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.7.6",
     "@marklayer/types": "workspace:*",
     "@preact/signals": "^2.9.0",
     "idb-keyval": "^6.2.2",

@@ -519,6 +519,31 @@
   }
 }
 
+/* Collaborative click ripples — subtle rings emanating from a peer's click */
+@keyframes mlRipple {
+  0% {
+    transform: translate(-50%, -50%) scale(0.5);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Peer cursor nudge on click — quick scale-down-and-back to feel the click. */
+@keyframes mlCursorClick {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(0.78);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 /* Reduce motion for users who request it: collapse durations and stop infinite
  * loops (lpBgShift, lpShine, lpPulseGlow, voice bars, status pulse).
  * `!important` is required here to override inline and utility animation styles

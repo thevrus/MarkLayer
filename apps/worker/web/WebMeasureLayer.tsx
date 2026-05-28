@@ -103,11 +103,11 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
       try {
         win.removeEventListener('mousemove', onMove, true);
         win.removeEventListener('click', onClick, true);
+        unbindWinDown();
+        unbindWinUp();
       } catch {
-        /* iframe may have navigated */
+        /* iframe may have navigated cross-origin */
       }
-      unbindWinDown();
-      unbindWinUp();
       unbindHostDown();
       unbindHostUp();
     };

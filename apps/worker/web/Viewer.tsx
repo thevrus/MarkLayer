@@ -98,6 +98,7 @@ import {
   selectionPopover,
   sharing,
   showInfoPanel,
+  stepZoom,
   textInput,
   timeAgo,
   type ViewerZoom,
@@ -107,13 +108,27 @@ import {
 import {
   connected,
   createdAt,
+  emitRipple,
   expiresAt,
   localPeerId,
   serverUrl,
   serverWidth,
   useRealtimeSync,
 } from './useRealtimeSync';
-import { localVideoStream, videoActive, voiceActive, voiceLevel, voiceMuted } from './voiceSignals';
+import {
+  audioBlocked,
+  expandedPeers,
+  localVideoStream,
+  peerConnQuality,
+  peerVideoStreams,
+  qualityRing,
+  resumeBlockedAudio,
+  videoActive,
+  voiceActive,
+  voiceLevel,
+  voiceMuted,
+  voiceSpeaking,
+} from './voiceSignals';
 import { WebAreaLayer } from './WebAreaLayer';
 import { WebAreaShape } from './WebAreaShape';
 import { WebCommentPin } from './WebCommentPin';
@@ -125,8 +140,11 @@ import { WebMultiInspectLayer } from './WebMultiInspectLayer';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
 
-// WebRTC engine lives in its own chunk — only fetched when a user joins voice/video.
+// WebRTC engine + voice UI live in their own chunks — only fetched when a user
+// joins voice/video or opens the device picker.
 const VoiceEngine = lazy(() => import('./VoiceEngine'));
+const DeviceMenu = lazy(() => import('./DeviceMenu').then((m) => ({ default: m.DeviceMenu })));
+const MediaBubble = lazy(() => import('./MediaBubble').then((m) => ({ default: m.MediaBubble })));
 
 /* ─── InfoPanel (viewer-only, keeps useRealtimeSync out of shared.tsx) ─── */
 
@@ -530,9 +548,11 @@ export default function Viewer() {
             followingPeer.value = null;
           }
         });
-        // Break follow mode on user interaction in iframe
-        win.addEventListener('mousedown', () => {
+        // Break follow mode on user interaction in iframe + ripple on click
+        win.addEventListener('mousedown', (e) => {
           if (followingPeer.value) followingPeer.value = null;
+          if (e.button !== 0) return;
+          emitRipple.value?.(e.clientX, e.clientY + (win.scrollY || 0));
         });
         win.addEventListener(
           'wheel',
@@ -601,6 +621,11 @@ export default function Viewer() {
       if (isReadonly.value || isEditable(e.target)) return;
       fn(e);
     };
+    const zoomKey = (fn: () => void) => (e: KeyboardEvent) => {
+      if (isEditable(e.target)) return;
+      e.preventDefault();
+      fn();
+    };
 
     const bindings: Record<string, (e: KeyboardEvent) => void> = {
       '$mod+KeyR': guard((e) => {
@@ -618,6 +643,12 @@ export default function Viewer() {
       '$mod+KeyY': guard((e) => {
         e.preventDefault();
         redo();
+      }),
+      // Zoom shortcuts bypass `guard` so they work in readonly (view-only operation).
+      '$mod+Equal': zoomKey(() => stepZoom(1)),
+      '$mod+Minus': zoomKey(() => stepZoom(-1)),
+      '$mod+Digit0': zoomKey(() => {
+        viewerZoom.value = 'auto';
       }),
       Escape: (e) => {
         if (isReadonly.value) return;
@@ -1023,6 +1054,20 @@ export default function Viewer() {
     return () => window.removeEventListener('mousemove', handler);
   }, []);
 
+  // Click ripple — only fires for left-button clicks landing on the page area
+  // (canvas/iframe wrapper), not on toolbars or panels.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const inner = innerRef.current;
+      if (!inner || !(e.target instanceof Node) || !inner.contains(e.target)) return;
+      const pos = canvasCoords(e);
+      emitRipple.value?.(pos.x, pos.y);
+    };
+    window.addEventListener('mousedown', onClick);
+    return () => window.removeEventListener('mousedown', onClick);
+  }, [canvasCoords]);
+
   // Selection tool: capture from parent frame
   const captureSelection = useCallback((sel: Selection | null, fromIframe: boolean) => {
     if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
@@ -1138,7 +1183,7 @@ export default function Viewer() {
   }
 
   return (
-    <div class={cn('h-screen flex flex-col bg-ml-bg-device', glass.font)}>
+    <div class={cn('h-screen overflow-hidden flex flex-col bg-ml-bg-device', glass.font)}>
       {voiceMounted && (
         <Suspense fallback={null}>
           <VoiceEngine localPeerId={localPeerId} />
@@ -1301,23 +1346,29 @@ export default function Viewer() {
             {/* Peer avatars */}
             {Array.from(peers.value.values())
               .slice(0, 3)
-              .map((p, i) => (
-                <div
-                  key={p.id}
-                  class="w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] shadow-sm cursor-pointer"
-                  style={{ background: p.color, zIndex: peers.value.size - i }}
-                  title={p.name}
-                  onClick={() => {
-                    if (p.cursor) onFollowScroll.value?.(p.cursor.y);
-                  }}
-                >
-                  {p.name
-                    .split(' ')
-                    .map((w) => w[0])
-                    .join('')
-                    .slice(0, 2)}
-                </div>
-              ))}
+              .map((p, i) => {
+                const active = p.cursor != null;
+                return (
+                  <div
+                    key={p.id}
+                    class={cn(
+                      'w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-opacity duration-200',
+                      active ? 'opacity-100 cursor-pointer' : 'opacity-40 cursor-default',
+                    )}
+                    style={{ background: p.color, zIndex: peers.value.size - i }}
+                    title={active ? p.name : `${p.name} (inactive)`}
+                    onClick={() => {
+                      if (p.cursor) onFollowScroll.value?.(p.cursor.y);
+                    }}
+                  >
+                    {p.name
+                      .split(' ')
+                      .map((w) => w[0])
+                      .join('')
+                      .slice(0, 2)}
+                  </div>
+                );
+              })}
             {peers.value.size > 3 && (
               <div class="w-7 h-7 rounded-full bg-ml-glass-fg/10 text-ml-glass-fg/70 text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] tabular-nums">
                 +{peers.value.size - 3}
@@ -1370,16 +1421,24 @@ export default function Viewer() {
                 {videoActive.value ? <Video size={16} aria-hidden="true" /> : <VideoOff size={16} aria-hidden="true" />}
                 <Tooltip text={videoActive.value ? 'Turn off camera' : 'Turn on camera'} placement="bottom" />
               </button>
+              <Suspense fallback={null}>
+                <DeviceMenu hasPermission />
+              </Suspense>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => (voiceActive.value = true)}
-              class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
-            >
-              <Mic size={16} aria-hidden="true" />
-              <Tooltip text="Join voice" placement="bottom" />
-            </button>
+            <div class="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => (voiceActive.value = true)}
+                class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
+              >
+                <Mic size={16} aria-hidden="true" />
+                <Tooltip text="Join voice" placement="bottom" />
+              </button>
+              <Suspense fallback={null}>
+                <DeviceMenu hasPermission={false} />
+              </Suspense>
+            </div>
           )}
 
           {/* Connection indicator */}
@@ -1447,13 +1506,14 @@ export default function Viewer() {
       {/* Project page tabs (only rendered when /p/:id) */}
       <ProjectTabs />
 
-      {/* Viewer */}
-      <div class="flex-1 w-full relative overflow-hidden flex items-stretch justify-center bg-ml-bg-device">
+      {/* `mx-auto` (not `justify-center`) so flex auto-margins collapse on overflow
+          — scroll starts at the page's left edge instead of clipping content. */}
+      <div class="flex-1 w-full relative overflow-x-auto overflow-y-hidden flex items-stretch bg-ml-bg-device">
         <div
           id="viewer"
           ref={viewerRef}
           class={cn(
-            'relative h-full',
+            'relative h-full mx-auto',
             deviceMode.value === 'desktop'
               ? originalWidth.value > 0 || cssScale.value !== 1
                 ? 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)]'
@@ -1463,11 +1523,11 @@ export default function Viewer() {
           style={
             deviceMode.value === 'desktop'
               ? originalWidth.value > 0
-                ? { width: originalWidth.value * cssScale.value, maxWidth: '100%' }
+                ? { width: originalWidth.value * cssScale.value }
                 : cssScale.value !== 1
-                  ? { width: `${cssScale.value * 100}%`, maxWidth: '100%' }
+                  ? { width: `${cssScale.value * 100}%` }
                   : undefined
-              : { width: DEVICE_WIDTHS[deviceMode.value] * cssScale.value, maxWidth: '100%' }
+              : { width: DEVICE_WIDTHS[deviceMode.value] * cssScale.value }
           }
         >
           <div
@@ -1692,8 +1752,48 @@ export default function Viewer() {
       {/* Raycast-style mic indicator */}
       {voiceActive.value && <VoicePill />}
 
-      {/* Draggable self-view video bubble */}
-      {localVideoStream.value && videoActive.value && <SelfVideoBubble stream={localVideoStream.value} />}
+      {/* Draggable self-view + expanded peer bubbles. Wrapped in one Suspense
+          boundary so the MediaBubble chunk loads at most once across all bubbles. */}
+      {(localVideoStream.value || expandedPeers.value.size > 0) && (
+        <Suspense fallback={null}>
+          {localVideoStream.value && videoActive.value && (
+            <MediaBubble id="self" stream={localVideoStream.value} muted mirror defaultSize={72} />
+          )}
+          {Array.from(expandedPeers.value).map((peerId) => {
+            const stream = peerVideoStreams.value.get(peerId);
+            const peer = peers.value.get(peerId);
+            if (!stream || !peer) return null;
+            const ring = qualityRing(peerConnQuality.value.get(peerId), peer.color);
+            return (
+              <MediaBubble
+                key={peerId}
+                id={`peer-${peerId}`}
+                stream={stream}
+                defaultSize={140}
+                label={peer.name}
+                ringColor={ring}
+                speaking={voiceSpeaking.value.has(peerId)}
+                onClose={() => {
+                  const next = new Set(expandedPeers.value);
+                  next.delete(peerId);
+                  expandedPeers.value = next;
+                }}
+              />
+            );
+          })}
+        </Suspense>
+      )}
+
+      {/* Autoplay block — single tap unblocks remote audio. */}
+      {audioBlocked.value && (
+        <button
+          type="button"
+          onClick={resumeBlockedAudio}
+          class="fixed top-12 left-1/2 -translate-x-1/2 z-2147483647 px-3 py-2 rounded-xl bg-amber-500/90 text-white text-xs font-medium shadow-lg cursor-pointer border-none animate-[fadeInDown_0.2s_ease-out]"
+        >
+          Click to enable call audio
+        </button>
+      )}
 
       {/* Follow mode indicator */}
       {followingPeer.value &&
@@ -1789,89 +1889,6 @@ function VoicePill() {
       >
         <X size={11} aria-hidden="true" />
       </button>
-    </div>
-  );
-}
-
-function SelfVideoBubble({ stream }: { stream: MediaStream }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const dragRef = useRef<HTMLDivElement>(null);
-  const posRef = useRef({ x: 0, y: 0 });
-  const sizeRef = useRef(64);
-  const draggingRef = useRef(false);
-  const offsetRef = useRef({ x: 0, y: 0 });
-
-  useEffect(() => {
-    if (ref.current) ref.current.srcObject = stream;
-  }, [stream]);
-
-  // Initialize position: bottom-right corner
-  useEffect(() => {
-    const s = sizeRef.current;
-    posRef.current = { x: window.innerWidth - s - 16, y: window.innerHeight - s - 16 };
-    if (dragRef.current) {
-      dragRef.current.style.transform = `translate(${posRef.current.x}px,${posRef.current.y}px)`;
-    }
-  }, []);
-
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!draggingRef.current || !dragRef.current) return;
-      const s = sizeRef.current;
-      const x = Math.max(0, Math.min(window.innerWidth - s, e.clientX - offsetRef.current.x));
-      const y = Math.max(48, Math.min(window.innerHeight - s, e.clientY - offsetRef.current.y));
-      posRef.current = { x, y };
-      dragRef.current.style.transform = `translate(${x}px,${y}px)`;
-    };
-    const onUp = () => {
-      draggingRef.current = false;
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, []);
-
-  const initX = window.innerWidth - 80;
-  const initY = window.innerHeight - 80;
-
-  return (
-    <div
-      ref={dragRef}
-      class="fixed top-0 left-0 z-2147483646 cursor-grab active:cursor-grabbing select-none will-change-transform animate-[fadeInDown_0.2s_ease-out]"
-      style={{ transform: `translate(${initX}px,${initY}px)` }}
-      onMouseDown={(e) => {
-        draggingRef.current = true;
-        offsetRef.current = { x: e.clientX - posRef.current.x, y: e.clientY - posRef.current.y };
-        e.preventDefault();
-      }}
-      onWheel={(e) => {
-        e.preventDefault();
-        const el = dragRef.current;
-        const vid = ref.current;
-        if (!el || !vid) return;
-        const prev = sizeRef.current;
-        const next = Math.max(48, Math.min(200, prev - Math.sign(e.deltaY) * 16));
-        if (next === prev) return;
-        sizeRef.current = next;
-        vid.style.width = `${next}px`;
-        vid.style.height = `${next}px`;
-        const dx = (next - prev) / 2;
-        posRef.current.x -= dx;
-        posRef.current.y -= dx;
-        el.style.transform = `translate(${posRef.current.x}px,${posRef.current.y}px)`;
-      }}
-    >
-      <video
-        ref={ref}
-        autoPlay
-        playsInline
-        muted
-        class="rounded-full object-cover shadow-lg ring-2 ring-white/20"
-        style={{ width: 64, height: 64, transform: 'scaleX(-1)' }}
-      />
     </div>
   );
 }

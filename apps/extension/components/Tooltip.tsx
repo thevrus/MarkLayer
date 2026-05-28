@@ -1,8 +1,14 @@
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { cn } from '@marklayer/types';
+import { useLayoutEffect, useRef } from 'preact/hooks';
 import { glass } from '../lib/glass';
 
 type Placement = 'top' | 'bottom';
 
+/**
+ * Tooltip — render as a child of a `class="group …"` trigger; visibility is driven
+ * by `group-hover` / `group-focus-within`.
+ */
 export function Tooltip({
   text,
   shortcut,
@@ -15,15 +21,34 @@ export function Tooltip({
   /** Allow long descriptive text to wrap onto multiple lines (default: single-line). */
   wrap?: boolean;
 }) {
-  const pos = placement === 'top' ? 'bottom-full mb-3.5' : 'top-full mt-3.5';
+  const ref = useRef<HTMLDivElement>(null);
+
+  // `position: fixed` so the tooltip escapes any overflow-hidden ancestor; Floating UI
+  // flips/shifts to keep it inside the viewport.
+  useLayoutEffect(() => {
+    const floating = ref.current;
+    const reference = floating?.parentElement;
+    if (!floating || !reference) return;
+    return autoUpdate(reference, floating, () => {
+      computePosition(reference, floating, {
+        placement,
+        strategy: 'fixed',
+        middleware: [offset(8), flip(), shift({ padding: 8 })],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+      });
+    });
+  }, [placement]);
+
   return (
     <div
+      ref={ref}
       class={cn(
-        'absolute left-1/2 -translate-x-1/2 pointer-events-none',
+        'fixed top-0 left-0 pointer-events-none',
         'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
         'scale-90 group-hover:scale-100 group-focus-within:scale-100',
-        'transition-all duration-150 ease-out z-10',
-        pos,
+        'transition-[opacity,transform] duration-150 ease-out z-2147483647',
       )}
     >
       <div

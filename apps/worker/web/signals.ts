@@ -96,6 +96,8 @@ export const ZOOM_PRESETS: { value: ViewerZoom; label: string }[] = [
   { value: 0.5, label: '50%' },
   { value: 0.75, label: '75%' },
   { value: 1, label: '100%' },
+  { value: 1.5, label: '150%' },
+  { value: 2, label: '200%' },
 ];
 
 const _zoomLs = typeof localStorage !== 'undefined' ? localStorage : null;
@@ -112,6 +114,15 @@ effect(() => {
     /* quota / private mode */
   }
 });
+
+const NUMERIC_ZOOMS = ZOOM_PRESETS.flatMap((p) => (typeof p.value === 'number' ? [p.value] : []));
+
+/** Step to the next/previous numeric preset relative to the current effective scale. */
+export function stepZoom(dir: 1 | -1) {
+  const current = viewerZoom.value === 'auto' ? cssScale.value : viewerZoom.value;
+  const next = dir > 0 ? NUMERIC_ZOOMS.find((v) => v > current) : [...NUMERIC_ZOOMS].reverse().find((v) => v < current);
+  if (next !== undefined) viewerZoom.value = next;
+}
 
 // Sync device mode to URL
 effect(() => {
@@ -181,15 +192,11 @@ if (parseViewParam()) {
   isLanding.value = false;
 }
 
-// Show friendly error when redirected from proxy
-{
-  const params = new URLSearchParams(location.search);
-  if (params.get('error') === 'self') {
-    showToast("You can't annotate MarkLayer itself — try a different URL", 'error', 5000);
-    params.delete('error');
-    const clean = params.toString();
-    history.replaceState(null, '', clean ? `?${clean}` : location.pathname);
-  }
+// Show friendly error when redirected from proxy. Use the hash (not a query
+// param) so the error URL is not indexable as a duplicate of `/`.
+if (location.hash === '#error=self') {
+  showToast("You can't annotate MarkLayer itself — try a different URL", 'error', 5000);
+  history.replaceState(null, '', location.pathname + location.search);
 }
 
 const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });

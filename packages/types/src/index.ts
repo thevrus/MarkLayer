@@ -254,8 +254,11 @@ export interface Peer {
 /**
  * RTC signaling carries arbitrary SDP/ICE blobs that we forward verbatim.
  * Match these types separately and pass through; do not run them through `clientMsgSchema`.
+ *
+ * `rtc_request_ice` is a client→server fan-in (no `to:` field); the server replies
+ * with a server-only `ice_refresh` push.
  */
-export const RTC_MESSAGE_TYPES = ['rtc_offer', 'rtc_answer', 'rtc_ice'] as const;
+export const RTC_MESSAGE_TYPES = ['rtc_offer', 'rtc_answer', 'rtc_ice', 'rtc_request_ice'] as const;
 export type RtcMessageType = (typeof RTC_MESSAGE_TYPES)[number];
 
 /**
@@ -277,6 +280,11 @@ export const clientMsgSchema = z.discriminatedUnion('type', [
     x: z.number(),
     y: z.number(),
     tool: z.optional(z.string()),
+  }),
+  z.object({
+    type: z.literal('ripple'),
+    x: z.number(),
+    y: z.number(),
   }),
   z.object({
     type: z.literal('profile'),

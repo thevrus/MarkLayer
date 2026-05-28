@@ -9,6 +9,7 @@ import {
   onUndone,
   operations,
   peers,
+  toast,
 } from '@ext/lib/state';
 import type { DrawOp, Peer } from '@ext/lib/types';
 import { signal } from '@preact/signals';
@@ -37,10 +38,98 @@ function isIceServerArray(v: unknown): v is RTCIceServer[] {
   return Array.isArray(v) && v.every((s) => !!s && typeof s === 'object' && 'urls' in s);
 }
 
+function urlsKey(urls: string | string[]): string {
+  return Array.isArray(urls) ? urls.join('|') : urls;
+}
+function iceServersEqual(a: RTCIceServer[] | null, b: RTCIceServer[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (
+      urlsKey(a[i].urls) !== urlsKey(b[i].urls) ||
+      a[i].username !== b[i].username ||
+      a[i].credential !== b[i].credential
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export const localPeerId = nanoid();
 
 /** Stale cursor threshold — hide cursors older than 5s */
 const STALE_MS = 5000;
+
+/**
+ * Timestamped cursor samples used for client-side interpolation. Lives outside
+ * the `peers` signal so the rAF render loop in CursorLayer reads it without
+ * forcing a Preact re-render on every packet. Buffer size is small (3) — we
+ * only need previous + current + a tiny lookahead margin.
+ */
+export interface CursorSample {
+  x: number;
+  y: number;
+  t: number;
+}
+
+export const peerCursorSamples = new Map<string, CursorSample[]>();
+function pushCursorSample(peerId: string, x: number, y: number) {
+  const buf = peerCursorSamples.get(peerId) ?? [];
+  buf.push({ x, y, t: performance.now() });
+  if (buf.length > 3) buf.shift();
+  peerCursorSamples.set(peerId, buf);
+}
+
+/** Active click ripples. Each entry auto-clears after the CSS animation completes. */
+export interface Ripple {
+  id: string;
+  peerId: string;
+  color: string;
+  x: number;
+  y: number;
+}
+export const activeRipples = signal<Ripple[]>([]);
+/** ms — animation is 700ms and the last ring is delayed 140ms; pad slightly so
+ * the trailing ring doesn't pop out mid-fade if the browser is busy. */
+const RIPPLE_LIFETIME_MS = 900;
+
+function pushRipple(r: Ripple) {
+  activeRipples.value = [...activeRipples.value, r];
+  setTimeout(() => {
+    activeRipples.value = activeRipples.value.filter((x) => x.id !== r.id);
+  }, RIPPLE_LIFETIME_MS);
+}
+
+/** Local emitter — called from the click handler. Sends to peers and renders own ripple. */
+export const emitRipple = signal<((x: number, y: number) => void) | null>(null);
+
+/** Lazily-created AudioContext for peer join/leave chimes. Browser autoplay
+ * policy keeps it suspended until a user gesture; since the user is already
+ * interacting with the viewer by the time peers join, resume() usually works. */
+let peerChimeCtx: AudioContext | null = null;
+function playPeerChime(joining: boolean) {
+  try {
+    if (typeof AudioContext === 'undefined') return;
+    if (!peerChimeCtx) peerChimeCtx = new AudioContext();
+    if (peerChimeCtx.state === 'suspended') peerChimeCtx.resume().catch(() => {});
+    const t0 = peerChimeCtx.currentTime;
+    const osc = peerChimeCtx.createOscillator();
+    const gain = peerChimeCtx.createGain();
+    osc.type = 'sine';
+    // Join: rising C5 → G5. Leave: falling G5 → C5.
+    const [f1, f2] = joining ? [523.25, 783.99] : [783.99, 523.25];
+    osc.frequency.setValueAtTime(f1, t0);
+    osc.frequency.exponentialRampToValueAtTime(f2, t0 + 0.14);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(0.05, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+    osc.connect(gain).connect(peerChimeCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.25);
+  } catch {
+    /* audio unavailable — ignore */
+  }
+}
 
 export function useRealtimeSync(annotationId: string) {
   const wsRef = useRef<WebSocket | null>(null);
@@ -80,6 +169,7 @@ export function useRealtimeSync(annotationId: string) {
       for (const [id, peer] of peers.value) {
         if (peer.cursor && now - peer.lastSeen > STALE_MS) {
           next.set(id, { ...peer, cursor: null });
+          peerCursorSamples.delete(id);
           changed = true;
         } else {
           next.set(id, peer);
@@ -192,6 +282,16 @@ export function useRealtimeSync(annotationId: string) {
                 pongTimeout = null;
               }
               break;
+            case 'ripple': {
+              pushRipple({
+                id: nanoid(),
+                peerId: msg.peerId,
+                color: msg.color || '#8b5cf6',
+                x: msg.x,
+                y: msg.y,
+              });
+              break;
+            }
             case 'cursor': {
               const prev = peers.value;
               const existing = prev.get(msg.peerId);
@@ -208,6 +308,7 @@ export function useRealtimeSync(annotationId: string) {
               const next = new Map(prev);
               next.set(msg.peerId, updated);
               peers.value = next;
+              pushCursorSample(msg.peerId, msg.x, msg.y);
               // Follow mode: throttled scroll to followed peer's Y position
               if (followingPeer.value === msg.peerId && !followScrollTimer) {
                 followScrollTimer = setTimeout(() => {
@@ -221,6 +322,7 @@ export function useRealtimeSync(annotationId: string) {
               const map = new Map(peers.value);
               const p = msg.peer;
               if (p.id !== localPeerId) {
+                const isNew = !map.has(p.id);
                 map.set(p.id, {
                   id: p.id,
                   name: p.name,
@@ -229,14 +331,24 @@ export function useRealtimeSync(annotationId: string) {
                   lastSeen: Date.now(),
                 });
                 peers.value = map;
+                if (isNew) {
+                  toast(`${p.name || 'Someone'} joined`, 'info', 2500);
+                  playPeerChime(true);
+                }
               }
               break;
             }
             case 'peer_leave': {
+              const leaving = peers.value.get(msg.peerId);
               if (followingPeer.value === msg.peerId) followingPeer.value = null;
               const map = new Map(peers.value);
               map.delete(msg.peerId);
               peers.value = map;
+              peerCursorSamples.delete(msg.peerId);
+              if (leaving) {
+                toast(`${leaving.name} left`, 'info', 2500);
+                playPeerChime(false);
+              }
               break;
             }
             case 'profile': {
@@ -256,6 +368,15 @@ export function useRealtimeSync(annotationId: string) {
             case 'rtc_answer':
             case 'rtc_ice':
               onRtcMessage.value?.(msg);
+              break;
+            case 'ice_refresh':
+              // Server-pushed TURN credential rotation. The voice engine's effect
+              // on `turnIceServers` calls setConfiguration() on every active PC;
+              // skip the write when the URL set is identical to avoid thrashing
+              // during ICE flapping (one peer's restart triggers refresh-for-all).
+              if (isIceServerArray(msg.iceServers) && !iceServersEqual(turnIceServers.peek(), msg.iceServers)) {
+                turnIceServers.value = msg.iceServers;
+              }
               break;
           }
         } catch {
@@ -304,7 +425,9 @@ export function useRealtimeSync(annotationId: string) {
     onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });
     wsSend.value = sendMsg;
 
-    // Throttled cursor sending (50ms = 20 Hz, CSS transition smooths visually)
+    // Throttled cursor sending (50 ms = 20 Hz). Visual smoothness comes from
+    // the rAF interpolator in CursorLayer reading peerCursorSamples, not from
+    // CSS — bumping this interval needs no transition retuning.
     let cursorTimer: ReturnType<typeof setTimeout> | null = null;
     onCursorMove.value = (x: number, y: number, tool: string) => {
       if (cursorTimer) return;
@@ -317,6 +440,15 @@ export function useRealtimeSync(annotationId: string) {
       }, 50);
     };
 
+    emitRipple.value = (x: number, y: number) => {
+      // Only peers see the ripple; the clicker doesn't need their own click visualized.
+      // Skip the offline queue — a click event has no value once peers have moved on.
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ripple', x, y }));
+      }
+    };
+
     return () => {
       destroyed = true;
       connectionStatus.value = null;
@@ -326,6 +458,9 @@ export function useRealtimeSync(annotationId: string) {
       onCleared.value = null;
       onCursorMove.value = null;
       onProfileChange.value = null;
+      emitRipple.value = null;
+      activeRipples.value = [];
+      peerCursorSamples.clear();
       wsSend.value = null;
       turnIceServers.value = null;
       clearInterval(pruneInterval);

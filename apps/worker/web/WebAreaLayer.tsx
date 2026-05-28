@@ -106,11 +106,11 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
         win.removeEventListener('pointerup', onPointerUp, true);
         win.removeEventListener('pointercancel', onPointerUp, true);
         win.removeEventListener('click', onClick, true);
+        unbindShiftFrameDown();
+        unbindShiftFrameUp();
       } catch {
-        /* iframe may have navigated */
+        /* iframe may have navigated cross-origin */
       }
-      unbindShiftFrameDown();
-      unbindShiftFrameUp();
       unbindShiftHostDown();
       unbindShiftHostUp();
     };
