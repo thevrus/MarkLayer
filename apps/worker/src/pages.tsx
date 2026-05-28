@@ -314,6 +314,15 @@ export type Comparison = {
   chooseThem: string[];
   faq: { q: string; a: string }[];
   dates?: Partial<PageDates>;
+  // Per-page SEO overrides. Each comparison gets a hand-written title and
+  // meta description so Google does not collapse them into one rewritten
+  // boilerplate string across all /vs/* pages.
+  title?: string;
+  description?: string;
+  // Developer-voice quote with a falsifiable specific (price, date, feature
+  // contrast). Rendered as a blockquote in the body — citation magnet for
+  // AI assistants per GEO playbook.
+  quote?: string;
 };
 
 function linkifyFirst(text: string, term: string, href?: string): Child {
@@ -339,9 +348,11 @@ export function renderComparison(
   const path = `/vs/${c.slug}`;
   const dates = deriveDates(c.slug, c.dates);
   const lastUpdated = formatLastUpdated(dates.modified);
-  const title = `MarkLayer vs ${c.competitor}: Free Annotation Tool Compared (2026)`;
-  const description = `Side-by-side comparison of MarkLayer and ${c.competitor}. Pricing, features, real-time collaboration, and when to choose each. Updated ${lastUpdated}.`;
-  const h1 = `MarkLayer vs ${c.competitor}`;
+  const title = c.title ?? `${c.competitor} vs MarkLayer: Free, Open-Source Alternative`;
+  const description =
+    c.description ??
+    `${c.competitor} compared to MarkLayer: pricing, features, and when to switch. MarkLayer is free, open source, and works on any live webpage.`;
+  const h1 = `${c.competitor} vs MarkLayer`;
   const related = [
     ...(crossLink ? [crossLink] : []),
     ...all
@@ -404,6 +415,14 @@ export function renderComparison(
         comments, arrows, and highlights, then share a single link so anyone can view the annotations without installing
         anything. There is no account, no paywall, and no trial period.
       </p>
+      {c.quote && (
+        <blockquote class="my-6 border-l-4 border-[#111827] bg-[#f9fafb] px-5 py-4 text-[15px] leading-relaxed text-[#111827]">
+          <p class="m-0 italic">"{c.quote}"</p>
+          <footer class="mt-3 text-sm text-[#6b7280] not-italic">
+            — <a href="/about">Vadym Rusin</a>, MarkLayer developer
+          </footer>
+        </blockquote>
+      )}
       <h2>When to choose MarkLayer</h2>
       <ul>
         {c.chooseMl.map((x) => (
@@ -434,6 +453,13 @@ export type Alternatives = {
   options: AlternativeEntry[];
   faq: { q: string; a: string }[];
   dates?: Partial<PageDates>;
+  // Per-page SEO overrides — see Comparison type for the rationale.
+  title?: string;
+  description?: string;
+  // One-line summary for the /alternatives directory hub. Without it the hub
+  // duplicates this page's full intro paragraph, which makes the hub compete
+  // with the dedicated page on competitor-brand queries.
+  hubBlurb?: string;
 };
 
 export function renderAlternatives(
@@ -444,9 +470,11 @@ export function renderAlternatives(
   const path = `/alternatives/${a.slug}`;
   const dates = deriveDates(`alt-${a.slug}`, a.dates);
   const lastUpdated = formatLastUpdated(dates.modified);
-  const title = `Free ${a.target} Alternatives: ${lastUpdated} Comparison`;
-  const description = `The best free and open-source ${a.target} alternatives in 2026. Compare features, pricing, and workflow trade-offs. Updated ${lastUpdated}.`;
-  const h1 = `Free ${a.target} Alternatives`;
+  const title = a.title ?? `Free ${a.target} Alternative: MarkLayer + More Picks`;
+  const description =
+    a.description ??
+    `Looking for a free ${a.target} alternative? MarkLayer is open-source with live cursors and no sign-up. Compare options for visual feedback on live web pages.`;
+  const h1 = `Free ${a.target} alternatives`;
   const related = [
     ...(crossLink ? [crossLink] : []),
     ...all
@@ -627,13 +655,16 @@ export function renderAlternativesHub(alternatives: Alternatives[]): string {
   const path = '/alternatives';
   const dates = deriveDates('hub-alternatives');
   const lastUpdated = formatLastUpdated(dates.modified);
-  const title = 'Free Annotation Tool Alternatives: Markup.io, Pastel, BugHerd';
+  const title = 'Free Annotation Tool Alternatives Directory (Open-Source)';
   const description =
-    'Free alternatives to the top paid webpage annotation and visual feedback tools. Compare options, pricing, and workflow trade-offs.';
+    'Directory of free MarkLayer-vs-X comparison pages for BugHerd, Marker.io, Pastel, Markup.io, Hypothesis, Ruttl, Jam.dev, Loom, AnnotateWeb, and Userback.';
   const h1 = 'Free annotation tool alternatives';
   const intro =
-    'Looking for a free alternative to a paid annotation or visual feedback platform? Below are roundups of the strongest free options for each major tool, ranked by how cleanly they replace the core workflow.';
+    'Pick the paid tool you are switching from. Each link is a dedicated comparison page with feature tables, pricing, and a verdict.';
 
+  // The hub is a router, not a content page. Each row is one line so the hub
+  // does not cannibalize the dedicated /alternatives/<slug> page on
+  // competitor-brand queries.
   return renderHtml(
     <ArticlePage
       title={title}
@@ -645,10 +676,20 @@ export function renderAlternativesHub(alternatives: Alternatives[]): string {
       lastUpdated={lastUpdated}
       schema={[articleSchema({ h1, description, path, dates })]}
     >
-      <h2>Free alternatives by tool</h2>
-      {alternatives.map((a) => (
-        <HubItem href={`/alternatives/${a.slug}`} title={`Free ${a.target} alternatives`} blurb={a.intro} />
-      ))}
+      <h2>Browse by tool</h2>
+      <ul>
+        {alternatives.map((a) => (
+          <li>
+            <a href={`/alternatives/${a.slug}`}>Free {a.target} alternative</a>
+            {a.hubBlurb ? ` — ${a.hubBlurb}` : null}
+          </li>
+        ))}
+      </ul>
+      <h2>Also worth comparing</h2>
+      <p>
+        See the full <a href="/compare">side-by-side comparison index</a> for head-to-head feature tables, or jump to{' '}
+        <a href="/use-cases">use cases</a> if you want to start from the workflow rather than the tool.
+      </p>
     </ArticlePage>,
   );
 }

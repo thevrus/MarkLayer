@@ -27,6 +27,11 @@ const COMPARISONS: Comparison[] = [
     competitor: 'Markup.io',
     competitorTagline: 'a project-based feedback tool from Pastel for reviewing live websites and PDFs',
     homepage: 'https://markup.io',
+    title: 'Markup.io vs MarkLayer: Free, No Sign-Up, Open-Source',
+    description:
+      'Markup.io has a free tier with project limits. MarkLayer is fully free, open-source, and works on any live webpage with live cursors. Compare side by side.',
+    quote:
+      "Markup.io and Pastel share a parent company — they're built for agency client review with paid project workspaces. I built MarkLayer for the case where you just need to drop an annotation on a page in ten seconds, no signup, no project setup.",
     intro:
       'MarkLayer and Markup.io are both visual feedback tools for live websites. The core difference: MarkLayer is a free Chrome extension with no sign-up and works on any page in real time, while Markup.io is a web app that organizes feedback into project-based reviews tied to a team account.',
     bottomLine:
@@ -93,6 +98,11 @@ const COMPARISONS: Comparison[] = [
     slug: 'pastel',
     competitor: 'Pastel',
     competitorTagline: 'a paid visual feedback platform built for design agencies and client review workflows',
+    title: 'Pastel vs MarkLayer: Free, Open-Source, No Sign-Up',
+    description:
+      'Pastel charges per seat; MarkLayer is free and open-source. Real-time live cursors, link-based sharing, no account on either side. Side-by-side feature table.',
+    quote:
+      "Pastel's polish and the Slack/Trello/Asana integrations are genuine — that's the agency moat. The trade-off is the per-seat bill. MarkLayer covers the visual-feedback core for free; if you don't need auto-routing into a tracker, that's the saving.",
     intro:
       'MarkLayer and Pastel both let you annotate live websites and share feedback via a link. The trade-off: Pastel is a polished, paid platform optimized for agency-client workflows; MarkLayer is a free, open-source Chrome extension built for fast, sign-up-free visual feedback.',
     bottomLine:
@@ -149,6 +159,11 @@ const COMPARISONS: Comparison[] = [
     competitor: 'BugHerd',
     competitorTagline: 'a paid visual bug tracker that turns annotations into a Kanban-style task board',
     homepage: 'https://bugherd.com',
+    title: 'BugHerd vs MarkLayer: Free Alternative to $39 Per User',
+    description:
+      'BugHerd starts at $39 per user per month (May 2026). MarkLayer is free, no Kanban, no integrations — paste the share link into the tracker you already use.',
+    quote:
+      "BugHerd's published Standard plan is $39 per user per month as of May 2026, and the per-seat math adds up fast on client-facing teams. MarkLayer doesn't replicate the Kanban board or the browser-metadata capture — but for the annotation half of the workflow, it's free.",
     intro:
       'MarkLayer and BugHerd both let you annotate web pages with arrows and comments. The difference: BugHerd is a full visual bug-tracking platform with project management, integrations, and team workflows. MarkLayer is a free, lightweight annotation tool focused on quick visual feedback. No Kanban board, no integrations, no account.',
     bottomLine:
@@ -205,6 +220,11 @@ const COMPARISONS: Comparison[] = [
     competitor: 'AnnotateWeb',
     competitorTagline:
       'a free, bookmarklet-based web annotation tool with multi-language support, no extension required',
+    title: 'AnnotateWeb vs MarkLayer: Bookmarklet vs Chrome Extension',
+    description:
+      'Both are free with no sign-up. MarkLayer adds threaded comments, multi-page projects, and 90-day retention vs AnnotateWeb 2-minute cleanup. Open source on both.',
+    quote:
+      "AnnotateWeb's bookmarklet model is elegant for a one-shot annotation. The 2-minute inactivity delete makes it unusable for an actual review cycle. MarkLayer's 90-day retention exists because review threads need to outlive the meeting.",
     intro:
       'MarkLayer and AnnotateWeb both let you annotate any webpage for free with no sign-up. The difference is delivery and depth: AnnotateWeb runs as a bookmarklet/web app and is translated into 8 languages, while MarkLayer is a Chrome Web Store extension with threaded comments, multi-page projects, real-time live cursors, longer retention, and an open-source codebase you can self-host.',
     bottomLine:
@@ -285,6 +305,11 @@ const COMPARISONS: Comparison[] = [
     competitorTagline:
       'a paid bug-reporting Chrome extension that auto-captures console logs, network requests, and device metadata for engineering teams',
     homepage: 'https://jam.dev',
+    title: 'Jam.dev vs MarkLayer: Visual Feedback vs Bug Capture',
+    description:
+      "Jam auto-captures console logs and network traces for engineering bug reports. MarkLayer is the free visual annotation half. Pick by the bug you're filing.",
+    quote:
+      "Jam is best-in-class for engineering bug reports — console errors, network traces, repro recordings. MarkLayer's job is upstream of that: a designer circling a misaligned button. They solve different halves of the same workflow.",
     intro:
       'MarkLayer and Jam.dev are both Chrome extensions for the broad category of "feedback on a web page", but they target different jobs. Jam is a developer-focused bug reporter. One click captures the page state plus console errors, network logs, and reproduction steps for engineers. MarkLayer is a free visual annotation tool. Drawings, arrows, threaded comments, live cursors. Built for design review, client feedback, and lightweight QA.',
     bottomLine:
@@ -342,6 +367,11 @@ const COMPARISONS: Comparison[] = [
     competitorTagline:
       'a paid visual bug-reporting platform with deep Jira, GitHub, Trello, Asana, and ClickUp integrations',
     homepage: 'https://marker.io',
+    title: 'Marker.io vs MarkLayer: Free Alternative to $39/Month',
+    description:
+      'Marker.io Starter is $39 per month with Jira/GitHub sync. MarkLayer is free with no integrations — paste the share link into your tracker. Live cursors included.',
+    quote:
+      "Marker.io's moat is the two-way Jira/GitHub sync — that's published at $39/month for the Starter plan (May 2026). If your team lives in those trackers, that's worth the bill. If you paste share links yourself, MarkLayer covers the annotation step for free.",
     intro:
       'MarkLayer and Marker.io both let you annotate webpages and share feedback. Marker.io is a paid B2B platform: install a website widget or browser extension, and bug reports flow into your existing tracker (Jira, GitHub, Trello, Asana). MarkLayer is a free, lightweight Chrome extension. No integrations, no sign-up. That produces shareable links you paste into whatever tracker you already use.',
     bottomLine:
@@ -394,6 +424,11 @@ const COMPARISONS: Comparison[] = [
     competitor: 'Userback',
     competitorTagline:
       'a paid feedback platform whose primary use case is collecting feedback FROM your end users via an embedded widget on your own product',
+    title: 'Userback vs MarkLayer: Customer Widget vs Team Tool',
+    description:
+      "Userback embeds a widget on your product for end-user feedback. MarkLayer is the Chrome extension your team uses to annotate any page, including pages you don't own.",
+    quote:
+      'Userback and MarkLayer get conflated because both have annotation. Userback is the widget customers use to give you feedback on your product. MarkLayer is the tool your team uses to give feedback on any page. Different sides of the table.',
     intro:
       "MarkLayer and Userback look similar but solve different problems. Userback's main mode is a feedback widget you embed on your own product so end users can submit annotated feedback to you. MarkLayer is a Chrome extension your team uses to annotate any webpage (including third-party pages, staging sites, and competitor products) and share the result.",
     bottomLine:
@@ -458,6 +493,11 @@ const COMPARISONS: Comparison[] = [
     competitor: 'Ruttl',
     competitorTagline:
       'a paid visual feedback platform with project workspaces, version comparison, and live website edit mode',
+    title: 'Ruttl vs MarkLayer: Free, Open-Source, No Per-User Fee',
+    description:
+      'Ruttl has project workspaces and live CSS edit mode on paid tiers. MarkLayer is the free, open-source path for visual feedback on live web pages. Live cursors included.',
+    quote:
+      "Ruttl's live CSS edit mode is the standout feature; if reviewers genuinely need to suggest specific code changes, it's hard to replace. MarkLayer skips that and stays free. Most teams I talk to don't need the edit mode — they need the annotation to work in 30 seconds.",
     intro:
       'MarkLayer and Ruttl both annotate live websites with comments and drawings. Ruttl adds a project-workspace layer with version history, side-by-side comparison, and a "live edit" mode where reviewers can suggest CSS/text changes inline. MarkLayer is the simpler, free, open-source alternative. Link-based sharing, real-time cursors, no project hierarchy.',
     bottomLine:
@@ -512,6 +552,11 @@ const COMPARISONS: Comparison[] = [
     competitorTagline:
       'a popular async video tool for screen and webcam recording with viewer reactions and time-stamped comments',
     homepage: 'https://www.loom.com',
+    title: 'Loom vs MarkLayer: When to Annotate vs Record Video',
+    description:
+      'Loom records a walkthrough. MarkLayer captures one annotated state with arrows and pinned comments. Free, no sign-up. Pick by what the recipient actually needs.',
+    quote:
+      "I use both. Loom for walkthroughs where motion or voice tone matters. MarkLayer for everything else — a circle on the broken element gets a developer to 'I see it' faster than scrubbing a 90-second video.",
     intro:
       "MarkLayer and Loom solve different sides of the same problem: how do I show someone something on a webpage when we're not in the same room? Loom records a video walkthrough with your voice. MarkLayer captures a single annotated state of the page with arrows, comments, and threaded replies. They complement each other more than they compete.",
     bottomLine:
@@ -572,6 +617,11 @@ const COMPARISONS: Comparison[] = [
     competitor: 'Hypothesis',
     competitorTagline: 'an open-source web annotation layer focused on text-based annotation for academia and research',
     homepage: 'https://web.hypothes.is',
+    title: 'Hypothesis vs MarkLayer: Text Annotation vs Visual',
+    description:
+      'Hypothesis is the W3C text-annotation layer for scholarly content. MarkLayer is the visual one — drawings, arrows, pinned comments anywhere on a page. Both free and open source.',
+    quote:
+      'Hypothesis is the gold standard for scholarly text annotation. MarkLayer is the visual one — built for when the annotation is an arrow, not a quote. They complement each other; same browser, different workflows.',
     intro:
       'MarkLayer and Hypothesis are both free and open source, but they solve different problems. Hypothesis adds a public, W3C-standard text annotation layer to the web. Useful for research, education, and scholarly markup. MarkLayer is a visual annotation tool for drawings, shapes, arrows, and pinned comments. Closer to a digital whiteboard over any webpage.',
     bottomLine:
@@ -633,6 +683,10 @@ const ALTERNATIVES: Alternatives[] = [
     slug: 'markup-io',
     target: 'Markup.io',
     homepage: 'https://markup.io',
+    title: 'Free Markup.io Alternative: 4 Tools, MarkLayer Wins',
+    description:
+      'Markup.io has a free tier with project limits. MarkLayer is fully free with no limits, live cursors, and an open-source codebase. Compare 4 alternatives.',
+    hubBlurb: 'Free tier exists but with project limits. MarkLayer removes the limits and adds live cursors.',
     intro:
       'Looking for a free Markup.io alternative? Below are the strongest options as of 2026, ranked by how cleanly they replace the core Markup.io workflow: visual feedback on live websites with link-based sharing.',
     bottomLine:
@@ -691,6 +745,10 @@ const ALTERNATIVES: Alternatives[] = [
   {
     slug: 'pastel',
     target: 'Pastel',
+    title: 'Free Pastel Alternative: Open-Source MarkLayer + 3 More',
+    description:
+      'Pastel has a free trial but no permanent free tier. MarkLayer is the open-source replacement for the core visual-feedback use case. Compare 4 alternatives side by side.',
+    hubBlurb: 'Free trial only — no permanent free tier. MarkLayer is the open-source replacement.',
     intro:
       'Looking for a free Pastel alternative? Pastel is a polished but paid platform for agency client reviews. Below are the strongest free or freemium options for visual feedback on live websites in 2026.',
     bottomLine:
@@ -739,6 +797,10 @@ const ALTERNATIVES: Alternatives[] = [
   {
     slug: 'annotateweb',
     target: 'AnnotateWeb',
+    title: 'AnnotateWeb Alternative: 5 Tools With Longer Retention',
+    description:
+      'AnnotateWeb deletes annotations after 2 minutes of inactivity. MarkLayer keeps them for 90 days, adds threaded comments and multi-page projects. Compare 5 alternatives.',
+    hubBlurb: '2-minute auto-delete is the dealbreaker. MarkLayer keeps annotations for 90 days.',
     intro:
       'Looking for an AnnotateWeb alternative? AnnotateWeb is already free, so the question is usually: which free webpage annotation tool fits my workflow better. Multi-language and bookmarklet-based (AnnotateWeb), or extension-based with threaded comments and longer retention (MarkLayer)? Below are the strongest options.',
     bottomLine:
@@ -803,6 +865,10 @@ const ALTERNATIVES: Alternatives[] = [
     slug: 'jam',
     target: 'Jam.dev',
     homepage: 'https://jam.dev',
+    title: 'Free Jam.dev Alternative: 4 Picks, 1 Open-Source',
+    description:
+      "Jam.dev's free tier limits monthly reports. MarkLayer is fully free for visual annotation; BugHerd and Marker.io are paid alternatives for console-capture parity.",
+    hubBlurb: 'Free tier limits monthly reports. MarkLayer is fully free for the annotation half.',
     intro:
       'Looking for a free Jam.dev alternative? Jam is a paid bug-reporting Chrome extension. Below are the strongest free options for the two halves of what Jam does. Visual annotation, and engineering bug reproduction with metadata capture.',
     bottomLine:
@@ -855,6 +921,10 @@ const ALTERNATIVES: Alternatives[] = [
     slug: 'marker-io',
     target: 'Marker.io',
     homepage: 'https://marker.io',
+    title: 'Free Marker.io Alternative: MarkLayer + 3 Picks',
+    description:
+      'Marker.io starts at $39/month and is built around Jira/GitHub sync. MarkLayer is the free alternative for teams happy to paste share links into their tracker manually.',
+    hubBlurb: '$39/month starting; built around Jira/GitHub sync. MarkLayer is free if you paste links yourself.',
     intro:
       'Looking for a free Marker.io alternative? Marker.io is paid only and built around tracker integrations (Jira, GitHub, Trello, Asana, ClickUp). Below are the strongest free options for the annotation half of the workflow. None of them replicate the integrations.',
     bottomLine:
@@ -905,6 +975,10 @@ const ALTERNATIVES: Alternatives[] = [
   {
     slug: 'userback',
     target: 'Userback',
+    title: 'Free Userback Alternative: Team Tool, Not a Widget',
+    description:
+      'Userback embeds a widget on your product for end-user feedback. MarkLayer is a free Chrome extension for your team to annotate any page. Compare 4 alternatives.',
+    hubBlurb: 'Embedded widget for end users vs. extension your team uses. Different jobs.',
     intro:
       'Looking for a free Userback alternative? Userback is a paid feedback platform whose primary use case is collecting feedback FROM your end users via an embedded widget. Free options below split into two camps: tools your team uses internally (MarkLayer), and tools that try to replicate the embedded widget model.',
     bottomLine:
@@ -954,6 +1028,10 @@ const ALTERNATIVES: Alternatives[] = [
     slug: 'hypothesis',
     target: 'Hypothesis',
     homepage: 'https://web.hypothes.is',
+    title: 'Hypothesis Alternatives: 4 Picks for Visual Annotation',
+    description:
+      'Hypothesis is text-only and built for scholarly research. MarkLayer is the visual annotation layer for drawings, arrows, and pinned comments. Compare 4 alternatives.',
+    hubBlurb: 'Text-only scholarly annotation. MarkLayer is the visual annotation layer.',
     intro:
       'Looking for a Hypothesis alternative? Hypothesis is already free and open source, so the question is usually: which tool fits my use case better. Text-based scholarly annotation (Hypothesis) or visual annotation with drawings, arrows, and pinned comments (MarkLayer)?',
     bottomLine:
@@ -1004,6 +1082,10 @@ const ALTERNATIVES: Alternatives[] = [
     slug: 'bugherd',
     target: 'BugHerd',
     homepage: 'https://bugherd.com',
+    title: 'Free BugHerd Alternative: 4 Picks That Cost $0',
+    description:
+      'BugHerd starts at $39 per user per month. MarkLayer is free with live cursors, drawing tools, and link-based sharing. Compare 4 free or freemium alternatives.',
+    hubBlurb: 'From $39/user/month. MarkLayer is free for the visual-annotation half of the workflow.',
     intro:
       "Looking for a free BugHerd alternative? BugHerd is a paid visual bug tracker. Below are the strongest free options if you want visual annotation but don't need BugHerd's Kanban board and integrations.",
     bottomLine:
@@ -1057,6 +1139,78 @@ const ALTERNATIVES: Alternatives[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 const USE_CASES: UseCase[] = [
+  {
+    slug: 'staging-feedback-no-extension',
+    audience: 'agencies, freelancers, and product teams sharing staging URLs',
+    title: 'Annotate a Staging Site for Client Review (No Extension)',
+    h1: 'How to get client feedback on a staging site without asking them to install anything',
+    intro:
+      "Asking a client to install a Chrome extension before they can leave feedback on your staging site is friction you can't afford. With MarkLayer, you paste the staging URL into the web app, share the generated link, and the client opens it in their browser. They annotate the live page in place. No install, no signup, no PDF screenshot dance.",
+    bottomLine:
+      'MarkLayer lets clients annotate a staging URL in their own browser with no extension, no account, and no PDF screenshot loop. Open the web app at marklayer.app, paste the staging URL, share the link. The client sees the live page with a comment-pin tool already loaded. Works on any URL, including password-protected staging sites the client can already access.',
+    problem:
+      "The default flow is broken. You ship a staging URL. The client opens it on their phone, takes a screenshot, types 'this is broken' in iMessage, and you have no idea which button they meant. You ask for screenshots in your project management tool, and the screenshots arrive without URLs. You suggest a paid annotation platform, and the client refuses to sign up. Half your feedback cycle becomes 'which page were you on when this happened?'.",
+    why: [
+      'The recipient does not need a Chrome extension or any other install — they open the link in their browser and the comment-pin tool is already loaded.',
+      'No account, no signup, no email collected from the client. The friction that kills review cycles is gone.',
+      'Works on any URL — your staging environment, production, a third-party page you do not own.',
+      'For password-protected staging sites, the client uses the same credentials they already have. MarkLayer does not need its own access; it overlays the page they see.',
+      'Real-time cursors mean you and the client can review the page together on a call, with each cursor visible — no screen-sharing, no "click the thing under your cursor."',
+      'Free for every client engagement with no per-seat math.',
+    ],
+    steps: [
+      {
+        name: 'Open the MarkLayer web app',
+        text: 'Go to marklayer.app in your browser. You do not need the Chrome extension for this flow — the web app is the no-install path.',
+      },
+      {
+        name: 'Paste the staging URL',
+        text: 'Drop the staging environment URL into the input. MarkLayer loads the live page inside a viewer with the annotation toolbar overlaid.',
+      },
+      {
+        name: 'Walk through the work',
+        text: 'Optionally pre-annotate sections you want feedback on, or pin questions for the client to answer in place. Skip this if you want the client to come at it cold.',
+      },
+      {
+        name: 'Share one link',
+        text: 'Click Share. Copy the generated link. Email, Slack, or text it to the client. No account on either side.',
+      },
+      {
+        name: 'Client annotates in their browser',
+        text: 'The client opens the link, sees the live staging page with the comment tool loaded, and drops pins where they have feedback. Threaded replies anchor to the spot on the page they refer to.',
+      },
+      {
+        name: 'Review async or together',
+        text: 'You see new comments in real time. Jump on a call with live cursors when you want to walk through them, or pick up the thread async.',
+      },
+    ],
+    faq: [
+      {
+        q: 'Does my client need to install a Chrome extension to leave feedback?',
+        a: 'No. The whole point of this flow is that the client uses the web app on marklayer.app — no extension, no account. The Chrome extension is only useful for annotating pages that cannot be loaded inside the web-app viewer (some heavy-CSP single-page apps), and only for the person creating annotations, never the reviewer.',
+      },
+      {
+        q: 'Does this work on a password-protected staging site?',
+        a: 'Yes, as long as the client can already access the staging site with their own credentials. MarkLayer overlays the page the client loads in their browser; it does not need its own login. For staging behind a corporate VPN, the client needs VPN access; MarkLayer rides on top of whatever they can already see.',
+      },
+      {
+        q: 'How long does the share link stay live?',
+        a: 'Annotations on a share link persist for 30 days from last activity (see the cleanup cron in the codebase). For longer review cycles, a single comment or page view resets the timer.',
+      },
+      {
+        q: 'Can multiple clients review the same staging URL at once?',
+        a: 'Yes. Open the same share link in multiple browsers and you see real-time cursors for everyone on the page. Useful for stakeholder reviews where three people argue about the same button.',
+      },
+      {
+        q: "What's the difference between this and asking for feedback in Loom?",
+        a: "A Loom video is 90 seconds of the client narrating what is wrong. MarkLayer is a 3-second pin saying 'this button.' For specific, visual feedback the pin wins. For walkthroughs where motion or voice tone matters, Loom is the better fit. Use both.",
+      },
+      {
+        q: 'How is this different from Markup.io or Pastel?',
+        a: 'Markup.io and Pastel are agency-grade paid platforms with project workspaces and version tracking. They charge per seat. MarkLayer is free, has no per-seat fee, and skips the project-workspace layer. If you want the workflow scaffolding, Pastel is the better fit. If you want the annotation to work in 30 seconds with no client onboarding, MarkLayer is.',
+      },
+    ],
+  },
   {
     slug: 'design-review',
     audience: 'designers and design teams',

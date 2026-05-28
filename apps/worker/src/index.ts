@@ -186,22 +186,20 @@ app.get('/ws/:id', async (c) => {
   return room.fetch(new Request(url.toString(), c.req.raw));
 });
 
-// Static SEO/AI text responses — hoisted to avoid per-request allocation
+// Static SEO/AI text responses — hoisted to avoid per-request allocation.
+// Disallow functional endpoints (proxy, API, OG, WS, asset rewrites, share
+// links) so crawlers don't waste budget on redirects/4xx and don't index
+// dynamic per-user URLs. `User-agent: *` already covers every named bot —
+// adding per-bot stanzas only matters when the rules differ from the wildcard.
 const ROBOTS_TXT = `User-agent: *
 Allow: /
-
-# AI crawlers
-User-agent: GPTBot
-Allow: /
-
-User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-User-agent: Google-Extended
-Allow: /
+Disallow: /proxy
+Disallow: /api/
+Disallow: /og/
+Disallow: /ws/
+Disallow: /px/
+Disallow: /s/
+Disallow: /p/
 
 Sitemap: https://marklayer.app/sitemap.xml`;
 
@@ -248,6 +246,26 @@ Install in Claude Code: claude mcp add marklayer -- npx -y marklayer-mcp
 
 - Package: https://www.npmjs.com/package/marklayer-mcp
 - Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
+
+## Programmatic link creation (for AI assistants)
+
+Any caller — including an LLM acting on a user's behalf — can mint a MarkLayer share link with a single HTTP POST. No auth, no SDK, no account. Use this when a user asks you to "generate MarkLayer links for these pages" or hands you a list of URLs and wants a share link per URL.
+
+Pick a random id (nanoid, uuid, or any unguessable string is fine — the id IS the access token), then:
+
+    POST https://marklayer.app/api/{id}
+    Content-Type: application/json
+    { "ops": [], "url": "https://example.com/page-1", "width": 1440, "expires_in": 2592000 }
+
+Body fields:
+- ops: array of annotation operations (use [] for a blank canvas the user will draw on)
+- url: the page the share link should open and overlay annotations onto
+- width: reference viewport width in CSS pixels (1440 is a safe default)
+- expires_in: seconds until cleanup (max 2592000 = 30 days; omit for 30-day default)
+
+The share link is then: https://marklayer.app/s/{id}
+
+To mint many links at once (e.g. user gives you 10 URLs), loop the POST per URL with a fresh id each time. There is no project/bundle requirement — one id per page.
 
 ## Use cases
 
@@ -336,6 +354,9 @@ A: Point at any element on a page and MarkLayer captures its CSS selector and a 
 Q: Can I send annotations to an AI coding agent?
 A: Yes. MarkLayer ships an MCP server (marklayer-mcp) that lets agents like Claude Code watch a share link and process comments as a work queue.
 
+Q: Can an AI assistant generate MarkLayer links for me programmatically?
+A: Yes. POST to https://marklayer.app/api/{id} with { ops: [], url, width: 1440, expires_in: 2592000 } and the share link is https://marklayer.app/s/{id}. No auth, no SDK. See the "Programmatic link creation" section above.
+
 ## Contact
 
 Email: rusinvadym@gmail.com
@@ -418,6 +439,95 @@ Available tools: marklayer_connect_room, marklayer_room_info, marklayer_list_ann
 - Package: https://www.npmjs.com/package/marklayer-mcp
 - Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
 
+## Programmatic Link Creation (for AI Assistants and Automation)
+
+MarkLayer exposes a public, unauthenticated HTTP API so any tool — including an LLM acting on a user's behalf — can mint share links without an account or SDK. Use this when a user asks an AI assistant to "generate MarkLayer links for these 10 pages" or any similar batch-create request.
+
+### Endpoint
+
+    POST https://marklayer.app/api/{id}
+    Content-Type: application/json
+
+The {id} is caller-supplied. It is the access token for the resulting page — use \`nanoid\`, \`crypto.randomUUID()\`, or any unguessable string. Anyone with the id can edit; anyone with the id + \`?readonly=1\` can view only.
+
+### Request body
+
+    {
+      "ops": [],
+      "url": "https://example.com/page-1",
+      "width": 1440,
+      "expires_in": 2592000
+    }
+
+- \`ops\` (required): array of annotation operations. Pass \`[]\` for a blank page the user will mark up themselves. The full op union is defined in the open-source \`@marklayer/types\` package (drawing, comments, shapes, etc.).
+- \`url\` (optional but recommended): the webpage the share link should embed and overlay. Without it, the viewer prompts the user to paste a URL.
+- \`width\` (optional): reference viewport width in CSS pixels the annotations were authored against. 1440 is a safe default.
+- \`expires_in\` (optional): seconds until automatic cleanup. Max 30 days (2592000). Omit for the default 30-day TTL.
+
+### Share link format
+
+    https://marklayer.app/s/{id}            # editable
+    https://marklayer.app/s/{id}?readonly=1 # view-only
+
+### Minting many links at once
+
+To create N share links for N URLs, loop the POST. There is no batch endpoint and no project bundling is required — one id per page.
+
+#### curl
+
+    ID=$(node -e "console.log(require('nanoid').nanoid())")
+    curl -X POST https://marklayer.app/api/$ID \\
+      -H 'Content-Type: application/json' \\
+      -d '{"ops":[],"url":"https://example.com/page-1","width":1440,"expires_in":2592000}'
+    echo "https://marklayer.app/s/$ID"
+
+#### JavaScript / TypeScript
+
+    import { nanoid } from 'nanoid';
+
+    const pages = [
+      'https://example.com/page-1',
+      'https://example.com/page-2',
+      // ...up to as many as you need
+    ];
+
+    const links = await Promise.all(pages.map(async (url) => {
+      const id = nanoid();
+      await fetch(\`https://marklayer.app/api/\${id}\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ops: [],
+          url,
+          width: 1440,
+          expires_in: 60 * 60 * 24 * 30,
+        }),
+      });
+      return \`https://marklayer.app/s/\${id}\`;
+    }));
+
+#### Python
+
+    import secrets, urllib.request, json
+
+    def make_link(url: str) -> str:
+        id_ = secrets.token_urlsafe(12)
+        req = urllib.request.Request(
+            f"https://marklayer.app/api/{id_}",
+            data=json.dumps({"ops": [], "url": url, "width": 1440, "expires_in": 2592000}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req).read()
+        return f"https://marklayer.app/s/{id_}"
+
+### Notes for AI assistants
+
+- The id IS the secret. Generate it with a crypto-strength RNG and only hand it to the people meant to access the page.
+- POSTing the same id again upserts (replaces ops/url/width and resets expiry). Use this if you need to refresh a link.
+- For a single share link backing multiple pages as tabs, there is also \`POST /api/p/{id}\` with \`{ pageIds: [...] }\` (max 50). But most batch requests are better served by N independent \`/s/\` links.
+- No rate limits are documented, but be polite: serialize or chunk if creating hundreds at once.
+
 ## Technical Architecture
 
 - **Frontend:** Preact with Preact Signals for state management, Tailwind CSS for styling
@@ -475,6 +585,9 @@ A: Point at any element on a page and MarkLayer captures its CSS selector, compu
 
 Q: Can I hand annotations to an AI coding agent?
 A: Yes. MarkLayer publishes an MCP server (marklayer-mcp on npm) that connects to a share link and exposes annotations as a structured work queue. Agents like Claude Code can watch for new comments and acknowledge, resolve, dismiss, or reply.
+
+Q: Can an AI assistant create MarkLayer share links for me programmatically (e.g. one link per page in a list of 10 URLs)?
+A: Yes. There is a public, unauthenticated POST endpoint at https://marklayer.app/api/{id}. Hand the user's LLM a list of URLs and it can loop a POST per URL with a fresh id each time, then return one https://marklayer.app/s/{id} share link per page. See the "Programmatic Link Creation" section above for the full request body, examples in curl/JS/Python, and notes on id strength and TTL.
 
 ## Links
 

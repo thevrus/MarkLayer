@@ -580,6 +580,51 @@ export function Landing() {
             </div>
           </section>
 
+          {/* Switching from another tool */}
+          <section class="px-8 sm:px-10 pb-16">
+            <div class="mb-6 text-[12px] font-medium uppercase tracking-wider text-ml-fg/50">Switching from?</div>
+            <h2 class="mb-4 text-[clamp(22px,3.5vw,28px)] font-normal tracking-[-0.01em] font-['Imbue',serif] text-ml-fg">
+              Free alternative to BugHerd, Marker.io, Pastel, and Markup.io.
+            </h2>
+            <p class="mb-6 text-[15px] leading-relaxed text-ml-fg/70">
+              MarkLayer covers the visual-feedback core of the paid tools above for free — no per-seat fees, no sign-up,
+              open source. If you're shopping a switch, the comparison pages below get to the trade-offs in 60 seconds
+              each.
+            </p>
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {[
+                { href: '/vs/bugherd', label: 'BugHerd vs MarkLayer', sub: 'Free alternative to $39/user' },
+                { href: '/vs/marker-io', label: 'Marker.io vs MarkLayer', sub: 'Free alternative to $39/month' },
+                { href: '/vs/pastel', label: 'Pastel vs MarkLayer', sub: 'Free, open-source, no sign-up' },
+                { href: '/vs/markup-io', label: 'Markup.io vs MarkLayer', sub: 'No project limits, live cursors' },
+              ].map((c) => (
+                <a
+                  key={c.href}
+                  href={c.href}
+                  class="block rounded-lg border border-ml-fg/[0.08] bg-white px-4 py-3.5 no-underline transition-colors hover:border-ml-fg/40"
+                >
+                  <div class="text-[14px] font-medium text-ml-fg">{c.label}</div>
+                  <div class="mt-0.5 text-[13px] text-ml-fg/50">{c.sub}</div>
+                </a>
+              ))}
+            </div>
+            <p class="mt-5 text-[13px] text-ml-fg/50">
+              See{' '}
+              <a href="/compare" class="text-ml-fg/60 underline hover:text-ml-fg/80">
+                all 10 head-to-head comparisons
+              </a>
+              ,{' '}
+              <a href="/alternatives" class="text-ml-fg/60 underline hover:text-ml-fg/80">
+                free alternatives by tool
+              </a>
+              , or the no-extension flow for{' '}
+              <a href="/for/staging-feedback-no-extension" class="text-ml-fg/60 underline hover:text-ml-fg/80">
+                client feedback on a staging site
+              </a>
+              .
+            </p>
+          </section>
+
           {/* FAQ */}
           <section class="px-8 sm:px-10 pb-16">
             <div class="flex flex-col">

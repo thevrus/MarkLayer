@@ -54,7 +54,7 @@ proxy.get('/proxy', async (c) => {
   }
 
   const reqUrl = new URL(c.req.url);
-  if (hostname === reqUrl.hostname.toLowerCase()) return c.redirect('/?error=self');
+  if (hostname === reqUrl.hostname.toLowerCase()) return c.redirect('/#error=self');
 
   const fetchStart = Date.now();
   try {

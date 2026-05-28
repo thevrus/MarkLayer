@@ -45,3 +45,16 @@ The agent will call `marklayer_watch_annotations` in a loop and process incoming
 ```
 
 Equivalent env vars: `MARKLAYER_ROOM`, `MARKLAYER_API_BASE`, `MARKLAYER_AGENT`.
+
+## Creating rooms programmatically
+
+This server *consumes* an existing share link. To *mint* one (or many) from code — e.g. seed a room per page in a batch of URLs before pointing the agent at it — POST directly to the public HTTP API:
+
+```bash
+curl -X POST https://marklayer.app/api/$ID \
+  -H 'Content-Type: application/json' \
+  -d '{"ops":[],"url":"https://example.com/page-1","width":1440,"expires_in":2592000}'
+# Share link: https://marklayer.app/s/$ID
+```
+
+`$ID` is caller-supplied (use `nanoid` / `crypto.randomUUID()` — it's the access token). No auth, no SDK. Full details: https://marklayer.app/llms-full.txt
