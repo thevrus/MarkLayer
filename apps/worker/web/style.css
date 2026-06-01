@@ -544,6 +544,25 @@
   }
 }
 
+/* Dock-style spring on the peer avatar group — hovering one avatar lifts it
+ * (with a slight scale) and ripples a diminishing lift across its neighbours.
+ * Per-item --shift / --scale-active are written inline by Viewer.tsx; this only
+ * owns the transform + spring transition. The overshoot lives in the ease-out
+ * curve so the lift settles back with a gentle bounce. */
+:root {
+  --ml-avatar-dur: 260ms;
+  --ml-avatar-ease-in: cubic-bezier(0.22, 1, 0.36, 1);
+  --ml-avatar-ease-out: cubic-bezier(0.34, 1.45, 0.64, 1);
+}
+
+.ml-avatar {
+  transform-origin: center;
+  /* translateY before scale so the scale doesn't amplify the lift offset */
+  transform: translateY(var(--shift, 0px)) scale(var(--scale-active, 1));
+  transition: transform var(--ml-avatar-dur) var(--ml-avatar-ease-in);
+  will-change: transform;
+}
+
 /* Reduce motion for users who request it: collapse durations and stop infinite
  * loops (lpBgShift, lpShine, lpPulseGlow, voice bars, status pulse).
  * `!important` is required here to override inline and utility animation styles

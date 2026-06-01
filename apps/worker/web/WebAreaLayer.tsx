@@ -4,7 +4,7 @@ import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
 import { activeTool, color, lineWidth, localUser, pushOp } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
-import type { TargetElement } from '@marklayer/types';
+import type { CommentPriority, TargetElement } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
@@ -150,7 +150,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
 
   const hostRect = toHostViewport(draftRect);
 
-  const commit = (comment: string) => {
+  const commit = (comment: string, priority?: CommentPriority) => {
     const r = pending.value;
     if (!r) return;
     const win = winRef.current;
@@ -172,6 +172,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       endX: r.x + r.w,
       endY: r.y + r.h,
       comment: comment || undefined,
+      priority,
       ts: Date.now(),
       author: localUser.name,
       target,

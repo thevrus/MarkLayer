@@ -1,3 +1,4 @@
+import { PriorityBadge, PriorityPin } from '@ext/components/PriorityPicker';
 import { applyAnchorDelta } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import {
@@ -112,6 +113,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
               {replies.length}
             </div>
           )}
+          {op.priority && <PriorityPin priority={op.priority} />}
         </div>
 
         {/* Hover card */}
@@ -144,6 +146,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             <span class="text-[11px] text-ml-glass-fg/80 font-semibold tracking-wide flex-1">
               {op.author || 'Anonymous'}
             </span>
+            {op.priority && <PriorityBadge priority={op.priority} />}
             <span class="text-[10.5px] text-ml-glass-fg/55 font-medium tabular-nums">{timeAgo(op.ts)}</span>
           </div>
 

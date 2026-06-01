@@ -1,7 +1,9 @@
+import { PriorityPicker } from '@ext/components/PriorityPicker';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { glass } from '@ext/lib/glass';
 import { color, commentCounter, getCommentMeta, lineWidth, localUser } from '@ext/lib/state';
-import { cn } from '@marklayer/types';
+import { type CommentPriority, cn } from '@marklayer/types';
+import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 import { pushDeviceOp } from './signals';
@@ -17,6 +19,7 @@ interface Props {
 export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const num = commentCounter.value + 1;
+  const priority = useSignal<CommentPriority | undefined>(undefined);
 
   useEffect(() => {
     taRef.current?.focus();
@@ -37,6 +40,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
         ts: Date.now(),
         author: localUser.name,
         status: 'open',
+        priority: priority.value,
         meta: getCommentMeta(),
       });
     }
@@ -92,6 +96,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
           class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
         />
+        <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
       </div>
 
       <div class={cn(glass.divider, 'mx-3.5')} />

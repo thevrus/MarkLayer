@@ -82,6 +82,14 @@ export const commentStatusSchema = z.enum(['open', 'in_progress', 'resolved', 'd
 export type CommentStatus = z.infer<typeof commentStatusSchema>;
 
 /**
+ * Triage priority for any annotation that carries a comment (comment pins, area
+ * notes, selection notes, element-inspector handoffs). Absent = no priority set.
+ * Ordered low → urgent; the renderer maps each level to a color + signal icon.
+ */
+export const commentPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent']);
+export type CommentPriority = z.infer<typeof commentPrioritySchema>;
+
+/**
  * Element context attached to an annotation so an MCP-connected agent can locate
  * what was being referenced without round-tripping back to the page. `markdown`
  * is the same `formatForAI()` payload the Inspect tool uses, so all annotation
@@ -128,6 +136,7 @@ export const commentOpSchema = z.object({
   ts: z.number(),
   resolved: z.optional(z.boolean()),
   status: z.optional(commentStatusSchema),
+  priority: z.optional(commentPrioritySchema),
   parentId: z.optional(z.string()),
   author: z.optional(z.string()),
   meta: z.optional(commentMetaSchema),
@@ -164,6 +173,7 @@ export const selectionOpSchema = z.object({
   ts: z.number(),
   author: z.optional(z.string()),
   status: z.optional(commentStatusSchema),
+  priority: z.optional(commentPrioritySchema),
   assignedAgent: z.optional(z.string()),
   dismissReason: z.optional(z.string()),
   target: z.optional(targetElementSchema),
@@ -182,6 +192,7 @@ export const areaOpSchema = z.object({
   ts: z.number(),
   author: z.optional(z.string()),
   status: z.optional(commentStatusSchema),
+  priority: z.optional(commentPrioritySchema),
   assignedAgent: z.optional(z.string()),
   dismissReason: z.optional(z.string()),
   target: z.optional(targetElementSchema),
@@ -204,6 +215,7 @@ export const inspectOpSchema = z.object({
   ts: z.number(),
   author: z.optional(z.string()),
   status: z.optional(commentStatusSchema),
+  priority: z.optional(commentPrioritySchema),
   assignedAgent: z.optional(z.string()),
   dismissReason: z.optional(z.string()),
 });

@@ -4,6 +4,7 @@ export type {
   CircleOp,
   CommentMeta,
   CommentOp,
+  CommentPriority,
   CommentStatus,
   DeviceMode,
   DrawOp,

@@ -1,3 +1,4 @@
+import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from '@ext/lib/export-text';
 import { glass } from '@ext/lib/glass';
 import {
@@ -136,6 +137,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
             {status === 'resolved' ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : op.num}
           </div>
           <span class="text-[12px] text-ml-glass-fg/80 font-semibold flex-1 truncate">{op.author || 'Anonymous'}</span>
+          {op.priority && <PriorityBadge priority={op.priority} />}
           <DeviceBadge device={op.device} />
           <StatusBadge status={status} />
           <span class="text-[11px] text-ml-glass-fg/55 tabular-nums">{timeAgo(op.ts)}</span>

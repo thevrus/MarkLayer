@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { type CommentPriority, cn } from '@marklayer/types';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
@@ -27,6 +27,7 @@ import {
   toast,
 } from '../lib/state';
 import type { InspectOp } from '../lib/types';
+import { PRIORITY_META, PriorityPicker } from './PriorityPicker';
 
 export interface HoverState {
   el: Element;
@@ -162,6 +163,7 @@ export type { SelectedInfo };
 
 export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const priority = useSignal<CommentPriority | undefined>(undefined);
   const setTaRef = useCallback((el: HTMLTextAreaElement | null) => {
     taRef.current = el;
     el?.focus();
@@ -169,10 +171,11 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 
   const buildPrompt = () => {
     const comment = taRef.current?.value.trim() || '';
+    const priorityLine = priority.value ? `## Priority\n\n${PRIORITY_META[priority.value].label}\n\n` : '';
     if (comment) {
-      return `## Task\n\n${comment}\n\n${state.markdown}`;
+      return `${priorityLine}## Task\n\n${comment}\n\n${state.markdown}`;
     }
-    return state.markdown;
+    return `${priorityLine}${state.markdown}`;
   };
 
   const copySelector = () => copyText(state.selector, 'Selector copied!');
@@ -203,6 +206,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       selector: state.selector,
       tag: state.tag,
       comment: comment || undefined,
+      priority: priority.value,
       markdown: state.markdown,
       rect: { x: state.rect.x, y: state.rect.y, width: state.rect.width, height: state.rect.height },
       ts: Date.now(),
@@ -320,6 +324,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             class={cn(textareaCls, 'w-full min-h-10 max-h-[100px]', glass.font)}
             style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
           />
+          <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
         </div>
 
         <div class="flex flex-col gap-2 px-4 pb-2.5">

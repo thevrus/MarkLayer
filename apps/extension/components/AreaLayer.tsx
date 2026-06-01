@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { type CommentPriority, cn } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
@@ -24,6 +24,7 @@ import {
   setOpStatus,
 } from '../lib/state';
 import type { AreaOp } from '../lib/types';
+import { PriorityBadge, PriorityPicker } from './PriorityPicker';
 
 export interface DraftRect {
   x: number;
@@ -119,7 +120,10 @@ function AreaShape({ op }: { op: AreaOp }) {
             'p-3',
           )}
         >
-          <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area</span>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area</span>
+            {op.priority && <PriorityBadge priority={op.priority} />}
+          </div>
           {op.comment ? (
             <p
               class="text-[12.5px] text-ml-glass-fg/85 m-0 mt-1 leading-relaxed whitespace-pre-wrap"
@@ -167,10 +171,11 @@ export function AreaPopover({
   onCancel,
 }: {
   rect: DraftRect;
-  onCommit: (comment: string) => void;
+  onCommit: (comment: string, priority?: CommentPriority) => void;
   onCancel: () => void;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const priority = useSignal<CommentPriority | undefined>(undefined);
   const setTaRef = useCallback((el: HTMLTextAreaElement | null) => {
     taRef.current = el;
     el?.focus();
@@ -213,7 +218,7 @@ export function AreaPopover({
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              onCommit(taRef.current?.value.trim() || '');
+              onCommit(taRef.current?.value.trim() || '', priority.value);
             } else if (e.key === 'Escape') {
               e.preventDefault();
               onCancel();
@@ -222,6 +227,7 @@ export function AreaPopover({
           class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
         />
+        <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
       </div>
 
       <div class={cn(glass.divider, 'mx-3.5')} />
@@ -236,7 +242,11 @@ export function AreaPopover({
           </kbd>
           <span class="text-[11px] text-ml-glass-fg/55 font-medium">cancel</span>
         </div>
-        <button type="button" onClick={() => onCommit(taRef.current?.value.trim() || '')} class={submitBtn}>
+        <button
+          type="button"
+          onClick={() => onCommit(taRef.current?.value.trim() || '', priority.value)}
+          class={submitBtn}
+        >
           Save ↵
         </button>
       </div>
@@ -305,7 +315,7 @@ export function AreaLayer() {
     [draft, pending],
   );
 
-  const commit = (comment: string) => {
+  const commit = (comment: string, priority?: CommentPriority) => {
     const r = pending.value;
     if (!r) return;
     // Centre of the rect in viewport coords — find the topmost real page element
@@ -323,6 +333,7 @@ export function AreaLayer() {
       endX: r.x + r.w,
       endY: r.y + r.h,
       comment: comment || undefined,
+      priority,
       ts: Date.now(),
       author: localUser.name,
       target: el ? captureTarget(el, { x: r.x, y: r.y }) : undefined,

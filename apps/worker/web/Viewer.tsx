@@ -313,6 +313,15 @@ function InfoPanel() {
   );
 }
 
+// Avatar-group hover spring (mirrors the easings/duration in style.css .ml-avatar).
+// Lift is negative so the avatar rises; falloff dampens the lift on each neighbour.
+const AVATAR_LIFT = -2;
+const AVATAR_SCALE = 1.03;
+const AVATAR_FALLOFF = 0.35;
+// Peers shown before collapsing the rest into a "+N" badge. The local user sits
+// at index 0, so the overflow badge lands at MAX_VISIBLE_PEERS + 1 in the group.
+const MAX_VISIBLE_PEERS = 3;
+
 export default function Viewer() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const iframeLoaded = useSignal(false);
@@ -328,6 +337,34 @@ export default function Viewer() {
   const snapshotRef = useRef<ImageData | null>(null);
   const shiftHeldRef = useRef(false);
   const lastPosRef = useRef<Point | null>(null);
+  const avatarGroupRef = useRef<HTMLDivElement>(null);
+
+  // Dock-style spring for the peer avatar group: hovering an avatar lifts it (with
+  // a slight scale) and ripples a diminishing lift across its neighbours. Writes
+  // per-item CSS vars inline; the .ml-avatar class owns the transform + transition.
+  const springAvatars = useCallback((activeIdx: number) => {
+    const group = avatarGroupRef.current;
+    if (!group) return;
+    const items = Array.from(group.children);
+    for (const [i, el] of items.entries()) {
+      if (!(el instanceof HTMLElement)) continue;
+      el.style.transitionTimingFunction = 'var(--ml-avatar-ease-in)';
+      const shift = AVATAR_LIFT * AVATAR_FALLOFF ** Math.abs(i - activeIdx);
+      el.style.setProperty('--shift', `${shift.toFixed(3)}px`);
+      el.style.setProperty('--scale-active', i === activeIdx ? `${AVATAR_SCALE}` : '1');
+    }
+  }, []);
+
+  const resetAvatars = useCallback(() => {
+    const group = avatarGroupRef.current;
+    if (!group) return;
+    for (const el of Array.from(group.children)) {
+      if (!(el instanceof HTMLElement)) continue;
+      el.style.transitionTimingFunction = 'var(--ml-avatar-ease-out)';
+      el.style.setProperty('--shift', '0px');
+      el.style.setProperty('--scale-active', '1');
+    }
+  }, []);
 
   const scrollToAnnotation = useCallback((_x: number, y: number) => {
     try {
@@ -1330,12 +1367,13 @@ export default function Viewer() {
 
         <div class="flex items-center gap-1.5 shrink-0">
           {/* Avatar group */}
-          <div class="flex items-center -space-x-2.5 mr-1">
+          <div ref={avatarGroupRef} class="flex items-center -space-x-2.5 mr-1" onMouseLeave={resetAvatars}>
             {/* Local user */}
             <div
-              class="w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center shrink-0 ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-colors duration-150"
+              class="ml-avatar w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center shrink-0 ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-colors duration-150"
               style={{ background: color.value, zIndex: peers.value.size + 1 }}
               title={localUser.name}
+              onMouseEnter={() => springAvatars(0)}
             >
               {localUser.name
                 .split(' ')
@@ -1345,18 +1383,19 @@ export default function Viewer() {
             </div>
             {/* Peer avatars */}
             {Array.from(peers.value.values())
-              .slice(0, 3)
+              .slice(0, MAX_VISIBLE_PEERS)
               .map((p, i) => {
                 const active = p.cursor != null;
                 return (
                   <div
                     key={p.id}
                     class={cn(
-                      'w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-opacity duration-200',
+                      'ml-avatar w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-opacity duration-200',
                       active ? 'opacity-100 cursor-pointer' : 'opacity-40 cursor-default',
                     )}
                     style={{ background: p.color, zIndex: peers.value.size - i }}
                     title={active ? p.name : `${p.name} (inactive)`}
+                    onMouseEnter={() => springAvatars(i + 1)}
                     onClick={() => {
                       if (p.cursor) onFollowScroll.value?.(p.cursor.y);
                     }}
@@ -1369,9 +1408,12 @@ export default function Viewer() {
                   </div>
                 );
               })}
-            {peers.value.size > 3 && (
-              <div class="w-7 h-7 rounded-full bg-ml-glass-fg/10 text-ml-glass-fg/70 text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] tabular-nums">
-                +{peers.value.size - 3}
+            {peers.value.size > MAX_VISIBLE_PEERS && (
+              <div
+                class="ml-avatar w-7 h-7 rounded-full bg-ml-glass-fg/10 text-ml-glass-fg/70 text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] tabular-nums"
+                onMouseEnter={() => springAvatars(MAX_VISIBLE_PEERS + 1)}
+              >
+                +{peers.value.size - MAX_VISIBLE_PEERS}
               </div>
             )}
           </div>

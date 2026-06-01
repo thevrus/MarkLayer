@@ -1,3 +1,4 @@
+import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { applyAnchorDelta } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
@@ -76,7 +77,10 @@ export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
             'p-3',
           )}
         >
-          <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area</span>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area</span>
+            {op.priority && <PriorityBadge priority={op.priority} />}
+          </div>
           {op.comment ? (
             <p
               class="text-[12.5px] text-ml-glass-fg/85 m-0 mt-1 leading-relaxed whitespace-pre-wrap"

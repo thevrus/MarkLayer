@@ -15,6 +15,7 @@ import {
 } from '../lib/state';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
+import { PriorityBadge, PriorityPin } from './PriorityPicker';
 
 /**
  * Strip the leading `tag:` segment from an inspector field value when it's
@@ -141,6 +142,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
               {status === 'dismissed' && <HelpCircle size={9} strokeWidth={2.5} aria-hidden="true" />}
             </div>
           )}
+          {op.priority && <PriorityPin priority={op.priority} />}
         </div>
 
         {/* Hover card */}
@@ -170,6 +172,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
             <span class="text-[10.5px] text-ml-glass-fg/65 font-medium tabular-nums tracking-wide">
               {timeAgo(op.ts)}
             </span>
+            {op.priority && <PriorityBadge priority={op.priority} class="ml-auto" />}
           </div>
 
           <div class={cn(glass.divider, 'mx-3')} />

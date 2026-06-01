@@ -1,3 +1,4 @@
+import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { applyAnchorDelta } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
@@ -87,6 +88,11 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
             'p-3',
           )}
         >
+          {op.priority && (
+            <div class="mb-1.5">
+              <PriorityBadge priority={op.priority} />
+            </div>
+          )}
           <p class="text-[11.5px] text-ml-glass-fg/65 m-0 mb-1 italic line-clamp-3 leading-relaxed">"{op.text}"</p>
           {op.comment && (
             <p

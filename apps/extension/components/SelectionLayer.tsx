@@ -1,4 +1,4 @@
-import { cn, type TargetElement } from '@marklayer/types';
+import { type CommentPriority, cn, type TargetElement } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { applyAnchorDelta } from '../lib/anchor';
@@ -21,6 +21,7 @@ import {
   setOpStatus,
 } from '../lib/state';
 import type { SelectionOp, SelectionRect } from '../lib/types';
+import { PriorityBadge, PriorityPicker } from './PriorityPicker';
 
 interface PopoverState {
   x: number;
@@ -94,6 +95,11 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
             'p-3',
           )}
         >
+          {op.priority && (
+            <div class="mb-1.5">
+              <PriorityBadge priority={op.priority} />
+            </div>
+          )}
           <p class="text-[11.5px] text-ml-glass-fg/65 m-0 mb-1 italic line-clamp-2">"{op.text}"</p>
           {op.comment && (
             <p
@@ -124,6 +130,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
 
 function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState & { onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
 
   useEffect(() => {
     taRef.current?.focus();
@@ -138,6 +145,7 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
         text,
         rects,
         comment: comment || undefined,
+        priority,
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
@@ -194,6 +202,7 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
           class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
         />
+        <PriorityPicker value={priority} onChange={setPriority} class="mt-1.5 -ml-1.5" />
       </div>
 
       <div class={cn(glass.divider, 'mx-3.5')} />
