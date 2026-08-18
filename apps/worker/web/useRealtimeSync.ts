@@ -12,6 +12,7 @@ import {
   toast,
 } from '@ext/lib/state';
 import type { DrawOp, Peer } from '@ext/lib/types';
+import { applyOpPatch } from '@marklayer/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
@@ -265,8 +266,10 @@ export function useRealtimeSync(annotationId: string) {
               const ops = operations.value;
               const idx = ops.findIndex((o) => o.id === opId);
               if (idx === -1) break;
+              const merged = applyOpPatch({ op: ops[idx], patch });
+              if (!merged) break;
               const next = ops.slice();
-              next[idx] = { ...ops[idx], ...patch } as DrawOp;
+              next[idx] = merged;
               operations.value = next;
               break;
             }
