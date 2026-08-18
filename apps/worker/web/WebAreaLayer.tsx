@@ -1,16 +1,16 @@
 import { AreaPopover, type DraftAreaState, type DraftRect, rectFromDraft } from '@ext/components/AreaLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
-import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
+
 import { activeTool, color, lineWidth, localUser, pushOp } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
-import type { CommentPriority, TargetElement } from '@marklayer/types';
+import type { CommentPriority } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
 import { useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { isElementNode, useIframeOverlay } from './iframeOverlay';
+import { frameViewport, isElementNode, pickFrameTarget, useIframeOverlay } from './iframeOverlay';
 import { cssScale, iframeScrollY } from './signals';
 
 export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
@@ -153,15 +153,13 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
   const commit = (comment: string, priority?: CommentPriority) => {
     const r = pending.value;
     if (!r) return;
-    const win = winRef.current;
-    const doc = docRef.current;
-    let target: TargetElement | undefined;
-    if (win && doc) {
-      const cx = r.x + r.w / 2 - win.scrollX;
-      const cy = r.y + r.h / 2 - win.scrollY;
-      const el = pickElementAtPoint(cx, cy, doc);
-      if (el) target = captureTarget(el, { x: r.x, y: r.y });
-    }
+    // Hit-test the rect's centre, but anchor to its top-left.
+    const target = pickFrameTarget({
+      frame: frameRef.current,
+      x: r.x + r.w / 2,
+      y: r.y + r.h / 2,
+      anchor: { x: r.x, y: r.y },
+    });
     const op: AreaOp = {
       id: nanoid(),
       tool: 'area',
@@ -176,9 +174,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       ts: Date.now(),
       author: localUser.name,
       target,
-      captureViewport: win
-        ? { width: win.innerWidth, height: win.innerHeight }
-        : { width: window.innerWidth, height: window.innerHeight },
+      captureViewport: frameViewport(frameRef.current),
     };
     pushOp(op);
     pending.value = null;

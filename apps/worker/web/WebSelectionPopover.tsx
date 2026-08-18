@@ -3,7 +3,7 @@ import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { glass } from '@ext/lib/glass';
 import { color, lineWidth, localUser } from '@ext/lib/state';
 import type { SelectionOp, SelectionRect } from '@ext/lib/types';
-import { type CommentPriority, cn } from '@marklayer/types';
+import { type CaptureViewport, type CommentPriority, cn, type TargetElement } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { pushDeviceOp } from './signals';
@@ -13,10 +13,12 @@ interface Props {
   rects: SelectionRect[];
   screenX: number;
   screenY: number;
+  target?: TargetElement;
+  captureViewport?: CaptureViewport;
   onClose: () => void;
 }
 
-export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: Props) {
+export function WebSelectionPopover({ text, rects, screenX, screenY, target, captureViewport, onClose }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
 
@@ -38,6 +40,8 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
         lineWidth: lineWidth.value,
         ts: Date.now(),
         author: localUser.name,
+        target,
+        captureViewport,
       };
       pushDeviceOp(op);
     }

@@ -6,6 +6,7 @@ import { type CommentPriority, cn } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
+import { frameViewport, pickFrameTarget } from './iframeOverlay';
 import { pushDeviceOp } from './signals';
 
 interface Props {
@@ -13,10 +14,12 @@ interface Props {
   y: number;
   scale: number;
   scrollY: number;
+  /** Absent on the landing-page demo, which annotates the host page directly. */
+  frameRef?: { current: HTMLIFrameElement | null };
   onClose: () => void;
 }
 
-export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
+export function WebCommentPopover({ x, y, scale: s, scrollY, frameRef, onClose }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const num = commentCounter.value + 1;
   const priority = useSignal<CommentPriority | undefined>(undefined);
@@ -42,6 +45,8 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
         status: 'open',
         priority: priority.value,
         meta: getCommentMeta(),
+        target: pickFrameTarget({ frame: frameRef?.current ?? null, x, y }),
+        captureViewport: frameViewport(frameRef?.current ?? null),
       });
     }
     onClose();

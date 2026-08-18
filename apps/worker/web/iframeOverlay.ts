@@ -1,3 +1,5 @@
+import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
+import type { CaptureViewport, Point, TargetElement } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { cssScale, iframeScrollY } from './signals';
@@ -14,6 +16,42 @@ export function toViewportRect(frame: HTMLIFrameElement, el: Element): DOMRect {
   const r = el.getBoundingClientRect();
   const s = cssScale.value;
   return new DOMRect(fr.left + r.left * s, fr.top + r.top * s, r.width * s, r.height * s);
+}
+
+/**
+ * The viewport an annotation was captured in. That is the framed page's own
+ * viewport, not the host window's — the host chrome and the CSS zoom are ours,
+ * not the annotated page's, so recording them would misdescribe the capture.
+ */
+export function frameViewport(frame: HTMLIFrameElement | null): CaptureViewport {
+  const win = frame?.contentWindow;
+  return win
+    ? { width: win.innerWidth, height: win.innerHeight }
+    : { width: window.innerWidth, height: window.innerHeight };
+}
+
+/**
+ * Bind a point in the framed page's document space to the element under it, so
+ * the op re-anchors on reflow. `anchor` defaults to the same point; pass it when
+ * the op's anchor differs from the point worth hit-testing (an area rect is
+ * picked at its centre but anchored to its top-left).
+ */
+export function pickFrameTarget({
+  frame,
+  x,
+  y,
+  anchor,
+}: {
+  frame: HTMLIFrameElement | null;
+  x: number;
+  y: number;
+  anchor?: Point;
+}): TargetElement | undefined {
+  const win = frame?.contentWindow;
+  const doc = frame?.contentDocument;
+  if (!win || !doc) return undefined;
+  const el = pickElementAtPoint(x - win.scrollX, y - win.scrollY, doc);
+  return el ? captureTarget(el, anchor ?? { x, y }) : undefined;
 }
 
 interface RectLike {
