@@ -1,5 +1,6 @@
 import { bumpAnchorGeneration, pushOp, toast as showToast } from '@ext/lib/state';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
+import type { CaptureViewport, TargetElement } from '@marklayer/types';
 import { effect, signal } from '@preact/signals';
 import { fromBase64 } from './encoding';
 import { annotationId, currentPageIdx, originalWidth, pageUrl, projectId } from './projects';
@@ -68,6 +69,8 @@ export const selectionPopover = signal<{
   rects: import('@ext/lib/types').SelectionRect[];
   screenX: number;
   screenY: number;
+  target?: TargetElement;
+  captureViewport?: CaptureViewport;
 } | null>(null);
 export const isReadonly = signal(false);
 export const sharing = signal(false);

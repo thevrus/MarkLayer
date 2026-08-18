@@ -5,6 +5,7 @@ import { captureScale } from '@ext/lib/anchor';
 import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze';
 import { glass } from '@ext/lib/glass';
 import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
+import { captureTarget } from '@ext/lib/selector';
 import { claudeMcpCommand, isLikelyEmbedHostile, npxMcpCommand } from '@ext/lib/share';
 import {
   activeTool,
@@ -83,6 +84,7 @@ import {
 } from './AnnotationPanel';
 import { capture } from './analytics';
 import { CursorLayer } from './CursorLayer';
+import { frameViewport, isElementNode, pickFrameTarget } from './iframeOverlay';
 import { ProjectTabs } from './ProjectTabs';
 import { Logo, TextInputOverlay } from './shared';
 import {
@@ -1251,11 +1253,18 @@ export default function Viewer() {
     if (rects.length === 0) return;
     const lastCr = sel.getRangeAt(sel.rangeCount - 1).getClientRects();
     const last = lastCr[lastCr.length - 1];
+    // Snapshot the enclosing element now — once the popover textarea takes focus
+    // the selection collapses and this context is gone.
+    const ancestor = sel.getRangeAt(0).commonAncestorContainer;
+    const el = isElementNode(ancestor) ? ancestor : ancestor.parentElement;
+    const first = rects[0];
     selectionPopover.value = {
       text,
       rects,
       screenX: fromIframe && ir ? last.right * cs + ir.left : last.right,
       screenY: fromIframe && ir ? last.bottom * cs + ir.top : last.bottom,
+      target: el && first ? captureTarget(el, { x: first.x, y: first.y }) : undefined,
+      captureViewport: frameViewport(frameRef.current),
     };
   }, []);
 
@@ -1842,19 +1851,18 @@ export default function Viewer() {
                 scrollY={iframeScrollY.value}
                 onCommit={(text) => {
                   if (text && textInput.value) {
-                    const frameWin = frameRef.current?.contentWindow;
+                    const { x, y } = textInput.value;
                     const op: TextOp = {
                       id: nanoid(),
                       tool: 'text',
                       text,
-                      x: textInput.value.x,
-                      y: textInput.value.y,
+                      x,
+                      y,
                       fontSize: Math.max(14, lineWidth.value * 6),
                       color: color.value,
                       lineWidth: lineWidth.value,
-                      captureViewport: frameWin
-                        ? { width: frameWin.innerWidth, height: frameWin.innerHeight }
-                        : { width: window.innerWidth, height: window.innerHeight },
+                      target: pickFrameTarget({ frame: frameRef.current, x, y }),
+                      captureViewport: frameViewport(frameRef.current),
                     };
                     pushDeviceOp(op);
                   }
@@ -1877,6 +1885,7 @@ export default function Viewer() {
               y={commentPopover.value.y}
               scale={cssScale.value}
               scrollY={iframeScrollY.value}
+              frameRef={frameRef}
               onClose={() => {
                 commentPopover.value = null;
               }}
