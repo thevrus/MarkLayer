@@ -1,10 +1,13 @@
 import { DurableObject } from 'cloudflare:workers';
 import { clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType } from '@marklayer/types';
+import { captureServer } from './posthog';
 
 interface Env {
   DB: D1Database;
   TURN_KEY_ID?: string;
   TURN_KEY_TOKEN?: string;
+  POSTHOG_KEY?: string;
+  POSTHOG_HOST?: string;
 }
 
 interface PeerInfo {
@@ -109,6 +112,16 @@ export class AnnotationRoom extends DurableObject<Env> {
   private url: string | null = null;
   private width: number | null = null;
 
+  // Aggregate telemetry for one room session, emitted once when the last peer
+  // leaves (see webSocketClose). Counting in memory rather than per-op keeps
+  // this to a single event per session instead of one per pen stroke — cheaper,
+  // and far less of a surveillance surface. Hibernation resets these, which is
+  // fine: it is best-effort product signal, not billing.
+  private sessionStartedAt = 0;
+  private sessionOps = 0;
+  private sessionTools = new Set<string>();
+  private peakPeers = 0;
+
   private async getOps(id: string): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
     if (this.opsPromise) return this.opsPromise;
@@ -185,6 +198,9 @@ export class AnnotationRoom extends DurableObject<Env> {
     this.ctx.acceptWebSocket(pair[1], [id]);
     pair[1].serializeAttachment({ id: peerId, name: peerName, color: peerColor });
 
+    if (this.sessionStartedAt === 0) this.sessionStartedAt = Date.now();
+    this.peakPeers = Math.max(this.peakPeers, this.ctx.getWebSockets().length);
+
     // Run getOps and the TURN fetch concurrently — both are network-bound and
     // independent, so this hides the TURN latency behind D1's read RTT.
     const [ops, iceServers] = await Promise.all([this.getOps(id), getIceServers(this.env)]);
@@ -257,6 +273,8 @@ export class AnnotationRoom extends DurableObject<Env> {
       case 'op': {
         const ops = await this.getOps(id!);
         ops.push(msg.op);
+        this.sessionOps++;
+        this.sessionTools.add(msg.op.tool);
         this.broadcast(JSON.stringify({ type: 'op', op: msg.op }), ws);
         await this.scheduleFlush();
         return;
@@ -359,12 +377,40 @@ export class AnnotationRoom extends DurableObject<Env> {
     if (info) {
       this.broadcast(JSON.stringify({ type: 'peer_leave', peerId: info.id }));
     }
-    if (this.dirty && this.ctx.getWebSockets().length === 0) {
-      // Flush immediately when the last peer leaves — otherwise a recent mutation
-      // (e.g. an MCP agent's status change) could be lost if the DO is evicted
-      // before the 3s alarm fires.
-      await this.alarm();
+    if (this.ctx.getWebSockets().length === 0) {
+      this.captureSession();
+      if (this.dirty) {
+        // Flush immediately when the last peer leaves — otherwise a recent mutation
+        // (e.g. an MCP agent's status change) could be lost if the DO is evicted
+        // before the 3s alarm fires.
+        await this.alarm();
+      }
     }
+  }
+
+  /**
+   * One aggregate event per room session, fired as the last peer disconnects.
+   *
+   * Answers the questions we actually act on — which tools earn their place,
+   * how often a room is genuinely collaborative — without following anyone
+   * around. No room ID, no annotated URL, no peer names: `tools` is a sorted
+   * set of tool names and the rest are counters. See src/posthog.ts for the
+   * wider contract (and the scrubber that backstops it).
+   */
+  private captureSession() {
+    if (this.sessionOps === 0) return; // Nobody drew anything; nothing to learn.
+    captureServer(this.env, this.ctx, 'annotation_session_ended', {
+      ops_total: this.sessionOps,
+      tools: [...this.sessionTools].sort().join(','),
+      tool_count: this.sessionTools.size,
+      peak_peers: this.peakPeers,
+      collaborative: this.peakPeers > 1,
+      duration_ms: this.sessionStartedAt ? Date.now() - this.sessionStartedAt : 0,
+    });
+    this.sessionOps = 0;
+    this.sessionTools.clear();
+    this.peakPeers = 0;
+    this.sessionStartedAt = 0;
   }
 
   async webSocketError(ws: WebSocket) {
