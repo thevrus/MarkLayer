@@ -1,10 +1,11 @@
+import { Switch } from '@base-ui/react/switch';
 import { cn } from '@marklayer/types';
 import { type ComponentChildren, createContext } from 'preact';
 import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { animationsFrozen, toggleAnimationsFrozen } from '../lib/freeze';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
-import { getShareUrl } from '../lib/share';
+import { getRoomId } from '../lib/share';
 import {
   blockInteractions,
   clearOnCopyEnabled,
@@ -20,19 +21,19 @@ import {
   showSettings,
   showShareDialog,
   theme,
-  toast,
   toggleBlockInteractions,
   toggleClearOnCopy,
   toggleMarkersVisible,
   toggleToolbarMinimized,
   toolbarMinimized,
 } from '../lib/state';
+import { useCopyToClipboard } from '../lib/useCopy';
 
 const PANEL_WIDTH = 296;
 const PANEL_GAP = 12;
 const VIEWPORT_PAD = 8;
 
-const sectionLabel = 'text-[10.5px] text-ml-glass-fg/55 font-bold uppercase tracking-[0.08em]';
+const sectionLabel = 'text-[10.5px] text-ml-glass-fg/60 font-bold uppercase tracking-[0.08em]';
 
 /**
  * Hint surfaced at the bottom of the panel for whichever row is hovered or focused.
@@ -78,26 +79,24 @@ function Section({ children, title }: { children: ComponentChildren; title?: str
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
+    <Switch.Root
+      checked={on}
+      onCheckedChange={(_checked: boolean) => onClick()}
       aria-label={label}
-      onClick={onClick}
-      class={cn(
+      className={cn(
         'relative inline-flex items-center w-9 h-5 rounded-full cursor-pointer appearance-none border-none p-0',
         'transition-[background-color] duration-150',
-        on ? 'bg-(--ml-state-blue)' : 'bg-ml-glass-fg/15',
+        'data-checked:bg-(--ml-state-blue) data-unchecked:bg-ml-glass-fg/15',
       )}
     >
-      <span
-        class={cn(
+      <Switch.Thumb
+        className={cn(
           'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-[0_1px_2px_oklch(0_0_0/0.2)]',
           'transition-[left] duration-200 ease-out',
+          'data-checked:left-4.5 data-unchecked:left-0.5',
         )}
-        style={{ left: on ? 18 : 2 }}
       />
-    </button>
+    </Switch.Root>
   );
 }
 
@@ -210,7 +209,7 @@ function ChevronLinkRow({ icon, label, href, hint }: { icon: string; label: stri
         <Icon name={icon} size={14} />
         {label}
       </span>
-      <span class="text-ml-glass-fg/45">
+      <span class="text-ml-glass-fg/60">
         <Icon name="chevRight" size={14} />
       </span>
     </a>
@@ -243,28 +242,16 @@ function ShareRow() {
 
 function RoomIdRow() {
   const setHint = useHintSetter();
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { copied, copy } = useCopyToClipboard();
   const hint = "Click to copy this room's ID. Paste it to point an agent at the same canvas.";
-  const roomId = getShareUrl().split('/s/')[1] ?? '';
-
-  const onCopy = () => {
-    navigator.clipboard.writeText(roomId).then(
-      () => {
-        setCopied(true);
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => setCopied(false), 1400);
-      },
-      () => toast('Failed to copy', 'error'),
-    );
-  };
+  const roomId = getRoomId();
 
   return (
     <button
       type="button"
       onMouseEnter={() => setHint(hint)}
       onFocus={() => setHint(hint)}
-      onClick={onCopy}
+      onClick={() => copy(roomId)}
       class={cn(
         'flex items-center justify-between gap-3 w-full px-4 py-3 cursor-pointer',
         'appearance-none bg-transparent border-none text-left',
@@ -276,9 +263,9 @@ function RoomIdRow() {
         <Icon name="link" size={14} />
         Room ID
       </span>
-      <span class="inline-flex items-center gap-1.5 min-w-0 text-ml-glass-fg/55">
+      <span class="inline-flex items-center gap-1.5 min-w-0 text-ml-glass-fg/60">
         <code class="text-[11px] font-mono tabular-nums truncate max-w-35">{roomId}</code>
-        <Icon name={copied ? 'check' : 'copy'} size={12} />
+        <Icon name={copied.value ? 'check' : 'copy'} size={12} />
       </span>
     </button>
   );
@@ -288,7 +275,7 @@ function PanelHeader() {
   return (
     <div class="flex items-center justify-between px-4 pt-3 pb-2">
       <span class="text-[13px] font-semibold tracking-[-0.005em] text-ml-glass-fg/65">MarkLayer</span>
-      <span class="inline-flex items-center gap-1 text-[11px] text-ml-glass-fg/45 font-medium tabular-nums">
+      <span class="inline-flex items-center gap-1 text-[11px] text-ml-glass-fg/60 font-medium tabular-nums">
         <span>v0.3</span>
         <ThemeToggleButton />
       </span>
@@ -300,7 +287,7 @@ function PanelFootnote({ text }: { text: string }) {
   // Fixed height — the panel is bottom-anchored, so any growth here pushes the
   // top edge upward and looks like the panel is jumping. Reserve enough room
   // for the longest hint (≈4 wrapped lines at 11px on a 264px content width).
-  return <div class="px-4 pt-2 pb-3 text-[11px] leading-snug text-ml-glass-fg/45 h-22 overflow-hidden">{text}</div>;
+  return <div class="px-4 pt-2 pb-3 text-[11px] leading-snug text-ml-glass-fg/60 h-22 overflow-hidden">{text}</div>;
 }
 
 export function SettingsPanel() {

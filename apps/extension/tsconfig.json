@@ -3,6 +3,22 @@
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
-    "jsxImportSource": "preact"
+    "jsxImportSource": "preact",
+    // `paths` replaces (not merges with) the WXT-generated set in .wxt/tsconfig.json,
+    // so the @/~ aliases are carried over alongside the react -> preact/compat type
+    // mappings that @base-ui/react needs. Relative to this tsconfig's directory.
+    "paths": {
+      "@": ["./.wxt/.."],
+      "@/*": ["./*"],
+      "~": ["./.wxt/.."],
+      "~/*": ["./*"],
+      "@@": ["./.wxt/.."],
+      "@@/*": ["./*"],
+      "~~": ["./.wxt/.."],
+      "~~/*": ["./*"],
+      "react": ["./node_modules/preact/compat"],
+      "react-dom": ["./node_modules/preact/compat"],
+      "react/jsx-runtime": ["./node_modules/preact/jsx-runtime"]
+    }
   }
 }
