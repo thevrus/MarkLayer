@@ -1,4 +1,4 @@
-import { pushOp, toast as showToast } from '@ext/lib/state';
+import { bumpAnchorGeneration, pushOp, toast as showToast } from '@ext/lib/state';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import { effect, signal } from '@preact/signals';
 import { fromBase64 } from './encoding';
@@ -45,6 +45,7 @@ export function attachIframeMutationObserver(doc: Document): () => void {
   let pending = false;
   const flush = () => {
     pending = false;
+    bumpAnchorGeneration();
     iframeMutationTick.value++;
   };
   const obs = new MutationObserver(() => {
@@ -86,11 +87,13 @@ export const DEVICE_WIDTHS: Record<DeviceMode, number> = { desktop: 0, tablet: 7
 
 /**
  * Viewer zoom for the iframe+canvas composite.
- * - 'auto' (default): clamp at 1× max; downscale when viewer is narrower than capture.
- * - number: explicit factor (0.5, 0.75, 1).
+ * - 'auto' (default): fits available width, downscaling or upscaling up to `MAX_AUTO_UPSCALE`.
+ * - number: explicit factor (0.5, 0.75, 1, 1.5, 2).
  * Drawings stay pixel-aligned at any zoom because the iframe and canvas share the same transform wrapper.
  */
 export type ViewerZoom = number | 'auto';
+/** Ceiling on how far 'auto' zoom will upscale a narrow capture to fill available width. */
+export const MAX_AUTO_UPSCALE = 2;
 export const ZOOM_PRESETS: { value: ViewerZoom; label: string }[] = [
   { value: 'auto', label: 'Auto' },
   { value: 0.5, label: '50%' },

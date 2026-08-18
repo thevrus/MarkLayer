@@ -25,10 +25,14 @@ import {
 import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
+import copy from '@site/data/home-copy.json';
+import { CHROME_STORE_URL } from '@site/lib/site';
 import { ArrowRight, ChevronDown, Monitor, Search } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { ChannelCycle } from './ChannelCycle';
 import { FakeCursors } from './FakeCursors';
+import { SelfCursor } from './SelfCursor';
 import { FEATURES, GithubLink, Logo, TextInputOverlay } from './shared';
 import {
   commentPopover,
@@ -353,8 +357,6 @@ export function Landing() {
   const showCommentCursor = tool === 'comment';
   const comments = commentsComputed.value;
 
-  const CWS_URL = 'https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc';
-
   const ChromeIcon = () => (
     <svg
       width="16"
@@ -376,10 +378,10 @@ export function Landing() {
   );
 
   const CTA_CLS =
-    'lp-shine inline-flex items-center h-12 px-8 rounded-[14px] bg-neutral-950 text-white text-base font-medium no-underline hover:bg-neutral-800 transition-colors select-none';
+    'lp-shine inline-flex items-center h-12 px-7 rounded-full text-white text-[15px] font-medium no-underline transition-colors select-none';
 
   const CWS_LINK = (cls: string) => (
-    <a href={CWS_URL} target="_blank" rel="noopener" class={`${CTA_CLS} gap-2 ${cls}`}>
+    <a href={CHROME_STORE_URL} target="_blank" rel="noopener" class={`${CTA_CLS} gap-2 ${cls}`}>
       <ChromeIcon />
       Add to Chrome
     </a>
@@ -389,25 +391,23 @@ export function Landing() {
     <>
       {/* Gradient page background */}
       <div class="ml-force-light relative min-h-screen font-['Geist',system-ui,sans-serif] overflow-x-hidden lp-bg-animate">
-        {/* Centered white container with shadow */}
-        <main class="max-w-[800px] mx-auto my-0 sm:my-8 bg-white sm:rounded-3xl shadow-[0_0_0_1px_rgba(0,0,0,0.04),0_8px_40px_rgba(0,0,0,0.06)] min-h-screen sm:min-h-0">
+        {/* Flat white, no card: separation comes from whitespace, not from a
+            rounded panel floating on a 40px shadow bloom. */}
+        <main class="max-w-[800px] mx-auto bg-white min-h-screen sm:min-h-0">
           {/* Nav */}
           <nav class="lp-fade-up flex items-center justify-between px-8 sm:px-10 pt-6 pb-2">
             <a href="/" class="flex items-center gap-2.5 no-underline">
               <Logo size={28} />
-              <span
-                class="text-[18px] font-bold tracking-[-0.02em] bg-clip-text text-transparent"
-                style={{ backgroundImage: 'linear-gradient(180deg, #333 0%, #0a0a0a 100%)' }}
-              >
-                MarkLayer
-              </span>
+              {/* Solid ink. A gradient clipped into the wordmark is decoration
+                  the eye reads as a rendering artifact at this size. */}
+              <span class="text-[18px] font-semibold tracking-[-0.02em] text-ml-fg">MarkLayer</span>
             </a>
             <div class="flex items-center gap-3">
               <a
                 href="https://www.producthunt.com/posts/marklayer"
                 target="_blank"
                 rel="noopener"
-                class="inline-flex items-center justify-center size-9 rounded-lg text-ml-fg/40 hover:text-ml-fg/70 hover:bg-ml-fg/[0.04] transition-colors"
+                class="inline-flex items-center justify-center size-9 rounded-lg text-ml-fg/60 hover:text-ml-fg/70 hover:bg-ml-fg/[0.04] transition-colors"
               >
                 <span class="sr-only">Product Hunt</span>
                 <svg class="size-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
@@ -420,49 +420,25 @@ export function Landing() {
 
           {/* Hero */}
           <section class="text-center pt-16 sm:pt-20 pb-6 px-8 bg-white">
-            {/* CWS badge with stars */}
-            <a
-              href={CWS_URL}
-              target="_blank"
-              rel="noopener"
-              aria-label="Rated 5 stars on Chrome Web Store"
-              class="lp-fade-up inline-flex items-center gap-2 rounded-lg bg-ml-fg/[0.04] p-1.5 pr-3 no-underline mb-6 hover:bg-ml-fg/[0.07] transition-colors"
-            >
-              <img
-                src="/cws-icon.svg"
-                width="24"
-                height="20"
-                alt="Chrome Web Store"
-                class="shrink-0"
-                fetchpriority="high"
-              />
-              <div class="flex gap-0.5 text-ml-fg/60">
-                {Array.from({ length: 5 }, (_, i) => (
-                  <svg key={i} width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                    <path
-                      d="M7.8 1.085c-.322-.67-1.279-.67-1.601 0L4.822 3.953l-3.174.416c-.736.096-1.042 1.005-.494 1.522l2.319 2.187-.582 3.122c-.138.742.647 1.291 1.295.942L7 10.624l2.815 1.517c.648.35 1.433-.2 1.295-.941l-.582-3.123 2.32-2.187c.547-.516.24-1.425-.495-1.522l-3.174-.415L7.8 1.085z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                ))}
-              </div>
-            </a>
-
+            {/* The eyebrow badge (Chrome Web Store icon plus five stars in a
+                tinted pill) is gone: a rating chip above the headline is the
+                stock hero decoration, and the stars claimed a rating the store
+                page has to back up. */}
             <h1
-              class="lp-fade-up text-[clamp(38px,7vw,64px)] font-normal tracking-[-0.02em] leading-[1.1] text-ml-fg mb-4 font-['Imbue',serif]"
-              style={{ animationDelay: '0.1s' }}
+              class="lp-fade-up text-[clamp(38px,7vw,60px)] font-semibold tracking-[-0.03em] leading-[1.06] text-ml-fg mb-5"
+              style={{ animationDelay: '0.05s' }}
             >
-              Annotate Any Webpage.
+              {copy.headlinePrefix}
               <br />
-              Share in One Link.
+              {copy.headlineJoiner} <ChannelCycle /> {copy.headlineSuffix}
             </h1>
 
             <p
-              class="lp-fade-up text-[15px] text-ml-fg/60 mb-8 max-w-[400px] mx-auto leading-relaxed"
-              style={{ animationDelay: '0.2s' }}
+              class="lp-fade-up text-[17px] text-ml-fg/60 mb-9 max-w-[460px] mx-auto leading-[1.6]"
+              style={{ animationDelay: '0.1s' }}
             >
-              Draw, comment, and mark up any live website, then share a link for instant visual feedback. No account
-              required.
+              Send your client one link. They comment straight on the live page in their own browser, without signing up
+              or installing anything.
             </p>
 
             {isMobileDevice ? (
@@ -470,27 +446,20 @@ export function Landing() {
                 class="lp-fade-up max-w-[400px] mx-auto mb-12 px-6 py-5 rounded-2xl bg-white border border-ml-fg/[0.06] text-center"
                 style={{ animationDelay: '0.3s' }}
               >
-                <Monitor size={24} class="text-ml-fg/30 mx-auto mb-3" aria-hidden="true" />
+                <Monitor size={24} class="text-ml-fg/60 mx-auto mb-3" aria-hidden="true" />
                 <p class="text-[14px] font-semibold text-ml-fg/70 m-0 mb-1">Desktop only</p>
                 <p class="text-[13px] text-ml-fg/60 m-0">Open this page on your computer to get started.</p>
               </div>
             ) : (
               <>
-                {/* CTA */}
-                <div class="lp-fade-up flex flex-col items-center gap-3 mb-2" style={{ animationDelay: '0.3s' }}>
-                  <a href={CWS_URL} target="_blank" rel="noopener" class={`${CTA_CLS} justify-center`}>
-                    Add to Chrome · It's Free
-                  </a>
-                </div>
-
-                <p class="lp-fade-up text-[12px] text-ml-fg/60 mb-12" style={{ animationDelay: '0.35s' }}>
-                  No sign-up required
-                </p>
-
-                {/* URL input */}
+                {/* The URL box leads, the extension follows. Installing is the
+                    high-friction ask — a store visit and a permissions prompt —
+                    while pasting a URL delivers the product in one step with
+                    nothing to install. Leading with the install asked cold
+                    traffic to commit before anything had been demonstrated. */}
                 <form
-                  class="lp-fade-up max-w-[460px] mx-auto mb-3"
-                  style={{ animationDelay: '0.4s' }}
+                  class="lp-fade-up max-w-[520px] mx-auto mb-3"
+                  style={{ animationDelay: '0.15s' }}
                   onSubmit={(e) => {
                     e.preventDefault();
                     const el = e.currentTarget.elements.namedItem('url');
@@ -502,15 +471,21 @@ export function Landing() {
                     navigateTo(url);
                   }}
                 >
-                  <div class="flex items-center gap-3 px-5 py-3.5 rounded-xl bg-ml-fg/[0.02] border border-ml-fg/[0.08]">
-                    <Search size={16} class="text-ml-fg/20 shrink-0" aria-hidden="true" />
+                  {/* Pill, to match the CTA: every interactive affordance on the
+                      page uses one radius, so the shape language reads as a
+                      system rather than a pile of components. */}
+                  <div class="flex items-center gap-3 pl-5 pr-2 py-3 rounded-full bg-white border border-ml-fg/[0.16] focus-within:border-ml-fg/40 transition-colors">
+                    <Search size={17} class="text-ml-fg/60 shrink-0" aria-hidden="true" />
+                    {/* 16px under `sm`: iOS Safari zooms the whole page when a
+                        focused field's text is under 16px, and this is the first
+                        thing anyone taps on the homepage. */}
                     <input
                       name="url"
                       type="text"
                       inputMode="url"
-                      placeholder="Paste any URL to annotate..."
+                      placeholder="Paste any URL to annotate…"
                       autocomplete="url"
-                      class="flex-1 bg-transparent border-none text-ml-fg text-[14px] placeholder:text-ml-fg/25 outline-none"
+                      class="flex-1 bg-transparent border-none text-ml-fg text-[16px] sm:text-[15px] placeholder:text-ml-fg/60 outline-none"
                       onInput={(e) => {
                         const v = e.currentTarget.value.trim();
                         urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
@@ -520,10 +495,10 @@ export function Landing() {
                       type="submit"
                       aria-label="Go"
                       class={cn(
-                        'shrink-0 w-8 h-8 rounded-lg grid place-items-center border-none cursor-pointer transition-all duration-200',
+                        'shrink-0 w-9 h-9 rounded-full grid place-items-center border-none cursor-pointer transition-colors duration-200',
                         urlReady.value
                           ? 'text-ml-btn-fg bg-ml-btn shadow-sm'
-                          : 'text-ml-fg/20 bg-ml-fg/[0.04] hover:bg-ml-fg/[0.08]',
+                          : 'text-ml-fg/60 bg-ml-fg/[0.04] hover:bg-ml-fg/[0.08]',
                       )}
                     >
                       <ArrowRight size={16} aria-hidden="true" />
@@ -532,10 +507,10 @@ export function Landing() {
                 </form>
 
                 <div
-                  class="lp-fade-up flex items-center justify-center gap-4 text-[12px] text-ml-fg/60 mb-16"
-                  style={{ animationDelay: '0.45s' }}
+                  class="lp-fade-up flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[14px] text-ml-fg/60 mb-8"
+                  style={{ animationDelay: '0.2s' }}
                 >
-                  <span>Try:</span>
+                  <span>Or try one:</span>
                   {[
                     { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Web_annotation' },
                     { name: 'Hacker News', url: 'https://news.ycombinator.com' },
@@ -545,12 +520,41 @@ export function Landing() {
                       key={name}
                       type="button"
                       onClick={() => navigateTo(url)}
-                      class="text-ml-fg/60 hover:text-ml-fg/80 transition-colors cursor-pointer bg-transparent border-none text-[12px] p-0 underline underline-offset-2 decoration-ml-fg/30"
+                      class="text-ml-fg/70 hover:text-ml-fg transition-colors cursor-pointer bg-transparent border-none text-[14px] p-0 underline underline-offset-2 decoration-ml-fg/30"
                     >
                       {name}
                     </button>
                   ))}
                 </div>
+
+                {/* The install is now the second ask, offered once the product
+                    above has already shown what it does — and framed by the one
+                    job it uniquely solves. */}
+                <div class="lp-fade-up flex flex-col items-center gap-2.5 mb-6" style={{ animationDelay: '0.25s' }}>
+                  <a href={CHROME_STORE_URL} target="_blank" rel="noopener" class={`${CTA_CLS} gap-2 justify-center`}>
+                    <ChromeIcon />
+                    Add to Chrome · It's Free
+                  </a>
+                  <p class="text-[13px] text-ml-fg/60 m-0">For pages behind a login, or sites that block embedding.</p>
+                </div>
+
+                {/* Verifiable claims only. The page previously carried a five-star
+                    chip with no source; these three are checkable — the licence
+                    is in the repo, and both links go to the public listings. */}
+                <p class="lp-fade-up flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[13px] text-ml-fg/60 mb-16">
+                  <span>No account, ever</span>
+                  <span aria-hidden="true">·</span>
+                  <a
+                    href="https://github.com/thevrus/MarkLayer"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-ml-fg/60 hover:text-ml-fg transition-colors underline underline-offset-2 decoration-ml-fg/30"
+                  >
+                    Open source, Apache-2.0
+                  </a>
+                  <span aria-hidden="true">·</span>
+                  <span>Self-hostable</span>
+                </p>
               </>
             )}
           </section>
@@ -567,7 +571,7 @@ export function Landing() {
                   <div class="flex items-start gap-3">
                     <div class="flex flex-col gap-1 flex-1 min-w-0">
                       <h2 class="text-base flex items-start gap-3 font-medium text-ml-fg">
-                        <span class={`size-4 h-[1lh] text-ml-fg/50 ${f.anim}`}>
+                        <span class={`size-4 h-[1lh] text-ml-fg/60 ${f.anim}`}>
                           <f.icon size={16} strokeWidth={2} class="size-4" aria-hidden="true" />
                         </span>
                         <span>{f.label}</span>
@@ -582,14 +586,20 @@ export function Landing() {
 
           {/* Switching from another tool */}
           <section class="px-8 sm:px-10 pb-16">
-            <div class="mb-6 text-[12px] font-medium uppercase tracking-wider text-ml-fg/50">Switching from?</div>
-            <h2 class="mb-4 text-[clamp(22px,3.5vw,28px)] font-normal tracking-[-0.01em] font-['Imbue',serif] text-ml-fg">
+            {/* No tracked-caps kicker above the heading: the label added no
+                information the heading did not already carry. */}
+            <h2 class="mb-4 text-[clamp(22px,3.5vw,28px)] font-semibold tracking-[-0.02em] text-ml-fg text-balance">
               Free alternative to BugHerd, Marker.io, Pastel, and Markup.io.
             </h2>
+            {/* The durability argument, not just the price. The pricing claims
+                live in home-copy.json, shared with HomeContent.astro. */}
             <p class="mb-6 text-[15px] leading-relaxed text-ml-fg/70">
-              MarkLayer covers the visual-feedback core of the paid tools above for free — no per-seat fees, no sign-up,
-              open source. If you're shopping a switch, the comparison pages below get to the trade-offs in 60 seconds
-              each.
+              {copy.pricingFacts} MarkLayer is free by licence rather than by current pricing policy, so it cannot be
+              withdrawn from under a client workflow: the code is Apache-2.0 and you can self-host it.{' '}
+              <a href="/guides/free-website-annotation-tools" class="underline underline-offset-2 decoration-ml-fg/30">
+                See the full audit
+              </a>
+              , checked against each vendor's live pricing page.
             </p>
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[
@@ -604,11 +614,11 @@ export function Landing() {
                   class="block rounded-lg border border-ml-fg/[0.08] bg-white px-4 py-3.5 no-underline transition-colors hover:border-ml-fg/40"
                 >
                   <div class="text-[14px] font-medium text-ml-fg">{c.label}</div>
-                  <div class="mt-0.5 text-[13px] text-ml-fg/50">{c.sub}</div>
+                  <div class="mt-0.5 text-[13px] text-ml-fg/60">{c.sub}</div>
                 </a>
               ))}
             </div>
-            <p class="mt-5 text-[13px] text-ml-fg/50">
+            <p class="mt-5 text-[13px] text-ml-fg/60">
               See{' '}
               <a href="/compare" class="text-ml-fg/60 underline hover:text-ml-fg/80">
                 all 10 head-to-head comparisons
@@ -645,11 +655,11 @@ export function Landing() {
                     {item.q}
                     <ChevronDown
                       size={16}
-                      class="text-ml-fg/25 shrink-0 ml-4 transition-transform duration-200 group-open:rotate-180"
+                      class="text-ml-fg/60 shrink-0 ml-4 transition-transform duration-200 group-open:rotate-180"
                       aria-hidden="true"
                     />
                   </summary>
-                  <p class="text-[14px] text-ml-fg/45 leading-relaxed mt-3 mb-0">{item.a}</p>
+                  <p class="text-[14px] text-ml-fg/60 leading-relaxed mt-3 mb-0">{item.a}</p>
                 </details>
               ))}
             </div>
@@ -657,26 +667,26 @@ export function Landing() {
 
           {/* Bottom CTA */}
           <section class="px-8 pt-8 pb-10 text-center">
-            <h2 class="text-[clamp(28px,5vw,40px)] font-normal tracking-[-0.01em] font-['Imbue',serif] text-ml-fg mb-5">
+            <h2 class="text-[clamp(28px,5vw,40px)] font-semibold tracking-[-0.03em] text-ml-fg mb-5 text-balance">
               Start annotating any page on the web.
             </h2>
             {CWS_LINK('')}
-            <p class="text-[12px] text-ml-fg/30 mt-3">Free to use &middot; No sign-up required</p>
+            <p class="text-[12px] text-ml-fg/60 mt-3">Free to use &middot; No sign-up required</p>
           </section>
 
           {/* Footer */}
           <footer class="px-8 sm:px-10 pt-12 pb-8 border-t border-ml-fg/6">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-8 max-w-3xl mx-auto mb-10 text-[13px]">
               <div>
-                <div class="text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider">Product</div>
+                <div class="text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em]">Product</div>
                 <ul class="space-y-2">
                   <li>
-                    <a href="/pricing" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                    <a href="/pricing" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       Pricing
                     </a>
                   </li>
                   <li>
-                    <a href="/privacy" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                    <a href="/privacy" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       Privacy
                     </a>
                   </li>
@@ -685,7 +695,7 @@ export function Landing() {
                       href="https://github.com/thevrus/MarkLayer"
                       target="_blank"
                       rel="noopener"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
                     >
                       GitHub
                     </a>
@@ -693,7 +703,7 @@ export function Landing() {
                   <li>
                     <a
                       href="mailto:rusinvadym@gmail.com"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
                     >
                       Contact
                     </a>
@@ -703,28 +713,28 @@ export function Landing() {
               <div>
                 <a
                   href="/compare"
-                  class="block text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider no-underline hover:text-ml-fg/70 transition-colors"
+                  class="block text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em] no-underline hover:text-ml-fg/70 transition-colors"
                 >
                   Compare
                 </a>
                 <ul class="space-y-2">
                   <li>
-                    <a href="/vs/markup-io" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                    <a href="/vs/markup-io" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       MarkLayer vs Markup.io
                     </a>
                   </li>
                   <li>
-                    <a href="/vs/pastel" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                    <a href="/vs/pastel" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       MarkLayer vs Pastel
                     </a>
                   </li>
                   <li>
-                    <a href="/vs/bugherd" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                    <a href="/vs/bugherd" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       MarkLayer vs BugHerd
                     </a>
                   </li>
                   <li>
-                    <a href="/vs/hypothesis" class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40">
+                    <a href="/vs/hypothesis" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       MarkLayer vs Hypothesis
                     </a>
                   </li>
@@ -733,7 +743,7 @@ export function Landing() {
               <div>
                 <a
                   href="/alternatives"
-                  class="block text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider no-underline hover:text-ml-fg/70 transition-colors"
+                  class="block text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em] no-underline hover:text-ml-fg/70 transition-colors"
                 >
                   Free alternatives
                 </a>
@@ -741,7 +751,7 @@ export function Landing() {
                   <li>
                     <a
                       href="/alternatives/markup-io"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
                     >
                       Markup.io alternatives
                     </a>
@@ -749,7 +759,7 @@ export function Landing() {
                   <li>
                     <a
                       href="/alternatives/pastel"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
                     >
                       Pastel alternatives
                     </a>
@@ -757,7 +767,7 @@ export function Landing() {
                   <li>
                     <a
                       href="/alternatives/bugherd"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
                     >
                       BugHerd alternatives
                     </a>
@@ -767,23 +777,20 @@ export function Landing() {
               <div>
                 <a
                   href="/use-cases"
-                  class="block text-ml-fg/50 font-medium mb-3 text-[12px] uppercase tracking-wider no-underline hover:text-ml-fg/70 transition-colors"
+                  class="block text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em] no-underline hover:text-ml-fg/70 transition-colors"
                 >
                   Use cases
                 </a>
                 <ul class="space-y-2">
                   <li>
-                    <a
-                      href="/for/design-review"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
-                    >
+                    <a href="/for/design-review" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       Design review
                     </a>
                   </li>
                   <li>
                     <a
                       href="/for/qa-bug-reporting"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
                     >
                       QA & bug reporting
                     </a>
@@ -791,16 +798,13 @@ export function Landing() {
                   <li>
                     <a
                       href="/for/client-feedback"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
+                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
                     >
                       Client feedback
                     </a>
                   </li>
                   <li>
-                    <a
-                      href="/for/remote-teams"
-                      class="hover:text-ml-fg/70 transition-colors no-underline text-ml-fg/40"
-                    >
+                    <a href="/for/remote-teams" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
                       Remote teams
                     </a>
                   </li>
@@ -824,7 +828,7 @@ export function Landing() {
                 />
               </a>
             </div>
-            <div class="flex items-center justify-center gap-2 text-[12px] text-ml-fg/20">
+            <div class="flex items-center justify-center gap-2 text-[12px] text-ml-fg/60">
               <Logo size={14} />
               <span>MarkLayer &copy; {new Date().getFullYear()}</span>
             </div>
@@ -940,6 +944,7 @@ export function Landing() {
         )}
       </div>
       <FakeCursors />
+      <SelfCursor />
     </>
   );
 }

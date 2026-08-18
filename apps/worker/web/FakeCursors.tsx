@@ -1,5 +1,7 @@
+import { CURSOR_COLORS, localUser } from '@ext/lib/state';
 import { useEffect, useRef } from 'preact/hooks';
 import { CursorArrow } from './CursorArrow';
+import { CursorLabel } from './CursorLabel';
 
 interface FakeCursor {
   name: string;
@@ -51,6 +53,20 @@ const CURSORS: FakeCursor[] = [
   },
 ];
 
+/**
+ * The visitor's own cursor (SelfCursor) draws from the same palette, so a demo
+ * cursor that lands on their color swaps to a spare — two identically colored
+ * cursors on one screen read as a bug, not a room.
+ */
+const DEMO_CURSORS: FakeCursor[] = (() => {
+  const taken = new Set([localUser.color]);
+  return CURSORS.map((c) => {
+    const color = taken.has(c.color) ? (CURSOR_COLORS.find((s) => !taken.has(s)) ?? c.color) : c.color;
+    taken.add(color);
+    return { ...c, color };
+  });
+})();
+
 function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -97,15 +113,8 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
       style={{ left: `${cursor.path[0][0]}%`, top: `${cursor.path[0][1]}%`, opacity: 0 }}
     >
       <CursorArrow color={cursor.color} />
-      <div
-        class="absolute left-[26px] top-[30px] whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold text-white leading-none"
-        style={{
-          background: `linear-gradient(180deg, color-mix(in srgb, ${cursor.color} 80%, white 20%) 0%, ${cursor.color} 100%)`,
-          borderTop: '0.5px solid rgba(255,255,255,0.25)',
-          boxShadow: `0 1px 0 rgba(255,255,255,0.12) inset, 0 -1px 0 rgba(0,0,0,0.2) inset, 0 2px 6px ${cursor.color}40`,
-        }}
-      >
-        {cursor.name}
+      <div class="absolute left-[26px] top-[30px]">
+        <CursorLabel name={cursor.name} color={cursor.color} />
       </div>
     </div>
   );
@@ -114,7 +123,7 @@ function AnimatedCursor({ cursor }: { cursor: FakeCursor }) {
 export function FakeCursors() {
   return (
     <div class="fixed inset-0 pointer-events-none z-[100] overflow-hidden" aria-hidden="true">
-      {CURSORS.map((c) => (
+      {DEMO_CURSORS.map((c) => (
         <AnimatedCursor key={c.name} cursor={c} />
       ))}
     </div>

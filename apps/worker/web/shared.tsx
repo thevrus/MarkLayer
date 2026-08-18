@@ -35,8 +35,8 @@ export function GithubLink({ dark }: { dark?: boolean }) {
       rel="noopener"
       class={
         dark
-          ? 'text-ml-fg/25 hover:text-ml-fg/50 transition-colors no-underline'
-          : 'text-ml-glass-fg/25 hover:text-ml-glass-fg/50 transition-colors no-underline'
+          ? 'text-ml-fg/60 hover:text-ml-fg transition-colors no-underline'
+          : 'text-ml-glass-fg/60 hover:text-ml-glass-fg transition-colors no-underline'
       }
     >
       <span class="sr-only">GitHub</span>
@@ -151,7 +151,7 @@ export function TextInputOverlay({
       onBlur={(e) => {
         onCommit(e.currentTarget.value.trim());
       }}
-      placeholder="Type here..."
+      placeholder="Type here…"
     />
   );
 }

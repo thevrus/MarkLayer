@@ -1,5 +1,5 @@
 import { PriorityBadge } from '@ext/components/PriorityPicker';
-import { applyAnchorDelta } from '@ext/lib/anchor';
+import { reprojectBox } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
 import { copyText, deleteOp, openContextMenu, setOpStatus } from '@ext/lib/state';
@@ -17,17 +17,23 @@ interface Props {
 export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
   iframeMutationTick.value; // re-resolve anchor when iframe DOM mutates
   const resolved = op.status === 'resolved';
-  const storedX = Math.min(op.startX, op.endX);
-  const storedY = Math.min(op.startY, op.endY);
-  const { x, y, strategy } = frameDoc
-    ? applyAnchorDelta(
-        op.target,
-        { docX: storedX, docY: storedY },
-        { doc: frameDoc, win: frameDoc.defaultView ?? undefined },
-      )
-    : { x: storedX, y: storedY, strategy: null };
-  const w = Math.abs(op.endX - op.startX);
-  const h = Math.abs(op.endY - op.startY);
+  // Doc-space anchoring applied first, THEN `s` (the viewer's cssScale zoom)
+  // multiplies both position and size below — scaling twice by the same factor
+  // would double-apply the zoom.
+  const {
+    x,
+    y,
+    width: w,
+    height: h,
+    strategy,
+  } = reprojectBox({
+    target: op.target,
+    startX: op.startX,
+    startY: op.startY,
+    endX: op.endX,
+    endY: op.endY,
+    ctx: frameDoc ? { doc: frameDoc, win: frameDoc.defaultView ?? undefined } : undefined,
+  });
   const stroke = resolved ? 'var(--color-ml-resolved)' : op.color;
   const fill = resolved ? 'color-mix(in oklch, var(--color-ml-resolved) 8%, transparent)' : hexToRgba(op.color, 0.12);
 
@@ -89,10 +95,10 @@ export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
               {op.comment}
             </p>
           ) : (
-            <p class="text-[12px] text-ml-glass-fg/55 m-0 mt-1 italic">No comment</p>
+            <p class="text-[12px] text-ml-glass-fg/60 m-0 mt-1 italic">No comment</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/55 font-medium">{op.author}</span>
+            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
             <div class="flex items-center gap-3">
               <button
                 type="button"

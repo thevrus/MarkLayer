@@ -33,6 +33,7 @@ import {
   Type,
   X,
 } from 'lucide-preact';
+import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 
 interface BodyProps {
@@ -80,7 +81,7 @@ function DeviceBadge({ device }: { device?: DeviceMode }) {
   if (!device || device === 'desktop') return null;
   const Icon = DEVICE_ICONS[device];
   return (
-    <span class="inline-flex items-center gap-0.5 text-[9px] text-ml-glass-fg/30 font-medium">
+    <span class="inline-flex items-center gap-0.5 text-[9px] text-ml-glass-fg/60 font-medium">
       <Icon size={9} aria-hidden="true" />
       {DEVICE_LABELS[device]}
     </span>
@@ -94,7 +95,7 @@ function MetaInfo({ op }: { op: CommentOp }) {
   if (op.meta.os) parts.push(op.meta.os);
   if (op.meta.viewport) parts.push(`${op.meta.viewport.width}×${op.meta.viewport.height}`);
   if (!parts.length) return null;
-  return <span class="text-[9px] text-ml-glass-fg/20 mt-1 block">{parts.join(' · ')}</span>;
+  return <span class="text-[9px] text-ml-glass-fg/60 mt-1 block">{parts.join(' · ')}</span>;
 }
 
 function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: number, y: number) => void }) {
@@ -140,7 +141,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
           {op.priority && <PriorityBadge priority={op.priority} />}
           <DeviceBadge device={op.device} />
           <StatusBadge status={status} />
-          <span class="text-[11px] text-ml-glass-fg/55 tabular-nums">{timeAgo(op.ts)}</span>
+          <span class="text-[11px] text-ml-glass-fg/60 tabular-nums">{timeAgo(op.ts)}</span>
         </div>
         <p
           class={cn('text-[13px] text-ml-glass-fg/85 leading-relaxed m-0', !expanded && 'line-clamp-2')}
@@ -154,7 +155,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
         {expanded && <MetaInfo op={op} />}
         <div class="flex items-center gap-3 mt-2">
           {replies.length > 0 && (
-            <span class="text-[11px] text-ml-glass-fg/55 flex items-center gap-1 font-medium">
+            <span class="text-[11px] text-ml-glass-fg/60 flex items-center gap-1 font-medium">
               <MessageSquare size={11} aria-hidden="true" />
               {replies.length}
             </span>
@@ -165,14 +166,14 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
               e.stopPropagation();
               onScrollTo(op.x, op.y);
             }}
-            class="text-[11px] font-medium text-ml-glass-fg/55 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
+            class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
           >
             Go to
           </button>
           <button
             type="button"
             onClick={cycleStatus}
-            class="text-[11px] font-medium text-ml-glass-fg/55 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+            class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
           >
             {STATUS_ACTIONS[status]}
           </button>
@@ -196,7 +197,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                       <span class="text-[11.5px] text-ml-glass-fg/80 font-semibold truncate">
                         {reply.author || 'Anonymous'}
                       </span>
-                      <span class="text-[10.5px] text-ml-glass-fg/50 tabular-nums">{timeAgo(reply.ts)}</span>
+                      <span class="text-[10.5px] text-ml-glass-fg/60 tabular-nums">{timeAgo(reply.ts)}</span>
                     </div>
                     <p
                       class="text-[12.5px] text-ml-glass-fg/80 leading-relaxed m-0 mt-0.5"
@@ -224,14 +225,14 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   <textarea
                     name="reply"
                     ref={replyRef}
-                    placeholder="Write a reply..."
+                    placeholder="Write a reply…"
                     rows={1}
                     class={cn(
                       'w-full bg-ml-glass-accent/[0.06] border border-ml-glass-fg/[0.1] rounded-lg px-3 py-2',
                       'text-ml-glass-fg/80 text-[12px] leading-relaxed',
                       'resize-none outline-none min-h-8 max-h-[100px]',
                       'focus:border-ml-glass-fg/[0.2] focus:bg-ml-glass-accent/[0.08]',
-                      'placeholder:text-ml-glass-fg/45',
+                      'placeholder:text-ml-glass-fg/60',
                       glass.font,
                     )}
                     style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
@@ -259,7 +260,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                              bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
                              shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
                              hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
-                             active:scale-[0.94] transition-[box-shadow,transform] duration-150"
+                             active:scale-[0.96] transition-[box-shadow,transform] duration-150"
                     >
                       Reply
                     </button>
@@ -276,7 +277,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   setTimeout(() => replyRef.current?.focus(), 50);
                 }}
                 class="w-full text-left px-3 py-2 rounded-lg border border-ml-glass-fg/10 bg-ml-glass-fg/3
-                       text-[12px] text-ml-glass-fg/55 cursor-text hover:border-ml-glass-fg/20 hover:bg-ml-glass-fg/6 hover:text-ml-glass-fg/75 transition-colors"
+                       text-[12px] text-ml-glass-fg/60 cursor-text hover:border-ml-glass-fg/20 hover:bg-ml-glass-fg/6 hover:text-ml-glass-fg/75 transition-colors"
               >
                 Reply...
               </button>
@@ -360,7 +361,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               title="Copy comments + selections as Markdown"
               class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
                      bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
-                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.94]
+                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.96]
                      transition-[color,background-color,transform] duration-150"
             >
               <ClipboardCopy size={15} aria-hidden="true" />
@@ -371,7 +372,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               title="Download Markdown (.md)"
               class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
                      bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
-                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.94]
+                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.96]
                      transition-[color,background-color,transform] duration-150"
             >
               <Download size={15} aria-hidden="true" />
@@ -382,7 +383,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               title="Close panel"
               class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
                      bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
-                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.94]
+                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.96]
                      transition-[color,background-color,transform] duration-150"
             >
               <X size={16} aria-hidden="true" />
@@ -402,7 +403,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   'text-[11.5px] font-medium px-2.5 py-1 rounded-lg border-none cursor-pointer transition-[color,background-color] duration-150',
                   filter === f.value
                     ? 'bg-ml-glass-fg/12 text-ml-glass-fg'
-                    : 'bg-transparent text-ml-glass-fg/55 hover:text-ml-glass-fg hover:bg-ml-glass-fg/6',
+                    : 'bg-transparent text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-fg/6',
                 )}
               >
                 {f.label}
@@ -417,9 +418,9 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
       <div class="flex-1 overflow-y-auto">
         {items.length === 0 && (
           <div class="flex flex-col items-center justify-center h-44 gap-2 px-6 text-center">
-            <MessageSquare size={28} strokeWidth={1.5} class="text-ml-glass-fg/30" aria-hidden="true" />
+            <MessageSquare size={28} strokeWidth={1.5} class="text-ml-glass-fg/60" aria-hidden="true" />
             <span class="text-[14px] font-medium text-ml-glass-fg/75">No comments yet</span>
-            <span class="text-[12px] text-ml-glass-fg/45 leading-snug">Use the comment tool (C) to add one</span>
+            <span class="text-[12px] text-ml-glass-fg/60 leading-snug">Use the comment tool (C) to add one</span>
           </div>
         )}
 
@@ -450,7 +451,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                       color={areaResolved ? 'var(--color-ml-resolved)' : op.color}
                       aria-hidden="true"
                     />
-                    <span class="text-[11px] text-ml-glass-fg/40 font-medium flex-1">Area</span>
+                    <span class="text-[11px] text-ml-glass-fg/60 font-medium flex-1">Area</span>
                     <DeviceBadge device={op.device} />
                     {areaResolved && <StatusBadge status="resolved" />}
                   </div>
@@ -465,9 +466,9 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                       {op.comment}
                     </p>
                   ) : (
-                    <p class="text-[12px] text-ml-glass-fg/45 m-0 italic">No comment</p>
+                    <p class="text-[12px] text-ml-glass-fg/60 m-0 italic">No comment</p>
                   )}
-                  <p class="text-[10px] text-ml-glass-fg/30 m-0 mt-1 tabular-nums">
+                  <p class="text-[10px] text-ml-glass-fg/60 m-0 mt-1 tabular-nums">
                     {Math.round(w)} × {Math.round(h)} px
                   </p>
                 </button>
@@ -475,14 +476,14 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   <button
                     type="button"
                     onClick={() => onScrollTo(minX, minY)}
-                    class="text-[10px] text-ml-glass-fg/25 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
                   >
                     Go to
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpStatus(op.id, areaResolved ? 'open' : 'resolved')}
-                    class="text-[10px] text-ml-glass-fg/25 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
                   >
                     {areaResolved ? 'Reopen' : 'Resolve'}
                   </button>
@@ -510,19 +511,19 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                       color={selResolved ? 'var(--color-ml-resolved)' : op.color}
                       aria-hidden="true"
                     />
-                    <span class="text-[11px] text-ml-glass-fg/40 font-medium flex-1">Selection</span>
+                    <span class="text-[11px] text-ml-glass-fg/60 font-medium flex-1">Selection</span>
                     <DeviceBadge device={op.device} />
                     {selResolved && <StatusBadge status="resolved" />}
                   </div>
                   <p
-                    class="text-[12px] text-ml-glass-fg/50 m-0 line-clamp-2 leading-relaxed italic"
+                    class="text-[12px] text-ml-glass-fg/60 m-0 line-clamp-2 leading-relaxed italic"
                     style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
                   >
                     "{op.text}"
                   </p>
                   {op.comment && (
                     <p
-                      class="text-[11px] text-ml-glass-fg/35 m-0 mt-1 line-clamp-1"
+                      class="text-[11px] text-ml-glass-fg/60 m-0 mt-1 line-clamp-1"
                       style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
                     >
                       {op.comment}
@@ -533,14 +534,14 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   <button
                     type="button"
                     onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
-                    class="text-[10px] text-ml-glass-fg/25 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
                   >
                     Go to
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpStatus(op.id, selResolved ? 'open' : 'resolved')}
-                    class="text-[10px] text-ml-glass-fg/25 hover:text-ml-glass-fg/60 bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
                   >
                     {selResolved ? 'Reopen' : 'Resolve'}
                   </button>
@@ -561,7 +562,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
             >
               <div class="flex items-center gap-2 mb-1">
                 <Type size={12} color={op.color} aria-hidden="true" />
-                <span class="text-[11px] text-ml-glass-fg/40 font-medium flex-1">Text</span>
+                <span class="text-[11px] text-ml-glass-fg/60 font-medium flex-1">Text</span>
                 <DeviceBadge device={op.device} />
               </div>
               <p class="text-[12px] m-0 line-clamp-2 leading-relaxed" style={{ color: op.color }}>
@@ -575,8 +576,42 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   );
 }
 
-const PANEL_BASE = cn(glass.surface, 'flex flex-col overflow-hidden');
-const PANEL_TRANSITION = 'transition-all duration-300 ease-ml-spring';
+export const PANEL_BASE = cn(glass.surface, 'flex flex-col overflow-hidden');
+export const PANEL_TRANSITION = 'transition-[opacity,translate] duration-300 ease-ml-spring';
+
+/** Width of the docked variant, and the `m-3` gutters around it. The viewer subtracts
+ *  both when auto-fitting a device frame, since a docked panel takes real width from it. */
+export const DOCKED_ANNOTATION_WIDTH = 340;
+export const DOCK_GUTTER = 24;
+
+/**
+ * A panel docked beside the device frame (rather than overlaid on it), shared
+ * by the annotation panel and the viewer's info panel so the collapse trick —
+ * width-to-0 with `!mx-0 !p-0 !border-0` to erase the gutter — lives once.
+ */
+export function DockedPanel({
+  visible,
+  width,
+  children,
+}: {
+  visible: boolean;
+  width: number;
+  children: ComponentChildren;
+}) {
+  return (
+    <div
+      class={cn(
+        'shrink-0 m-3 rounded-2xl',
+        PANEL_TRANSITION,
+        PANEL_BASE,
+        visible ? 'opacity-100' : 'opacity-0 !mx-0 !p-0 !border-0',
+      )}
+      style={{ width: visible ? width : 0 }}
+    >
+      {children}
+    </div>
+  );
+}
 
 export function AnnotationPanel(props: BodyProps) {
   const visible = showAnnotationPanel.value;
@@ -595,17 +630,9 @@ export function AnnotationPanel(props: BodyProps) {
 }
 
 export function DockedAnnotationPanel(props: BodyProps) {
-  const visible = showAnnotationPanel.value;
   return (
-    <div
-      class={cn(
-        'shrink-0 my-3 ml-3 rounded-2xl',
-        PANEL_TRANSITION,
-        PANEL_BASE,
-        visible ? 'w-[340px] opacity-100' : 'w-0 opacity-0 !ml-0 !p-0 !border-0',
-      )}
-    >
+    <DockedPanel visible={showAnnotationPanel.value} width={DOCKED_ANNOTATION_WIDTH}>
       <AnnotationPanelBody {...props} />
-    </div>
+    </DockedPanel>
   );
 }

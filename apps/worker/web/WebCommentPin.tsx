@@ -88,7 +88,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
           class="w-7 h-7 rounded-full text-white text-[11px] font-semibold
                  grid place-items-center
                  shadow-[0_0_0_2.5px_oklch(0_0_0/0.2),0_2px_10px_oklch(0_0_0/0.35),inset_0_1px_0_oklch(1_0_0/0.2)]
-                 transition-all duration-200 ease-out
+                 transition-[scale,box-shadow] duration-200 ease-out
                  group-hover/pin:scale-[1.15] group-hover/pin:shadow-[0_0_0_2.5px_oklch(1_0_0/0.12),0_4px_20px_oklch(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/0.25)]"
           style={{
             background: `linear-gradient(to bottom, color-mix(in oklch, ${op.color} 100%, white 20%), ${op.color})`,
@@ -116,166 +116,176 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
           {op.priority && <PriorityPin priority={op.priority} />}
         </div>
 
-        {/* Hover card */}
+        {/* Hover card. The pin-to-card gap is padding on this wrapper, not a
+            positional offset — as dead space it drops :hover mid-crossing and the
+            card vanishes before the pointer can reach the reply controls. */}
         <div
           class={cn(
             'absolute',
             flipV ? 'bottom-0' : 'top-0',
-            flipH ? 'right-[calc(100%+10px)]' : 'left-[calc(100%+10px)]',
-            'bg-[var(--ml-glass-bg-small)] border border-[var(--ml-glass-border)]',
-            'shadow-[0_0_0_0.5px_oklch(0_0_0/0.5),0_6px_24px_oklch(0_0_0/0.35),0_16px_48px_oklch(0_0_0/0.25)]',
-            'rounded-xl',
-            'w-[300px]',
-            'opacity-0 scale-90 pointer-events-none',
-            flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
-            'transition-all duration-200 ease-out',
-            'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0 group-hover/pin:pointer-events-auto',
-            'max-h-[400px] overflow-y-auto',
+            flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
+            'pointer-events-none group-hover/pin:pointer-events-auto',
           )}
-          onClick={(e) => e.stopPropagation()}
         >
-          {/* Root comment */}
-          <div class="flex items-center gap-2.5 pt-3 px-3.5 pb-2">
-            <div
-              class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
+          <div
+            class={cn(
+              'bg-[var(--ml-glass-bg-small)] border border-[var(--ml-glass-border)]',
+              'shadow-[0_0_0_0.5px_oklch(0_0_0/0.5),0_6px_24px_oklch(0_0_0/0.35),0_16px_48px_oklch(0_0_0/0.25)]',
+              'rounded-xl',
+              'w-[300px]',
+              'opacity-0 scale-90',
+              flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
+              'transition-[opacity,scale,translate] duration-200 ease-out',
+              'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0',
+              'max-h-[400px] overflow-y-auto',
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Root comment */}
+            <div class="flex items-center gap-2.5 pt-3 px-3.5 pb-2">
+              <div
+                class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
                      shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
-              style={{ background: op.color }}
-            >
-              {op.num}
+                style={{ background: op.color }}
+              >
+                {op.num}
+              </div>
+              <span class="text-[11px] text-ml-glass-fg/80 font-semibold tracking-wide flex-1">
+                {op.author || 'Anonymous'}
+              </span>
+              {op.priority && <PriorityBadge priority={op.priority} />}
+              <span class="text-[10.5px] text-ml-glass-fg/60 font-medium tabular-nums">{timeAgo(op.ts)}</span>
             </div>
-            <span class="text-[11px] text-ml-glass-fg/80 font-semibold tracking-wide flex-1">
-              {op.author || 'Anonymous'}
-            </span>
-            {op.priority && <PriorityBadge priority={op.priority} />}
-            <span class="text-[10.5px] text-ml-glass-fg/55 font-medium tabular-nums">{timeAgo(op.ts)}</span>
-          </div>
 
-          {(op.assignedAgent || dismissed) && (
-            <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
-              {op.assignedAgent && (
-                <span
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
-                  style={{ background: 'oklch(0.7 0.16 60 / 0.15)', color: styles.color }}
-                >
-                  {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
-                  {op.assignedAgent}
-                </span>
-              )}
-              {dismissed && op.dismissReason && (
-                <span class="text-[10.5px] italic text-ml-glass-fg/65">{op.dismissReason}</span>
-              )}
-            </div>
-          )}
-
-          <div class="pt-1 px-3.5 pb-2.5">
-            <p class="m-0 text-ml-glass-fg/90 text-[13px] leading-[1.55] break-words whitespace-pre-wrap">{op.text}</p>
-          </div>
-
-          {/* Replies */}
-          {replies.length > 0 && (
-            <div>
-              <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
-              {replies.map((reply) => (
-                <div key={reply.id} class="px-3.5 py-2 border-l-2 border-ml-glass-fg/[0.06] ml-3">
-                  <div class="flex items-center gap-2 mb-1">
-                    <div
-                      class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0"
-                      style={{ background: reply.color }}
-                    >
-                      {(reply.author || '?').charAt(0).toUpperCase()}
-                    </div>
-                    <span class="text-[11px] text-ml-glass-fg/75 font-semibold">{reply.author || 'Anonymous'}</span>
-                    <span class="text-[10px] text-ml-glass-fg/50 tabular-nums">{timeAgo(reply.ts)}</span>
-                  </div>
-                  <p class="m-0 text-ml-glass-fg/85 text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap">
-                    {reply.text}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Divider */}
-          <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
-
-          {/* Reply input */}
-          {showReply ? (
-            <div class="pt-2 px-3 pb-2.5">
-              <textarea
-                name="reply"
-                ref={replyRef}
-                placeholder="Reply..."
-                rows={1}
-                class={cn(
-                  'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-lg px-3 py-2',
-                  'text-ml-glass-fg text-[12.5px] leading-relaxed',
-                  'resize-none outline-none min-h-8 max-h-[80px]',
-                  'caret-ml-accent',
-                  'focus:border-ml-accent/50 focus:bg-ml-glass-fg/6',
-                  'placeholder:text-ml-glass-fg/45',
-                  glass.font,
+            {(op.assignedAgent || dismissed) && (
+              <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
+                {op.assignedAgent && (
+                  <span
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                    style={{ background: 'oklch(0.7 0.16 60 / 0.15)', color: styles.color }}
+                  >
+                    {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
+                    {op.assignedAgent}
+                  </span>
                 )}
-                style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    submitReply();
-                  } else if (e.key === 'Escape') {
-                    setShowReply(false);
-                  }
-                }}
-              />
-              <div class="flex items-center justify-end gap-2 mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowReply(false)}
-                  class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer px-2 py-1 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={submitReply}
-                  class="text-[11px] font-semibold px-3 py-1.5 rounded-md cursor-pointer border-none
+                {dismissed && op.dismissReason && (
+                  <span class="text-[10.5px] italic text-ml-glass-fg/65">{op.dismissReason}</span>
+                )}
+              </div>
+            )}
+
+            <div class="pt-1 px-3.5 pb-2.5">
+              <p class="m-0 text-ml-glass-fg/90 text-[13px] leading-[1.55] break-words whitespace-pre-wrap">
+                {op.text}
+              </p>
+            </div>
+
+            {/* Replies */}
+            {replies.length > 0 && (
+              <div>
+                <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+                {replies.map((reply) => (
+                  <div key={reply.id} class="px-3.5 py-2 border-l-2 border-ml-glass-fg/[0.06] ml-3">
+                    <div class="flex items-center gap-2 mb-1">
+                      <div
+                        class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0"
+                        style={{ background: reply.color }}
+                      >
+                        {(reply.author || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <span class="text-[11px] text-ml-glass-fg/75 font-semibold">{reply.author || 'Anonymous'}</span>
+                      <span class="text-[10px] text-ml-glass-fg/60 tabular-nums">{timeAgo(reply.ts)}</span>
+                    </div>
+                    <p class="m-0 text-ml-glass-fg/85 text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap">
+                      {reply.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Divider */}
+            <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+
+            {/* Reply input */}
+            {showReply ? (
+              <div class="pt-2 px-3 pb-2.5">
+                <textarea
+                  name="reply"
+                  ref={replyRef}
+                  placeholder="Reply…"
+                  rows={1}
+                  class={cn(
+                    'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-lg px-3 py-2',
+                    'text-ml-glass-fg text-[12.5px] leading-relaxed',
+                    'resize-none outline-none min-h-8 max-h-[80px]',
+                    'caret-ml-accent',
+                    'focus:border-ml-accent/50 focus:bg-ml-glass-fg/6',
+                    'placeholder:text-ml-glass-fg/60',
+                    glass.font,
+                  )}
+                  style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      submitReply();
+                    } else if (e.key === 'Escape') {
+                      setShowReply(false);
+                    }
+                  }}
+                />
+                <div class="flex items-center justify-end gap-2 mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowReply(false)}
+                    class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer px-2 py-1 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submitReply}
+                    class="text-[11px] font-semibold px-3 py-1.5 rounded-md cursor-pointer border-none
                          bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
                          text-white shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
                          hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
                          active:scale-[0.96] transition-[box-shadow,transform] duration-150"
+                  >
+                    Reply
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div class="flex items-center gap-2 pt-2 px-3.5 pb-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowReply(true);
+                    setTimeout(() => replyRef.current?.focus(), 50);
+                  }}
+                  class="text-[11.5px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
+                       border border-ml-glass-fg/12 bg-ml-glass-fg/4
+                       text-ml-glass-fg/75 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8
+                       transition-[color,background-color,border-color] duration-150"
                 >
                   Reply
                 </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpStatus(op.id, resolved ? 'open' : 'resolved');
+                  }}
+                  class="text-[11.5px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
+                       border border-ml-glass-fg/12 bg-ml-glass-fg/4
+                       text-ml-glass-fg/75 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8
+                       transition-[color,background-color,border-color] duration-150"
+                >
+                  {resolved ? 'Reopen' : 'Resolve'}
+                </button>
               </div>
-            </div>
-          ) : (
-            <div class="flex items-center gap-2 pt-2 px-3.5 pb-2.5">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowReply(true);
-                  setTimeout(() => replyRef.current?.focus(), 50);
-                }}
-                class="text-[11.5px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
-                       border border-ml-glass-fg/12 bg-ml-glass-fg/4
-                       text-ml-glass-fg/75 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8
-                       transition-[color,background-color,border-color] duration-150"
-              >
-                Reply
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpStatus(op.id, resolved ? 'open' : 'resolved');
-                }}
-                class="text-[11.5px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
-                       border border-ml-glass-fg/12 bg-ml-glass-fg/4
-                       text-ml-glass-fg/75 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8
-                       transition-[color,background-color,border-color] duration-150"
-              >
-                {resolved ? 'Reopen' : 'Resolve'}
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
