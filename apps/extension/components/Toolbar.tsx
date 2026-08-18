@@ -1,9 +1,10 @@
 import { cn } from '@marklayer/types';
-import { useSignalEffect } from '@preact/signals';
+import { signal, useSignalEffect } from '@preact/signals';
 import type { RefObject } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
+import { prefersReducedMotion } from '../lib/media';
 import {
   activeTool,
   clearAll,
@@ -26,11 +27,8 @@ import type { Tool } from '../lib/types';
 import { SettingsPanel } from './SettingsPanel';
 import { Tooltip } from './Tooltip';
 
-const prefersReducedMotion = () =>
-  typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 const TOOLBTN_VARIANTS = {
-  idle: 'bg-transparent text-ml-glass-fg/45',
+  idle: 'bg-transparent text-ml-glass-fg/60',
   accent: 'shadow-[inset_0_0_0_1px_var(--ml-glass-border),inset_0_0.5px_0_var(--ml-glass-border)]',
   plain: 'bg-ml-glass-fg/[0.1] text-ml-glass-fg shadow-[inset_0_0.5px_0_var(--ml-glass-border)]',
 } as const;
@@ -87,16 +85,22 @@ function ToolBtn({
         'leading-none inline-flex items-center justify-center min-w-7.5 min-h-7.5',
         'transition-[background,box-shadow,color,opacity,scale] duration-150 ease-out outline-none',
         'hover:bg-ml-glass-fg/[0.08] hover:shadow-[inset_0_0.5px_0_var(--ml-glass-border)]',
-        !dragging && 'active:bg-ml-glass-fg/4 active:scale-[0.94]',
+        !dragging && 'active:bg-ml-glass-fg/4 active:scale-[0.96]',
         'focus-visible:ring-2 focus-visible:ring-ml-glass-fg/40 focus-visible:ring-offset-0',
-        round ? 'rounded-full' : 'rounded-xl',
+        // Concentric with the toolbar shell: its 22px radius minus the 8px `p-2`
+        // gutter is 14px. At `rounded-xl` (12px) the button corners curved
+        // tighter than the shell they sit in, which is what makes a nested
+        // rounded surface read as slightly off.
+        round ? 'rounded-full' : 'rounded-[14px]',
         TOOLBTN_VARIANTS[variant],
         dragging && 'scale-110 z-10 cursor-grabbing shadow-[0_10px_28px_-6px_oklch(0_0_0/0.45)]',
       )}
       style={accentStyle}
     >
       <Icon name={name} />
-      {!suppressTooltip && <Tooltip text={tip} shortcut={shortcut} />}
+      {/* Disabled, not unmounted: tearing every tooltip out of the tree at the
+          moment a reorder starts costs a hitch on the first frame of the drag. */}
+      <Tooltip text={tip} shortcut={shortcut} disabled={suppressTooltip} />
     </button>
   );
 }
@@ -106,6 +110,61 @@ type DragApi = {
   start: (e: PointerEvent) => void;
   reset: () => void;
 };
+
+/**
+ * Mounted for the lifetime of any toolbar drag. The web viewer renders the
+ * target page in an iframe, and an iframe swallows the pointer stream the
+ * moment the cursor crosses into it — our `document` listeners go quiet and
+ * the toolbar freezes until the cursor comes back out, which is what read as
+ * lag in preview mode but never on the landing page. A transparent layer in
+ * *our* document keeps every move in one stream, and carries the grabbing
+ * cursor so it doesn't flicker back to the page's cursor mid-drag.
+ */
+const dragShieldActive = signal(false);
+
+function DragShield() {
+  if (!dragShieldActive.value) return null;
+  return <div aria-hidden="true" class="fixed inset-0 z-2147483645" style={{ cursor: 'grabbing' }} />;
+}
+
+/** Keep a captured pointer's events flowing to us even over foreign content. */
+function capturePointer(target: EventTarget | null, pointerId: number) {
+  if (!(target instanceof Element)) return;
+  try {
+    target.setPointerCapture(pointerId);
+  } catch {
+    // The pointer can already be gone (fast tap, cancelled gesture) — the
+    // shield and the document listeners still carry the drag on their own.
+  }
+}
+
+/**
+ * Sample the pointer on every move but run `onFrame` at most once per frame:
+ * pointermove fires faster than the display refreshes (and in bursts after a
+ * busy frame), so acting on each event just piles up work the compositor
+ * throws away. `flush` lands the last sample instead of dropping the frame.
+ */
+function pointerSampler(e: PointerEvent, onFrame: (x: number, y: number) => void) {
+  let frame = 0;
+  let px = e.clientX;
+  let py = e.clientY;
+  const run = () => {
+    frame = 0;
+    onFrame(px, py);
+  };
+  return {
+    sample(ev: PointerEvent) {
+      px = ev.clientX;
+      py = ev.clientY;
+      if (!frame) frame = requestAnimationFrame(run);
+    },
+    flush() {
+      if (!frame) return;
+      cancelAnimationFrame(frame);
+      run();
+    },
+  };
+}
 
 function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
   const [dragging, setDragging] = useState(false);
@@ -145,15 +204,21 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
       el.style.top = `${baseY}px`;
       el.style.bottom = 'auto';
 
-      // Listen on document — pointer capture on the grip is fragile when
-      // the grip's parent (toolbar) is being repositioned mid-drag.
+      const sampler = pointerSampler(e, (px, py) => {
+        const x = Math.min(Math.max(px - offX, 0), innerWidth - w);
+        const y = Math.min(Math.max(py - offY, 0), innerHeight - h);
+        el.style.translate = `${x - baseX}px ${y - baseY}px`;
+      });
+
+      // Capture, shield and document listeners are three belts for one brace:
+      // capture keeps the stream on us, the shield keeps the cursor over our
+      // own document, and listening on `document` (rather than the grip)
+      // survives the grip being repositioned under the pointer.
       // Filtering by pointerId ignores secondary pointers (multi-touch).
       const onMove = (ev: PointerEvent) => {
         if (ev.pointerId !== pointerId) return;
         if (ev.cancelable) ev.preventDefault();
-        const x = Math.min(Math.max(ev.clientX - offX, 0), innerWidth - w);
-        const y = Math.min(Math.max(ev.clientY - offY, 0), innerHeight - h);
-        el.style.translate = `${x - baseX}px ${y - baseY}px`;
+        sampler.sample(ev);
       };
 
       const onEnd = (ev: PointerEvent) => {
@@ -161,6 +226,9 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onEnd);
         document.removeEventListener('pointercancel', onEnd);
+        // Land on the last sampled position instead of dropping the frame.
+        sampler.flush();
+        dragShieldActive.value = false;
         setDragging(false);
       };
 
@@ -169,6 +237,8 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onEnd);
       document.addEventListener('pointercancel', onEnd);
+      capturePointer(e.currentTarget, pointerId);
+      dragShieldActive.value = true;
       setDragging(true);
     },
     [ref],
@@ -193,8 +263,10 @@ function DragGrip({ drag }: { drag: DragApi }) {
       onPointerDown={drag.start}
       aria-hidden="true"
       class={cn(
-        'w-3 h-5 cursor-grab shrink-0 opacity-30 mx-1 touch-none',
-        'hover:opacity-50 transition-opacity duration-200',
+        // The grip is a real control, so it has to clear 3:1 against the glass;
+        // 0.3 over the 0.9-alpha grip colour left it at ~1.9:1 and unfindable.
+        'w-3 h-5 cursor-grab shrink-0 opacity-50 mx-1 touch-none',
+        'hover:opacity-75 transition-opacity duration-200',
         'bg-[radial-gradient(circle,var(--ml-glass-grip)_0.8px,transparent_0.8px)]',
         '[background-size:5px_5px] bg-center bg-repeat',
       )}
@@ -206,7 +278,7 @@ function DragGrip({ drag }: { drag: DragApi }) {
 const TOOL_LABELS: Partial<Record<Tool, string>> = {
   multiInspect: 'Multi-select',
 };
-const lbl = (t: Tool) => TOOL_LABELS[t] ?? t[0].toUpperCase() + t.slice(1);
+const lbl = (t: Tool) => TOOL_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
 
 const HISTORY_ACTIONS = [
   { id: 'undo', icon: 'undo', tip: 'Undo', shortcut: '⌘Z', fn: undo },
@@ -306,7 +378,16 @@ function useFlipReorder(deps: unknown[]) {
     // reorder CSS layout position, which is the target of the new animation.
     if (!prefersReducedMotion()) {
       for (const btn of buttons) {
-        for (const a of btn.getAnimations()) a.cancel();
+        for (const a of btn.getAnimations()) {
+          // Leave CSS-declared animations running. `getAnimations()` returns
+          // those too, so cancelling everything here silently killed the landing
+          // page's staggered entrance on exactly the buttons this hook manages:
+          // the tools sat fully drawn while the rest of the bar animated in.
+          // Imperative FLIP transforms and in-flight transitions are still
+          // cancelled, and those are what actually skew the measurement below.
+          if ('animationName' in a) continue;
+          a.cancel();
+        }
       }
       for (const btn of buttons) {
         const tool = btn.dataset.tool;
@@ -357,50 +438,51 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
       // Cursor-follow state, captured at activation.
       let draggedBtn: HTMLElement | null = null;
       let itemStep = 0;
+      let firstSlotCentre = 0;
+      let slotCount = 0;
       let activationCx = 0;
       let activationCy = 0;
       let lastDx = 0;
       let lastDy = 0;
 
-      const onMove = (ev: PointerEvent) => {
-        if (ev.pointerId !== pointerId) return;
-        if (!activated) {
-          if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
-          activated = true;
-          setDraggingTool(tool);
-          // Snapshot layout geometry so we can compute the dragged button's
-          // visual offset from its current CSS slot on every pointermove
-          // (slots don't move; the dragged button does).
-          const container = containerRef.current;
-          if (container) {
-            const all = Array.from(container.querySelectorAll<HTMLElement>('[data-tool]'));
-            const r0 = all[0]?.getBoundingClientRect();
-            const r1 = all[1]?.getBoundingClientRect();
-            // Slot pitch — distance between consecutive buttons. Used to
-            // cancel out the CSS-slot displacement caused by optimistic
-            // reorders so the dragged button stays glued to the cursor.
-            itemStep = r0 && r1 ? r1.left - r0.left : (r0?.width ?? 0);
-            draggedBtn = all[fromIndex] ?? null;
-          }
-          activationCx = ev.clientX;
-          activationCy = ev.clientY;
-        }
+      const activate = (cx: number, cy: number) => {
+        activated = true;
+        setDraggingTool(tool);
+        // Snapshot the slot geometry once. The slots themselves never move
+        // during a reorder — only which button sits in each does — so a single
+        // measurement is enough for the whole drag. Re-measuring per move used
+        // to force a synchronous relayout on every event AND read rects while
+        // the FLIP animations were still running, so the drop target flickered
+        // between two indices as the buttons crossed.
         const container = containerRef.current;
-        if (!container) return;
-        // Filtered to exclude the dragged button (which has data-dragging).
-        // Each remaining button represents an insertion slot. The result `next`
-        // is a target index in toolOrder for moveTool(): cursor before all → 0,
-        // cursor past all → buttons.length (insert at end), otherwise the index
-        // of the first non-dragged button whose midpoint is past the cursor.
-        const buttons = container.querySelectorAll<HTMLElement>('[data-tool]:not([data-dragging])');
-        let next = buttons.length;
-        for (let i = 0; i < buttons.length; i++) {
-          const r = buttons[i].getBoundingClientRect();
-          if (ev.clientX < r.left + r.width / 2) {
-            next = i;
-            break;
+        if (container) {
+          const all = Array.from(container.querySelectorAll<HTMLElement>('[data-tool]'));
+          slotCount = all.length;
+          const r0 = all[0]?.getBoundingClientRect();
+          const r1 = all[1]?.getBoundingClientRect();
+          firstSlotCentre = r0 ? r0.left + r0.width / 2 : 0;
+          // Slot pitch — distance between consecutive buttons. Used both to
+          // pick the drop index and to cancel out the CSS-slot displacement
+          // caused by optimistic reorders, so the dragged button stays glued
+          // to the cursor.
+          itemStep = r0 && r1 ? r1.left - r0.left : (r0?.width ?? 0);
+          draggedBtn = all[fromIndex] ?? null;
+          if (draggedBtn) {
+            draggedBtn.style.willChange = 'translate';
+            // Capture only once the drag is real, so a plain click on a tool
+            // keeps its untouched default pointerdown → pointerup → click path.
+            capturePointer(draggedBtn, pointerId);
           }
         }
+        activationCx = cx;
+        activationCy = cy;
+      };
+
+      const sampler = pointerSampler(e, (px, py) => {
+        // Nearest slot to the cursor, straight from the snapshotted pitch — no
+        // DOM reads, so the move handler never invalidates layout.
+        const next =
+          itemStep > 0 ? Math.min(Math.max(Math.round((px - firstSlotCentre) / itemStep), 0), slotCount - 1) : to;
         if (next !== to) {
           // Optimistically reorder so the user sees a live preview; FLIP
           // smooths each cross for the OTHER buttons (the dragged button is
@@ -413,12 +495,20 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
         // reorders — when `to` moves by 1, the button's CSS slot shifts by
         // itemStep, so we subtract that to keep visual position smooth.
         if (draggedBtn) {
-          const dx = (fromIndex - to) * itemStep + (ev.clientX - activationCx);
-          const dy = ev.clientY - activationCy;
-          draggedBtn.style.translate = `${dx}px ${dy}px`;
-          lastDx = dx;
-          lastDy = dy;
+          lastDx = (fromIndex - to) * itemStep + (px - activationCx);
+          lastDy = py - activationCy;
+          draggedBtn.style.translate = `${lastDx}px ${lastDy}px`;
         }
+      });
+
+      const onMove = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        if (!activated) {
+          if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
+          activate(ev.clientX, ev.clientY);
+          dragShieldActive.value = true;
+        }
+        sampler.sample(ev);
       };
 
       const onEnd = (ev: PointerEvent) => {
@@ -426,7 +516,10 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
         document.removeEventListener('pointermove', onMove);
         document.removeEventListener('pointerup', onEnd);
         document.removeEventListener('pointercancel', onEnd);
+        // A pending frame implies the drag activated; land it before settling.
+        sampler.flush();
         if (!activated) return;
+        dragShieldActive.value = false;
         // Spring-back: animate translate from cursor offset to 0 with a slight
         // overshoot. We clear inline `translate` first so once the WAAPI ends
         // (no fill) the element settles to CSS default (0) — no jump back to
@@ -434,9 +527,14 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
         if (draggedBtn) {
           const btn = draggedBtn;
           btn.style.translate = '';
-          btn.animate([{ translate: `${lastDx}px ${lastDy}px` }, { translate: '0 0' }], {
+          const settle = btn.animate([{ translate: `${lastDx}px ${lastDy}px` }, { translate: '0 0' }], {
             duration: 320,
             easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+          });
+          // Hold the hint until the spring lands, then drop it — a permanent
+          // will-change keeps a compositor layer alive for nothing.
+          settle.finished.finally(() => {
+            btn.style.willChange = '';
           });
         }
         setDraggingTool(null);
@@ -451,8 +549,9 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
       };
 
       // Listen on document — pointermove on the button itself stops firing
-      // once the cursor leaves it (no pointer capture), and capture is
-      // fragile when the button is being repositioned mid-drag.
+      // once the cursor leaves it, and the button is being repositioned under
+      // the pointer as slots swap. Capture (set at activation) and the shield
+      // keep an iframe under the cursor from taking the stream away mid-drag.
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onEnd);
       document.addEventListener('pointercancel', onEnd);
@@ -474,9 +573,12 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
   const toolsRef = useFlipReorder([tools]);
   const reorder = useToolReorder(toolsRef);
 
+  // Hooks for the landing page's staggered entrance (apps/worker/web/style.css).
+  // Attributes only: nothing reads them here, and the animation is scoped to
+  // `.lp-toolbar-in`, so the Viewer and the extension are unaffected.
   return (
-    <div class="flex items-center gap-0.5">
-      <div ref={toolsRef} class="flex gap-0.5 items-center">
+    <div data-ml-tb="row" class="flex items-center gap-0.5">
+      <div ref={toolsRef} data-ml-tb="tools" class="flex gap-0.5 items-center">
         {tools.map((t) => {
           const realIndex = toolOrder.value.indexOf(t);
           const showStackBadge = t === 'inspect' && inspectorStack.value.length > 0;
@@ -513,7 +615,7 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
 
       <div class={glass.sep} />
 
-      <div class="flex gap-0.5 items-center">
+      <div data-ml-tb="history" class="flex gap-0.5 items-center">
         {HISTORY_ACTIONS.map((a) => (
           <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.tip} shortcut={a.shortcut} />
         ))}
@@ -644,6 +746,7 @@ export function Toolbar() {
           <ExpandedToolbar onMinimize={onToggleMinimize} drag={drag} />
         )}
       </div>
+      <DragShield />
       <SettingsPanel />
     </>
   );
