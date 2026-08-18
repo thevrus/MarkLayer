@@ -1,0 +1,75 @@
+---
+import { CHROME_STORE_URL, REPO_URL } from '../lib/site';
+
+interface Props {
+  showPricing?: boolean;
+}
+
+const { showPricing = true } = Astro.props;
+const year = new Date().getFullYear();
+
+const columns: { heading: string; links: { href: string; label: string }[] }[] = [
+  {
+    heading: 'Product',
+    links: [
+      { href: '/', label: 'Home' },
+      ...(showPricing ? [{ href: '/pricing', label: 'Pricing' }] : []),
+      { href: CHROME_STORE_URL, label: 'Chrome Web Store' },
+    ],
+  },
+  {
+    heading: 'Compare',
+    links: [
+      { href: '/compare', label: 'Comparisons' },
+      { href: '/alternatives', label: 'Alternatives' },
+      { href: '/use-cases', label: 'Use cases' },
+    ],
+  },
+  {
+    heading: 'Resources',
+    links: [
+      { href: '/guides', label: 'Guides' },
+      { href: REPO_URL, label: 'GitHub' },
+    ],
+  },
+  {
+    heading: 'Company',
+    links: [
+      { href: '/about', label: 'About' },
+      { href: '/privacy', label: 'Privacy' },
+    ],
+  },
+];
+---
+
+{/* Weight inverted deliberately: the column heading used to be the ink semibold
+    and its links the grey underneath, which made the one thing nobody clicks the
+    loudest thing in the footer. The heading is a quiet label now and the
+    destinations carry the ink. */}
+<footer class="mt-20 mb-16 border-t border-rule pt-10">
+  {/* A grid, not `flex-wrap`. Wrapping put the fourth column on its own row as
+      soon as the links grew to UI size, which left three columns and an orphan
+      sitting off the shared baseline. A grid holds all four on one line and
+      drops them to two columns together. */}
+  <div class="grid grid-cols-2 gap-x-8 gap-y-9 sm:grid-cols-4">
+    {
+      columns.map((col) => (
+        <div>
+          <p class="m-0 mb-2.5 text-label text-meta">{col.heading}</p>
+          <ul class="m-0 list-none space-y-2 p-0">
+            {col.links.map((l) => (
+              <li class="m-0 p-0 text-ui">
+                <a class="text-ink no-underline transition-colors duration-150 hover:text-meta" href={l.href}>
+                  {l.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    }
+  </div>
+  <p class="mt-10 mb-0 text-label text-meta">
+    &copy; {year} MarkLayer &middot; Free, anonymous webpage annotation &middot; Open source, Apache-2.0.
+  </p>
+</footer>

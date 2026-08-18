@@ -1,19 +1,22 @@
 {
   "name": "marklayer",
   "devDependencies": {
-    "@biomejs/biome": "^2.4.16",
-    "turbo": "^2.9.16",
-    "typescript": "^6.0.3"
+    "@biomejs/biome": "^2.5.8",
+    "turbo": "^2.10.10",
+    "typescript": "^7.0.2"
   },
   "packageManager": "bun@1.3.14",
   "private": true,
   "scripts": {
-    "dev": "turbo dev",
-    "build": "turbo build",
-    "check": "turbo check",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "check": "turbo run check",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "deploy": "turbo build && cd apps/worker && bun run deploy"
+    "deploy": "turbo run deploy --filter=@marklayer/worker",
+    "deploy:mcp": "turbo run deploy --filter=marklayer-mcp",
+    "deploy:site": "turbo run deploy:pages --filter=@marklayer/site",
+    "zip:extension": "turbo run zip:all --filter=@marklayer/extension"
   },
   "workspaces": [
     "apps/*",

@@ -1,0 +1,124 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { breadcrumbSchema, PRODUCT_SCHEMA } from '../lib/schema';
+import { CHROME_STORE_URL, formatLastUpdated, ORIGIN } from '../lib/site';
+import dates from '../data/page-dates.json';
+
+const { modified } = dates.pricing;
+const title = 'MarkLayer Pricing: Free, No Tiers, No Paywall';
+const description =
+  'MarkLayer is completely free. No paid plan, no trial, no per-seat pricing. Open source and self-hostable.';
+
+const rows: [string, string][] = [
+  ['Price', '$0/month, $0/year, $0/forever'],
+  ['Annotations', 'Unlimited'],
+  ['Share links', 'Unlimited'],
+  ['Collaborators per session', 'Unlimited'],
+  ['Account / sign-up', 'Not required (anonymous)'],
+  ['Email required', 'No'],
+  ['Credit card required', 'No'],
+  ['Trial period', 'N/A (everything is free, forever)'],
+  ['Self-hosting', 'Open source: fork and deploy on your own Cloudflare account'],
+];
+---
+
+<html lang="en">
+  <head>
+    <BaseHead
+      title={title}
+      description={description}
+      canonical={`${ORIGIN}/pricing`}
+      ogType="website"
+      schema={[PRODUCT_SCHEMA, breadcrumbSchema([{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }])]}
+    >
+      <link
+        slot="extra-links"
+        rel="alternate"
+        type="text/markdown"
+        href="/pricing.md"
+        title="Machine-readable pricing"
+      />
+    </BaseHead>
+  </head>
+  <body>
+    <SiteHeader current="pricing" />
+    <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }]} />
+    <h1>MarkLayer is 100% free.</h1>
+    <p class="ml-meta mt-0 mb-8">
+      By <a href="/about">Vadym Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
+    </p>
+    <p class="ml-lede">
+      There is no pricing. MarkLayer is a free app, full stop. No paid plan, no trial, no per-seat fee, no premium tier,
+      no usage cap, no upsell. This page exists only to confirm that.
+    </p>
+
+    <h2>What you get for $0</h2>
+    <div class="ml-scroll-x">
+      <table>
+        <tbody>
+          {
+            rows.map(([label, value]) => (
+              <tr>
+                <th scope="row" class="w-[42%]">
+                  {label}
+                </th>
+                <td>{value}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <h2>Every feature is included</h2>
+    <ul>
+      <li>Drawing tools: freehand, shapes, arrows, and lines</li>
+      <li>Threaded comments pinned to any spot on a page</li>
+      <li>Real-time collaboration with live cursors</li>
+      <li>Shareable links: recipients don't need the extension or an account</li>
+      <li>Works on any website</li>
+      <li>Open source and self-hostable</li>
+    </ul>
+
+    <h2>What does <em>not</em> exist</h2>
+    <ul>
+      <li>No "Pro" tier.</li>
+      <li>No "Team" or "Enterprise" plan.</li>
+      <li>No per-seat pricing.</li>
+      <li>No usage cap or annotation limit.</li>
+      <li>No trial period; everything is already free.</li>
+      <li>No paywall, ever.</li>
+      <li>No "verified" or "premium" account.</li>
+      <li>No upsell flow inside the extension.</li>
+    </ul>
+
+    <h2>Why is it free?</h2>
+    <p>
+      MarkLayer exists to make webpage annotation accessible to everyone. Infrastructure runs on Cloudflare's low-cost
+      edge services, and the code is open source, so you can audit, fork, or self-host. There is no business model on
+      top of users. There is no plan to add one.
+    </p>
+
+    <h2>Machine-readable pricing</h2>
+    <p>
+      For AI agents and automated tools: a structured version of this page is available at{' '}
+      <a href="/pricing.md">/pricing.md</a>.
+    </p>
+
+    <a class="ml-cta mt-4" href={CHROME_STORE_URL}>
+      Add to Chrome
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+        <path
+          d="M2.5 8.5 8.5 2.5M3.9 2.5h4.6v4.6"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"></path>
+      </svg>
+    </a>
+    <SiteFooter showPricing={false} />
+  </body>
+</html>

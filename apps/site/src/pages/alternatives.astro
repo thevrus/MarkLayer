@@ -1,0 +1,50 @@
+---
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import { getAlternatives } from '../lib/collections';
+import { articleSchema } from '../lib/schema';
+import dates from '../data/page-dates.json';
+
+const alternatives = await getAlternatives();
+const { published, modified } = dates['hub-alternatives'];
+
+const path = '/alternatives';
+const title = 'Free Annotation Tool Alternatives Directory (Open-Source)';
+const description =
+  'Directory of free MarkLayer-vs-X comparison pages for BugHerd, Marker.io, Pastel, Markup.io, Hypothesis, Ruttl, Jam.dev, Loom, AnnotateWeb, and Userback.';
+const h1 = 'Free annotation tool alternatives';
+---
+
+<ArticleLayout
+  title={title}
+  description={description}
+  path={path}
+  h1={h1}
+  breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Alternatives' }]}
+  modified={modified}
+  schema={[articleSchema({ h1, description, path, published, modified })]}
+>
+  <Fragment slot="intro">
+    Pick the paid tool you are switching from. Each link is a dedicated comparison page with feature tables, pricing,
+    and a verdict.
+  </Fragment>
+
+  {/* The hub is a router, not a content page. One line per row so it does not
+      cannibalize the dedicated /alternatives/<slug> page on brand queries. */}
+  <h2>Browse by tool</h2>
+  <ul>
+    {
+      alternatives.map((a) => (
+        <li>
+          <a href={`/alternatives/${a.id}`}>Free {a.data.target} alternative</a>
+          {a.data.hubBlurb ? ` — ${a.data.hubBlurb}` : null}
+        </li>
+      ))
+    }
+  </ul>
+
+  <h2>Also worth comparing</h2>
+  <p>
+    See the full <a href="/compare">side-by-side comparison index</a> for head-to-head feature tables, or jump to{' '}
+    <a href="/use-cases">use cases</a> if you want to start from the workflow rather than the tool.
+  </p>
+</ArticleLayout>

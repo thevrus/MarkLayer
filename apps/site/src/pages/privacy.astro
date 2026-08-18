@@ -1,0 +1,84 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { ORIGIN, REPO_URL } from '../lib/site';
+
+const title = 'Privacy Policy · MarkLayer';
+const description =
+  'MarkLayer collects no personal information. No account, email, or sign-up. Annotations are stored only when you share them, and are deleted automatically.';
+---
+
+<html lang="en">
+  <head>
+    <BaseHead title={title} description={description} canonical={`${ORIGIN}/privacy`} ogType="website" />
+  </head>
+  <body>
+    <SiteHeader />
+    <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Privacy' }]} />
+    <h1>Privacy Policy</h1>
+    {/* Stated review date of the policy itself. It changes when the policy
+        changes, not when the page is rebuilt. */}
+    <p class="ml-meta mt-0 mb-8">Last updated: March 2026</p>
+
+    <h2>What we collect</h2>
+    <p>MarkLayer does not collect personal information. No account, email, or sign-up is required.</p>
+    <p>
+      When you use the annotation tools, a randomly generated display name and cursor color are stored in your browser's
+      local storage. These are never sent to our servers except as part of real-time collaboration sessions you
+      initiate.
+    </p>
+
+    <h2>Annotation data</h2>
+    <p>
+      Annotations you create (drawings, comments, text) are sent to our server only when you choose to share them.
+      Shared annotations are stored temporarily and automatically deleted after their expiration period.
+    </p>
+
+    <h2>Page content</h2>
+    <p>
+      The extension does not read, collect, or transmit the content of any webpage you visit. It only renders its own
+      overlay on top of the page.
+    </p>
+
+    <h2>Analytics</h2>
+    <p>
+      The MarkLayer web app uses <a href="https://posthog.com">PostHog</a> to count page views and a small number of
+      aggregate product events, such as how many annotations a session produced and which tools were used. Our
+      marketing pages (comparisons, use cases, pricing) ship no JavaScript at all and are not tracked.
+    </p>
+    <p>We deliberately collect as little as possible, because you point MarkLayer at pages we have no business seeing:</p>
+    <ul>
+      <li>
+        Session replay records only MarkLayer's own interface, to help us fix bugs. The page you annotate is blocked
+        from recording and appears as an empty box, and anything you type is masked. No heatmaps, no autocapture of
+        clicks or keystrokes.
+      </li>
+      <li>
+        No URLs of the pages you annotate, no share-link IDs, and no page content. Diagnostic events record a reason
+        code and a duration, nothing more.
+      </li>
+      <li>No cookies and no user profiles. Events are counters, so there is no per-person record to build or hand over.</li>
+      <li>IP addresses are discarded rather than stored.</li>
+      <li>The browser extension collects no analytics whatsoever.</li>
+    </ul>
+    <p>
+      We honour <a href="https://en.wikipedia.org/wiki/Do_Not_Track">Do Not Track</a>. To opt out regardless, run
+      <code>localStorage.setItem('marklayer:no-analytics', '1')</code> in your browser console, and nothing further will
+      be sent. MarkLayer is open source, so you can verify all of this in
+      <a href={`${REPO_URL}/blob/main/apps/worker/web/analytics.ts`}>analytics.ts</a> and
+      <a href={`${REPO_URL}/blob/main/apps/worker/src/posthog.ts`}>posthog.ts</a>.
+    </p>
+
+    <h2>Third parties</h2>
+    <p>
+      We use PostHog for analytics as described above. We do not sell, share, or transfer any data to other third
+      parties.
+    </p>
+
+    <h2>Contact</h2>
+    <p>Questions? Open an issue on our <a href={REPO_URL}>GitHub repository</a>.</p>
+    <SiteFooter />
+  </body>
+</html>

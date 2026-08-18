@@ -1,0 +1,60 @@
+---
+order: 11
+title: "stagewise vs MarkLayer: Localhost Toolbar vs Live Rooms"
+description: "stagewise points AI agents at UI elements in your local dev server. MarkLayer does that on any URL (localhost, staging, production) and lets non-developers join."
+competitor: "stagewise"
+competitorTagline: "an open-source browser toolbar that lets developers point at UI elements in their local dev app and hand the context to AI coding agents"
+homepage: "https://stagewise.io"
+bottomLine: "Choose MarkLayer when feedback comes from more people than just you: teammates, clients, or an agent that should report status back into a shared room. Choose stagewise if you are a solo developer iterating in your local dev server and want element context piped straight into your editor agent."
+quote: "stagewise proved developers want to point at a UI element instead of describing it to an agent. MarkLayer takes the same idea out of localhost: any URL, a share link a client can open, and an MCP loop where the agent reports back into the room."
+published: 2026-01-24
+modified: 2026-03-15
+rows:
+  - feature: "Price"
+    ml: "Free, no tiers"
+    them: "Free open-source toolbar; paid cloud plans"
+  - feature: "Where it works"
+    ml: "Any URL: localhost, staging, production"
+    them: "Your local dev app"
+  - feature: "Who can annotate"
+    ml: "Anyone with the link; viewers need no install"
+    them: "The developer running it"
+  - feature: "Sign-up required"
+    ml: "No"
+    them: "No for the toolbar; account for cloud features"
+  - feature: "Real-time multiplayer"
+    ml: "Yes. Live cursors, comments, voice"
+    them: "No"
+  - feature: "AI agent integration"
+    ml: "MCP server: watch, acknowledge, resolve, reply"
+    them: "Yes. Sends element context to coding agents"
+  - feature: "Threaded comments and statuses"
+    ml: "Yes. Open, in progress, resolved, dismissed"
+    them: "Prompt-style handoff, not a review thread"
+  - feature: "Open source"
+    ml: "Yes (Apache-2.0)"
+    them: "Yes (AGPLv3)"
+  - feature: "Best for"
+    ml: "Team and client review with agents in the loop"
+    them: "Solo frontend iteration with an agent"
+chooseMl:
+  - "Feedback comes from designers, PMs, or clients, not only from you."
+  - "You need annotations on staging or production URLs, not just your local dev server."
+  - "You want the agent to report progress back where everyone can see it."
+  - "You want comments to persist as threads with statuses, not vanish after one prompt."
+chooseThem:
+  - "You are a solo developer working against your own local dev server."
+  - "You want element context injected directly into your code editor agent with no room or link step."
+  - "Your workflow is prompt-iterate-prompt, not review-and-resolve."
+faq:
+  - q: "Are MarkLayer and stagewise solving the same problem?"
+    a: "Partly. Both let a human point at a UI element so an AI coding agent gets exact context (selector, styles, position) instead of a vague description. stagewise scopes this to a developer working in a local dev app. MarkLayer scopes it to a shared room on any URL, where non-developers can leave the annotations and the agent works through them."
+  - q: "Does MarkLayer work on localhost like stagewise?"
+    a: "Yes. The Chrome extension annotates any page it can open, including localhost dev servers. Share links to public URLs additionally open in any browser with no extension."
+  - q: "Can an AI agent resolve MarkLayer annotations?"
+    a: "Yes. The marklayer-mcp server exposes tools to watch a room for new annotations, mark one in progress, resolve it with a summary reply, dismiss it with a reason, or reply without changing status. Humans in the room see each change live."
+  - q: "Is stagewise free?"
+    a: "The toolbar is open source under AGPLv3, and paid cloud plans exist (August 2026). MarkLayer is fully free with no tiers, licensed Apache-2.0."
+---
+
+MarkLayer and [stagewise](https://stagewise.io) close the same gap: an AI coding agent cannot see the pixel you mean. stagewise is a developer toolbar embedded in your local dev app; you click an element and the context lands in your coding agent. MarkLayer is a Chrome extension plus share link that works on any page (localhost, staging, or production) and adds threaded comments, real-time multiplayer, and an MCP server the agent talks back through.

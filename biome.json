@@ -1,11 +1,11 @@
 {
   "root": true,
-  "$schema": "https://biomejs.dev/schemas/2.4.13/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
   "assist": { "actions": { "source": { "organizeImports": "on" } } },
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "correctness": {
         "noUnusedVariables": "warn",
         "noUnusedImports": "warn"
@@ -50,8 +50,11 @@
       "!**/.wxt",
       "!**/.wrangler",
       "!**/.turbo",
+      "!**/.astro",
       "!**/dist",
+      "!**/*.astro",
       "!**/bun.lock",
+      "!**/*.svg",
       "!**/public/assets",
       "!apps/worker/public",
       "!**/worker-configuration.d.ts",

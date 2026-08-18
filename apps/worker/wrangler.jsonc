@@ -12,8 +12,29 @@
   "assets": {
     "directory": "public",
     "binding": "ASSETS",
+    // "none": an unmatched path still falls through to the Worker, which is
+    // what keeps the `proxy.all('*')` catch-all reachable.
     "not_found_handling": "none",
-    "run_worker_first": true
+    // Only the dynamic surface runs the Worker first. Everything else — the 37
+    // prerendered marketing pages from apps/site, plus the SPA bundle — is
+    // served straight from the asset layer without a Worker invocation.
+    //
+    // This list is load-bearing: `true` would send /vs/* through Hono, where
+    // the proxy catch-all would try to fetch them as remote URLs.
+    "run_worker_first": [
+      "/", // SPA shell, plus `Accept: text/markdown` negotiation and Link headers
+      "/s/*", // shared annotation pages (injects dynamic OG tags)
+      "/p/*", // multi-page projects
+      "/og/*", // generated OG images
+      "/ws/*", // Durable Object WebSocket upgrade
+      "/api/*",
+      "/proxy",
+      "/px/*",
+      "/robots.txt",
+      "/llms.txt",
+      "/llms-full.txt",
+      "/.well-known/*"
+    ]
   },
   "d1_databases": [
     {

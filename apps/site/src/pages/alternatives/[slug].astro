@@ -1,0 +1,72 @@
+---
+import { render } from 'astro:content';
+import Faq from '../../components/Faq.astro';
+import Related from '../../components/Related.astro';
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import { getAlternatives, getComparisons, relatedLinks } from '../../lib/collections';
+import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+
+export async function getStaticPaths() {
+  const [alternatives, comparisons] = await Promise.all([getAlternatives(), getComparisons()]);
+
+  return alternatives.map((entry) => ({
+    params: { slug: entry.id },
+    props: {
+      entry,
+      related: relatedLinks({
+        entry,
+        siblings: alternatives,
+        others: comparisons,
+        siblingLink: (a) => ({ href: `/alternatives/${a.id}`, label: `Free ${a.data.target} alternatives` }),
+        crossLink: (c) => ({ href: `/vs/${c.id}`, label: `MarkLayer vs ${c.data.competitor}` }),
+      }),
+    },
+  }));
+}
+
+const { entry, related } = Astro.props;
+const a = entry.data;
+const { Content } = await render(entry);
+
+const path = `/alternatives/${entry.id}`;
+const h1 = `Free ${a.target} alternatives`;
+const breadcrumbs: Crumb[] = [
+  { name: 'MarkLayer', path: '/' },
+  { name: 'Alternatives', path: '/alternatives' },
+  { name: h1 },
+];
+---
+
+<ArticleLayout
+  title={a.title}
+  description={a.description}
+  path={path}
+  h1={h1}
+  bottomLine={a.bottomLine}
+  breadcrumbs={breadcrumbs}
+  modified={a.modified}
+  schema={[
+    articleSchema({ h1, description: a.description, path, published: a.published, modified: a.modified }),
+    faqSchema(a.faq),
+  ]}
+>
+  <Content slot="intro" />
+
+  <h2>Top free {a.target} alternatives</h2>
+  {
+    a.options.map((o, i) => (
+      <div class="ml-entry">
+        <h3>
+          {i + 1}. {o.url ? <a href={o.url}>{o.name}</a> : o.name}
+        </h3>
+        <p>{o.pitch}</p>
+        <p>
+          <strong>Best for:</strong> {o.bestFor}
+        </p>
+      </div>
+    ))
+  }
+
+  <Faq qa={a.faq} />
+  <Related title="Related comparisons" links={related} />
+</ArticleLayout>

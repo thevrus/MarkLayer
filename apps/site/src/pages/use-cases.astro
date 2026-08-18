@@ -1,0 +1,43 @@
+---
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import { getUseCases } from '../lib/collections';
+import { articleSchema } from '../lib/schema';
+import { plainText } from '../lib/markdown';
+import dates from '../data/page-dates.json';
+
+const useCases = await getUseCases();
+const { published, modified } = dates['hub-use-cases'];
+
+const path = '/use-cases';
+const title = 'MarkLayer Use Cases: Design Review, QA, Client Feedback';
+const description =
+  'How teams use MarkLayer for design review, QA bug reporting, client feedback, and remote collaboration. Workflows, examples, and step-by-step guides.';
+const h1 = 'MarkLayer use cases';
+---
+
+<ArticleLayout
+  title={title}
+  description={description}
+  path={path}
+  h1={h1}
+  breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Use cases' }]}
+  modified={modified}
+  schema={[articleSchema({ h1, description, path, published, modified })]}
+>
+  <Fragment slot="intro">
+    MarkLayer fits any workflow that involves giving visual feedback on a live webpage. Below are the most common ways
+    teams use it, with step-by-step walkthroughs and trade-offs vs other tools.
+  </Fragment>
+
+  <h2>By workflow</h2>
+  {
+    useCases.map((u) => (
+      <div class="ml-entry">
+        <h3>
+          <a href={`/for/${u.id}`}>{u.data.h1}</a>
+        </h3>
+        <p>{plainText(u.body ?? '')}</p>
+      </div>
+    ))
+  }
+</ArticleLayout>

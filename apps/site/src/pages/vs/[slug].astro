@@ -1,0 +1,125 @@
+---
+import { render } from 'astro:content';
+import Faq from '../../components/Faq.astro';
+import Related from '../../components/Related.astro';
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import { getAlternatives, getComparisons, relatedLinks } from '../../lib/collections';
+import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+
+export async function getStaticPaths() {
+  const [comparisons, alternatives] = await Promise.all([getComparisons(), getAlternatives()]);
+
+  return comparisons.map((entry) => ({
+    params: { slug: entry.id },
+    props: {
+      entry,
+      // /vs/<slug> and /alternatives/<slug> cross-link when both exist.
+      related: relatedLinks({
+        entry,
+        siblings: comparisons,
+        others: alternatives,
+        siblingLink: (c) => ({ href: `/vs/${c.id}`, label: `MarkLayer vs ${c.data.competitor}` }),
+        crossLink: (a) => ({ href: `/alternatives/${a.id}`, label: `Free ${a.data.target} alternatives` }),
+      }),
+    },
+  }));
+}
+
+const { entry, related } = Astro.props;
+const c = entry.data;
+const { Content } = await render(entry);
+
+const path = `/vs/${entry.id}`;
+const h1 = `${c.competitor} vs MarkLayer`;
+const breadcrumbs: Crumb[] = [
+  { name: 'MarkLayer', path: '/' },
+  { name: 'Comparisons', path: '/compare' },
+  { name: h1 },
+];
+---
+
+<ArticleLayout
+  title={c.title}
+  description={c.description}
+  path={path}
+  h1={h1}
+  bottomLine={c.bottomLine}
+  breadcrumbs={breadcrumbs}
+  modified={c.modified}
+  schema={[
+    articleSchema({ h1, description: c.description, path, published: c.published, modified: c.modified }),
+    faqSchema(c.faq),
+  ]}
+>
+  <Content slot="intro" />
+
+  {/* Both value columns are ink. The competitor's used to be set in the grey
+      metadata step, which dimmed half the data in a table whose entire job is
+      side-by-side comparison — and on a page arguing our own case, greying out
+      the other product reads as putting a thumb on the scale rather than as
+      hierarchy. `min-w` so the three columns scroll on a narrow screen instead
+      of crushing to unreadable widths inside `ml-scroll-x`. */}
+  <h2>At a glance</h2>
+  <div class="ml-scroll-x">
+    <table class="min-w-136">
+      <thead>
+        <tr>
+          <th scope="col" class="w-[40%]">Feature</th>
+          <th scope="col">MarkLayer</th>
+          <th scope="col">{c.competitor}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          c.rows.map((r) => (
+            <tr>
+              <th scope="row">{r.feature}</th>
+              <td>{r.ml}</td>
+              <td>{r.them}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>About {c.competitor}</h2>
+  <p>
+    {
+      c.homepage ? (
+        <a href={c.homepage} rel="noopener noreferrer" target="_blank">
+          {c.competitor}
+        </a>
+      ) : (
+        c.competitor
+      )
+    } is {c.competitorTagline}.
+  </p>
+
+  <h2>About MarkLayer</h2>
+  <p>
+    MarkLayer is a free, open-source Chrome extension that lets you annotate any live webpage with drawings, comments,
+    arrows, and highlights, then share a single link so anyone can view the annotations without installing anything.
+    There is no account, no paywall, and no trial period.
+  </p>
+
+  {
+    c.quote && (
+      <blockquote class="my-10 border-t border-rule pt-5">
+        <p class="text-lede m-0 text-pretty text-ink">{c.quote}</p>
+        <footer class="ml-meta mt-3">
+          <a href="/about">Vadym Rusin</a>, MarkLayer developer
+        </footer>
+      </blockquote>
+    )
+  }
+
+  <h2>When to choose MarkLayer</h2>
+  <ul>{c.chooseMl.map((x) => <li>{x}</li>)}</ul>
+
+  <h2>When to choose {c.competitor}</h2>
+  <ul>{c.chooseThem.map((x) => <li>{x}</li>)}</ul>
+
+  <Faq qa={c.faq} />
+  <Related title="Related comparisons" links={related} />
+</ArticleLayout>

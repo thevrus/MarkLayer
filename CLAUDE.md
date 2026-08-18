@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-MarkLayer — free annotation/collaboration tool for any webpage. Monorepo with a Chrome extension, a Cloudflare Worker backend + web app, and an MCP server that bridges annotations to AI coding agents.
+MarkLayer — free annotation/collaboration tool for any webpage. Monorepo with a Chrome extension, a Cloudflare Worker backend + web app, a static Astro marketing/SEO site, and an MCP server that bridges annotations to AI coding agents.
 
 ## Tech Stack
 
-- **UI:** Preact + Preact Signals, Tailwind CSS v4, Lucide icons
+- **UI:** Preact + Preact Signals, Base UI (`@base-ui/react` via `preact/compat`), Tailwind CSS v4, Lucide icons
 - **Extension:** WXT framework
-- **Backend:** Cloudflare Workers, Hono, D1 (SQLite), Durable Objects (WebSocket), R2
+- **Backend:** Cloudflare Workers, Hono (`hono/tiny`), D1 (SQLite), Durable Objects (WebSocket), R2
+- **Marketing site:** Astro 7, static output, zero client JS (no integrations)
 - **Validation:** Zod (shared client/server)
 - **Build:** Bun workspaces, Turborepo, Vite
 - **Lint/Format:** Biome (sole tool — no ESLint/Prettier)
@@ -21,63 +22,95 @@ MarkLayer — free annotation/collaboration tool for any webpage. Monorepo with 
 bun install          # First-time setup (runs wxt prepare for extension)
 bun run dev          # All apps dev mode (Turbo)
 bun run build        # Build all
-bun run check        # TypeScript check all (per-workspace `tsc --noEmit`)
+bun run check        # Type-check all (per-workspace `tsc --noEmit`; `astro check` in apps/site)
 bun run lint         # Biome lint + format check
 bun run lint:fix     # Biome auto-fix
-bun run deploy       # Build all + deploy worker to Cloudflare
+
+# Releases — run locally; CI only lints, type-checks and builds.
+bun run deploy         # Build + deploy worker to Cloudflare (site is embedded in it)
+bun run deploy:mcp     # Publish marklayer-mcp to npm, but only if its version is ahead
+bun run deploy:site    # Deploy apps/site standalone to Cloudflare Pages
+bun run zip:extension  # Build Chrome + Firefox store zips into apps/extension/.output
 
 # Extension only
 cd apps/extension && bun dev               # Chrome (MV3) dev
 cd apps/extension && bun dev:firefox       # Firefox dev
 cd apps/extension && bun build             # Chrome build
 cd apps/extension && bun build:firefox     # Firefox build
-cd apps/extension && bun zip               # Package zip for store upload
+cd apps/extension && bun zip               # Package Chrome zip for store upload
+cd apps/extension && bun run zip:all       # Chrome + Firefox zips (what `zip:extension` runs)
 
 # Worker only
 cd apps/worker && bun dev          # Vite + Wrangler together
+cd apps/worker && bun run build    # vite build, then `embed:site` copies apps/site/dist into public/client
 cd apps/worker && bun run deploy   # Build + `wrangler deploy`
+
+# Marketing site only
+cd apps/site && bun dev            # astro dev
+cd apps/site && bun run build      # astro build → dist/
+cd apps/site && bun run check      # astro check (this workspace's `check`, not tsc)
 
 # MCP server only (published to npm as `marklayer-mcp`)
 cd apps/mcp && bun run build       # Compile TS → dist/cli.js
 cd apps/mcp && bun run dev         # tsc --watch
+cd apps/mcp && node scripts/publish-if-new.mjs --check   # Publish preflight, no side effects
 ```
 
 No test framework is configured — relying on `bun run check` (TypeScript) and `bun run lint` (Biome) is the verification loop.
+
+**`apps/site` is pinned to `typescript@^6`, deliberately.** Its `check` is `astro check`, which needs the TS programmatic API that the 7.x native compiler does not ship yet (withastro/roadmap#1321). The rest of the monorepo runs `tsc --noEmit` on 7.x and is unaffected. Do not bump the site to 7 until `astro check` supports it: the alternative, swapping it for `tsc --noEmit`, silently stops type-checking all 37 `.astro` templates.
 
 ## Structure
 
 ```
 apps/extension/     # Chrome/Firefox extension (WXT + Preact)
   components/       # Canvas, Toolbar, all annotation Layer components
-  lib/              # state.ts (signals), renderer.ts, selector.ts, anchor.ts
+  lib/              # state.ts (signals), renderer.ts, selector.ts, anchor.ts,
+                    # portal.ts (Base UI portal target inside the shadow root)
 apps/worker/        # CF Worker API + web app (Hono + Vite + Preact)
-  src/              # index.ts (Hono routes), annotation-room.ts (Durable Object),
-                    # proxy.ts (iframe proxy + SSRF guard), og.ts (Satori OG cards),
-                    # pages.tsx (SSR), seo.ts
+  src/              # index.ts (Hono routes, robots/llms.txt, /.well-known/*),
+                    # api.ts (OpenAPI share API under /api), annotation-room.ts
+                    # (Durable Object), proxy.ts (iframe proxy + SSRF guard),
+                    # og.ts (Satori OG cards), posthog.ts
   web/              # Web app UI (Landing, Viewer, Web* layer components,
                     # useRealtimeSync, useVoiceRoom, signals)
   schema.sql        # D1 database schema
-  wrangler.jsonc    # Worker bindings (D1, DO, R2)
+  wrangler.jsonc    # Worker bindings (D1, DO, R2) + `assets.run_worker_first`
+apps/site/          # Astro static marketing/SEO site (marklayer.app content pages)
+  src/content/      # Markdown collections: compare/, alternatives/, use-cases/
+  src/content.config.ts  # Zod frontmatter schemas for those collections
+  src/pages/        # Hubs (compare, alternatives, use-cases, pricing, about,
+                    # privacy) + programmatic routes /vs/[slug], /alternatives/[slug],
+                    # /for/[slug], plus sitemap.xml.ts and pricing.md.ts
+  src/lib/          # site.ts (constants), collections.ts (ordered reads),
+                    # schema.ts (JSON-LD), markdown.ts
+  public/_headers   # HSTS + Cache-Control for asset-served pages
 apps/mcp/           # MCP server (`marklayer-mcp` on npm) — exposes annotation
-                    # rooms as tools (watch/acknowledge/resolve/reply) for AI agents
-packages/types/     # Shared types & Zod schemas (DrawOp union, CommentOp, Peer,
-                    # AnchorPoint, target element metadata). Single source of truth
-                    # for client + server validation.
+                    # rooms as tools (watch/acknowledge/resolve/reply) for AI agents.
+                    # server.json is the MCP registry manifest (keep its version
+                    # in sync with package.json).
+packages/types/     # Shared types & Zod schemas (DrawOp union incl. guide/inspect,
+                    # CommentOp + priority/status, Peer, AnchorPoint, target element
+                    # metadata) and the `cn` helper. Single source of truth for
+                    # client + server validation.
 ```
 
 ## Conventions
 
-- **Preact, not React** — use `preact/hooks`, `@preact/signals`. Vite aliases `react` and `react-dom` to `preact/compat` (worker) and WXT's preact preset handles the extension.
-- **Single quotes, always semicolons** — enforced by Biome (line width 120, 2-space indent).
+- **Preact, not React** — use `preact/hooks`, `@preact/signals`. Vite aliases `react` and `react-dom` to `preact/compat` (worker) and WXT's preact preset handles the extension. Both tsconfigs carry matching `paths` entries so `@base-ui/react` types resolve.
+- **Base UI for interactive primitives** — popovers, menus, dialogs and tooltips come from `@base-ui/react` (used by `Tooltip`, `ContextMenu`, `SettingsPanel`, `ShareDialog`, `ProjectTabs`, `DeviceMenu`); don't hand-roll replacements. In the extension, portalled parts must render into `portalContainer` from `lib/portal.ts` — the UI lives in a shadow root, so a default `document.body` portal escapes the injected stylesheet. The web app leaves that signal `null` and takes Base UI's default.
+- **Single quotes, always semicolons** — enforced by Biome (line width 120, 2-space indent). Biome does not parse `.astro` files (`!**/*.astro` in `biome.json`), so match the surrounding style by hand in `apps/site`.
 - **No `any`** — `noExplicitAny: error` in Biome.
-- **Avoid `as` casts** — never reach for `as Foo` to silence the type checker. Fix the upstream type, narrow with a runtime guard (`instanceof`, `typeof`, `in`), destructure with a typed iteration, or parse with Zod. The only acceptable casts are `as const` for literal narrowing and unavoidable DOM interop (e.g. `as unknown as ...` at a single, commented boundary). Same applies to non-null `!` assertions.
+- **Two or more parameters → take a single object** — a function that needs more than one input takes one named-field object (`createDraftStore({ key, debounceMs })`, not `createDraftStore(key, debounceMs)`). Call sites stay readable without jumping to the signature, argument order stops mattering, and adding or defaulting a field is not a breaking change at every caller. Applies to new and refactored functions; the existing positional signatures are not a mass-rename mandate — convert one when you're already changing it. Exceptions: an inseparable pair that is really one value (`(x, y)`), and any signature dictated by an external API (event handlers, `Array.prototype` callbacks, Hono/WXT/Base UI hooks).
+- **Keep comments concise** — one or two lines, explaining *why*, never restating what the code does. If a comment needs a paragraph, fix the name or the code instead. No banner headings, no commented-out code, no change logs (that belongs in the commit message). A genuinely non-obvious constraint — a spec quirk, a browser bug, a deliberate tradeoff — can run longer; that's the exception, not the default.
+- **No `as` casts, no `!`** — a type assertion silences the checker without proving anything, and a non-null assertion is the same move applied to `null`. Fix the upstream type, narrow with a runtime guard (`instanceof`, `typeof`, `in`), destructure with a typed iteration, or parse with Zod. `as const` is fine — it narrows, it doesn't assert. The one exception is DOM interop where the platform types are genuinely wider than reality (`cloneNode` returning `Node`, `getRootNode()`, a vendor-prefixed property): keep it to a single line at the boundary with a comment saying why. `!` has no exception — use a guard, `?.`, or `??`. Neither is machine-enforced today: Biome's `noNonNullAssertion` is deliberately `off` because ~13 pre-existing assertions still need cleaning up, and Biome has no rule for `as` at all. Don't add new ones.
 - **Prefer signals over `useEffect`** — derive shared state with `useSignalEffect` / `useComputed`; reach for `useEffect` only when integrating with non-signal-aware APIs.
 - **Keyboard handling uses `tinykeys`** (already a dep) — not raw `addEventListener('keydown')`. Pair a keydown + a `{ event: 'keyup' }` call to track held modifiers (Alt, Shift). Iframe-scoped tools register on both iframe `win` and host `window`.
 - **Cloudflare only** for infra — D1, Durable Objects, R2, Workers.
 - Worker imports extension components via `@ext/*` path alias (`apps/worker → apps/extension`).
 - State management uses Preact Signals (not `useState` for shared state). Extension state lives in `apps/extension/lib/state.ts`; web state in `apps/worker/web/signals.ts`.
 - Zod schemas in `packages/types` are the source of truth — derive TS types via `z.infer`, parse all wire data.
-- **Always import from `zod/mini`, never `zod`** — Mini is tree-shakable and meaningfully smaller in the extension content script and Worker bundles we ship. Use the functional API: `z.optional(s)`, `z.nullable(s)`, `s.check(z.minLength(1), z.int(), z.gte(1), z.lte(600))`, `z.enum([...])`, `z.discriminatedUnion(...)`, `z.record(z.string(), z.unknown())`. Do not introduce the classic chained API (`s.min(1)`, `s.optional()`, `s.email()`) — it pulls in the full builder and defeats the savings. `safeParse` and `z.infer` work unchanged.
+- **Always import from `zod/mini`, never `zod`** — Mini is tree-shakable and meaningfully smaller in the extension content script and Worker bundles we ship. Use the functional API: `z.optional(s)`, `z.nullable(s)`, `s.check(z.minLength(1), z.int(), z.gte(1), z.lte(600))`, `z.enum([...])`, `z.discriminatedUnion(...)`, `z.record(z.string(), z.unknown())`. Do not introduce the classic chained API (`s.min(1)`, `s.optional()`, `s.email()`) — it pulls in the full builder and defeats the savings. `safeParse` and `z.infer` work unchanged. Two deliberate exceptions, both outside shipped client bundles: `apps/worker/src/api.ts` uses the `z` re-exported by `@hono/zod-openapi` (needed for spec generation), and `apps/site` uses `astro/zod` for content frontmatter.
 - IDs generated with `nanoid`.
 
 ## Architecture Notes
@@ -85,8 +118,12 @@ packages/types/     # Shared types & Zod schemas (DrawOp union, CommentOp, Peer,
 - **Real-time sync**: clients connect via WebSocket to a per-room Durable Object (`AnnotationRoom` in `apps/worker/src/annotation-room.ts`). Ops broadcast to peers and persist to D1.
 - **Voice/video**: peer-to-peer WebRTC negotiated through the same DO (`apps/worker/web/useVoiceRoom.ts`); TURN fallback configured.
 - **Iframe proxy**: the worker fetches the target URL and strips frame-blocking headers (`X-Frame-Options`, CSP) so it can be embedded. SSRF guard blocks private/loopback hosts.
-- **Canvas overlay**: a transparent Preact root is injected over the iframe (extension) or the proxied page (web). Each tool is a sibling Layer component (`Canvas`, `CommentLayer`, `AreaLayer`, `InspectorLayer`, `MeasureLayer`, `MultiInspectLayer`, `SelectionLayer`, `TextLayer`); web versions live in `apps/worker/web/Web*.tsx`.
+- **Canvas overlay**: a transparent Preact root is injected over the iframe (extension) or the proxied page (web). Each tool is a sibling Layer component (`Canvas`, `CommentLayer`, `AreaLayer`, `GuideLayer`, `InspectorLayer`, `InspectorMarkerLayer`, `MeasureLayer`, `MultiInspectLayer`, `QuickGrabLayer`, `SelectionLayer`, `TextLayer`); web versions live in `apps/worker/web/Web*.tsx`.
+- **Everything is an op**: ruler guides included — they ride the same persisted, peer-synced op stream (`guideOpSchema` in the `DrawOp` union), with `guides` derived as a computed view over `operations` rather than kept in separate state. Comments carry `status` and `priority` on the same op.
 - **Anchoring**: annotations bind to host-page elements via `lib/anchor.ts` + `lib/selector.ts` (CSS selector + text-fingerprint fallback for SPAs). Selectors re-resolve on host-page mutations via a MutationObserver tick signal; DPR-aware scale capture preserves layout across viewport changes.
+- **Marketing pages**: `apps/site` prerenders every content page to static HTML (`build.format: 'file'`, `trailingSlash: 'never'` — extensionless URLs like `/vs/markup-io`). The worker's `build` runs `embed:site`, copying `apps/site/dist` into its client asset output, so production serves those pages straight from the asset layer with no Worker invocation. `assets.run_worker_first` in `wrangler.jsonc` is load-bearing: only the listed dynamic paths hit Hono; setting it to `true` would route `/vs/*` into the proxy catch-all. Pages served from assets miss the Worker's HSTS middleware, so `apps/site/public/_headers` reapplies it plus per-route `Cache-Control`. `apps/site` is also a workspace dep of the worker, which makes Turbo build it first.
+- **Public share API**: `apps/worker/src/api.ts` mounts an `OpenAPIHono` at `/api` — anonymous by design (the id you POST *is* the access token), with a lazily built, memoized spec at `/api/openapi.json`.
+- **Agent-facing surface**: the worker serves `llms.txt`, `llms-full.txt`, `/.well-known/api-catalog`, `security.txt`, an agent-skill `SKILL.md` + index, and an MCP server card, all as inlined constants in `src/index.ts`.
 - **OG cards**: generated server-side with Satori + `@resvg/resvg-wasm`, cached in R2. Disabled for localhost / private hosts.
 - **MCP integration**: `apps/mcp` exposes annotation rooms as MCP tools (`marklayer_watch_annotations`, `acknowledge`, `resolve`, `reply`, …) so an agent can poll a room and act on comments while the human sees live status.
-- **Cleanup**: daily cron (3 AM UTC, configured in `wrangler.jsonc`) deletes annotations past their 30-day TTL.
+- **Cleanup**: daily cron (3 AM UTC, configured in `wrangler.jsonc`) deletes annotations 90 days after their last access, plus any past an explicit `expires_at`.

@@ -1,0 +1,21 @@
+---
+import type { QA } from '../lib/schema';
+
+interface Props {
+  qa: QA[];
+}
+
+const { qa } = Astro.props;
+---
+
+<h2>Frequently asked questions</h2>
+<dl>
+  {
+    qa.map((x) => (
+      <>
+        <dt>{x.q}</dt>
+        <dd>{x.a}</dd>
+      </>
+    ))
+  }
+</dl>

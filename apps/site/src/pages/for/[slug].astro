@@ -1,0 +1,76 @@
+---
+import { render } from 'astro:content';
+import Faq from '../../components/Faq.astro';
+import Related from '../../components/Related.astro';
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import { getUseCases, relatedLinks } from '../../lib/collections';
+import { articleSchema, type Crumb, faqSchema, howToSchema } from '../../lib/schema';
+
+export async function getStaticPaths() {
+  const useCases = await getUseCases();
+
+  return useCases.map((entry) => ({
+    params: { slug: entry.id },
+    props: {
+      entry,
+      related: relatedLinks({
+        entry,
+        siblings: useCases,
+        siblingLink: (u) => ({ href: `/for/${u.id}`, label: u.data.h1 }),
+      }),
+    },
+  }));
+}
+
+const { entry, related } = Astro.props;
+const u = entry.data;
+const { Content } = await render(entry);
+
+const path = `/for/${entry.id}`;
+const breadcrumbs: Crumb[] = [
+  { name: 'MarkLayer', path: '/' },
+  { name: 'Use cases', path: '/use-cases' },
+  { name: u.h1 },
+];
+---
+
+<ArticleLayout
+  title={u.title}
+  description={u.description}
+  path={path}
+  h1={u.h1}
+  bottomLine={u.bottomLine}
+  breadcrumbs={breadcrumbs}
+  modified={u.modified}
+  schema={[
+    articleSchema({ h1: u.h1, description: u.description, path, published: u.published, modified: u.modified }),
+    howToSchema({ name: u.h1, description: u.description, steps: u.steps }),
+    faqSchema(u.faq),
+  ]}
+>
+  <Content slot="intro" />
+
+  <h2>The problem</h2>
+  <p>{u.problem}</p>
+
+  <h2>Why MarkLayer fits {u.audience}</h2>
+  <ul>{u.why.map((x) => <li>{x}</li>)}</ul>
+
+  {/* The step name only. The list already renders a decimal marker, so writing
+      `{i + 1}.` into the item as well produced "1. 1. Open the page." on every
+      step of every use-case page. */}
+  <h2>How it works</h2>
+  <ol>
+    {
+      u.steps.map((s) => (
+        <li>
+          <strong>{s.name}.</strong> {s.text}
+        </li>
+      ))
+    }
+  </ol>
+
+  <Faq qa={u.faq} />
+
+  <Related title="Other use cases" links={related} />
+</ArticleLayout>

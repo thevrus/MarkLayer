@@ -7,7 +7,11 @@
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "paths": {
-      "@ext/*": ["../extension/*"]
+      "@ext/*": ["../extension/*"],
+      "@site/*": ["../site/src/*"],
+      "react": ["./node_modules/preact/compat"],
+      "react-dom": ["./node_modules/preact/compat"],
+      "react/jsx-runtime": ["./node_modules/preact/jsx-runtime"]
     }
   },
   "include": ["src", "web", "../extension/components", "../extension/lib"]

@@ -1,0 +1,42 @@
+---
+import dates from '../data/page-dates.json';
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import { getGuides } from '../lib/collections';
+import { articleSchema } from '../lib/schema';
+
+const guides = await getGuides();
+const { published, modified } = dates['hub-guides'];
+
+const path = '/guides';
+const title = 'MarkLayer Guides: Feedback Tools, Pricing, AI Agents';
+const description =
+  'Guides to website annotation and visual feedback: free tool roundups, pricing breakdowns, no-login review workflows, and MCP servers for AI coding agents.';
+const h1 = 'Guides';
+---
+
+<ArticleLayout
+  title={title}
+  description={description}
+  path={path}
+  h1={h1}
+  breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Guides' }]}
+  modified={modified}
+  schema={[articleSchema({ h1, description, path, published, modified })]}
+>
+  <Fragment slot="intro">
+    Research-backed guides to the visual-feedback tool landscape: what things cost, what the free tiers actually
+    include, and how annotation connects to AI coding agents.
+  </Fragment>
+
+  <h2>All guides</h2>
+  {
+    guides.map((g) => (
+      <div class="ml-entry">
+        <h3>
+          <a href={`/guides/${g.id}`}>{g.data.h1}</a>
+        </h3>
+        <p>{g.data.intro}</p>
+      </div>
+    ))
+  }
+</ArticleLayout>

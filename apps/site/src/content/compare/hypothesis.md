@@ -1,0 +1,61 @@
+---
+order: 9
+title: "Hypothesis vs MarkLayer: Text Annotation vs Visual"
+description: "Hypothesis is the W3C text-annotation layer for scholarly content. MarkLayer is the visual one, with drawings, arrows, and pinned comments anywhere on a page. Both free and open source."
+competitor: "Hypothesis"
+competitorTagline: "an open-source web annotation layer focused on text-based annotation for academia and research"
+homepage: "https://web.hypothes.is"
+bottomLine: "Choose MarkLayer for visual feedback on any webpage. Drawings, arrows, and pinned comments anywhere on the page. Choose Hypothesis if you need a public, W3C-standard text annotation layer for scholarly research, classroom reading groups, or article-level discussion."
+quote: "Hypothesis is the gold standard for scholarly text annotation. MarkLayer is the visual one, built for when the annotation is an arrow, not a quote. They complement each other; same browser, different workflows."
+published: 2026-03-05
+modified: 2026-04-23
+rows:
+  - feature: "Price"
+    ml: "Free"
+    them: "Free"
+  - feature: "Open source"
+    ml: "Yes"
+    them: "Yes"
+  - feature: "Text highlighting + notes"
+    ml: "Yes"
+    them: "Yes"
+  - feature: "Drawing & shapes"
+    ml: "Yes (freehand, shapes, arrows)"
+    them: "No. Text-only"
+  - feature: "Pinned comments anywhere"
+    ml: "Yes. Pin to any pixel"
+    them: "No. Anchored to text selections"
+  - feature: "Real-time live cursors"
+    ml: "Yes"
+    them: "No"
+  - feature: "Sign-up required"
+    ml: "No"
+    them: "Yes (for sync; anonymous use limited)"
+  - feature: "Public annotation layer"
+    ml: "No. Share-by-link only"
+    them: "Yes. W3C standard, public groups"
+  - feature: "Best for"
+    ml: "Visual feedback on any webpage"
+    them: "Scholarly text annotation, research, teaching"
+chooseMl:
+  - "You need to draw, point at, or visually mark up parts of a page (not just text)."
+  - "You want real-time collaboration with live cursors."
+  - "You want zero sign-up."
+  - "You're reviewing UI, design, or visual content rather than scholarly text."
+chooseThem:
+  - "You're annotating academic papers, articles, or text-heavy content."
+  - "You need a public, persistent, W3C-standard annotation layer."
+  - "You're building educational workflows where students annotate readings together."
+  - "You want annotations that persist on the web outside any single share link."
+faq:
+  - q: "Are MarkLayer and Hypothesis competitors?"
+    a: "They overlap on the surface but solve different problems. Hypothesis is built for scholarly text annotation. MarkLayer is built for visual feedback. Drawings, arrows, comments pinned anywhere on a page."
+  - q: "Can I use both?"
+    a: "Yes. They don't conflict. You can run Hypothesis for research workflows and MarkLayer for visual UI feedback on the same browser."
+  - q: "Does MarkLayer support text-based annotation like Hypothesis?"
+    a: "MarkLayer supports highlighting text with comments, but its primary strength is visual annotation. Drawings, shapes, and arrows on the page itself."
+  - q: "Is MarkLayer's annotation data public like Hypothesis groups?"
+    a: "No. MarkLayer annotations are private until you share the link. There is no public annotation layer or open group system."
+---
+
+MarkLayer and [Hypothesis](https://web.hypothes.is) are both free and open source, but they solve different problems. Hypothesis adds a public, W3C-standard text annotation layer to the web. Useful for research, education, and scholarly markup. MarkLayer is a visual annotation tool for drawings, shapes, arrows, and pinned comments. Closer to a digital whiteboard over any webpage.
