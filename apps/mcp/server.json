@@ -1,0 +1,51 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.thevrus/marklayer",
+  "title": "MarkLayer",
+  "description": "Work visual annotations left on a live webpage: watch, acknowledge, resolve, reply.",
+  "version": "0.1.2",
+  "websiteUrl": "https://marklayer.app",
+  "repository": {
+    "url": "https://github.com/thevrus/MarkLayer",
+    "source": "github",
+    "subfolder": "apps/mcp"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "marklayer-mcp",
+      "version": "0.1.2",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--room",
+          "description": "MarkLayer room to join at startup: a share URL (https://marklayer.app/s/abc123) or a bare room id. Omit it and the agent calls marklayer_connect_room instead.",
+          "isRequired": false,
+          "format": "string"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "MARKLAYER_ROOM",
+          "description": "Same as --room: the share URL or room id to join at startup.",
+          "isRequired": false
+        },
+        {
+          "name": "MARKLAYER_API_BASE",
+          "description": "Override the MarkLayer worker base URL. Defaults to https://marklayer.app; useful against a local dev worker.",
+          "isRequired": false
+        },
+        {
+          "name": "MARKLAYER_AGENT",
+          "description": "Name shown to the humans in the room for this agent. Defaults to claude-code.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}
