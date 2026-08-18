@@ -1,11 +1,15 @@
 import { Hono } from 'hono/tiny';
 import type { Env } from './index';
 import { captureServer } from './posthog';
+import { PROXY_ERRORS } from './proxy-errors';
 
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 const BLOCKED_HOSTS = new Set(['localhost', 'metadata.google.internal', 'metadata.goog']);
+
+// URL schemes that must never be routed through the proxy (non-fetchable or in-page).
+const SKIP_SCHEME = /^(data:|blob:|javascript:|mailto:|tel:|about:|#)/i;
 
 function isBlockedHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
@@ -29,28 +33,31 @@ function escapeForScript(s: string): string {
   return JSON.stringify(s).slice(1, -1);
 }
 
+/** Compiled once — `rewriteUrl` runs per attribute while streaming the page. */
+const ABSOLUTE_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+
 const proxy = new Hono<Env>();
 
 // Proxy endpoint: fetches a page and strips frame-blocking headers
 proxy.get('/proxy', async (c) => {
   const url = c.req.query('url');
-  if (!url) return c.text('Missing ?url= parameter', 400);
+  if (!url) return c.text(PROXY_ERRORS.missingUrl.message, 400);
 
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return c.text('Invalid URL', 400);
+    return c.text(PROXY_ERRORS.invalidUrl.message, 400);
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return c.text('Only HTTP(S) URLs are allowed', 400);
+    return c.text(PROXY_ERRORS.badScheme.message, 400);
   }
 
   const hostname = parsed.hostname.toLowerCase();
   if (isBlockedHost(hostname)) {
-    captureServer(c.env, c.executionCtx, 'proxy_render_failed', { url, reason: 'blocked-host', hostname });
-    return c.text('Blocked URL', 400);
+    captureServer(c.env, c.executionCtx, 'proxy_render_failed', { reason: PROXY_ERRORS.blockedHost.label });
+    return c.text(PROXY_ERRORS.blockedHost.message, 400);
   }
 
   const reqUrl = new URL(c.req.url);
@@ -73,7 +80,6 @@ proxy.get('/proxy', async (c) => {
 
     if (!resp.ok) {
       captureServer(c.env, c.executionCtx, 'proxy_render_failed', {
-        url,
         reason: 'upstream-not-ok',
         status: resp.status,
         duration_ms: Date.now() - fetchStart,
@@ -95,11 +101,33 @@ proxy.get('/proxy', async (c) => {
     const selfOrigin = reqUrl.origin;
     const inject = `<script>document.documentElement.dataset.marklayer="1";history.replaceState(null,"","${escapeForScript(origPath)}");navigator.serviceWorker&&(navigator.serviceWorker.register=function(){return Promise.resolve()});(function(){var H="${selfOrigin}";var T="${escapeForScript(baseUrl.host)}";var F=window.fetch;function _pw(s){try{var u=new URL(s,location.href);if(/^https?:$/.test(u.protocol)){if(u.origin!==location.origin)return H+"/px/"+u.host+u.pathname+u.search;if(u.pathname!=="/"&&!/^\\/(px|api|ws|proxy|s|og)(\\/|$)/.test(u.pathname))return H+"/px/"+T+u.pathname+u.search}}catch(e){}return null}window.fetch=function(i,o){var s=typeof i==="string"?i:i instanceof Request?i.url:String(i);var p=_pw(s);if(p)i=typeof i==="string"?p:new Request(p,i);return F.call(this,i,o)};var O=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){var p=_pw(String(arguments[1]));if(p)arguments[1]=p;return O.apply(this,arguments)}})()</script><base href="${origin}/"><script>(function(){var r=history.replaceState,p=history.pushState;history.replaceState=function(){try{return r.apply(this,arguments)}catch(e){}};history.pushState=function(){try{return p.apply(this,arguments)}catch(e){}}; document.addEventListener("click",function(e){var a=e.target.closest?e.target.closest("a"):null;if(!a)return;var h=a.href;if(!h||h.indexOf("javascript:")===0||h.charAt(0)==="#")return;e.preventDefault();e.stopPropagation();window.parent.postMessage({type:"ml-navigate",url:h},"*")},true)})();</script>`;
 
-    /** Rewrite a URL if it matches the target origin (must be absolute — <base href> points at target) */
+    /** Route a same-origin sub-resource (absolute, protocol-relative, or relative) through the proxy. */
     const px = `${selfOrigin}/px/${host}`;
     const rewriteUrl = (val: string): string | null => {
-      if (val.startsWith(`${origin}/`)) return `${px}${val.slice(origin.length)}`;
-      if (val.startsWith(`//${host}/`)) return `${px}${val.slice(host.length + 2)}`;
+      const v = val.trim();
+      if (!v || SKIP_SCHEME.test(v)) return null;
+      if (v.startsWith(`${selfOrigin}/px/`)) return null; // already proxied
+      if (v.startsWith(`${origin}/`)) return `${px}${v.slice(origin.length)}`;
+      if (v.startsWith(`//${host}/`)) return `${px}${v.slice(host.length + 2)}`;
+      // Absolute URLs that don't even mention the target host are cross-origin —
+      // skip the WHATWG parse (third-party CDN URLs dominate on real pages, and
+      // this runs per attribute while streaming the rewritten HTML).
+      if ((ABSOLUTE_SCHEME.test(v) || v.startsWith('//')) && !v.includes(host)) return null;
+      // Root-relative paths are the common case on real pages and resolve to
+      // exactly this, so answer them with string work rather than a URL parse.
+      if (v.startsWith('/') && !v.startsWith('//')) return `${px}${v}`;
+      // Resolve the remaining relative URLs against the target base and proxy same-host ones.
+      // Required for ES-module scripts (and any [crossorigin] resource): they are always fetched
+      // in CORS mode, so loading them cross-origin from the target is blocked. <base href> alone
+      // leaves them on the target origin — they must come back through the same-origin proxy.
+      try {
+        const u = new URL(v, baseUrl);
+        if ((u.protocol === 'http:' || u.protocol === 'https:') && u.host === host) {
+          return `${px}${u.pathname}${u.search}`;
+        }
+      } catch {
+        // not a resolvable URL — leave it for <base href> to handle
+      }
       return null;
     };
 
@@ -124,7 +152,11 @@ proxy.get('/proxy', async (c) => {
       // Rewrite same-origin absolute URLs in common attributes + inline style url()
       .on('*', {
         element(el) {
+          // Leave anchor/area hrefs on the target origin — link clicks flow through
+          // ml-navigate → navigateTo, which needs the real target URL, not a proxied one.
+          const isAnchor = el.tagName === 'a' || el.tagName === 'area';
           for (const attr of ['src', 'href', 'action', 'poster']) {
+            if (isAnchor && attr === 'href') continue;
             const val = el.getAttribute(attr);
             if (!val) continue;
             const rewritten = rewriteUrl(val);
@@ -211,12 +243,11 @@ proxy.get('/proxy', async (c) => {
     return rewriter.transform(new Response(resp.body, { headers }));
   } catch (err) {
     captureServer(c.env, c.executionCtx, 'proxy_render_failed', {
-      url,
-      reason: 'fetch-threw',
+      reason: PROXY_ERRORS.fetchThrew.label,
       message: err instanceof Error ? err.message : String(err),
       duration_ms: Date.now() - fetchStart,
     });
-    return c.text('Proxy error: failed to fetch the requested URL', 502);
+    return c.text(PROXY_ERRORS.fetchThrew.message, 502);
   }
 });
 
