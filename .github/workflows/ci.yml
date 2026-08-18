@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run check
+
+      # Builds apps/site (which runs verify-build.mjs: internal links, canonicals,
+      # JSON-LD, single-h1) and apps/worker (which runs embed-site.mjs: refuses an
+      # index.html that would overwrite the SPA shell).
+      - name: Build
+        run: bun run build
+
+  # Deploys are run locally, not here: `bun run deploy` ships the Worker with
+  # apps/site's prerendered pages embedded in its asset bundle (see
+  # docs/adr/0001), and `bun run deploy:mcp` publishes marklayer-mcp to npm.
