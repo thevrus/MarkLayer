@@ -2,7 +2,7 @@ import { batch, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { applyAnchorDelta } from '../lib/anchor';
+import { applyAnchorDelta, commitOp } from '../lib/anchor';
 import { circleHitsRect, constrainEnd, hexToRgba, redrawCanvas, renderOp, simplify } from '../lib/renderer';
 import {
   activeTool,
@@ -11,13 +11,14 @@ import {
   comments,
   deleteOp,
   FREEHAND,
+  hostMutationTick,
   inspects,
   isDrawingActive,
   isDrawingTool,
   lineWidth,
   operations,
-  pushOp,
   SHAPES,
+  scrollTick,
   selections,
   undoRedoFlash,
 } from '../lib/state';
@@ -49,7 +50,9 @@ export function Canvas() {
 
   const clientXY = (e: MouseEvent | TouchEvent): Point => {
     const s = 'touches' in e ? (e.touches[0] ?? e.changedTouches[0]) : e;
-    return { x: s.clientX, y: s.clientY };
+    // A touch event with neither list populated shouldn't reach here; fall back to
+    // the origin rather than throwing mid-gesture.
+    return s ? { x: s.clientX, y: s.clientY } : { x: 0, y: 0 };
   };
 
   const docXY = (e: MouseEvent | TouchEvent): Point => {
@@ -144,8 +147,8 @@ export function Canvas() {
       });
     }
     for (const op of selections.value) {
-      if (!op.rects.length) continue;
       const first = op.rects[0];
+      if (!first) continue;
       const { dx, dy } = applyAnchorDelta(op.target, { docX: first.x, docY: first.y });
       out.push({
         id: op.id,
@@ -183,8 +186,8 @@ export function Canvas() {
     const path = currentPath.current;
     if (!ctx || !path) return;
     ctx.putImageData(snapshot.current, 0, 0);
-    if (shiftHeld.current && lastClient.current) {
-      const start = path.points[0];
+    const start = path.points[0];
+    if (shiftHeld.current && lastClient.current && start) {
       const c = lastClient.current;
       const end = constrainEnd(tool, start.x, start.y, c.x + scrollX, c.y + scrollY);
       renderOp(ctx, { ...path, points: [start, end] }, scrollX, scrollY);
@@ -280,16 +283,17 @@ export function Canvas() {
         erasedIds.current.clear();
       }
 
-      // Batch the active-flip with pushOp so the redraw effect fires once
-      // (with the new op present) instead of twice — once before pushOp with
+      // Batch the active-flip with the commit so the redraw effect fires once
+      // (with the new op present) instead of twice — once before the commit with
       // a now-stale ops array, once after.
       batch(() => {
         isDrawingActive.value = false;
 
         if (FREEHAND.has(tool) && currentPath.current) {
           snapshot.current = null;
-          if (shiftHeld.current) {
-            currentPath.current.points = [currentPath.current.points[0], { x: d.x, y: d.y }];
+          const origin = currentPath.current.points[0];
+          if (shiftHeld.current && origin) {
+            currentPath.current.points = [origin, { x: d.x, y: d.y }];
           } else {
             currentPath.current.points.push({ x: d.x, y: d.y });
           }
@@ -299,7 +303,7 @@ export function Canvas() {
             // most of the wire/storage savings of simplification.
             const tol = tool === 'eraser' ? 0.5 : 1.5;
             currentPath.current.points = simplify(currentPath.current.points, tol);
-            pushOp(currentPath.current);
+            commitOp(currentPath.current);
           }
           currentPath.current = null;
         } else if (SHAPES.has(tool)) {
@@ -315,13 +319,14 @@ export function Canvas() {
           };
           if (tool === 'circle') {
             const r = Math.hypot(d.x - s.x, d.y - s.y);
-            if (r > 0) pushOp({ ...base, tool: 'circle', centerX: s.x, centerY: s.y, radius: r });
+            if (r > 0) commitOp({ ...base, tool: 'circle', centerX: s.x, centerY: s.y, radius: r });
           } else if (tool === 'rectangle') {
-            if (s.x !== d.x && s.y !== d.y)
-              pushOp({ ...base, tool: 'rectangle', startX: s.x, startY: s.y, endX: d.x, endY: d.y });
+            if (s.x !== d.x && s.y !== d.y) {
+              commitOp({ ...base, tool: 'rectangle', startX: s.x, startY: s.y, endX: d.x, endY: d.y });
+            }
           } else if (tool === 'line' || tool === 'arrow') {
-            if (s.x !== d.x || s.y !== d.y)
-              pushOp({
+            if (s.x !== d.x || s.y !== d.y) {
+              commitOp({
                 ...base,
                 tool: 'line',
                 arrow: tool === 'arrow',
@@ -330,6 +335,7 @@ export function Canvas() {
                 endX: d.x,
                 endY: d.y,
               });
+            }
           }
         }
       });
@@ -363,16 +369,6 @@ export function Canvas() {
     window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('mouseup', onUp);
     window.addEventListener('touchend', onUp);
-    let scrollRaf = 0;
-    const onScroll = () => {
-      // Bail if a stroke is in progress — the snapshot+preview compositing
-      // would clobber the in-progress stroke. The drag will repaint on next
-      // pointer move, and the post-release useSignalEffect will redraw.
-      if (drawing.current) return;
-      cancelAnimationFrame(scrollRaf);
-      scrollRaf = requestAnimationFrame(() => redrawCanvas(canvas, operations.value));
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
     const onEraserMove = (e: MouseEvent) => {
       const el = eraserRef.current;
       if (!el) return;
@@ -404,7 +400,6 @@ export function Canvas() {
       window.removeEventListener('touchmove', onMove);
       window.removeEventListener('mouseup', onUp);
       window.removeEventListener('touchend', onUp);
-      window.removeEventListener('scroll', onScroll);
       window.removeEventListener('mousemove', onEraserMove);
       unbindShiftDown();
       unbindShiftUp();
@@ -413,6 +408,15 @@ export function Canvas() {
 
   useSignalEffect(() => {
     const ops = operations.value;
+    // scrollTick/hostMutationTick are the sole scroll-driven redraw path:
+    // anchored ops (`target` set) need a repaint whenever the host page
+    // scrolls, reflows or mutates, and both ticks are already rAF-coalesced
+    // by the shared listeners in state.ts. Mutations can only move anchored
+    // ops, so the tick is subscribed only while one exists — otherwise a host
+    // page with constant DOM churn (carousels, live regions) forces full
+    // redraws that repaint identical pixels.
+    scrollTick.value;
+    if (ops.some((op) => 'target' in op && op.target)) hostMutationTick.value;
     // Subscribe to isDrawingActive so the redraw fires once on release —
     // mid-stroke remote ops/undo would otherwise clobber the snapshot
     // preview. The trailing redraw replays everything including the

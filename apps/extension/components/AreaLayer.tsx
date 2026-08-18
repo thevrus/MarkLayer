@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { applyAnchorDelta } from '../lib/anchor';
+import { reprojectBox } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { glass } from '../lib/glass';
 import { constrainEnd, hexToRgba } from '../lib/renderer';
@@ -56,15 +56,23 @@ function AreaShape({ op }: { op: AreaOp }) {
   hostMutationTick.value; // re-resolve anchor on SPA route / DOM reflow
   const resolved = op.status === 'resolved';
   // Re-anchor the rect's top-left to the captured element's CURRENT position
-  // when possible. Width/height are kept as drawn — the user pinned a region
-  // size that doesn't follow the element, just its position.
-  const storedX = Math.min(op.startX, op.endX);
-  const storedY = Math.min(op.startY, op.endY);
-  const { x: ax, y: ay, strategy } = applyAnchorDelta(op.target, { docX: storedX, docY: storedY });
+  // when possible, and scale the captured size along with the element so the
+  // region tracks a responsive reflow instead of freezing at capture size.
+  const {
+    x: ax,
+    y: ay,
+    width: w,
+    height: h,
+    strategy,
+  } = reprojectBox({
+    target: op.target,
+    startX: op.startX,
+    startY: op.startY,
+    endX: op.endX,
+    endY: op.endY,
+  });
   const x = ax - scrollX;
   const y = ay - scrollY;
-  const w = Math.abs(op.endX - op.startX);
-  const h = Math.abs(op.endY - op.startY);
   const stroke = resolved ? 'var(--color-ml-resolved)' : op.color;
   const fill = resolved ? 'color-mix(in oklch, var(--color-ml-resolved) 8%, transparent)' : hexToRgba(op.color, 0.12);
   const flipH = x + w + 240 > innerWidth;
@@ -132,10 +140,10 @@ function AreaShape({ op }: { op: AreaOp }) {
               {op.comment}
             </p>
           ) : (
-            <p class="text-[12px] text-ml-glass-fg/55 m-0 mt-1 italic">No comment</p>
+            <p class="text-[12px] text-ml-glass-fg/60 m-0 mt-1 italic">No comment</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/55 font-medium">{op.author}</span>
+            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
             <div class="flex items-center gap-3">
               <button
                 type="button"
@@ -203,7 +211,7 @@ export function AreaPopover({
     >
       <div class="px-4 pt-3.5 pb-2">
         <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area annotation</span>
-        <p class="text-[12px] text-ml-glass-fg/55 m-0 mt-1 tabular-nums">
+        <p class="text-[12px] text-ml-glass-fg/60 m-0 mt-1 tabular-nums">
           {Math.round(rect.w)} × {Math.round(rect.h)} px
         </p>
       </div>
@@ -240,7 +248,7 @@ export function AreaPopover({
           >
             Esc
           </kbd>
-          <span class="text-[11px] text-ml-glass-fg/55 font-medium">cancel</span>
+          <span class="text-[11px] text-ml-glass-fg/60 font-medium">cancel</span>
         </div>
         <button
           type="button"

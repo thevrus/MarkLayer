@@ -63,7 +63,7 @@ export function PriorityPicker({
       {meta ? (
         <meta.Icon size={14} strokeWidth={2.25} />
       ) : (
-        <SignalHigh size={14} strokeWidth={2.25} class="text-ml-glass-fg/45" />
+        <SignalHigh size={14} strokeWidth={2.25} class="text-ml-glass-fg/60" />
       )}
       <span class={meta ? '' : 'text-ml-glass-fg/60'}>{meta ? meta.label : 'Set priority'}</span>
     </button>

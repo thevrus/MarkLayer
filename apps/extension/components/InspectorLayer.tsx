@@ -61,7 +61,7 @@ const FRAMEWORK_BRAND: Record<FrameworkComponent['framework'], BrandIconName> = 
 
 const sectionHeader = 'text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]';
 
-const metaLabel = 'text-[10px] text-ml-glass-fg/55 font-semibold uppercase tracking-[0.06em] tabular-nums';
+const metaLabel = 'text-[10px] text-ml-glass-fg/60 font-semibold uppercase tracking-[0.06em] tabular-nums';
 
 export function HoverHighlight({ state }: { state: HoverState }) {
   const { rect } = state;
@@ -299,7 +299,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             onClick={onClose}
             class="text-ml-glass-fg/65 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer
                    inline-flex items-center justify-center w-7 h-7 -mr-1 rounded-md
-                   hover:bg-ml-glass-fg/8 active:scale-[0.94] transition-[color,background-color,transform] duration-150"
+                   hover:bg-ml-glass-fg/8 active:scale-[0.96] transition-[color,background-color,transform] duration-150"
           >
             <Icon name="close" size={14} />
           </button>
@@ -397,7 +397,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             <dt class={metaLabel}>Viewport</dt>
             <dd class="text-ml-glass-fg font-mono tabular-nums">
               {state.viewport.width}×{state.viewport.height}
-              {state.viewport.dpr !== 1 && <span class="text-ml-glass-fg/55"> @ {state.viewport.dpr}x</span>}
+              {state.viewport.dpr !== 1 && <span class="text-ml-glass-fg/60"> @ {state.viewport.dpr}x</span>}
             </dd>
 
             {showFrameworkBadges.value && state.component?.chain.length ? (
@@ -428,7 +428,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                 <dt class={metaLabel}>Source</dt>
                 <dd class="text-ml-glass-fg font-mono break-all">
                   {shortenSourcePath(state.component.source.fileName)}
-                  <span class="text-ml-glass-fg/55">:{state.component.source.lineNumber}</span>
+                  <span class="text-ml-glass-fg/60">:{state.component.source.lineNumber}</span>
                 </dd>
               </>
             )}
@@ -492,9 +492,9 @@ function StylesSection({ styles }: { styles: Record<string, string> }) {
           )}
         >
           Styles
-          <span class="text-ml-glass-fg/45 font-medium normal-case tracking-normal tabular-nums">{count}</span>
+          <span class="text-ml-glass-fg/60 font-medium normal-case tracking-normal tabular-nums">{count}</span>
         </span>
-        <span class="text-ml-glass-fg/55 group-hover:text-ml-glass-fg/85 transition-colors">
+        <span class="text-ml-glass-fg/60 group-hover:text-ml-glass-fg/85 transition-colors">
           <Icon name={open.value ? 'chevUp' : 'chevDown'} size={12} />
         </span>
       </button>
@@ -573,7 +573,7 @@ export function InspectorStackPanel() {
         <span class="text-[11.5px] font-semibold text-ml-glass-fg tracking-[0.01em]">
           Element{items.length === 1 ? '' : 's'} stacked
         </span>
-        <span class="ml-auto text-ml-glass-fg/55">
+        <span class="ml-auto text-ml-glass-fg/60">
           <Icon name={open ? 'chevDown' : 'chevUp'} size={14} />
         </span>
       </button>
@@ -587,13 +587,13 @@ export function InspectorStackPanel() {
                 key={it.id}
                 class="group flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-ml-glass-fg/5 transition-colors"
               >
-                <span class="text-[10.5px] text-ml-glass-fg/45 font-mono tabular-nums leading-normal mt-0.5 shrink-0">
+                <span class="text-[10.5px] text-ml-glass-fg/60 font-mono tabular-nums leading-normal mt-0.5 shrink-0">
                   {i + 1}
                 </span>
                 <div class="min-w-0 flex-1">
                   <div class="text-[11px] font-mono text-ml-glass-fg/70 truncate">{stackItemLabel(it.selector)}</div>
                   <div class="text-[12px] text-ml-glass-fg/95 leading-snug line-clamp-2">
-                    {it.comment || <span class="text-ml-glass-fg/45 italic">No task description</span>}
+                    {it.comment || <span class="text-ml-glass-fg/60 italic">No task description</span>}
                   </div>
                 </div>
                 <button
@@ -601,7 +601,7 @@ export function InspectorStackPanel() {
                   aria-label="Remove from stack"
                   onClick={() => removeFromInspectorStack(it.id)}
                   class="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity
-                         text-ml-glass-fg/55 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer
+                         text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer
                          inline-flex items-center justify-center w-6 h-6 rounded-md hover:bg-ml-glass-fg/10 shrink-0"
                 >
                   <Icon name="close" size={12} />

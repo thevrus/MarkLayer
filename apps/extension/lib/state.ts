@@ -49,7 +49,7 @@ const storedTheme = _ls?.getItem('ml-theme');
 export const theme = signal<Theme>(isTheme(storedTheme) ? storedTheme : 'light');
 export function cycleTheme() {
   const order: Theme[] = ['light', 'dark', 'system'];
-  const next = order[(order.indexOf(theme.value) + 1) % order.length];
+  const next = order[(order.indexOf(theme.value) + 1) % order.length] ?? 'light';
   theme.value = next;
   lsSet('ml-theme', next);
 }
@@ -148,8 +148,9 @@ export const peers = signal<Map<string, Peer>>(new Map());
 /** Total peers including self (peers map excludes local user) */
 export const peerCount = computed(() => peers.value.size + 1);
 
-// Local user identity (random name + color per session)
-const CURSOR_COLORS = [
+// Local user identity (random name + color per session). Exported so demo
+// cursors (web FakeCursors) can pick collision-free spares from the same palette.
+export const CURSOR_COLORS = [
   '#f43f5e',
   '#8b5cf6',
   '#3b82f6',
@@ -160,7 +161,7 @@ const CURSOR_COLORS = [
   '#84cc16',
   '#ef4444',
   '#6366f1',
-];
+] as const;
 const ADJECTIVES = [
   'Speedy',
   'Sneaky',
@@ -187,7 +188,7 @@ const ADJECTIVES = [
   'Sassy',
   'Peppy',
   'Cranky',
-];
+] as const;
 const ANIMALS = [
   'Axolotl',
   'Capybara',
@@ -213,9 +214,10 @@ const ANIMALS = [
   'Gecko',
   'Toucan',
   'Otter',
-];
-function randomPick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
+] as const;
+// Takes a non-empty array so the random index always yields a value.
+function randomPick<T>(arr: readonly [T, ...T[]]): T {
+  return arr[Math.floor(Math.random() * arr.length)] ?? arr[0];
 }
 const savedName = _ls?.getItem('ml-username') ?? null;
 const savedCursorColor = _ls?.getItem('ml-usercolor') ?? null;
@@ -421,13 +423,16 @@ export const isDrawingTool = (t: Tool) => t !== 'navigate';
 export const isDrawingActive = signal(false);
 
 /**
- * Bumped at most once per animation frame on host-page scroll. Components
- * whose layout depends on `scrollX/scrollY` (CommentPin, AreaShape,
+ * Bumped at most once per animation frame on host-page scroll OR resize.
+ * Components whose layout depends on `scrollX/scrollY` (CommentPin, AreaShape,
  * SelectionHighlight) subscribe via `scrollTick.value` to reposition.
  *
  * Single shared listener — `ensureScrollTickListener()` attaches once on
  * first call (idempotent) and never detaches; `passive: true` keeps scroll
  * cheap, and rAF coalesces bursts so re-renders track frames, not events.
+ * The same coalesced handler also covers `resize`: a pure CSS reflow from a
+ * window resize doesn't move `scrollX/scrollY` and never fires a `scroll`
+ * event, so anchored pins would otherwise go stale until the next scroll.
  */
 export const scrollTick = signal(0);
 let _scrollListenerAttached = false;
@@ -443,6 +448,7 @@ export function ensureScrollTickListener() {
     });
   };
   window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll, { passive: true });
 }
 
 /**
@@ -453,6 +459,17 @@ export function ensureScrollTickListener() {
  * `ensureHostMutationObserver()`.
  */
 export const hostMutationTick = signal(0);
+
+// DOM-change generation for anchor.ts's failed-resolution memo. A plain
+// counter, not a signal: reads must never subscribe. Lives here (not in
+// anchor.ts) because anchor.ts already imports this module, and both mutation
+// observers — the host-page one below and the web iframe's in
+// apps/worker/web/signals.ts — bump it.
+let _anchorGeneration = 0;
+export const anchorGeneration = (): number => _anchorGeneration;
+export const bumpAnchorGeneration = (): void => {
+  _anchorGeneration++;
+};
 let _hostObserverAttached = false;
 let _hostObserver: MutationObserver | null = null;
 let _hostMutRaf = 0;
@@ -463,6 +480,7 @@ export function ensureHostMutationObserver() {
     if (_hostMutRaf) return;
     _hostMutRaf = requestAnimationFrame(() => {
       _hostMutRaf = 0;
+      bumpAnchorGeneration();
       hostMutationTick.value++;
     });
   });
@@ -533,6 +551,7 @@ export function moveTool(from: number, to: number) {
   if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return;
   const next = arr.slice();
   const [moved] = next.splice(from, 1);
+  if (moved === undefined) return;
   next.splice(to, 0, moved);
   toolOrder.value = next;
   lsSet('ml-tool-order', JSON.stringify(next));
@@ -657,8 +676,8 @@ export function undo() {
   if (activeTool.value === 'guide') {
     const ops = operations.value;
     for (let i = ops.length - 1; i >= 0; i--) {
-      if (ops[i].tool === 'guide') {
-        const removed = ops[i];
+      const removed = ops[i];
+      if (removed?.tool === 'guide') {
         operations.value = ops.filter((_, idx) => idx !== i);
         onUndone.value?.(removed.id);
         undoRedoFlash.value++;
@@ -675,8 +694,8 @@ export function undo() {
     undoStack.value = stack.slice(0, -1);
     return;
   }
-  if (!ops.length) return;
   const removed = ops[ops.length - 1];
+  if (!removed) return;
   undoStack.value = [...stack, removed];
   operations.value = ops.slice(0, -1);
   onUndone.value?.(removed.id);
@@ -686,9 +705,8 @@ export function undo() {
 
 export function redo() {
   const stack = undoStack.value;
-  if (!stack.length) return;
   const last = stack[stack.length - 1];
-  if ('type' in last) return;
+  if (!last || 'type' in last) return;
   operations.value = [...operations.value, last];
   undoStack.value = stack.slice(0, -1);
   undoRedoFlash.value++;

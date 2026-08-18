@@ -1,5 +1,6 @@
+import { opAnchorPoint } from '@marklayer/types';
 import getStroke from 'perfect-freehand';
-import { captureScale } from './anchor';
+import { applyAnchorDelta, captureScale } from './anchor';
 import { FREEHAND } from './state';
 import type { DrawOp, Point, Tool } from './types';
 
@@ -30,7 +31,7 @@ export function hexToRgba(hex: string, a = 1) {
   // silently producing the wrong color (e.g. parseInt('abc', 16) → blue-ish).
   if (!hex.startsWith('#')) return `rgba(0,0,0,${a})`;
   let h = hex.slice(1);
-  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  if (h.length === 3) h = h.replace(/./g, (ch) => ch + ch);
   if (h.length !== 6) return `rgba(0,0,0,${a})`;
   const n = parseInt(h, 16);
   if (Number.isNaN(n)) return `rgba(0,0,0,${a})`;
@@ -53,24 +54,33 @@ export function simplify(pts: Point[], tol = 1): Point[] {
     return dx * dx + dy * dy;
   };
   const rec = (lo: number, hi: number, out: Point[]) => {
+    const a = pts[lo];
+    const b = pts[hi];
+    if (!a || !b) return;
     let mx = 0,
       idx = 0;
     for (let i = lo + 1; i < hi; i++) {
-      const d = d2(pts[i], pts[lo], pts[hi]);
+      const p = pts[i];
+      if (!p) continue;
+      const d = d2(p, a, b);
       if (d > mx) {
         mx = d;
         idx = i;
       }
     }
     if (mx > sq) {
+      const kept = pts[idx];
       if (idx - lo > 1) rec(lo, idx, out);
-      out.push(pts[idx]);
+      if (kept) out.push(kept);
       if (hi - idx > 1) rec(idx, hi, out);
     }
   };
-  const out = [pts[0]];
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  if (!first || !last) return pts;
+  const out = [first];
   rec(0, pts.length - 1, out);
-  out.push(pts[pts.length - 1]);
+  out.push(last);
   return out;
 }
 
@@ -193,10 +203,14 @@ export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy
           streamline: 0,
         },
       );
-      if (outline.length > 1) {
+      const [hx, hy] = outline[0] ?? [];
+      if (outline.length > 1 && hx !== undefined && hy !== undefined) {
         c.beginPath();
-        c.moveTo(outline[0][0], outline[0][1]);
-        for (let i = 1; i < outline.length; i++) c.lineTo(outline[i][0], outline[i][1]);
+        c.moveTo(hx, hy);
+        for (let i = 1; i < outline.length; i++) {
+          const [px, py] = outline[i] ?? [];
+          if (px !== undefined && py !== undefined) c.lineTo(px, py);
+        }
         c.closePath();
         c.fill();
       }
@@ -255,11 +269,24 @@ export function redrawCanvas(canvas: HTMLCanvasElement, ops: DrawOp[]) {
   const [vx, vy, vw, vh] = [scrollX, scrollY, innerWidth, innerHeight];
   for (const op of ops) {
     const scale = captureScale(op.captureViewport);
+
+    // Element-anchored ops: reproject against the target's current rect and
+    // shift both the cull bounds and the render origin by the same delta, so
+    // the whole op moves with the page reflow without renderOp itself needing
+    // to know about anchoring.
+    let dx = 0;
+    let dy = 0;
+    if ('target' in op && op.target) {
+      const anchor = opAnchorPoint(op);
+      if (anchor) ({ dx, dy } = applyAnchorDelta(op.target, { docX: anchor.x, docY: anchor.y }));
+    }
+
     const bounds = opBounds(op);
-    const scaledBounds =
-      bounds && scale !== 1
-        ? { x: bounds.x * scale, y: bounds.y * scale, w: bounds.w * scale, h: bounds.h * scale }
+    const culled =
+      bounds && (scale !== 1 || dx || dy)
+        ? { x: bounds.x * scale + dx, y: bounds.y * scale + dy, w: bounds.w * scale, h: bounds.h * scale }
         : bounds;
-    if (inView(scaledBounds, vx, vy, vw, vh)) renderOp(ctx, op, vx, vy, scale);
+
+    if (inView(culled, vx, vy, vw, vh)) renderOp(ctx, op, vx - dx, vy - dy, scale);
   }
 }

@@ -1,7 +1,7 @@
 import { type CommentPriority, cn, type TargetElement } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import { applyAnchorDelta } from '../lib/anchor';
+import { reprojectRects } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { glass } from '../lib/glass';
 import { hexToRgba } from '../lib/renderer';
@@ -38,22 +38,23 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   const highlightAlpha = resolved ? 0.1 : 0.25;
   // Re-anchor against the captured element's CURRENT top-left when possible.
   // The offset was recorded relative to the first rect at capture time, so
-  // shifting every rect by the same delta keeps the multi-rect highlight
-  // shape coherent.
-  const firstRect = op.rects[0];
-  const { dx, dy, strategy } = firstRect
-    ? applyAnchorDelta(op.target, { docX: firstRect.x, docY: firstRect.y })
-    : { dx: 0, dy: 0, strategy: null };
+  // shifting every rect by the same delta — and scaling each rect's offset
+  // from the first rect plus its own size by the element's current/captured
+  // size ratio — keeps the multi-rect highlight shape coherent as the
+  // element reflows, with the first rect landing exactly on the anchor.
+  const anchored = reprojectRects({ target: op.target, rects: op.rects });
+  if (!anchored) return null;
+  const { x: anchorX, y: anchorY, rects, strategy } = anchored;
 
   return (
     <>
-      {op.rects.map((r, i) => (
+      {rects.map((r, i) => (
         <div
           key={`${op.id}-${i}`}
           class="absolute pointer-events-none"
           style={{
-            left: r.x + dx - scrollX,
-            top: r.y + dy - scrollY,
+            left: r.x - scrollX,
+            top: r.y - scrollY,
             width: r.width,
             height: r.height,
             background: resolved
@@ -67,8 +68,8 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
       <div
         class="absolute pointer-events-auto group/sel"
         style={{
-          left: op.rects[0].x + dx - scrollX - 4,
-          top: op.rects[0].y + dy - scrollY - 4,
+          left: anchorX - scrollX - 4,
+          top: anchorY - scrollY - 4,
           width: 8,
           height: 8,
         }}
@@ -110,7 +111,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
             </p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/55 font-medium">{op.author}</span>
+            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
             <button
               type="button"
               onClick={(e) => {
@@ -216,7 +217,7 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
           >
             Esc
           </kbd>
-          <span class="text-[11px] text-ml-glass-fg/55 font-medium">skip comment</span>
+          <span class="text-[11px] text-ml-glass-fg/60 font-medium">skip comment</span>
         </div>
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵
@@ -266,6 +267,7 @@ export function SelectionLayer() {
 
       const firstRect = rects[0];
       const lastRect = rects[rects.length - 1];
+      if (!firstRect || !lastRect) return;
       setPopover({
         x: lastRect.x + lastRect.width,
         y: lastRect.y + lastRect.height,

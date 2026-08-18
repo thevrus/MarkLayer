@@ -111,7 +111,7 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
           >
             Esc
           </kbd>
-          <span class="text-[11px] text-ml-glass-fg/55 font-medium">cancel</span>
+          <span class="text-[11px] text-ml-glass-fg/60 font-medium">cancel</span>
         </div>
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Post ↵

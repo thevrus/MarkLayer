@@ -208,8 +208,7 @@ export function AltDistanceOverlay({ overlay }: { overlay: DistanceOverlay }) {
     );
   }
 
-  for (let i = 0; i < overlay.connectors.length; i++) {
-    const c = overlay.connectors[i];
+  for (const [i, c] of overlay.connectors.entries()) {
     const horizontal = Math.abs(c.y1 - c.y2) < 0.5;
     out.push(
       <div
