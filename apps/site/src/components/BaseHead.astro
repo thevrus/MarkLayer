@@ -1,0 +1,51 @@
+---
+import { OG_IMAGE } from '../lib/site';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+  canonical: string;
+  ogType?: string;
+  schema?: object[];
+  /** Keep the page out of the index (the 404). Emits a single robots tag, never two. */
+  noindex?: boolean;
+}
+
+const { title, description, canonical, ogType = 'article', schema = [], noindex = false } = Astro.props;
+const robots = noindex ? 'noindex, follow' : 'max-image-preview:large, max-snippet:-1';
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<meta property="og:type" content={ogType} />
+<meta property="og:url" content={canonical} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={OG_IMAGE} />
+<meta property="og:site_name" content="MarkLayer" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={OG_IMAGE} />
+<meta name="robots" content={robots} />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary" />
+<slot name="extra-links" />
+<!-- The roman latin face is on the critical path for every page. It is
+     same-origin and declared in global.css, so preloading it starts the fetch in
+     the head instead of one round trip later, when the CSS parse would otherwise
+     discover it. The italic and the latin-ext subset are deliberately NOT
+     preloaded — they fetch only when a glyph in their range actually renders.
+     `crossorigin` is required on a font preload even same-origin: fonts are
+     fetched in anonymous mode, and a preload without it lands in a different
+     cache partition and is simply downloaded twice. -->
+<link rel="preload" href="/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
+{
+  schema.map((s) => (
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(s)} />
+  ))
+}

@@ -1,0 +1,34 @@
+{
+  "home": {
+    "published": "2026-03-18",
+    "modified": "2026-05-18"
+  },
+  "hub-compare": {
+    "published": "2026-01-16",
+    "modified": "2026-03-07"
+  },
+  "hub-alternatives": {
+    "published": "2026-02-05",
+    "modified": "2026-03-26"
+  },
+  "hub-use-cases": {
+    "published": "2026-02-23",
+    "modified": "2026-04-13"
+  },
+  "hub-guides": {
+    "published": "2026-08-15",
+    "modified": "2026-08-15"
+  },
+  "pricing": {
+    "published": "2026-01-28",
+    "modified": "2026-03-19"
+  },
+  "about": {
+    "published": "2026-02-01",
+    "modified": "2026-03-22"
+  },
+  "privacy": {
+    "published": "2026-02-24",
+    "modified": "2026-04-13"
+  }
+}

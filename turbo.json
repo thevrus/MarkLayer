@@ -12,6 +12,18 @@
     },
     "check": {
       "dependsOn": ["^build"]
+    },
+    "deploy": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "deploy:pages": {
+      "dependsOn": ["build"],
+      "cache": false
+    },
+    "zip:all": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

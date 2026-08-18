@@ -1,0 +1,55 @@
+---
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import { getComparisons } from '../lib/collections';
+import { articleSchema } from '../lib/schema';
+import { plainText } from '../lib/markdown';
+import dates from '../data/page-dates.json';
+
+const comparisons = await getComparisons();
+const { published, modified } = dates['hub-compare'];
+
+const path = '/compare';
+const title = 'MarkLayer Comparisons: vs Markup.io, Pastel, BugHerd, Marker.io';
+const description =
+  'Side-by-side comparisons of MarkLayer against the leading visual feedback and annotation tools. Pricing, features, and trade-offs.';
+const h1 = 'MarkLayer comparisons';
+---
+
+<ArticleLayout
+  title={title}
+  description={description}
+  path={path}
+  h1={h1}
+  breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Comparisons' }]}
+  modified={modified}
+  schema={[articleSchema({ h1, description, path, published, modified })]}
+>
+  <Fragment slot="intro">
+    How does MarkLayer compare to other webpage annotation and visual feedback tools? Below are head-to-head breakdowns
+    of the most common alternatives, covering pricing, features, real-time collaboration, and when each tool is the
+    better fit.
+  </Fragment>
+
+  {/* Sixteen entries. Each is bounded by `ml-entry` so the run reads as a list
+      of discrete items rather than one column of alternating heading and grey
+      paragraph, which is what made this page impossible to scan.
+
+      "MarkLayer vs" opens all sixteen headings, so it is set a step back and the
+      competitor — the only word that differs, and the one people are actually
+      looking for — carries the ink. The link text itself is unchanged, so the
+      anchor still reads "MarkLayer vs Markup.io" to a crawler or a screen
+      reader; only the emphasis inside it moves. */}
+  <h2>All comparisons</h2>
+  {
+    comparisons.map((c) => (
+      <div class="ml-entry">
+        <h3>
+          <a href={`/vs/${c.id}`}>
+            <span class="font-normal text-meta">MarkLayer vs</span> {c.data.competitor}
+          </a>
+        </h3>
+        <p>{plainText(c.body ?? '')}</p>
+      </div>
+    ))
+  }
+</ArticleLayout>

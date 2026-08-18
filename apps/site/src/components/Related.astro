@@ -1,0 +1,13 @@
+---
+import LinkGrid from './LinkGrid.astro';
+
+interface Props {
+  title: string;
+  links: { href: string; label: string }[];
+}
+
+const { title, links } = Astro.props;
+---
+
+<h2>{title}</h2>
+<LinkGrid links={links} />

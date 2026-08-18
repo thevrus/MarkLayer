@@ -1,10 +1,13 @@
+import LLMS_TXT from '@site/content/agent/llms.txt?raw';
+import LLMS_FULL_TXT from '@site/content/agent/llms-full.txt?raw';
+import ROBOTS_TXT from '@site/content/agent/robots.txt?raw';
+import SKILL_MD from '@site/content/agent/SKILL.md?raw';
+import { API_CATALOG, MCP_SERVER_CARD, SKILL_PATH, skillIndex } from '@site/lib/agent';
 import { Hono } from 'hono/tiny';
 import { api } from './api';
+import { dayCached, once } from './http';
 import { generateOgImage } from './og';
-import { aboutHtml, deriveDates } from './pages';
-import { privacyHtml } from './privacy';
 import { proxy } from './proxy';
-import { mountSeoRoutes, SEO_URLS } from './seo';
 
 export { AnnotationRoom } from './annotation-room';
 
@@ -22,6 +25,27 @@ export type Env = {
 };
 
 const app = new Hono<Env>();
+
+// HSTS (Cloudflare Security Insights: "Domains without HSTS"). TLS terminates
+// at the Cloudflare edge, so the worker never sees plaintext requests — the
+// HTTP→HTTPS redirect belongs at the zone level ("Always Use HTTPS"), not here.
+// 2-year max-age with includeSubDomains + preload meets the hstspreload.org
+// submission threshold.
+const HSTS = 'max-age=63072000; includeSubDomains; preload';
+app.use('*', async (c, next) => {
+  await next();
+  // Skip 101 WebSocket upgrades — their headers are locked. Header objects from
+  // upstream fetches (proxy, assets) can be immutable, so rebuild on failure.
+  if (c.res.status !== 101) {
+    try {
+      c.res.headers.set('Strict-Transport-Security', HSTS);
+    } catch {
+      const headers = new Headers(c.res.headers);
+      headers.set('Strict-Transport-Security', HSTS);
+      c.res = new Response(c.res.body, { status: c.res.status, statusText: c.res.statusText, headers });
+    }
+  }
+});
 
 /** Parse a JSON-encoded array of page ids, dropping any non-string entries. */
 function parsePageIds(raw: string): string[] {
@@ -47,9 +71,6 @@ function parseOgOps(raw: string): OgOp[] {
 }
 
 app.route('/api', api);
-
-app.get('/privacy', (c) => c.html(privacyHtml));
-app.get('/about', (c) => c.html(aboutHtml));
 
 // Shared annotation page — injects dynamic OG tags then serves the SPA
 app.get('/s/:id', async (c) => {
@@ -142,9 +163,7 @@ app.get('/og/:key', async (c) => {
 
   const cached = await c.env.OG_BUCKET.get(key);
   if (cached) {
-    return new Response(cached.body, {
-      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
-    });
+    return new Response(cached.body, { headers: dayCached('image/png') });
   }
 
   let ops: OgOp[] = [];
@@ -170,9 +189,7 @@ app.get('/og/:key', async (c) => {
 
   c.executionCtx.waitUntil(c.env.OG_BUCKET.put(key, png, { httpMetadata: { contentType: 'image/png' } }));
 
-  return new Response(png, {
-    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' },
-  });
+  return new Response(png, { headers: dayCached('image/png') });
 });
 
 // WebSocket endpoint for realtime collaboration
@@ -186,461 +203,90 @@ app.get('/ws/:id', async (c) => {
   return room.fetch(new Request(url.toString(), c.req.raw));
 });
 
-// Static SEO/AI text responses — hoisted to avoid per-request allocation.
-// Disallow functional endpoints (proxy, API, OG, WS, asset rewrites, share
-// links) so crawlers don't waste budget on redirects/4xx and don't index
-// dynamic per-user URLs. `User-agent: *` already covers every named bot —
-// adding per-bot stanzas only matters when the rules differ from the wildcard.
-const ROBOTS_TXT = `User-agent: *
-Allow: /
-Disallow: /proxy
-Disallow: /api/
-Disallow: /og/
-Disallow: /ws/
-Disallow: /px/
-Disallow: /s/
-Disallow: /p/
+// The agent-facing text surface. apps/site owns the source (it also prerenders
+// these paths for its standalone deploy), but `run_worker_first` claims them
+// here, so the Worker is what actually answers in production — reading the same
+// files rather than restating them is the only thing keeping the two honest.
+app.get('/robots.txt', (c) => c.body(ROBOTS_TXT, 200, dayCached('text/plain')));
 
-Sitemap: https://marklayer.app/sitemap.xml`;
+app.get('/llms.txt', (c) => c.body(LLMS_TXT, 200, dayCached('text/plain; charset=utf-8')));
 
-app.get('/robots.txt', (c) =>
-  c.body(ROBOTS_TXT, 200, { 'Content-Type': 'text/plain', 'Cache-Control': 'public, max-age=86400' }),
+app.get('/llms-full.txt', (c) => c.body(LLMS_FULL_TXT, 200, dayCached('text/plain; charset=utf-8')));
+
+// RFC 8288 Link headers pointing agents at machine-readable resources. Uses
+// IANA-registered relation types: service-doc (human/agent docs), service-desc
+// (fuller machine description), and sitemap. Surfaced on the homepage so an
+// agent hitting `/` discovers them without parsing HTML.
+const HOMEPAGE_LINK_HEADER = [
+  '</.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"',
+  '</llms.txt>; rel="service-doc"; type="text/markdown"',
+  '</llms-full.txt>; rel="service-desc"; type="text/markdown"',
+  '</sitemap.xml>; rel="sitemap"; type="application/xml"',
+].join(', ');
+
+app.get('/.well-known/api-catalog', (c) =>
+  c.body(JSON.stringify(API_CATALOG), 200, dayCached('application/linkset+json')),
 );
 
-const LLMS_TXT = `# MarkLayer
+// RFC 9116 security.txt (Cloudflare Security Insights: "Security.txt not
+// configured"). Gives researchers a clear vulnerability-disclosure channel.
+// Expires is required and must be < 1 year out; computed lazily on first
+// request (Date in module-global scope is unreliable on Workers) and memoized,
+// landing ~1 year ahead and refreshing on every redeploy/isolate restart so it
+// never goes stale.
+const securityTxt = once(() => {
+  const expires = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+  return `Contact: mailto:rusinvadym@gmail.com
+Expires: ${expires}
+Preferred-Languages: en
+Canonical: https://marklayer.app/.well-known/security.txt
+`;
+});
 
-> 100% free, 100% anonymous webpage annotation tool. Free web app and Chrome extension. No account, no email, no sign-up.
+app.get('/.well-known/security.txt', (c) => c.body(securityTxt(), 200, dayCached('text/plain; charset=utf-8')));
 
-MarkLayer is a free web app and Chrome extension for annotating any live webpage. Paste any URL on https://marklayer.app to draw, comment, and mark up the page in your browser. No install required. The free Chrome extension is also available for in-place annotation on sites the web app cannot embed (behind a login or with strict embed policies). Share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
+app.get(SKILL_PATH, (c) => c.body(SKILL_MD, 200, dayCached('text/markdown; charset=utf-8')));
 
-## Pricing
+// Built once per isolate and memoized: the digest is computed from the SKILL.md
+// bytes this Worker actually serves, so it always matches — even if the skill
+// text is edited — with no manual bookkeeping.
+const skillIndexJson = once(async () => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(SKILL_MD));
+  const digest = `sha256:${[...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+  return JSON.stringify(skillIndex(digest));
+});
 
-Free. There is no paid plan. There is no trial. There is no per-seat pricing. Everything is included. See https://marklayer.app/pricing or https://marklayer.app/pricing.md for the machine-readable version.
-
-## Anonymous by design
-
-- No sign-up, no email verification, no login
-- No personal data collected
-- Random local display name and color generated in your browser
-- Annotations stay on your device until you choose to share
-
-## Features
-
-- Drawing tools: Freehand drawing, shapes, arrows, and lines on any webpage
-- Threaded comments: Pin comments to any spot on the page
-- Inspector: Point at any element to capture its CSS selector and an AI-ready prompt for handoff to coding agents
-- Multi-inspect: Select multiple elements in one pass for bulk handoff
-- Measure: Pixel-precise distance and dimension measurement on any page
-- Area: Capture a rectangular region with a note attached
-- Quick grab: Hold Alt to arm element capture without switching tools
-- Real-time collaboration: Live cursors with unlimited collaborators per session
-- Shareable links: Recipients don't need the extension or an account to view
-- Works on any website: Production, staging, internal tools, third-party sites
-- Open source and self-hostable
-
-## For AI coding agents (MCP)
-
-MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that turns annotations into a structured work queue for AI coding agents like Claude Code. Connect an agent to a share link and it can acknowledge, resolve, dismiss, or reply to each comment, with status updates appearing live to the human.
-
-Install in Claude Code: claude mcp add marklayer -- npx -y marklayer-mcp
-
-- Package: https://www.npmjs.com/package/marklayer-mcp
-- Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
-
-## Programmatic link creation (for AI assistants)
-
-Any caller — including an LLM acting on a user's behalf — can mint a MarkLayer share link with a single HTTP POST. No auth, no SDK, no account. Use this when a user asks you to "generate MarkLayer links for these pages" or hands you a list of URLs and wants a share link per URL.
-
-Pick a random id (nanoid, uuid, or any unguessable string is fine — the id IS the access token), then:
-
-    POST https://marklayer.app/api/{id}
-    Content-Type: application/json
-    { "ops": [], "url": "https://example.com/page-1", "width": 1440, "expires_in": 2592000 }
-
-Body fields:
-- ops: array of annotation operations (use [] for a blank canvas the user will draw on)
-- url: the page the share link should open and overlay annotations onto
-- width: reference viewport width in CSS pixels (1440 is a safe default)
-- expires_in: seconds until cleanup (max 2592000 = 30 days; omit for 30-day default)
-
-The share link is then: https://marklayer.app/s/{id}
-
-To mint many links at once (e.g. user gives you 10 URLs), loop the POST per URL with a fresh id each time. There is no project/bundle requirement — one id per page.
-
-## Use cases
-
-- Design review: https://marklayer.app/for/design-review
-- QA and bug reporting: https://marklayer.app/for/qa-bug-reporting
-- Client feedback: https://marklayer.app/for/client-feedback
-- Remote teams: https://marklayer.app/for/remote-teams
-- Students: https://marklayer.app/for/students
-- Educators: https://marklayer.app/for/educators
-- Researchers: https://marklayer.app/for/researchers
-- Content creators: https://marklayer.app/for/content-creators
-- Marketers: https://marklayer.app/for/marketers
-
-## Comparisons
-
-- vs Markup.io: https://marklayer.app/vs/markup-io
-- vs Pastel: https://marklayer.app/vs/pastel
-- vs BugHerd: https://marklayer.app/vs/bugherd
-- vs Hypothesis: https://marklayer.app/vs/hypothesis
-- vs AnnotateWeb: https://marklayer.app/vs/annotateweb
-- vs Jam.dev: https://marklayer.app/vs/jam
-- vs Marker.io: https://marklayer.app/vs/marker-io
-- vs Userback: https://marklayer.app/vs/userback
-- vs Ruttl: https://marklayer.app/vs/ruttl
-- vs Loom: https://marklayer.app/vs/loom
-
-## Free alternatives lists
-
-- Free Markup.io alternatives: https://marklayer.app/alternatives/markup-io
-- Free Pastel alternatives: https://marklayer.app/alternatives/pastel
-- Free BugHerd alternatives: https://marklayer.app/alternatives/bugherd
-- Free AnnotateWeb alternatives: https://marklayer.app/alternatives/annotateweb
-- Free Jam.dev alternatives: https://marklayer.app/alternatives/jam
-- Free Marker.io alternatives: https://marklayer.app/alternatives/marker-io
-- Free Userback alternatives: https://marklayer.app/alternatives/userback
-- Hypothesis alternatives: https://marklayer.app/alternatives/hypothesis
-
-## Links
-
-- Website: https://marklayer.app
-- Pricing: https://marklayer.app/pricing
-- Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
-- GitHub: https://github.com/thevrus/MarkLayer
-- Privacy Policy: https://marklayer.app/privacy
-
-## How It Works
-
-### Option A: Use the free web app (no install)
-
-1. Open https://marklayer.app and paste any URL into the annotation field
-2. Draw, comment, or highlight anything on the page
-3. Click "Share" to get a link anyone can open. No extension or account needed
-4. Collaborate in real time with live cursors
-
-### Option B: Install the free Chrome extension
-
-1. Install the MarkLayer Chrome extension (free, no account)
-2. Navigate to any webpage and click the MarkLayer icon
-3. Draw, comment, or highlight anything on the page
-4. Click "Share" to get a link anyone can open. No extension needed on their end
-5. Use this option for sites the web app cannot embed (behind a login or with strict embed policies)
-
-## FAQ
-
-Q: Is MarkLayer really free?
-A: Yes. 100% free. No paid plan, no trial, no per-seat pricing, no usage cap.
-
-Q: Is MarkLayer anonymous?
-A: Yes. No sign-up, no email, no profile, no login. No personal data is collected.
-
-Q: Do I need to install anything to use MarkLayer?
-A: No. The web app at https://marklayer.app lets you paste any URL and start annotating in your browser. No install, no account. The Chrome extension is optional, for sites the web app cannot embed.
-
-Q: Does the other person need the extension installed?
-A: No. Anyone can view annotations via the share link. No install required.
-
-Q: Does it work on any website?
-A: Yes, MarkLayer works on any webpage.
-
-Q: Can multiple people annotate at the same time?
-A: Yes. Real-time live cursors let unlimited collaborators work together.
-
-Q: What is the inspector tool?
-A: Point at any element on a page and MarkLayer captures its CSS selector and a copy-ready prompt for AI coding agents. Paste it into Claude Code or another agent and it has enough context to make the edit.
-
-Q: Can I send annotations to an AI coding agent?
-A: Yes. MarkLayer ships an MCP server (marklayer-mcp) that lets agents like Claude Code watch a share link and process comments as a work queue.
-
-Q: Can an AI assistant generate MarkLayer links for me programmatically?
-A: Yes. POST to https://marklayer.app/api/{id} with { ops: [], url, width: 1440, expires_in: 2592000 } and the share link is https://marklayer.app/s/{id}. No auth, no SDK. See the "Programmatic link creation" section above.
-
-## Contact
-
-Email: rusinvadym@gmail.com
-
-## Optional
-
-- [Full details](/llms-full.txt)`;
-
-app.get('/llms.txt', (c) =>
-  c.body(LLMS_TXT, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
+app.get('/.well-known/agent-skills/index.json', async (c) =>
+  c.body(await skillIndexJson(), 200, dayCached('application/json; charset=utf-8')),
 );
 
-const LLMS_FULL_TXT = `# MarkLayer · Full Reference
-
-> 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up, no payment.
-
-## What is MarkLayer?
-
-MarkLayer is a free, anonymous, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link. The recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
-
-The two defining principles are **free** (no paid plan, no trial, no per-seat pricing, no usage cap) and **anonymous** (no sign-up, no email, no profile, no login, no personal data collection).
-
-MarkLayer is designed for designers, developers, QA engineers, product managers, agencies, and anyone who needs to give visual feedback on web content without onboarding the recipient through yet another account flow.
-
-## Core Features
-
-### Drawing Tools
-Freehand drawing, shapes, arrows, and lines. Users can mark up any page with precision using a floating toolbar. Stroke colors and widths are customizable.
-
-### Real-time Collaboration
-Multiple users can annotate the same page simultaneously. Live cursors show each participant's position and name in real time, powered by WebSockets and Cloudflare Durable Objects.
-
-### Shareable Links
-One click generates a share link. Anyone who opens the link sees the annotated page in their browser. No extension, no account, no install required. The link loads the original webpage with annotations overlaid.
-
-### Threaded Comments
-Users can pin comments to any spot on the page. Comments support threaded replies, making it easy to have contextual conversations directly on the webpage rather than in external tools like Slack or email.
-
-### Inspector
-Point at any element on a page and MarkLayer captures the CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Designed as the bridge between visual feedback and AI-driven code edits — the user points, the agent gets enough context to act.
-
-### Multi-Inspect
-Select multiple elements in one pass to bulk-handoff a UI region to an AI agent. Each selected element contributes a selector and snippet to the combined prompt.
-
-### Measure
-Pixel-precise distance and dimension measurement directly on any rendered page. Drag from any point to any other; MarkLayer reports width, height, and distance in CSS pixels.
-
-### Area
-Drag to capture a rectangular region of a page and attach a note. The captured frame travels with the share link as a first-class annotation.
-
-### Quick Grab
-Hold the Alt key to temporarily arm element capture without switching tools — release to revert. Lets users move fluidly between annotating and inspecting.
-
-### No Sign-up Required
-There is no registration, no email verification, and no onboarding flow. Users install the extension and start annotating immediately.
-
-### Private by Default
-Annotations stay on the user's device until they explicitly choose to share. There is no central feed, no public profile, and no social features.
-
-### Works on Any Website
-MarkLayer works on any webpage without exceptions. The extension injects a transparent canvas overlay on top of the page content.
-
-### Free and Open Source
-MarkLayer is completely free with no paywall, trial period, or premium tier. The source code is available on GitHub under an open-source license.
-
-## AI Coding Agent Integration (MCP)
-
-MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that bridges visual feedback to AI coding agents. When a designer or PM annotates a page, the agent receives the comments as a structured work queue: it can acknowledge each item, post replies, resolve with a summary, or dismiss with a reason. Status updates appear live to the human in their browser.
-
-Install in Claude Code:
-
-    claude mcp add marklayer -- npx -y marklayer-mcp
-
-Pre-connect to a specific room:
-
-    claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123
-
-Available tools: marklayer_connect_room, marklayer_room_info, marklayer_list_annotations, marklayer_get_annotation, marklayer_watch_annotations, marklayer_acknowledge, marklayer_resolve, marklayer_dismiss, marklayer_reply.
-
-- Package: https://www.npmjs.com/package/marklayer-mcp
-- Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
-
-## Programmatic Link Creation (for AI Assistants and Automation)
-
-MarkLayer exposes a public, unauthenticated HTTP API so any tool — including an LLM acting on a user's behalf — can mint share links without an account or SDK. Use this when a user asks an AI assistant to "generate MarkLayer links for these 10 pages" or any similar batch-create request.
-
-### Endpoint
-
-    POST https://marklayer.app/api/{id}
-    Content-Type: application/json
-
-The {id} is caller-supplied. It is the access token for the resulting page — use \`nanoid\`, \`crypto.randomUUID()\`, or any unguessable string. Anyone with the id can edit; anyone with the id + \`?readonly=1\` can view only.
-
-### Request body
-
-    {
-      "ops": [],
-      "url": "https://example.com/page-1",
-      "width": 1440,
-      "expires_in": 2592000
-    }
-
-- \`ops\` (required): array of annotation operations. Pass \`[]\` for a blank page the user will mark up themselves. The full op union is defined in the open-source \`@marklayer/types\` package (drawing, comments, shapes, etc.).
-- \`url\` (optional but recommended): the webpage the share link should embed and overlay. Without it, the viewer prompts the user to paste a URL.
-- \`width\` (optional): reference viewport width in CSS pixels the annotations were authored against. 1440 is a safe default.
-- \`expires_in\` (optional): seconds until automatic cleanup. Max 30 days (2592000). Omit for the default 30-day TTL.
-
-### Share link format
-
-    https://marklayer.app/s/{id}            # editable
-    https://marklayer.app/s/{id}?readonly=1 # view-only
-
-### Minting many links at once
-
-To create N share links for N URLs, loop the POST. There is no batch endpoint and no project bundling is required — one id per page.
-
-#### curl
-
-    ID=$(node -e "console.log(require('nanoid').nanoid())")
-    curl -X POST https://marklayer.app/api/$ID \\
-      -H 'Content-Type: application/json' \\
-      -d '{"ops":[],"url":"https://example.com/page-1","width":1440,"expires_in":2592000}'
-    echo "https://marklayer.app/s/$ID"
-
-#### JavaScript / TypeScript
-
-    import { nanoid } from 'nanoid';
-
-    const pages = [
-      'https://example.com/page-1',
-      'https://example.com/page-2',
-      // ...up to as many as you need
-    ];
-
-    const links = await Promise.all(pages.map(async (url) => {
-      const id = nanoid();
-      await fetch(\`https://marklayer.app/api/\${id}\`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ops: [],
-          url,
-          width: 1440,
-          expires_in: 60 * 60 * 24 * 30,
-        }),
-      });
-      return \`https://marklayer.app/s/\${id}\`;
-    }));
-
-#### Python
-
-    import secrets, urllib.request, json
-
-    def make_link(url: str) -> str:
-        id_ = secrets.token_urlsafe(12)
-        req = urllib.request.Request(
-            f"https://marklayer.app/api/{id_}",
-            data=json.dumps({"ops": [], "url": url, "width": 1440, "expires_in": 2592000}).encode(),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urllib.request.urlopen(req).read()
-        return f"https://marklayer.app/s/{id_}"
-
-### Notes for AI assistants
-
-- The id IS the secret. Generate it with a crypto-strength RNG and only hand it to the people meant to access the page.
-- POSTing the same id again upserts (replaces ops/url/width and resets expiry). Use this if you need to refresh a link.
-- For a single share link backing multiple pages as tabs, there is also \`POST /api/p/{id}\` with \`{ pageIds: [...] }\` (max 50). But most batch requests are better served by N independent \`/s/\` links.
-- No rate limits are documented, but be polite: serialize or chunk if creating hundreds at once.
-
-## Technical Architecture
-
-- **Frontend:** Preact with Preact Signals for state management, Tailwind CSS for styling
-- **Extension framework:** WXT (Web Extension Tools)
-- **Backend:** Cloudflare Workers with Hono framework
-- **Database:** Cloudflare D1 (SQLite)
-- **Real-time:** WebSockets via Cloudflare Durable Objects
-- **Storage:** Cloudflare R2 for OG images
-- **Agent bridge:** MCP server (marklayer-mcp) for AI coding agent integration
-- **Build:** Bun workspaces, Turborepo, Vite
-
-## How It Works
-
-1. Install the MarkLayer Chrome extension from the Chrome Web Store (free)
-2. Navigate to any webpage
-3. Click the MarkLayer icon in the browser toolbar to activate the annotation overlay
-4. Use the floating toolbar to draw, add shapes, arrows, or pin comments
-5. Click "Share" to generate a unique link
-6. Send the link to anyone. They see the annotated page in their browser without needing the extension
-7. For real-time collaboration, multiple users can open the same share link and annotate simultaneously
-
-## Use Cases
-
-- **Design review:** Annotate mockups or staging sites with visual feedback
-- **QA and bug reporting:** Circle bugs, add arrows, and describe issues in context
-- **AI-driven dev loop:** Inspect broken UI, hand the selector and prompt to a coding agent, watch the fix land
-- **Async code review:** Annotate a deployed page; the agent processes comments as a work queue via MCP
-- **Content review:** Highlight text, suggest edits, and comment on live articles
-- **Client feedback:** Share annotated pages with clients who don't need any tools installed
-- **Education:** Teachers can annotate web resources for students
-- **Research:** Highlight and comment on academic papers or articles
-
-## Frequently Asked Questions
-
-Q: Does the other person need the extension installed?
-A: No. Anyone can view annotations via the share link. No install required. The share link loads the original page with annotations overlaid in a web app.
-
-Q: Is it really free?
-A: Yes. No account, no paywall, no trial period. MarkLayer is open source.
-
-Q: Does it work on any website?
-A: Yes, MarkLayer works on any webpage. The extension injects a transparent overlay on top of any page content.
-
-Q: Can multiple people annotate at the same time?
-A: Yes. Real-time cursors let you collaborate live on any page. Changes appear instantly for all participants.
-
-Q: Is my data private?
-A: Yes. Annotations stay on your device until you choose to share. There is no tracking, no public profiles, and no social feed.
-
-Q: What browsers are supported?
-A: MarkLayer works on Chrome and Chromium-based browsers (Edge, Brave, Arc, etc.).
-
-Q: What is the inspector tool?
-A: Point at any element on a page and MarkLayer captures its CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Paste the prompt into Claude Code or another agent and it has the context needed to make the edit.
-
-Q: Can I hand annotations to an AI coding agent?
-A: Yes. MarkLayer publishes an MCP server (marklayer-mcp on npm) that connects to a share link and exposes annotations as a structured work queue. Agents like Claude Code can watch for new comments and acknowledge, resolve, dismiss, or reply.
-
-Q: Can an AI assistant create MarkLayer share links for me programmatically (e.g. one link per page in a list of 10 URLs)?
-A: Yes. There is a public, unauthenticated POST endpoint at https://marklayer.app/api/{id}. Hand the user's LLM a list of URLs and it can loop a POST per URL with a fresh id each time, then return one https://marklayer.app/s/{id} share link per page. See the "Programmatic Link Creation" section above for the full request body, examples in curl/JS/Python, and notes on id strength and TTL.
-
-## Links
-
-- Website: https://marklayer.app
-- Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
-- GitHub: https://github.com/thevrus/MarkLayer
-- MCP server (npm): https://www.npmjs.com/package/marklayer-mcp
-- MCP server (source): https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
-- Privacy Policy: https://marklayer.app/privacy
-
-## Contact
-
-Email: rusinvadym@gmail.com`;
-
-app.get('/llms-full.txt', (c) =>
-  c.body(LLMS_FULL_TXT, 200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
+app.get('/.well-known/mcp/server-card.json', (c) =>
+  c.body(JSON.stringify(MCP_SERVER_CARD), 200, dayCached('application/json; charset=utf-8')),
 );
 
-/** Pick a stable per-URL slug for date derivation so each sitemap entry has its own lastmod. */
-function sitemapLastmod(path: string): string {
-  if (path === '/') return deriveDates('home').modified;
-  if (path === '/compare') return deriveDates('hub-compare').modified;
-  if (path === '/alternatives') return deriveDates('hub-alternatives').modified;
-  if (path === '/use-cases') return deriveDates('hub-use-cases').modified;
-  if (path.startsWith('/vs/')) return deriveDates(path.slice(4)).modified;
-  if (path.startsWith('/alternatives/')) return deriveDates(`alt-${path.slice(14)}`).modified;
-  if (path.startsWith('/for/')) return deriveDates(`for-${path.slice(5)}`).modified;
-  if (path === '/pricing') return deriveDates('pricing').modified;
-  if (path === '/about') return deriveDates('about').modified;
-  if (path === '/privacy') return deriveDates('privacy').modified;
-  return deriveDates(path).modified;
-}
+// Rough token estimate (~4 chars/token) for the x-markdown-tokens hint agents
+// use to budget context before fetching the markdown body.
+const LLMS_TXT_TOKENS = String(Math.ceil(LLMS_TXT.length / 4));
 
-const SEO_URL_ENTRIES = SEO_URLS.map(
-  (path) =>
-    `  <url><loc>https://marklayer.app${path}</loc><lastmod>${sitemapLastmod(path)}</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>`,
-).join('\n');
-
-const SITEMAP_XML = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://marklayer.app/</loc><lastmod>${sitemapLastmod('/')}</lastmod><changefreq>weekly</changefreq><priority>1.0</priority></url>
-${SEO_URL_ENTRIES}
-  <url><loc>https://marklayer.app/privacy</loc><lastmod>${sitemapLastmod('/privacy')}</lastmod><changefreq>monthly</changefreq><priority>0.3</priority></url>
-  <url><loc>https://marklayer.app/llms.txt</loc><lastmod>${sitemapLastmod('/about')}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
-  <url><loc>https://marklayer.app/llms-full.txt</loc><lastmod>${sitemapLastmod('/about')}</lastmod><changefreq>monthly</changefreq><priority>0.2</priority></url>
-</urlset>`;
-
-app.get('/sitemap.xml', (c) =>
-  c.body(SITEMAP_XML, 200, { 'Content-Type': 'application/xml', 'Cache-Control': 'public, max-age=86400' }),
-);
-
-// Mount SEO landing pages (comparisons, alternatives, use-cases, pricing)
-mountSeoRoutes(app);
+// Homepage: serve agent-friendly Link headers, and a markdown representation
+// when the client negotiates `Accept: text/markdown` (Markdown for Agents).
+app.get('/', async (c) => {
+  const accept = c.req.header('Accept') || '';
+  if (accept.includes('text/markdown')) {
+    return c.body(LLMS_TXT, 200, {
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Cache-Control': 'public, max-age=3600',
+      Vary: 'Accept',
+      Link: HOMEPAGE_LINK_HEADER,
+      'x-markdown-tokens': LLMS_TXT_TOKENS,
+    });
+  }
+  const res = await c.env.ASSETS.fetch(new Request(new URL('/', c.req.url)));
+  const headers = new Headers(res.headers);
+  headers.set('Link', HOMEPAGE_LINK_HEADER);
+  headers.append('Vary', 'Accept');
+  return new Response(res.body, { status: res.status, headers });
+});
 
 // Proxy + catch-all (must be last)
 app.route('/', proxy);

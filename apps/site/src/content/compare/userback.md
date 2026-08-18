@@ -1,0 +1,63 @@
+---
+order: 6
+title: "Userback vs MarkLayer: Customer Widget vs Team Tool"
+description: "Userback embeds a widget on your product for end-user feedback. MarkLayer is the Chrome extension your team uses to annotate any page, including pages you don't own."
+competitor: "Userback"
+competitorTagline: "a paid feedback platform whose primary use case is collecting feedback FROM your end users via an embedded widget on your own product"
+bottomLine: "Choose MarkLayer when your team needs to give feedback on any webpage, anywhere on the internet. Choose Userback when you need to collect annotated feedback FROM your end users on your own product via an embedded widget."
+quote: "Userback and MarkLayer get conflated because both have annotation. Userback is the widget customers use to give you feedback on your product. MarkLayer is the tool your team uses to give feedback on any page. Different sides of the table."
+published: 2026-02-13
+modified: 2026-04-03
+rows:
+  - feature: "Price"
+    ml: "Free"
+    them: "Paid (subscription per user/month)"
+  - feature: "Sign-up required"
+    ml: "No"
+    them: "Yes"
+  - feature: "Primary use case"
+    ml: "Your team annotating any page"
+    them: "End users giving feedback on your own product"
+  - feature: "Embedded widget on your site"
+    ml: "No"
+    them: "Yes. JS snippet you install"
+  - feature: "Works on third-party / competitor pages"
+    ml: "Yes. Annotate any page"
+    them: "No. Widget only on your installed sites"
+  - feature: "Browser/OS metadata capture"
+    ml: "No"
+    them: "Yes"
+  - feature: "Integrations"
+    ml: "None native"
+    them: "Jira, Slack, Trello, Asana, GitHub"
+  - feature: "Real-time live cursors"
+    ml: "Yes"
+    them: "No"
+  - feature: "Open source"
+    ml: "Yes"
+    them: "No"
+  - feature: "Best for"
+    ml: "Internal team review on any page"
+    them: "Customer feedback widget on your own product"
+chooseMl:
+  - "You want your team to annotate pages. Including pages you don't own."
+  - "You need real-time collaborative review with live cursors."
+  - "You want a free, no-sign-up tool for ad-hoc visual feedback."
+  - "You're not trying to collect feedback from your own end users right now."
+chooseThem:
+  - "You need a feedback widget embedded on your own production app for end users."
+  - "You need user-submitted bug reports with browser/OS metadata attached."
+  - "You need feedback to flow into Jira, Slack, Trello, or GitHub automatically."
+  - "You want a customer-facing branded feedback experience."
+faq:
+  - q: "Is MarkLayer a free Userback alternative?"
+    a: "Only for one direction of Userback's use case. Internal team annotation on any page. MarkLayer does not replace Userback's widget for collecting feedback from your end users on your own product."
+  - q: "Can I embed MarkLayer on my website like Userback?"
+    a: "No. MarkLayer is a Chrome extension your team installs, not a JavaScript widget you embed on your site for visitors. If you need a customer-facing feedback widget, Userback is the right category of tool."
+  - q: "Can my team use MarkLayer to review competitor sites?"
+    a: "Yes. MarkLayer works on any webpage, including third-party sites. Many teams use it for competitive analysis and content review."
+  - q: "What's the cleanest split between MarkLayer and Userback?"
+    a: "MarkLayer = your team annotating anything on the web. Userback = your end users annotating your product to give you feedback. Different sides of the table."
+---
+
+MarkLayer and Userback look similar but solve different problems. Userback's main mode is a feedback widget you embed on your own product so end users can submit annotated feedback to you. MarkLayer is a Chrome extension your team uses to annotate any webpage (including third-party pages, staging sites, and competitor products) and share the result.

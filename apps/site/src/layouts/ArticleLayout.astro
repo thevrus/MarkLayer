@@ -1,0 +1,75 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { breadcrumbSchema, type Crumb } from '../lib/schema';
+import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, sectionFor } from '../lib/site';
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  h1: string;
+  bottomLine?: string;
+  breadcrumbs?: Crumb[];
+  schema?: object[];
+  /** ISO day (YYYY-MM-DD) of the last content review. Rendered as "April 2026". */
+  modified: string;
+}
+
+const { title, description, path, h1, bottomLine, breadcrumbs, schema = [], modified } = Astro.props;
+
+const crumbs: Crumb[] = breadcrumbs ?? [{ name: 'MarkLayer', path: '/' }, { name: h1 }];
+const allSchema: object[] = [...schema, breadcrumbSchema(crumbs)];
+---
+
+<html lang="en">
+  <head>
+    <BaseHead title={title} description={description} canonical={`${ORIGIN}${path}`} schema={allSchema}>
+      <slot name="extra-links" slot="extra-links" />
+    </BaseHead>
+  </head>
+  <body>
+    <SiteHeader current={sectionFor(path)} />
+    <Breadcrumbs crumbs={crumbs} />
+    <h1>{h1}</h1>
+    <p class="ml-meta mt-0 mb-7">
+      By <a href="/about">Vadym Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
+    </p>
+    {/* A div, not a p: the intro arrives as rendered Markdown that already emits
+        its own <p>, and Astro 7's compiler no longer silently repairs nested
+        paragraphs. The child margin reset keeps the spacing identical. */}
+    <div class="ml-lede"><slot name="intro" /></div>
+    {/* Top rule only. The next section's heading draws its own rule, and a
+        closing rule here left two hairlines stacked with dead space between
+        them, which reads as a mistake rather than a frame. */}
+    {
+      bottomLine && (
+        <div class="my-10 border-t border-rule pt-5">
+          <p class="ml-meta m-0 mb-2">Bottom line</p>
+          <p class="text-lede m-0 text-pretty text-ink">{bottomLine}</p>
+        </div>
+      )
+    }
+    <slot />
+
+    <h2>Try MarkLayer</h2>
+    <p>
+      MarkLayer is free, requires no sign-up, and works on any webpage. Recipients of your share links don't need to
+      install anything.
+    </p>
+    <a class="ml-cta mt-2" href={CHROME_STORE_URL}>
+      Add to Chrome
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
+        <path
+          d="M2.5 8.5 8.5 2.5M3.9 2.5h4.6v4.6"
+          stroke="currentColor"
+          stroke-width="1.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"></path>
+      </svg>
+    </a>
+    <SiteFooter />
+  </body>
+</html>

@@ -1,0 +1,26 @@
+{
+  "name": "@marklayer/site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node scripts/verify-build.mjs",
+    "preview": "astro preview",
+    "check": "astro check",
+    "deploy:pages": "wrangler pages deploy",
+    "deploy:pages:preview": "wrangler pages deploy --branch=preview"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.2.2",
+    "astro": "^7.2.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "@tailwindcss/vite": "^4.3.3",
+    "rehype-external-links": "^3.0.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.123.0"
+  }
+}

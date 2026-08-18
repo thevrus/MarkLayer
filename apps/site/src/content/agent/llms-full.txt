@@ -1,0 +1,232 @@
+# MarkLayer · Full Reference
+
+> 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up, no payment.
+
+## What is MarkLayer?
+
+MarkLayer is a free, anonymous, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link. The recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
+
+The two defining principles are **free** (no paid plan, no trial, no per-seat pricing, no usage cap) and **anonymous** (no sign-up, no email, no profile, no login, no personal data collection).
+
+MarkLayer is designed for designers, developers, QA engineers, product managers, agencies, and anyone who needs to give visual feedback on web content without onboarding the recipient through yet another account flow.
+
+## Core Features
+
+### Drawing Tools
+Freehand drawing, shapes, arrows, and lines. Users can mark up any page with precision using a floating toolbar. Stroke colors and widths are customizable.
+
+### Real-time Collaboration
+Multiple users can annotate the same page simultaneously. Live cursors show each participant's position and name in real time, powered by WebSockets and Cloudflare Durable Objects.
+
+### Shareable Links
+One click generates a share link. Anyone who opens the link sees the annotated page in their browser. No extension, no account, no install required. The link loads the original webpage with annotations overlaid.
+
+### Threaded Comments
+Users can pin comments to any spot on the page. Comments support threaded replies, making it easy to have contextual conversations directly on the webpage rather than in external tools like Slack or email.
+
+### Inspector
+Point at any element on a page and MarkLayer captures the CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Designed as the bridge between visual feedback and AI-driven code edits. The user points, and the agent gets enough context to act.
+
+### Multi-Inspect
+Select multiple elements in one pass to bulk-handoff a UI region to an AI agent. Each selected element contributes a selector and snippet to the combined prompt.
+
+### Measure
+Pixel-precise distance and dimension measurement directly on any rendered page. Drag from any point to any other; MarkLayer reports width, height, and distance in CSS pixels.
+
+### Area
+Drag to capture a rectangular region of a page and attach a note. The captured frame travels with the share link as a first-class annotation.
+
+### Quick Grab
+Hold the Alt key to temporarily arm element capture without switching tools, then release to revert. Lets users move fluidly between annotating and inspecting.
+
+### No Sign-up Required
+There is no registration, no email verification, and no onboarding flow. Users install the extension and start annotating immediately.
+
+### Private by Default
+Annotations stay on the user's device until they explicitly choose to share. There is no central feed, no public profile, and no social features.
+
+### Works on Any Website
+MarkLayer works on any webpage without exceptions. The extension injects a transparent canvas overlay on top of the page content.
+
+### Free and Open Source
+MarkLayer is completely free with no paywall, trial period, or premium tier. The source code is available on GitHub under an open-source license.
+
+## AI Coding Agent Integration (MCP)
+
+MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that bridges visual feedback to AI coding agents. When a designer or PM annotates a page, the agent receives the comments as a structured work queue: it can acknowledge each item, post replies, resolve with a summary, or dismiss with a reason. Status updates appear live to the human in their browser.
+
+Install in Claude Code:
+
+    claude mcp add marklayer -- npx -y marklayer-mcp
+
+Pre-connect to a specific room:
+
+    claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123
+
+Available tools: marklayer_connect_room, marklayer_room_info, marklayer_list_annotations, marklayer_get_annotation, marklayer_watch_annotations, marklayer_acknowledge, marklayer_resolve, marklayer_dismiss, marklayer_reply.
+
+- Package: https://www.npmjs.com/package/marklayer-mcp
+- Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
+
+## Programmatic Link Creation (for AI Assistants and Automation)
+
+MarkLayer exposes a public, unauthenticated HTTP API so any tool, including an LLM acting on a user's behalf, can mint share links without an account or SDK. Use this when a user asks an AI assistant to "generate MarkLayer links for these 10 pages" or any similar batch-create request.
+
+### Endpoint
+
+    POST https://marklayer.app/api/{id}
+    Content-Type: application/json
+
+The {id} is caller-supplied. It is the access token for the resulting page, so use \`nanoid\`, \`crypto.randomUUID()\`, or any unguessable string. Anyone with the id can edit; anyone with the id + \`?readonly=1\` can view only.
+
+### Request body
+
+    {
+      "ops": [],
+      "url": "https://example.com/page-1",
+      "width": 1440,
+      "expires_in": 2592000
+    }
+
+- \`ops\` (required): array of annotation operations. Pass \`[]\` for a blank page the user will mark up themselves. The full op union is defined in the open-source \`@marklayer/types\` package (drawing, comments, shapes, etc.).
+- \`url\` (optional but recommended): the webpage the share link should embed and overlay. Without it, the viewer prompts the user to paste a URL.
+- \`width\` (optional): reference viewport width in CSS pixels the annotations were authored against. 1440 is a safe default.
+- \`expires_in\` (optional): seconds until automatic cleanup. Max 30 days (2592000). Omit it and the link gets no fixed expiry: it is deleted 90 days after its last access, and any view or comment resets that clock.
+
+### Share link format
+
+    https://marklayer.app/s/{id}            # editable
+    https://marklayer.app/s/{id}?readonly=1 # view-only
+
+### Minting many links at once
+
+To create N share links for N URLs, loop the POST. There is no batch endpoint and no project bundling is required. One id per page.
+
+#### curl
+
+    ID=$(node -e "console.log(require('nanoid').nanoid())")
+    curl -X POST https://marklayer.app/api/$ID \\
+      -H 'Content-Type: application/json' \\
+      -d '{"ops":[],"url":"https://example.com/page-1","width":1440,"expires_in":2592000}'
+    echo "https://marklayer.app/s/$ID"
+
+#### JavaScript / TypeScript
+
+    import { nanoid } from 'nanoid';
+
+    const pages = [
+      'https://example.com/page-1',
+      'https://example.com/page-2',
+      // ...up to as many as you need
+    ];
+
+    const links = await Promise.all(pages.map(async (url) => {
+      const id = nanoid();
+      await fetch(\`https://marklayer.app/api/\${id}\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ops: [],
+          url,
+          width: 1440,
+          expires_in: 60 * 60 * 24 * 30,
+        }),
+      });
+      return \`https://marklayer.app/s/\${id}\`;
+    }));
+
+#### Python
+
+    import secrets, urllib.request, json
+
+    def make_link(url: str) -> str:
+        id_ = secrets.token_urlsafe(12)
+        req = urllib.request.Request(
+            f"https://marklayer.app/api/{id_}",
+            data=json.dumps({"ops": [], "url": url, "width": 1440, "expires_in": 2592000}).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req).read()
+        return f"https://marklayer.app/s/{id_}"
+
+### Notes for AI assistants
+
+- The id IS the secret. Generate it with a crypto-strength RNG and only hand it to the people meant to access the page.
+- POSTing the same id again upserts (replaces ops/url/width and resets expiry). Use this if you need to refresh a link.
+- For a single share link backing multiple pages as tabs, there is also \`POST /api/p/{id}\` with \`{ pageIds: [...] }\` (max 50). But most batch requests are better served by N independent \`/s/\` links.
+- No rate limits are documented, but be polite: serialize or chunk if creating hundreds at once.
+
+## Technical Architecture
+
+- **Frontend:** Preact with Preact Signals for state management, Tailwind CSS for styling
+- **Extension framework:** WXT (Web Extension Tools)
+- **Backend:** Cloudflare Workers with Hono framework
+- **Database:** Cloudflare D1 (SQLite)
+- **Real-time:** WebSockets via Cloudflare Durable Objects
+- **Storage:** Cloudflare R2 for OG images
+- **Agent bridge:** MCP server (marklayer-mcp) for AI coding agent integration
+- **Build:** Bun workspaces, Turborepo, Vite
+
+## How It Works
+
+1. Install the MarkLayer Chrome extension from the Chrome Web Store (free)
+2. Navigate to any webpage
+3. Click the MarkLayer icon in the browser toolbar to activate the annotation overlay
+4. Use the floating toolbar to draw, add shapes, arrows, or pin comments
+5. Click "Share" to generate a unique link
+6. Send the link to anyone. They see the annotated page in their browser without needing the extension
+7. For real-time collaboration, multiple users can open the same share link and annotate simultaneously
+
+## Use Cases
+
+- **Design review:** Annotate mockups or staging sites with visual feedback
+- **QA and bug reporting:** Circle bugs, add arrows, and describe issues in context
+- **AI-driven dev loop:** Inspect broken UI, hand the selector and prompt to a coding agent, watch the fix land
+- **Async code review:** Annotate a deployed page; the agent processes comments as a work queue via MCP
+- **Content review:** Highlight text, suggest edits, and comment on live articles
+- **Client feedback:** Share annotated pages with clients who don't need any tools installed
+- **Education:** Teachers can annotate web resources for students
+- **Research:** Highlight and comment on academic papers or articles
+
+## Frequently Asked Questions
+
+Q: Does the other person need the extension installed?
+A: No. Anyone can view annotations via the share link. No install required. The share link loads the original page with annotations overlaid in a web app.
+
+Q: Is it really free?
+A: Yes. No account, no paywall, no trial period. MarkLayer is open source.
+
+Q: Does it work on any website?
+A: Yes, MarkLayer works on any webpage. The extension injects a transparent overlay on top of any page content.
+
+Q: Can multiple people annotate at the same time?
+A: Yes. Real-time cursors let you collaborate live on any page. Changes appear instantly for all participants.
+
+Q: Is my data private?
+A: Yes. Annotations stay on your device until you choose to share. There is no tracking, no public profiles, and no social feed.
+
+Q: What browsers are supported?
+A: MarkLayer works on Chrome and Chromium-based browsers (Edge, Brave, Arc, etc.).
+
+Q: What is the inspector tool?
+A: Point at any element on a page and MarkLayer captures its CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Paste the prompt into Claude Code or another agent and it has the context needed to make the edit.
+
+Q: Can I hand annotations to an AI coding agent?
+A: Yes. MarkLayer publishes an MCP server (marklayer-mcp on npm) that connects to a share link and exposes annotations as a structured work queue. Agents like Claude Code can watch for new comments and acknowledge, resolve, dismiss, or reply.
+
+Q: Can an AI assistant create MarkLayer share links for me programmatically (e.g. one link per page in a list of 10 URLs)?
+A: Yes. There is a public, unauthenticated POST endpoint at https://marklayer.app/api/{id}. Hand the user's LLM a list of URLs and it can loop a POST per URL with a fresh id each time, then return one https://marklayer.app/s/{id} share link per page. See the "Programmatic Link Creation" section above for the full request body, examples in curl/JS/Python, and notes on id strength and TTL.
+
+## Links
+
+- Website: https://marklayer.app
+- Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
+- GitHub: https://github.com/thevrus/MarkLayer
+- MCP server (npm): https://www.npmjs.com/package/marklayer-mcp
+- MCP server (source): https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
+- Privacy Policy: https://marklayer.app/privacy
+
+## Contact
+
+Email: rusinvadym@gmail.com

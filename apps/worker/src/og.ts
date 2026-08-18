@@ -1,5 +1,4 @@
 import { initWasm, Resvg } from '@resvg/resvg-wasm';
-// @ts-expect-error — wasm import handled by wrangler
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
 
 let wasmReady = false;

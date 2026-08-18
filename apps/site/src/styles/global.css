@@ -1,0 +1,422 @@
+@import "tailwindcss";
+
+/* MarkLayer marketing site — design system.
+
+   One family: Geist, self-hosted. The site used to pull it from the Google Fonts
+   CDN, behind a render-blocking third-party stylesheet and two extra DNS/TLS
+   handshakes; it is served from this origin now, so a marketing page makes no
+   third-party request at all.
+
+   A display serif set the h1/h2 for a while. It is gone by choice — the site
+   runs a single grotesque, matching the app UI, and the hierarchy is carried by
+   size, weight and space instead of a change of family.
+
+   Only the roman latin face loads on a normal page. latin-ext is gated on
+   `unicode-range`, and the italic only fetches when an <em> actually renders. */
+
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/geist-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/geist-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+    U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Geist";
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/geist-italic-latin.woff2") format("woff2");
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Geist";
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/geist-italic-latin-ext.woff2") format("woff2");
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+    U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+/* Metric-matched fallback, so `swap` can exchange glyphs without reflowing the
+   block around them. `size-adjust` is the ratio of Geist's mean A–Z/a–z advance
+   to Arial's, and the three overrides are Geist's own vertical metrics divided
+   by that ratio — measured off the woff2 and the system TTF with fontkit, not
+   estimated.
+
+   One `local()`, and it is the face the numbers were computed against. If it is
+   missing the whole rule drops and the stack falls through to the generic, which
+   is correct: a fallback carrying another font's metrics is worse than none.
+   Arial covers macOS and Windows, and on Linux it resolves to the
+   metric-compatible Liberation Sans. */
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial");
+  size-adjust: 102.01%;
+  ascent-override: 98.52%;
+  descent-override: 28.92%;
+  line-gap-override: 0%;
+}
+
+@theme {
+  /* Achromatic by construction: the page is white wall to wall and the only
+     typographic colours are ink and two quieter steps. Depth comes from
+     whitespace, never from a shadow or a tinted band. */
+  --color-canvas: #ffffff;
+  --color-surface: #ffffff;
+  --color-sunken: #f4f4f4;
+
+  /* A three-step ladder with one job each, and every step clears 4.5:1 on white
+     so no token can put text under the AA floor wherever it lands.
+
+     `ink` was #000000. Pure black on pure white is the harshest pairing on the
+     web and it made the one grey step below it look further away than it is;
+     #131313 (18.9:1) keeps the authority and loses the glare.
+
+     The scanning problem this ladder fixes was not contrast, it was ROLE. `meta`
+     used to set the lede, the bylines, the nav, the footer and every caption at
+     once, so the most important paragraph on each page and its date stamp
+     carried identical weight. Now: ink reads, meta annotates, faint marks. */
+  --color-ink: #131313;
+  /* Secondary — bylines, date stamps, breadcrumbs, captions, column labels.
+     Genuine metadata only. Never a paragraph someone is meant to read. */
+  --color-meta: #6a6a6a;
+  /* Tertiary — list markers, row icons, resting link underlines. Held at
+     4.54:1 because ordered-list numerals are content, not decoration. */
+  --color-faint: #767676;
+
+  --color-rule: #e4e4e4;
+
+  /* The one colour on the page, and it belongs to the mark alone. It is never
+     used for links, buttons, rules or fills — an accent everywhere is what
+     makes a page read as a template. */
+  --color-brand: #a855f7;
+
+  --font-sans: "Geist", "Geist Fallback", ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* The type scale. Seven steps, each named for its role, and nothing on the
+     site sets a size outside them — the page previously ran ten hand-picked
+     pixel values (42/24/18/17/16/15/14/13.5/13) with no relationship between
+     them, which is why the hierarchy read as arbitrary.
+
+     Leading is unitless so it tracks the size through the clamps. Tracking
+     tightens as size grows, so display type reads carved rather than set. */
+  /* Weight 600 and tighter tracking on the two display steps. With one family
+     carrying every level, size and weight are the only things separating them,
+     so both have to do more work than they did when a serif marked the top two
+     out on its own. Geist needs the negative tracking at these sizes; its
+     default fit is set for text, not for 44px. */
+  --text-display: clamp(2.125rem, 1.42rem + 3.01vw, 2.75rem);
+  --text-display--line-height: 1.06;
+  --text-display--letter-spacing: -0.028em;
+  --text-display--font-weight: 600;
+
+  --text-title: clamp(1.5rem, 1.29rem + 0.9vw, 1.75rem);
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.019em;
+  --text-title--font-weight: 600;
+
+  /* h3 and dt. The step down from title is 28 → 19 at the top of the clamp, a
+     1.47× gap that reads on its own — the old hierarchy failed at 24 → 18. */
+  --text-heading: 1.1875rem;
+  --text-heading--line-height: 1.42;
+  --text-heading--letter-spacing: -0.006em;
+  --text-heading--font-weight: 600;
+
+  --text-lede: 1.1875rem;
+  --text-lede--line-height: 1.6;
+  --text-lede--letter-spacing: -0.004em;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.65;
+
+  /* Dense UI rows where 16px would not fit: table cells, link rows, buttons. */
+  --text-ui: 0.9375rem;
+  --text-ui--line-height: 1.5;
+
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.54;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    /* biome-ignore-start lint/complexity/noImportantStyles: honouring the OS
+       reduced-motion setting has to beat every author animation, whatever its
+       specificity. Dropping !important here silently breaks the preference. */
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+    /* biome-ignore-end lint/complexity/noImportantStyles: see above. */
+  }
+
+  body {
+    font-family: var(--font-sans);
+    /* Every weight and both italics are served, so a missing face should fail
+       visibly rather than render slanted or smeared. */
+    font-synthesis: none;
+    /* Geist ships no `opsz` axis, but the metric-matched Arial fallback may;
+       asking for it is free and correct where the axis exists. */
+    font-optical-sizing: auto;
+    @apply mx-auto max-w-[760px] bg-canvas px-6 pt-8 pb-0 text-body text-ink antialiased;
+  }
+
+  /* Measure. The 712px column inside the gutters ran ~94 characters per line
+     (Geist averages 0.473em over English prose at 16px), well past the 60–75 the
+     eye can track back to. Prose caps at ~70; headings, tables, nav and footer
+     keep the full width, so the page structure is unchanged.
+     Not `ch`: Geist's zero is 0.663em, so `65ch` would resolve to 690px. */
+  :where(p, li, dd, blockquote, .ml-lede) {
+    max-width: 560px;
+  }
+
+  ::selection {
+    @apply bg-ink text-surface;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-ink;
+  }
+
+  /* Sizes descend strictly: 44 / 28 / 19 / 16 at the top of the clamps. */
+  h1 {
+    @apply mt-0 mb-5 text-balance text-display text-ink;
+  }
+  h2 {
+    @apply mt-16 mb-4 text-balance text-title text-ink;
+  }
+  h3 {
+    @apply mt-9 mb-2 text-balance text-heading text-ink;
+  }
+  /* A heading straight after a heading is one unit, not two sections. */
+  :where(h1, h2, h3) + :where(h2, h3) {
+    @apply mt-6;
+  }
+
+  p {
+    @apply my-4 text-pretty;
+  }
+
+  /* Body copy is near-black, so an inline link cannot be distinguished by
+     colour. It needs a visible underline at rest — a rule-coloured one is
+     invisible against white and leaves links unfindable. */
+  a {
+    @apply text-ink underline decoration-faint decoration-1 underline-offset-[3px] transition-colors duration-150;
+    text-decoration-skip-ink: auto;
+  }
+  a:hover {
+    @apply decoration-ink;
+  }
+  /* A linked heading in a list of linked headings does not need an underline to
+     announce itself, and sixteen of them stacked is what made the hub pages
+     unscannable. The underline arrives on hover. */
+  :where(h1, h2, h3) a {
+    @apply no-underline;
+  }
+  :where(h1, h2, h3) a:hover {
+    @apply underline decoration-ink;
+  }
+
+  strong {
+    @apply font-medium text-ink;
+  }
+  em {
+    @apply italic;
+  }
+
+  ul,
+  ol {
+    @apply my-4 ps-5;
+  }
+  ul {
+    @apply list-disc marker:text-faint;
+  }
+  ol {
+    @apply list-decimal marker:text-faint marker:tabular-nums;
+  }
+  li {
+    @apply my-2 ps-1 text-pretty;
+  }
+
+  /* The FAQ. `dt` used to sit at body size in medium, one notch off its own
+     answer, so a run of questions read as a paragraph with some bold in it. */
+  dl {
+    @apply my-6;
+  }
+  dt {
+    @apply mt-7 text-heading text-ink;
+  }
+  dd {
+    @apply mt-2 ms-0;
+  }
+
+  /* Ruled rows, no card, no filled header band. Numerals line up. */
+  table {
+    @apply my-7 w-full border-collapse text-ui tabular-nums;
+  }
+  caption {
+    @apply mb-3 text-start text-label text-meta;
+  }
+  thead th {
+    @apply border-b border-ink pb-2.5 text-start align-bottom text-label font-semibold text-ink;
+  }
+  tbody th {
+    @apply border-b border-rule py-3 pe-4 text-start align-top font-medium text-ink;
+  }
+  td {
+    @apply border-b border-rule py-3 pe-4 text-start align-top text-ink;
+  }
+  th:last-child,
+  td:last-child {
+    @apply pe-0;
+  }
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    @apply border-b-0;
+  }
+
+  blockquote {
+    @apply my-7 text-lede text-ink;
+  }
+
+  code {
+    @apply rounded-[4px] bg-sunken px-1.5 py-0.5 font-mono text-[0.85em] text-ink;
+  }
+
+  small {
+    @apply text-label text-meta;
+  }
+
+  hr {
+    @apply my-12 h-px border-0 bg-rule;
+  }
+}
+
+@layer components {
+  /* Wide content must scroll inside itself, never the page. */
+  .ml-scroll-x {
+    @apply -mx-6 overflow-x-auto px-6;
+  }
+
+  /* The lede. It was set in the grey metadata step, which put the one paragraph
+     every visitor reads first below its own date stamp in the value order.
+     It is ink now; size and leading carry the difference from body copy.
+     `pretty`, not `balance`: balance is for short display lines, and on a
+     multi-line lede it evens the ragged edge into oddly short lines. */
+  .ml-lede {
+    @apply mt-0 mb-10 text-lede text-pretty text-ink;
+  }
+  .ml-lede > p {
+    @apply m-0 max-w-none;
+  }
+
+  /* The wordmark. Its own rule rather than a handful of arbitrary utilities in
+     the header template — a logo is a fixed lockup, not a step on the reading
+     scale, so it is the one place a bespoke size belongs. Matches the app's own
+     lockup (Landing.tsx), so the name does not change face between `/` and a
+     marketing page. */
+  .ml-wordmark {
+    @apply inline-flex items-center gap-2.5 text-[1.125rem]/[1.2] font-semibold tracking-[-0.02em] text-ink no-underline;
+  }
+
+  .ml-meta {
+    @apply text-label text-meta;
+  }
+  .ml-meta a {
+    @apply text-meta decoration-rule;
+  }
+  .ml-meta a:hover {
+    @apply text-ink decoration-meta;
+  }
+
+  /* Primary action: a flat black pill, the one filled control on the site.
+     No gradient, no glow, no shadow and no lift — on hover the surface lightens
+     a step and the diagonal travels. */
+  .ml-cta {
+    @apply inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-ui font-medium text-surface no-underline transition-colors duration-150;
+  }
+  .ml-cta:hover {
+    @apply bg-[#333333] text-surface no-underline;
+  }
+  .ml-cta svg {
+    @apply transition-transform duration-200 ease-out;
+  }
+  .ml-cta:hover svg {
+    transform: translate(2px, -2px);
+  }
+
+  /* Row list, not a card grid: a hairline per row and a diagonal that travels
+     on hover. Nothing lifts and nothing glows. */
+  .ml-rows {
+    @apply my-7 border-t border-rule;
+  }
+  .ml-row {
+    @apply flex items-baseline justify-between gap-4 border-b border-rule py-3.5 text-ui font-medium text-ink no-underline transition-colors duration-150;
+  }
+  .ml-row:hover {
+    @apply text-ink no-underline;
+  }
+  .ml-row span:first-child {
+    @apply text-pretty;
+  }
+  .ml-row svg {
+    /* Only colour and the diagonal travel — `all` also transitioned the SVG's
+       inherited size and stroke properties on every row hover. */
+    @apply shrink-0 text-faint transition-[color,transform] duration-200 ease-out;
+  }
+  .ml-row:hover svg {
+    @apply text-ink;
+    transform: translate(2px, -2px);
+  }
+
+  /* A hub entry: a linked h3 and its blurb, ruled off from the next one. The
+     hub pages were sixteen identical heading/paragraph pairs running edge to
+     edge with nothing for the eye to land on between them. The rule is
+     structural — it bounds a list item — not an ornament beside a label. */
+  .ml-entry {
+    @apply border-t border-rule py-6 first:border-t-0 first:pt-0;
+  }
+  .ml-entry > h3 {
+    @apply mt-0 mb-2;
+  }
+  /* The heading sets the gap to the first paragraph; any paragraphs after it
+     keep the normal body rhythm, and the container's padding — not a margin on
+     the last child — carries the space to the rule. That way an entry with a
+     pitch AND a "Best for" line separates its own two paragraphs less than it
+     separates itself from the next entry, which a flat margin could not do. */
+  .ml-entry > h3 + p {
+    @apply mt-0;
+  }
+  .ml-entry > :last-child {
+    @apply mb-0;
+  }
+}

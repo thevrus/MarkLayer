@@ -1,0 +1,15 @@
+User-agent: *
+Content-Signal: ai-train=yes, search=yes, ai-input=yes
+Allow: /
+Allow: /api/openapi.json
+Allow: /api/health
+Disallow: /proxy
+Disallow: /api/
+Disallow: /og/
+Disallow: /ws/
+Disallow: /px/
+Disallow: /s/
+Disallow: /p/
+
+# Security contact: https://marklayer.app/.well-known/security.txt
+Sitemap: https://marklayer.app/sitemap.xml

@@ -1,0 +1,92 @@
+---
+import HomeContent from '../components/home/HomeContent.astro';
+import schema from '../data/home-schema.json';
+import { FONTS_HREF, OG_IMAGE, ORIGIN, WORKER_DEV } from '../lib/site';
+
+/**
+ * The application shell for `/`.
+ *
+ * Astro owns this document, but it is not a normal Astro page: the output is
+ * handed to apps/worker's Vite build as its HTML entry, so Vite injects the
+ * hashed SPA bundle and stylesheet into it. That is why the entry <script> and
+ * the theme-flash script are `is:inline` — Astro must leave them for Vite.
+ *
+ * Everything inside #app is prerendered marketing content that main.tsx wipes
+ * on boot. It exists for crawlers and for first paint before the bundle lands.
+ */
+const title = 'MarkLayer · Free, Anonymous Webpage Annotation. No Account.';
+const description =
+  'Free web app + Chrome extension for annotating any live webpage. Paste a URL, draw or comment on the page, share a link. No account, no email, no sign-up. Open source.';
+const ogTitle = 'MarkLayer · Free & Anonymous Webpage Annotation';
+const ogDescription =
+  'Free web app + Chrome extension. Paste any URL, draw and comment on the live page, share a link. 100% free, 100% anonymous. No account, no email, no sign-up.';
+const twitterDescription =
+  'Free web app + Chrome extension. Paste a URL, draw and comment in your browser, share a link. Real-time collab. No account, no email, no sign-up.';
+---
+
+<!doctype html>
+<html lang="en" data-marklayer="1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
+    <meta property="og:image" content={OG_IMAGE} />
+    <meta property="og:url" content={ORIGIN} />
+    <meta property="og:site_name" content="MarkLayer" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={OG_IMAGE} />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={twitterDescription} />
+    <meta name="robots" content="max-image-preview:large, max-snippet:-1" />
+    <link rel="canonical" href={`${ORIGIN}/`} />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary" />
+
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href={FONTS_HREF} rel="stylesheet" media="print" onload="this.media = 'all'" />
+    <noscript><link href={FONTS_HREF} rel="stylesheet" /></noscript>
+
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(schema)} />
+
+    {/* Styles come from apps/worker: Vite injects its hashed stylesheet when it
+        processes the built shell. `astro dev` never runs that build, so borrow
+        the Worker's dev stylesheet. `?direct` because Vite serves a bare .css
+        URL as a JS module for HMR, which is a MIME mismatch for <link>. */}
+    {import.meta.env.DEV && <link rel="stylesheet" href={`${WORKER_DEV}/web/style.css?direct`} />}
+  </head>
+  <body>
+    <script is:inline>
+      (() => {
+        var t = localStorage.getItem('ml-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.classList.add(t);
+      })();
+    </script>
+    <div id="app">
+      <div class="ml-force-light min-h-screen bg-white font-['Geist',system-ui,sans-serif]">
+        {/* Flat white, no card, no shadow, no rounding: separation comes from
+            whitespace. The copy is left-aligned prose — centring it threw the
+            tables, lists and FAQ on this page off-axis. */}
+        <main id="ssr" class="max-w-[760px] mx-auto" style="padding: 3rem 1.5rem; text-align: left">
+          <HomeContent />
+        </main>
+      </div>
+    </div>
+    {/* Vite rewrites this into the hashed bundle when it processes the built
+        shell. In `astro dev` that bundle lives on the Worker's origin, so point
+        there and `/` renders the real Landing here too. */}
+    <script
+      type="module"
+      src={import.meta.env.DEV ? `${WORKER_DEV}/web/main.tsx` : '/web/main.tsx'}
+      is:inline
+    ></script>
+  </body>
+</html>

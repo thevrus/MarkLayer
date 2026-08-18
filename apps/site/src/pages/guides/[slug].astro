@@ -1,0 +1,58 @@
+---
+import { render } from 'astro:content';
+import Faq from '../../components/Faq.astro';
+import LinkGrid from '../../components/LinkGrid.astro';
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import { getGuides, relatedLinks } from '../../lib/collections';
+import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+
+export async function getStaticPaths() {
+  const guides = await getGuides();
+
+  return guides.map((entry) => ({
+    params: { slug: entry.id },
+    props: {
+      entry,
+      siblings: relatedLinks({
+        entry,
+        siblings: guides,
+        siblingLink: (g) => ({ href: `/guides/${g.id}`, label: g.data.h1 }),
+      }),
+    },
+  }));
+}
+
+const { entry, siblings } = Astro.props;
+const g = entry.data;
+const { Content } = await render(entry);
+
+const path = `/guides/${entry.id}`;
+const breadcrumbs: Crumb[] = [
+  { name: 'MarkLayer', path: '/' },
+  { name: 'Guides', path: '/guides' },
+  { name: g.h1 },
+];
+---
+
+<ArticleLayout
+  title={g.title}
+  description={g.description}
+  path={path}
+  h1={g.h1}
+  bottomLine={g.bottomLine}
+  breadcrumbs={breadcrumbs}
+  modified={g.modified}
+  schema={[
+    articleSchema({ h1: g.h1, description: g.description, path, published: g.published, modified: g.modified }),
+    faqSchema(g.faq),
+  ]}
+>
+  <Fragment slot="intro">{g.intro}</Fragment>
+
+  <Content />
+
+  <Faq qa={g.faq} />
+
+  <h2>More guides</h2>
+  <LinkGrid links={siblings} />
+</ArticleLayout>

@@ -1,0 +1,63 @@
+---
+order: 0
+title: "Markup.io vs MarkLayer: Free Alternative to $79/Month"
+description: "Markup.io dropped its free plan; Pro is now $79/month. MarkLayer stays fully free: open-source, no sign-up, live cursors on any webpage. Compare side by side."
+competitor: "Markup.io"
+competitorTagline: "a project-based feedback platform from Ceros for reviewing live websites, PDFs, and design files"
+homepage: "https://markup.io"
+bottomLine: "Choose MarkLayer for fast, sign-up-free visual feedback on any live page with real-time live cursors. Choose Markup.io if you need persistent project workspaces, version tracking, and a team account tied to client deliverables."
+quote: "Markup.io removed its free plan and moved Pro to $79 a month, and a lot of teams went alternative-shopping after that. I built MarkLayer for the other end of the spectrum: drop an annotation on a page in ten seconds, no signup, no project setup, no bill."
+published: 2026-02-22
+modified: 2026-04-12
+rows:
+  - feature: "Price"
+    ml: "Free, no tiers, no paywall"
+    them: "No free plan. Pro $79/month (unlimited users, 1 workspace); 14-day trial"
+  - feature: "Sign-up required"
+    ml: "No"
+    them: "Yes"
+  - feature: "Works on live websites"
+    ml: "Yes. Annotate the actual live page"
+    them: "Yes. Imports URL into a project"
+  - feature: "Real-time live cursors"
+    ml: "Yes"
+    them: "No (comment-based)"
+  - feature: "Drawing tools"
+    ml: "Freehand, shapes, arrows, lines"
+    them: "Limited drawing; primarily pin comments"
+  - feature: "Recipient install"
+    ml: "Not required. Share link opens in browser"
+    them: "Not required. Link-based reviewing"
+  - feature: "Open source"
+    ml: "Yes"
+    them: "No"
+  - feature: "Browser"
+    ml: "Chrome / Chromium"
+    them: "Web app (no extension required)"
+  - feature: "Best for"
+    ml: "Quick visual feedback on any page"
+    them: "Agency project reviews with version tracking"
+chooseMl:
+  - "You want to mark up live, dynamic web pages without signing up."
+  - "You need real-time collaboration with live cursors."
+  - "You value open source and want to self-host or audit the code."
+  - "You want zero friction. Install once, share a link, done."
+chooseThem:
+  - "You need persistent project history tied to a team account."
+  - "You review static deliverables (PDFs, design files) alongside web pages."
+  - "You need agency-grade workflow: project status, approvals, version tracking."
+  - "You want integrations with project management tools."
+faq:
+  - q: "Does Markup.io still have a free plan?"
+    a: "No. Markup.io discontinued its free tier in early 2025 and raised the Pro plan from $29 to $79 per month. As of August 2026 the plans are Pro at $79/month (unlimited users, one workspace) and a custom-priced Enterprise tier, with a 14-day trial. MarkLayer remains fully free."
+  - q: "Is MarkLayer a Markup.io alternative?"
+    a: "Yes. MarkLayer covers the core Markup.io use case (visual feedback on live websites) for free with no sign-up. It does not replace Markup.io for teams that need project-level workflow tooling."
+  - q: "Can I use both?"
+    a: "Yes. Many teams use MarkLayer for ad-hoc feedback and Markup.io for tracked client review cycles. They overlap but serve different stages of feedback workflow."
+  - q: "Does MarkLayer have a free tier or is it fully free?"
+    a: "MarkLayer is fully free with no tiers. There is no paid plan, trial period, or credit-card requirement."
+  - q: "Do recipients need to install MarkLayer to view annotations?"
+    a: "No. Share links open the annotated page in any browser. The Chrome extension is only required to create annotations, not to view them."
+---
+
+MarkLayer and [Markup.io](https://markup.io) are both visual feedback tools for live websites. The core difference: MarkLayer is a free Chrome extension with no sign-up that works on any page in real time, while Markup.io is a paid, project-based web app tied to a team account. As of August 2026, Markup.io has no free plan; Pro costs $79/month.

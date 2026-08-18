@@ -1,0 +1,42 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import LinkGrid from '../components/LinkGrid.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { ORIGIN } from '../lib/site';
+
+// This workspace deliberately has no `index.astro`: `/` is the app's entry
+// point and is served by the Worker (SPA shell + `?url=` handoff to the
+// Viewer). Astro's dev server falls back to this page for `/`, so it doubles
+// as the directory you land on when running `bun dev` here.
+const sections = [
+  { href: '/compare', label: 'Comparisons' },
+  { href: '/alternatives', label: 'Alternatives' },
+  { href: '/use-cases', label: 'Use cases' },
+  { href: '/pricing', label: 'Pricing' },
+  { href: '/about', label: 'About' },
+  { href: '/privacy', label: 'Privacy' },
+];
+---
+
+<html lang="en">
+  <head>
+    <BaseHead
+      title="Page not found · MarkLayer"
+      description="That page does not exist. Browse MarkLayer's comparisons, alternatives, and use-case guides."
+      canonical={`${ORIGIN}/404`}
+      ogType="website"
+      noindex
+    />
+  </head>
+  <body>
+    <SiteHeader />
+    <h1>That page doesn't exist.</h1>
+    <p class="ml-lede">The link may be out of date. Everything on the site is one of these:</p>
+    <LinkGrid links={sections} />
+    <p>
+      Or go back to <a href="/">marklayer.app</a> and annotate a page.
+    </p>
+    <SiteFooter />
+  </body>
+</html>

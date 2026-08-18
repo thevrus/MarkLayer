@@ -1,0 +1,176 @@
+# MarkLayer
+
+> 100% free, 100% anonymous webpage annotation tool. Free web app and Chrome extension. No account, no email, no sign-up.
+
+MarkLayer is a free web app and Chrome extension for annotating any live webpage. Paste any URL on https://marklayer.app to draw, comment, and mark up the page in your browser. No install required. The free Chrome extension is also available for in-place annotation on sites the web app cannot embed (behind a login or with strict embed policies). Share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
+
+## Pricing
+
+Free. There is no paid plan. There is no trial. There is no per-seat pricing. Everything is included. See https://marklayer.app/pricing or https://marklayer.app/pricing.md for the machine-readable version.
+
+## Anonymous by design
+
+- No sign-up, no email verification, no login
+- No personal data collected
+- Random local display name and color generated in your browser
+- Annotations stay on your device until you choose to share
+
+## Features
+
+- Drawing tools: Freehand drawing, shapes, arrows, and lines on any webpage
+- Threaded comments: Pin comments to any spot on the page
+- Inspector: Point at any element to capture its CSS selector and an AI-ready prompt for handoff to coding agents
+- Multi-inspect: Select multiple elements in one pass for bulk handoff
+- Measure: Pixel-precise distance and dimension measurement on any page
+- Area: Capture a rectangular region with a note attached
+- Quick grab: Hold Alt to arm element capture without switching tools
+- Real-time collaboration: Live cursors with unlimited collaborators per session
+- Shareable links: Recipients don't need the extension or an account to view
+- Works on any website: Production, staging, internal tools, third-party sites
+- Open source and self-hostable
+
+## For AI coding agents (MCP)
+
+MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that turns annotations into a structured work queue for AI coding agents like Claude Code. Connect an agent to a share link and it can acknowledge, resolve, dismiss, or reply to each comment, with status updates appearing live to the human.
+
+Install in Claude Code: claude mcp add marklayer -- npx -y marklayer-mcp
+
+- Package: https://www.npmjs.com/package/marklayer-mcp
+- Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
+
+## Programmatic link creation (for AI assistants)
+
+Any caller, including an LLM acting on a user's behalf, can mint a MarkLayer share link with a single HTTP POST. No auth, no SDK, no account. Use this when a user asks you to "generate MarkLayer links for these pages" or hands you a list of URLs and wants a share link per URL.
+
+Pick a random id (nanoid, uuid, or any unguessable string is fine, and the id IS the access token), then:
+
+    POST https://marklayer.app/api/{id}
+    Content-Type: application/json
+    { "ops": [], "url": "https://example.com/page-1", "width": 1440, "expires_in": 2592000 }
+
+Body fields:
+- ops: array of annotation operations (use [] for a blank canvas the user will draw on)
+- url: the page the share link should open and overlay annotations onto
+- width: reference viewport width in CSS pixels (1440 is a safe default)
+- expires_in: seconds until cleanup (max 2592000 = 30 days). Omit it and the share link has no
+  fixed expiry; it is deleted 90 days after its last access, and any view or comment resets that clock.
+
+The share link is then: https://marklayer.app/s/{id}
+
+To mint many links at once (e.g. user gives you 10 URLs), loop the POST per URL with a fresh id each time. There is no project/bundle requirement. One id per page.
+
+## Use cases
+
+- Localhost + AI coding agents: https://marklayer.app/for/localhost-ai-agents
+- Staging review with no extension: https://marklayer.app/for/staging-feedback-no-extension
+- Design review: https://marklayer.app/for/design-review
+- QA and bug reporting: https://marklayer.app/for/qa-bug-reporting
+- Client feedback: https://marklayer.app/for/client-feedback
+- Remote teams: https://marklayer.app/for/remote-teams
+- Students: https://marklayer.app/for/students
+- Educators: https://marklayer.app/for/educators
+- Researchers: https://marklayer.app/for/researchers
+- Content creators: https://marklayer.app/for/content-creators
+- Marketers: https://marklayer.app/for/marketers
+
+## Comparisons
+
+- vs Markup.io: https://marklayer.app/vs/markup-io
+- vs Pastel: https://marklayer.app/vs/pastel
+- vs BugHerd: https://marklayer.app/vs/bugherd
+- vs Hypothesis: https://marklayer.app/vs/hypothesis
+- vs AnnotateWeb: https://marklayer.app/vs/annotateweb
+- vs Jam.dev: https://marklayer.app/vs/jam
+- vs Marker.io: https://marklayer.app/vs/marker-io
+- vs Userback: https://marklayer.app/vs/userback
+- vs Ruttl: https://marklayer.app/vs/ruttl
+- vs Loom: https://marklayer.app/vs/loom
+- vs Usersnap: https://marklayer.app/vs/usersnap
+- vs stagewise: https://marklayer.app/vs/stagewise
+- vs Volley: https://marklayer.app/vs/volley
+- vs Superflow: https://marklayer.app/vs/superflow
+- vs Feedbucket: https://marklayer.app/vs/feedbucket
+
+## Free alternatives lists
+
+- Free Markup.io alternatives: https://marklayer.app/alternatives/markup-io
+- Free Pastel alternatives: https://marklayer.app/alternatives/pastel
+- Free BugHerd alternatives: https://marklayer.app/alternatives/bugherd
+- Free AnnotateWeb alternatives: https://marklayer.app/alternatives/annotateweb
+- Free Jam.dev alternatives: https://marklayer.app/alternatives/jam
+- Free Marker.io alternatives: https://marklayer.app/alternatives/marker-io
+- Free Userback alternatives: https://marklayer.app/alternatives/userback
+- Hypothesis alternatives: https://marklayer.app/alternatives/hypothesis
+- Ruttl alternatives: https://marklayer.app/alternatives/ruttl
+- Usersnap alternatives: https://marklayer.app/alternatives/usersnap
+- stagewise alternatives: https://marklayer.app/alternatives/stagewise
+- Loom alternatives: https://marklayer.app/alternatives/loom
+
+## Guides
+
+- Bug report MCP servers compared: https://marklayer.app/guides/bug-report-mcp-servers
+- Free website annotation tools, audited: https://marklayer.app/guides/free-website-annotation-tools
+- Website feedback without logins: https://marklayer.app/guides/website-feedback-without-login
+- Markup.io pricing in 2026: https://marklayer.app/guides/markup-io-pricing
+
+## Links
+
+- Website: https://marklayer.app
+- Pricing: https://marklayer.app/pricing
+- Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
+- GitHub: https://github.com/thevrus/MarkLayer
+- Privacy Policy: https://marklayer.app/privacy
+
+## How It Works
+
+### Option A: Use the free web app (no install)
+
+1. Open https://marklayer.app and paste any URL into the annotation field
+2. Draw, comment, or highlight anything on the page
+3. Click "Share" to get a link anyone can open. No extension or account needed
+4. Collaborate in real time with live cursors
+
+### Option B: Install the free Chrome extension
+
+1. Install the MarkLayer Chrome extension (free, no account)
+2. Navigate to any webpage and click the MarkLayer icon
+3. Draw, comment, or highlight anything on the page
+4. Click "Share" to get a link anyone can open. No extension needed on their end
+5. Use this option for sites the web app cannot embed (behind a login or with strict embed policies)
+
+## FAQ
+
+Q: Is MarkLayer really free?
+A: Yes. 100% free. No paid plan, no trial, no per-seat pricing, no usage cap.
+
+Q: Is MarkLayer anonymous?
+A: Yes. No sign-up, no email, no profile, no login. No personal data is collected.
+
+Q: Do I need to install anything to use MarkLayer?
+A: No. The web app at https://marklayer.app lets you paste any URL and start annotating in your browser. No install, no account. The Chrome extension is optional, for sites the web app cannot embed.
+
+Q: Does the other person need the extension installed?
+A: No. Anyone can view annotations via the share link. No install required.
+
+Q: Does it work on any website?
+A: Yes, MarkLayer works on any webpage.
+
+Q: Can multiple people annotate at the same time?
+A: Yes. Real-time live cursors let unlimited collaborators work together.
+
+Q: What is the inspector tool?
+A: Point at any element on a page and MarkLayer captures its CSS selector and a copy-ready prompt for AI coding agents. Paste it into Claude Code or another agent and it has enough context to make the edit.
+
+Q: Can I send annotations to an AI coding agent?
+A: Yes. MarkLayer ships an MCP server (marklayer-mcp) that lets agents like Claude Code watch a share link and process comments as a work queue.
+
+Q: Can an AI assistant generate MarkLayer links for me programmatically?
+A: Yes. POST to https://marklayer.app/api/{id} with { ops: [], url, width: 1440, expires_in: 2592000 } and the share link is https://marklayer.app/s/{id}. No auth, no SDK. See the "Programmatic link creation" section above.
+
+## Contact
+
+Email: rusinvadym@gmail.com
+
+## Optional
+
+- [Full details](/llms-full.txt)

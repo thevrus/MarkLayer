@@ -1,0 +1,39 @@
+---
+import Logo from './Logo.astro';
+import type { Section } from '../lib/site';
+
+interface Props {
+  /** Omit the current section's own link so the nav never points at this page. */
+  current?: Section;
+}
+
+const { current } = Astro.props;
+
+const nav: { href: string; label: string; key: Section }[] = [
+  { href: '/compare', label: 'Compare', key: 'compare' },
+  { href: '/alternatives', label: 'Alternatives', key: 'alternatives' },
+  { href: '/use-cases', label: 'Use cases', key: 'use-cases' },
+  { href: '/guides', label: 'Guides', key: 'guides' },
+  { href: '/pricing', label: 'Pricing', key: 'pricing' },
+];
+---
+
+{/* The nav sits a size and a weight below the wordmark, and in the quiet grey
+    step: it is chrome, and it should not compete with the name beside it. */}
+<header class="mb-9 flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-rule pb-4">
+  <a class="ml-wordmark" href="/" aria-label="MarkLayer home">
+    <Logo height={22} class="shrink-0 text-brand" />
+    MarkLayer
+  </a>
+  <nav class="flex flex-wrap items-center gap-x-5 gap-y-1.5" aria-label="Sections">
+    {
+      nav
+        .filter((n) => n.key !== current)
+        .map((n) => (
+          <a class="text-ui text-meta no-underline transition-colors duration-150 hover:text-ink" href={n.href}>
+            {n.label}
+          </a>
+        ))
+    }
+  </nav>
+</header>
