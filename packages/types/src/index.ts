@@ -293,6 +293,39 @@ export function opAnchorPoint(op: DrawOp): Point | null {
   }
 }
 
+/** The ops that own a comment thread, and so carry triage state. */
+export type AnnotationOp = CommentOp | SelectionOp | InspectOp | AreaOp;
+
+export function isAnnotationOp(op: DrawOp): op is AnnotationOp {
+  return op.tool === 'comment' || op.tool === 'selection' || op.tool === 'inspect' || op.tool === 'area';
+}
+
+/**
+ * Collapse the legacy `resolved` boolean (comments only, written before `status`
+ * existed) and an unset `status` into the canonical value. Panels, pins and the
+ * MCP listers all filter on this, so it has to be one definition or the surfaces
+ * disagree about what is resolved.
+ */
+export function resolveOpStatus(op: AnnotationOp): CommentStatus {
+  if (op.tool === 'comment') return op.status || (op.resolved ? 'resolved' : 'open');
+  return op.status || 'open';
+}
+
+/**
+ * Merge a wire patch into an op and re-validate the result, returning null if the
+ * patch would produce something that is no longer a valid op.
+ *
+ * `update_op` carries an unconstrained `Record<string, unknown>` — the envelope is
+ * validated but the patch body cannot be, since it is a partial of a discriminated
+ * union. Re-parsing the merged op is what keeps a malformed patch from being
+ * broadcast to peers and flushed to storage.
+ */
+export function applyOpPatch({ op, patch }: { op: unknown; patch: object }): DrawOp | null {
+  if (typeof op !== 'object' || op === null) return null;
+  const merged = drawOpSchema.safeParse({ ...op, ...patch });
+  return merged.success ? merged.data : null;
+}
+
 /** Peer presence for live cursors. Runtime-only state — not on the wire. */
 export interface Peer {
   id: string;

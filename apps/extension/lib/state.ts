@@ -1,3 +1,4 @@
+import { resolveOpStatus } from '@marklayer/types';
 import { computed, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createDraftStore } from './drafts';
@@ -374,10 +375,7 @@ export const showAnnotationPanel = signal(false);
 /** Comment status filter for annotation panel */
 export const commentFilter = signal<CommentStatus | 'all'>('all');
 
-/** Derive comment status with backwards compat for old `resolved` field */
-export function getCommentStatus(op: CommentOp): CommentStatus {
-  return op.status || (op.resolved ? 'resolved' : 'open');
-}
+export { resolveOpStatus as getCommentStatus };
 
 /**
  * Visual styling for a comment status badge.
@@ -610,7 +608,7 @@ export function setOpStatus(opId: string, status: CommentStatus) {
   operations.value = operations.value.map((op) => {
     if (op.id !== opId) return op;
     if (op.tool === 'comment') {
-      if (getCommentStatus(op) === status) return op;
+      if (resolveOpStatus(op) === status) return op;
       const p: Partial<CommentOp> = { status, resolved: status === 'resolved' };
       patch = p;
       return { ...op, ...p };

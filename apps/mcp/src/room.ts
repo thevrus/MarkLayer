@@ -1,35 +1,23 @@
 import {
-  type AreaOp,
+  type AnnotationOp,
+  applyOpPatch,
   type CommentOp,
   type CommentStatus,
   type DrawOp,
   drawOpSchema,
-  type InspectOp,
+  isAnnotationOp,
   opsArraySchema,
-  type SelectionOp,
+  resolveOpStatus,
 } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import WebSocket from 'ws';
 
-export type AnnotationOp = CommentOp | SelectionOp | InspectOp | AreaOp;
-
-function isAnnotation(op: DrawOp): op is AnnotationOp {
-  return op.tool === 'comment' || op.tool === 'selection' || op.tool === 'inspect' || op.tool === 'area';
-}
+export type { AnnotationOp };
+export { resolveOpStatus as resolveStatus };
 
 /** Watchable = annotation op that should fan out to MCP listeners (comment replies do not). */
 function isWatchable(op: DrawOp): op is AnnotationOp {
-  return isAnnotation(op) && !(op.tool === 'comment' && !!op.parentId);
-}
-
-/**
- * Collapse the legacy `resolved` boolean (comments only) and the unset `status`
- * field into the canonical `CommentStatus`. Single source of truth so room and
- * server agree on what a watcher/lister sees.
- */
-export function resolveStatus(op: AnnotationOp): CommentStatus {
-  if (op.tool === 'comment') return op.status || (op.resolved ? 'resolved' : 'open');
-  return op.status || 'open';
+  return isAnnotationOp(op) && !(op.tool === 'comment' && !!op.parentId);
 }
 
 export interface RoomMeta {
@@ -122,7 +110,7 @@ export class RoomClient {
   listAnnotations(filter?: { status?: CommentStatus | 'all' }): AnnotationOp[] {
     const status = filter?.status ?? 'all';
     return this.ops.filter(
-      (op): op is AnnotationOp => isWatchable(op) && (status === 'all' || resolveStatus(op) === status),
+      (op): op is AnnotationOp => isWatchable(op) && (status === 'all' || resolveOpStatus(op) === status),
     );
   }
 
@@ -215,9 +203,9 @@ export class RoomClient {
   private update(opId: string, patch: Partial<DrawOp>): boolean {
     const idx = this.ops.findIndex((o) => o.id === opId);
     if (idx === -1) return false;
-    const merged = drawOpSchema.safeParse({ ...this.ops[idx], ...patch });
-    if (!merged.success) return false;
-    this.ops[idx] = merged.data;
+    const merged = applyOpPatch({ op: this.ops[idx], patch });
+    if (!merged) return false;
+    this.ops[idx] = merged;
     return this.send({ type: 'update_op', opId, patch });
   }
 
@@ -278,8 +266,8 @@ export class RoomClient {
         if (!opId || !patch || typeof patch !== 'object') return;
         const idx = this.ops.findIndex((o) => o.id === opId);
         if (idx === -1) return;
-        const merged = drawOpSchema.safeParse({ ...this.ops[idx], ...patch });
-        if (merged.success) this.ops[idx] = merged.data;
+        const merged = applyOpPatch({ op: this.ops[idx], patch });
+        if (merged) this.ops[idx] = merged;
         return;
       }
       case 'undo': {

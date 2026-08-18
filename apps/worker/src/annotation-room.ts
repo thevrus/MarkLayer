@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import { clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType } from '@marklayer/types';
+import { applyOpPatch, clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType } from '@marklayer/types';
 import { captureServer } from './posthog';
 
 interface Env {
@@ -285,7 +285,12 @@ export class AnnotationRoom extends DurableObject<Env> {
           (o) => typeof o === 'object' && o !== null && 'id' in o && (o as { id: unknown }).id === msg.opId,
         );
         if (idx === -1) return;
-        ops[idx] = { ...(ops[idx] as object), ...msg.patch };
+        const current = ops[idx];
+        if (!current) return;
+        // Reject rather than broadcast: this is the one path that persists a patched op.
+        const merged = applyOpPatch({ op: current, patch: msg.patch });
+        if (!merged) return;
+        ops[idx] = merged;
         this.broadcast(JSON.stringify({ type: 'update_op', opId: msg.opId, patch: msg.patch }));
         await this.scheduleFlush();
         return;
