@@ -31,7 +31,18 @@ export const secondaryBtn = trim(`
   active:scale-[0.96]
 `);
 
-/** Textarea — accent caret, accent focus ring, glass-tinted background. Caller adds w-full + min/max-h overrides. */
+/**
+ * Textarea — accent caret, accent focus ring, glass-tinted background. Caller adds
+ * w-full + min/max-h overrides.
+ *
+ * The placeholder sits at /60: the floor documented in worker/web/style.css,
+ * below which text stops clearing 4.5:1 on the glass. It was /45 (~3:1), the only
+ * placeholder in either app under that floor.
+ *
+ * 13.5px is deliberate and stays: the usual "16px or iOS zooms the page" rule has
+ * no purchase here, since both consumers are desktop-only — the extension is a
+ * Chrome content script, and the web viewer blocks itself below `md`.
+ */
 export const textareaCls = trim(`
   bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-xl px-3.5 py-2.5
   text-ml-glass-fg text-[13.5px] leading-relaxed
@@ -41,5 +52,5 @@ export const textareaCls = trim(`
   focus:border-ml-accent/50
   focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--color-ml-accent)_12%,transparent),inset_0_0.5px_0_oklch(1_0_0/0.04)]
   focus:bg-ml-glass-fg/6
-  placeholder:text-ml-glass-fg/45
+  placeholder:text-ml-glass-fg/60
 `);

@@ -362,7 +362,9 @@ function computeSelector(el: Element): string {
     if (!seg.disambiguated) {
       const parent = current.parentElement;
       if (parent) {
-        const sameTag = Array.from(parent.children).filter((c) => c.tagName === current!.tagName);
+        // Hoisted so the callback doesn't lose `current`'s non-null narrowing.
+        const { tagName } = current;
+        const sameTag = Array.from(parent.children).filter((c) => c.tagName === tagName);
         if (sameTag.length > 1) {
           let matchedSiblings = sameTag;
           try {
@@ -440,7 +442,7 @@ export function detectTailwind(doc: Document = document): boolean {
       const rules = sheet.cssRules;
       const limit = Math.min(rules.length, 50);
       for (let i = 0; i < limit; i++) {
-        if (rules[i].cssText.includes('--tw-')) {
+        if (rules[i]?.cssText.includes('--tw-')) {
           _tailwindCache = true;
           return true;
         }
@@ -508,8 +510,7 @@ export function getKeyStyles(el: Element): Record<string, string> {
   const display = cs.getPropertyValue('display');
   const isFlexLike = display === 'flex' || display === 'inline-flex' || display === 'grid' || display === 'inline-grid';
   const isNonText = NON_TEXT_TAGS.has(el.tagName.toLowerCase());
-  for (let i = 0; i < KEBAB_KEYS.length; i++) {
-    const key = KEBAB_KEYS[i];
+  for (const key of KEBAB_KEYS) {
     const v = cs.getPropertyValue(key);
     if (SKIP_VALUES.has(v)) continue;
     if (key === 'position' && v === 'static') continue;
@@ -706,13 +707,13 @@ export function parseInspectorComment(text: string): ParsedInspectorComment | nu
   }
 
   const markupMatch = body.match(INSPECTOR_MARKUP_RE);
-  const markup = markupMatch ? markupMatch[1].trim() : null;
+  const markup = markupMatch?.[1]?.trim() ?? null;
   const beforeMarkup = markupMatch ? body.slice(0, markupMatch.index) : body;
 
   const fields: Array<[string, string]> = [];
   for (const line of beforeMarkup.split('\n')) {
-    const m = line.match(INSPECTOR_FIELD_RE);
-    if (m) fields.push([m[1].trim(), m[2].trim()]);
+    const [, key, value] = line.match(INSPECTOR_FIELD_RE) ?? [];
+    if (key !== undefined && value !== undefined) fields.push([key.trim(), value.trim()]);
   }
 
   return { task, fields, markup };

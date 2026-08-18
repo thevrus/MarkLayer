@@ -46,7 +46,7 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
             const isCode = label === 'Selector';
             return (
               <div key={label} class="contents">
-                <dt class="text-[10px] text-ml-glass-fg/55 font-semibold uppercase tracking-[0.06em] tabular-nums">
+                <dt class="text-[10px] text-ml-glass-fg/60 font-semibold uppercase tracking-[0.06em] tabular-nums">
                   {label}
                 </dt>
                 <dd
@@ -120,7 +120,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
           class="w-7 h-7 rounded-full text-white text-[11px] font-semibold
                  grid place-items-center
                  shadow-[0_0_0_2.5px_oklch(0_0_0/0.2),0_2px_10px_oklch(0_0_0/0.35),inset_0_1px_0_oklch(1_0_0/0.2)]
-                 transition-all duration-200 ease-out
+                 transition-[scale,box-shadow] duration-200 ease-out
                  group-hover/pin:scale-[1.15] group-hover/pin:shadow-[0_0_0_2.5px_oklch(1_0_0/0.12),0_4px_20px_oklch(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/0.25)]"
           style={{
             background: `linear-gradient(to bottom, color-mix(in oklch, ${op.color} 100%, white 20%), ${op.color})`,
@@ -145,57 +145,65 @@ export function CommentPin({ op }: { op: CommentOp }) {
           {op.priority && <PriorityPin priority={op.priority} />}
         </div>
 
-        {/* Hover card */}
+        {/* Hover card. The pin-to-card gap is padding on this wrapper, not a
+            positional offset — as dead space it drops :hover mid-crossing and the
+            card vanishes before the pointer arrives. */}
         <div
           class={cn(
             'absolute',
             flipV ? 'bottom-0' : 'top-0',
-            flipH ? 'right-[calc(100%+10px)]' : 'left-[calc(100%+10px)]',
-            glass.surfaceSmall,
-            inspector ? 'w-[320px]' : 'w-max max-w-[280px] min-w-[160px]',
-            'opacity-0 scale-90 pointer-events-none',
-            flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
-            'transition-all duration-200 ease-out',
-            'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0 group-hover/pin:pointer-events-auto',
-            'overflow-hidden',
+            flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
+            'pointer-events-none group-hover/pin:pointer-events-auto',
           )}
         >
-          {/* Header */}
-          <div class="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
-            <div
-              class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
-                     shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
-              style={{ background: op.color }}
-            >
-              {op.num}
-            </div>
-            <span class="text-[10.5px] text-ml-glass-fg/65 font-medium tabular-nums tracking-wide">
-              {timeAgo(op.ts)}
-            </span>
-            {op.priority && <PriorityBadge priority={op.priority} class="ml-auto" />}
-          </div>
-
-          <div class={cn(glass.divider, 'mx-3')} />
-
-          {/* Body */}
-          <div class="px-3.5 py-3 max-h-[50vh] overflow-y-auto overscroll-contain">
-            {inspector ? (
-              <InspectorCommentBody parsed={inspector} resolved={resolved} />
-            ) : (
-              <p
-                class="text-ml-glass-fg/90 text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0"
-                style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
-              >
-                {op.text}
-              </p>
+          <div
+            class={cn(
+              glass.surfaceSmall,
+              inspector ? 'w-[320px]' : 'w-max max-w-[280px] min-w-[160px]',
+              'opacity-0 scale-90',
+              flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
+              'transition-[opacity,scale,translate] duration-200 ease-out',
+              'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0',
+              'overflow-hidden',
             )}
-          </div>
+          >
+            {/* Header */}
+            <div class="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
+              <div
+                class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
+                       shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
+                style={{ background: op.color }}
+              >
+                {op.num}
+              </div>
+              <span class="text-[10.5px] text-ml-glass-fg/65 font-medium tabular-nums tracking-wide">
+                {timeAgo(op.ts)}
+              </span>
+              {op.priority && <PriorityBadge priority={op.priority} class="ml-auto" />}
+            </div>
 
-          <div class={cn(glass.divider, 'mx-3')} />
+            <div class={cn(glass.divider, 'mx-3')} />
 
-          {/* Footer */}
-          <div class="px-3.5 py-2 flex items-center gap-1.5">
-            <span class="text-[10.5px] text-ml-glass-fg/55 font-medium">Click to reply</span>
+            {/* Body */}
+            <div class="px-3.5 py-3 max-h-[50vh] overflow-y-auto overscroll-contain">
+              {inspector ? (
+                <InspectorCommentBody parsed={inspector} resolved={resolved} />
+              ) : (
+                <p
+                  class="text-ml-glass-fg/90 text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0"
+                  style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
+                >
+                  {op.text}
+                </p>
+              )}
+            </div>
+
+            <div class={cn(glass.divider, 'mx-3')} />
+
+            {/* Footer */}
+            <div class="px-3.5 py-2 flex items-center gap-1.5">
+              <span class="text-[10.5px] text-ml-glass-fg/60 font-medium">Click to reply</span>
+            </div>
           </div>
         </div>
       </div>

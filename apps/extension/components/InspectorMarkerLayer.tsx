@@ -106,11 +106,11 @@ function InspectorMarker({ op }: { op: InspectOp }) {
               {op.comment}
             </p>
           ) : (
-            <p class="text-[11.5px] text-ml-glass-fg/55 m-0 italic">No task description</p>
+            <p class="text-[11.5px] text-ml-glass-fg/60 m-0 italic">No task description</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/55 font-medium">{op.author ?? 'Anonymous'}</span>
-            {op.assignedAgent && <span class="text-[10px] text-ml-glass-fg/55 font-medium">→ {op.assignedAgent}</span>}
+            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author ?? 'Anonymous'}</span>
+            {op.assignedAgent && <span class="text-[10px] text-ml-glass-fg/60 font-medium">→ {op.assignedAgent}</span>}
           </div>
         </div>
       </div>

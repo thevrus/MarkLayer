@@ -14,6 +14,18 @@
 
 @layer base {
   :host {
+    /* font-family inherits across the shadow boundary, so the overlay used to
+       render in whatever face the annotated page sets. `glass.font` pinned it
+       per-surface, which left the components without that class (Tooltip,
+       PriorityPicker, CommentLayer, QuickGrabLayer) still inheriting the page.
+       Setting it on the root covers every layer. System stack by design: a
+       content script can't rely on the host page's CSP allowing a webfont. */
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif;
+    /* Smoothing inherits too, so pin it or the UI renders differently per site. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-synthesis: none;
+
     --ml-glass-bg: oklch(0.96 0.003 280);
     --ml-glass-bg-small: oklch(0.96 0.003 280);
     --ml-glass-border: oklch(0 0 0 / 0.16);

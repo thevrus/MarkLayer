@@ -75,9 +75,9 @@ export function bridgePayload(): void {
   const parseDisplayName = (name: string): string | null => {
     let cur = name;
     for (;;) {
-      const m = cur.match(/\(([^()]+)\)/);
-      if (!m) break;
-      cur = m[1].trim();
+      const inner = cur.match(/\(([^()]+)\)/)?.[1];
+      if (inner === undefined) break;
+      cur = inner.trim();
     }
     return isUsable(cur) ? cur : null;
   };
