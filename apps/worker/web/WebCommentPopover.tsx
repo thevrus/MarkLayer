@@ -82,7 +82,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
         <textarea
           name="comment"
           ref={taRef}
-          placeholder="Leave a comment..."
+          placeholder="Leave a comment…"
           rows={1}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -109,7 +109,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, onClose }: Props) {
           >
             Esc
           </kbd>
-          <span class="text-[11px] text-ml-glass-fg/55 font-medium">cancel</span>
+          <span class="text-[11px] text-ml-glass-fg/60 font-medium">cancel</span>
         </div>
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Post ↵

@@ -99,7 +99,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, onClose }: 
           >
             Esc
           </kbd>
-          <span class="text-[11px] text-ml-glass-fg/55 font-medium">skip comment</span>
+          <span class="text-[11px] text-ml-glass-fg/60 font-medium">skip comment</span>
         </div>
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵

@@ -2,7 +2,19 @@
 @source "../../extension/components";
 @source "../../extension/lib";
 @source "./";
+/* The prerendered app shell (apps/site/src/pages/index.astro, staged here by
+   scripts/sync-shell.mjs). It is gitignored, so Tailwind's automatic source
+   detection skips it — without this line, a utility used only in the shell and
+   nowhere in web/ silently gets no rule, and the pre-hydration paint breaks. */
+@source "../index.html";
 
+/* Muted-text floor. Opacity on text is surface-dependent, so a bare number is
+   not a contrast guarantee: `/55` measures 4.6:1 on the light glass panel but
+   only 3.9:1 on the page. `/60` is the lowest step that clears 4.5:1 on both
+   (4.5 page, 5.5 glass, 6.5 dark glass), so it is the floor for any text or
+   icon. Steps above it — /70 secondary, /85 near-primary — are free to use.
+   Nothing below /60 should carry text; the ladder from /20 to /55 that used to
+   run through these files bottomed out at 1.5:1. */
 @theme {
   /* Page surfaces */
   --color-ml-bg: #fbfaf9;
@@ -72,9 +84,13 @@
   /* Dark: system preference OR manual .dark class */
   @media (prefers-color-scheme: dark) {
     :root:not(.light) {
-      --color-ml-bg: #888888;
-      --color-ml-bg-viewer: #888888;
-      --color-ml-bg-device: #888888;
+      /* Three stepped surfaces, mirroring the light triad. They were briefly
+         flattened to a single #888888, which put the #e8e5e0 foreground at
+         2.8:1 — under the 3:1 floor for even non-text — and erased the
+         page/viewer/device layering. Warm-neutral near-black, not slate. */
+      --color-ml-bg: #111110;
+      --color-ml-bg-viewer: #1a1a1a;
+      --color-ml-bg-device: #0e0e0e;
       --color-ml-fg: #e8e5e0;
       --color-ml-btn: #e8e5e0;
       --color-ml-btn-hover: #d4d0ca;
@@ -117,9 +133,9 @@
   }
 
   :root.dark {
-    --color-ml-bg: #888888;
-    --color-ml-bg-viewer: #888888;
-    --color-ml-bg-device: #888888;
+    --color-ml-bg: #111110;
+    --color-ml-bg-viewer: #1a1a1a;
+    --color-ml-bg-device: #0e0e0e;
     --color-ml-fg: #e8e5e0;
     --color-ml-btn: #e8e5e0;
     --color-ml-btn-hover: #d4d0ca;
@@ -165,6 +181,12 @@
     background: var(--color-ml-bg);
     color: var(--color-ml-fg);
     -webkit-font-smoothing: antialiased;
+    /* Firefox on macOS renders heavy without this; `-webkit-` alone left the
+       app crisp in Chrome and Safari and thick in Firefox. */
+    -moz-osx-font-smoothing: grayscale;
+    /* 400/500/600/700 and the italic are all served by the shell's Geist
+       request, so nothing here needs faking. */
+    font-synthesis: none;
   }
 
   #app {
@@ -202,8 +224,18 @@
     --ml-glass-divider: oklch(0 0 0 / 0.09);
     --ml-glass-grip: oklch(0 0 0 / 0.9);
   }
-}
 
+  /* Redefining the tokens above is not enough on its own. `body` resolves
+     `color: var(--color-ml-fg)` while the `dark` class is still in scope, and
+     inheritance passes down the *computed* colour — so uncoloured text inside
+     this wrapper keeps the dark-theme foreground and renders near-invisible on
+     the white surface. Anyone with `ml-theme: dark` in localStorage saw the
+     prerendered homepage that way. Re-assert the colour here so inherited text
+     picks up the light value. */
+  .ml-force-light {
+    color: var(--color-ml-fg);
+  }
+}
 @keyframes toolbarIn {
   from {
     opacity: 0;
@@ -258,92 +290,161 @@
 
 /* ─── Landing page animations ─── */
 
-@keyframes lpFadeUp {
+/* Content is visible by default. These used to start at `opacity: 0` and rely
+   on the animation to reveal them, which meant a backgrounded tab, a throttled
+   animation engine or a screenshot pass rendered the hero — headline, CTA and
+   URL input — as an empty white box. The entrance now animates only the
+   transform, so the text is on screen whether or not the animation ever runs. */
+@keyframes lpRiseUp {
   from {
-    opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(12px);
   }
   to {
-    opacity: 1;
     transform: translateY(0);
   }
 }
 
-@keyframes lpUnderlineGrow {
-  from {
-    transform: scaleX(0);
-  }
-  to {
-    transform: scaleX(1);
-  }
+.lp-fade-up {
+  animation: lpRiseUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes lpToolbarIn {
+/* ── Landing-page toolbar entrance ──
+   The tools drop into the glass pill one at a time, left to right, then the
+   history/share/settings controls follow as a short tail.
+
+   Scoped to `.lp-toolbar-in`, which only the landing page puts around <Toolbar>,
+   so the Viewer and the extension keep an instant toolbar.
+
+   Only the children animate, never the pill: the pill's opacity is already owned
+   by a fill:forwards WAAPI animation in Toolbar.tsx (it dims to 0.15 while a tool
+   is in use) and a CSS animation on the same property would fight it. Scaling the
+   children also costs no layout, so the pill is full width from the first frame
+   and nothing reflows as the buttons land. */
+@keyframes lpToolIn {
   from {
     opacity: 0;
+    transform: translateY(8px) scale(0.6);
   }
   to {
     opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-@keyframes lpPulseGlow {
-  0%,
-  100% {
-    box-shadow:
-      0 4px 24px rgba(0, 0, 0, 0.06),
-      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+@media (prefers-reduced-motion: no-preference) {
+  /* Every individual control animates. The two wrappers that exist only to hold
+     buttons are skipped, so their buttons stagger one by one instead of the
+     whole group popping in as a single block. */
+  .lp-toolbar-in [data-ml-tb="tools"] > *,
+  .lp-toolbar-in [data-ml-tb="history"] > *,
+  .lp-toolbar-in [data-ml-tb="row"] > *:not([data-ml-tb="tools"]):not([data-ml-tb="history"]) {
+    /* `backwards` holds the from-frame through the delay. The buttons are real
+       DOM either way: if this animation never runs they simply render, because
+       nothing outside the keyframes sets opacity or transform. */
+    animation: lpToolIn 380ms cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
+    animation-delay: calc(160ms + var(--lp-tb-i, 0) * 38ms);
   }
-  50% {
-    box-shadow:
-      0 8px 40px rgba(249, 83, 198, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.9);
+
+  /* Index per slot. The tools are user-reorderable, so these key off position,
+     not identity. The tail picks up where a full tool row leaves off. */
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(1) {
+    --lp-tb-i: 0;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(2) {
+    --lp-tb-i: 1;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(3) {
+    --lp-tb-i: 2;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(4) {
+    --lp-tb-i: 3;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(5) {
+    --lp-tb-i: 4;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(6) {
+    --lp-tb-i: 5;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(7) {
+    --lp-tb-i: 6;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(8) {
+    --lp-tb-i: 7;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(9) {
+    --lp-tb-i: 8;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(10) {
+    --lp-tb-i: 9;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(11) {
+    --lp-tb-i: 10;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(12) {
+    --lp-tb-i: 11;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(13) {
+    --lp-tb-i: 12;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(14) {
+    --lp-tb-i: 13;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(15) {
+    --lp-tb-i: 14;
+  }
+  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(16) {
+    --lp-tb-i: 15;
+  }
+
+  /* The separator that closes the tool run. */
+  .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(2) {
+    --lp-tb-i: 16;
+  }
+
+  /* Undo / redo / clear, staggered individually. Reserving four slots leaves
+     room for a fourth history action without retiming everything after it. */
+  .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(1) {
+    --lp-tb-i: 17;
+  }
+  .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(2) {
+    --lp-tb-i: 18;
+  }
+  .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(3) {
+    --lp-tb-i: 19;
+  }
+  .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(4) {
+    --lp-tb-i: 20;
+  }
+
+  /* Everything trailing the history group: the optional share separator and
+     button, the drag grip, the connection dot, minimize and settings. Positions
+     shift depending on whether the share block is present, which only moves the
+     timing by one step. */
+  .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(4) {
+    --lp-tb-i: 21;
+  }
+  .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(5) {
+    --lp-tb-i: 22;
+  }
+  .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(6) {
+    --lp-tb-i: 23;
+  }
+  .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(7) {
+    --lp-tb-i: 24;
+  }
+  .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(8) {
+    --lp-tb-i: 25;
+  }
+  .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(9) {
+    --lp-tb-i: 26;
   }
 }
 
-.lp-fade-up {
-  opacity: 0;
-  animation: lpFadeUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.lp-underline-grow {
-  transform-origin: left;
-  transform: scaleX(0);
-  animation: lpUnderlineGrow 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.4s forwards;
-}
-
-.lp-toolbar-in {
-  opacity: 0;
-  animation: lpToolbarIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.6s forwards;
-}
-
-.lp-input-glow {
-  animation: lpPulseGlow 3s ease-in-out infinite;
-}
-
-@keyframes lpBgShift {
-  0%,
-  100% {
-    background-position: 50% 0%;
-  }
-  50% {
-    background-position: 50% 100%;
-  }
-}
-
+/* Flat white, wall to wall. This was an animated pastel wash (butter-pink into
+   lavender, drifting on a 12s loop) — the candy-gradient background that reads
+   as machine-made, and it fought the achromatic palette everywhere else. */
 .lp-bg-animate {
-  background: linear-gradient(
-    180deg,
-    #f5e6f0 0%,
-    #efe0ec 15%,
-    #f0e8ee 30%,
-    #f5f2f4 50%,
-    #faf9fa 70%,
-    #fff 85%,
-    #f5f2f4 100%
-  );
-  background-size: 100% 200%;
-  animation: lpBgShift 12s ease-in-out infinite;
+  background: #fff;
 }
 
 @keyframes lpShine {
@@ -355,40 +456,19 @@
   }
 }
 
+/* One flat black surface. This was a gradient fill with two inset highlights,
+   a drop shadow and a white shine sweeping across it every 4s — the glowy
+   gradient button, and the loop drew the eye away from the page's actual
+   content. The hover is a value step; nothing lifts, sweeps or glows. */
 .lp-shine {
   position: relative;
-  overflow: hidden;
-  background: linear-gradient(180deg, #333 0%, #0a0a0a 100%);
-  border-top: 0.5px solid rgba(255, 255, 255, 0.15);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 -1px 0 rgba(0, 0, 0, 0.3) inset,
-    0 2px 6px rgba(0, 0, 0, 0.2);
-}
-.lp-shine::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 40%,
-    rgba(255, 255, 255, 0.12) 48%,
-    rgba(255, 255, 255, 0.2) 50%,
-    rgba(255, 255, 255, 0.12) 52%,
-    transparent 60%
-  );
-  transform: translateX(-100%) skewX(-15deg);
-  animation: lpShine 4s ease-in-out 2s infinite;
-  pointer-events: none;
+  background: #000;
 }
 .lp-shine:hover {
-  background: linear-gradient(180deg, #444 0%, #161616 100%);
+  background: #282828;
 }
 .lp-shine:active {
-  background: linear-gradient(180deg, #111 0%, #0a0a0a 100%);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.03) inset,
-    0 1px 3px rgba(0, 0, 0, 0.15);
+  background: #111;
 }
 
 .lp-shine-toolbar {
@@ -544,6 +624,16 @@
   }
 }
 
+/* The landing page swaps the visitor's system pointer for their own MarkLayer
+ * peer cursor (SelfCursor), so the page they are reading is already the product.
+ * Only set while SelfCursor knows where the pointer is, so nobody is ever left
+ * with no cursor at all. Form fields keep the native caret — an I-beam is
+ * information, not decoration — and SelfCursor hides itself over them. */
+html.ml-cursor-swapped,
+html.ml-cursor-swapped *:not(input, textarea, [contenteditable]) {
+  cursor: none;
+}
+
 /* Dock-style spring on the peer avatar group — hovering one avatar lifts it
  * (with a slight scale) and ripples a diminishing lift across its neighbours.
  * Per-item --shift / --scale-active are written inline by Viewer.tsx; this only
@@ -564,7 +654,7 @@
 }
 
 /* Reduce motion for users who request it: collapse durations and stop infinite
- * loops (lpBgShift, lpShine, lpPulseGlow, voice bars, status pulse).
+ * loops (lpShine, voice bars, status pulse).
  * `!important` is required here to override inline and utility animation styles
  * — this is the WCAG-recommended pattern. */
 @media (prefers-reduced-motion: reduce) {

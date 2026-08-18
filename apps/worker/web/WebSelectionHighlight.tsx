@@ -1,5 +1,5 @@
 import { PriorityBadge } from '@ext/components/PriorityPicker';
-import { applyAnchorDelta } from '@ext/lib/anchor';
+import { reprojectRects } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
 import { copyText, deleteOp, openContextMenu, setOpStatus } from '@ext/lib/state';
@@ -18,37 +18,26 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
   iframeMutationTick.value; // re-resolve anchor when iframe DOM mutates
   if (!op.rects.length) return null;
   const resolved = op.status === 'resolved';
-  const firstRect = op.rects[0];
-  const { dx, dy, strategy } = frameDoc
-    ? applyAnchorDelta(
-        op.target,
-        { docX: firstRect.x, docY: firstRect.y },
-        { doc: frameDoc, win: frameDoc.defaultView ?? undefined },
-      )
-    : { dx: 0, dy: 0, strategy: null };
-
-  // Compute bounding box of all rects (after anchor shift) for the hover target
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const r of op.rects) {
-    minX = Math.min(minX, r.x + dx);
-    minY = Math.min(minY, r.y + dy);
-    maxX = Math.max(maxX, r.x + dx + r.width);
-    maxY = Math.max(maxY, r.y + dy + r.height);
-  }
+  // Doc-space anchoring only; `s` (viewer cssScale zoom) is applied on top of
+  // the result below, never in place of it.
+  const anchored = reprojectRects({
+    target: op.target,
+    rects: op.rects,
+    ctx: frameDoc ? { doc: frameDoc, win: frameDoc.defaultView ?? undefined } : undefined,
+  });
+  if (!anchored) return null;
+  const { rects: scaledRects, bounds, strategy } = anchored;
 
   return (
     <div class="group/sel">
       {/* Colored highlight rects */}
-      {op.rects.map((r, i) => (
+      {scaledRects.map((r, i) => (
         <div
           key={i}
           class="absolute pointer-events-none"
           style={{
-            left: (r.x + dx) * s,
-            top: (r.y + dy) * s - scrollY,
+            left: r.x * s,
+            top: r.y * s - scrollY,
             width: r.width * s,
             height: r.height * s,
             background: resolved ? 'rgba(107,114,128,0.1)' : hexToRgba(op.color, 0.25),
@@ -61,10 +50,10 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
       <div
         class="absolute pointer-events-auto"
         style={{
-          left: minX * s,
-          top: minY * s - scrollY,
-          width: (maxX - minX) * s,
-          height: (maxY - minY) * s,
+          left: bounds.x * s,
+          top: bounds.y * s - scrollY,
+          width: bounds.width * s,
+          height: bounds.height * s,
         }}
         data-anchor-drift={strategy === 'text' ? 'text' : undefined}
         onContextMenu={(e) =>
@@ -103,7 +92,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
             </p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/55 font-medium">{op.author}</span>
+            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
             <button
               type="button"
               onClick={(e) => {

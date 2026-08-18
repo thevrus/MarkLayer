@@ -5,12 +5,13 @@ import { captureScale } from '@ext/lib/anchor';
 import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze';
 import { glass } from '@ext/lib/glass';
 import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
-import { isLikelyEmbedHostile } from '@ext/lib/share';
+import { claudeMcpCommand, isLikelyEmbedHostile, npxMcpCommand } from '@ext/lib/share';
 import {
   activeTool,
   areas,
   color,
   comments as commentsComputed,
+  copyText,
   cycleTheme,
   FREEHAND,
   isDrawingActive,
@@ -36,10 +37,13 @@ import {
   undoRedoFlash,
 } from '@ext/lib/state';
 import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
+import { useCopyToClipboard } from '@ext/lib/useCopy';
 import { cn } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import {
+  Bot,
   Calendar,
+  Check,
   ChevronDown,
   Copy,
   Hash,
@@ -67,7 +71,16 @@ import { nanoid } from 'nanoid';
 import { lazy, Suspense } from 'preact/compat';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
+import { classifyProxyError } from '../src/proxy-errors';
+import {
+  AnnotationPanel,
+  DOCK_GUTTER,
+  DOCKED_ANNOTATION_WIDTH,
+  DockedAnnotationPanel,
+  DockedPanel,
+  PANEL_BASE,
+  PANEL_TRANSITION,
+} from './AnnotationPanel';
 import { capture } from './analytics';
 import { CursorLayer } from './CursorLayer';
 import { ProjectTabs } from './ProjectTabs';
@@ -86,6 +99,7 @@ import {
   isMobileDevice,
   isReadonly,
   loadProject,
+  MAX_AUTO_UPSCALE,
   navigateTo,
   onFollowScroll,
   opMatchesDevice,
@@ -168,16 +182,51 @@ function zoomLabel(z: ViewerZoom): string {
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: string; value: string }) {
   return (
     <div class="flex items-start gap-3 py-2">
-      <Icon size={14} class="text-ml-glass-fg/25 shrink-0 mt-0.5" aria-hidden="true" />
+      <Icon size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
       <div class="flex-1 min-w-0">
-        <div class="text-[10px] text-ml-glass-fg/30 font-medium uppercase tracking-wider">{label}</div>
+        <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">{label}</div>
         <div class="text-[12.5px] text-ml-glass-fg/70 mt-0.5 break-all">{value}</div>
       </div>
     </div>
   );
 }
 
-function InfoPanel() {
+/**
+ * Click-to-copy command line. Mirrors the ID row's interaction (the whole value
+ * is the control, copy glyph trailing) so the panel teaches one copy gesture
+ * rather than two. The command wraps instead of truncating — a half-shown
+ * command reads as broken and can't be verified before it's pasted.
+ */
+function CommandField({ label, value }: { label: string; value: string }) {
+  const { copied, copy } = useCopyToClipboard();
+  return (
+    <button
+      type="button"
+      onClick={() => copy(value)}
+      title="Click to copy"
+      aria-label={`Copy ${label}`}
+      class="w-full flex items-start gap-1.5 text-left px-2 py-1.5 rounded-lg cursor-pointer
+             bg-ml-glass-fg/[0.04] border border-ml-glass-fg/[0.08] text-ml-glass-fg/75
+             hover:text-ml-glass-fg hover:bg-ml-glass-fg/[0.07] transition-colors duration-150"
+    >
+      {/* Wrap at spaces, never mid-token: `break-all` split "npx" across lines,
+          which makes the command unreadable and unverifiable before pasting. */}
+      <code class="flex-1 min-w-0 font-mono text-[11px] leading-normal whitespace-pre-wrap wrap-break-word">
+        {value}
+      </code>
+      {/* mt centers the 11px glyph on the 16.5px first line box, not on the block */}
+      {/* Opacity here multiplies the parent's muted colour, so it has to stay
+          high: at 0.4 over a /60 parent the copy affordance landed near 1.8:1. */}
+      {copied.value ? (
+        <Check size={11} class="shrink-0 mt-0.75" aria-hidden="true" />
+      ) : (
+        <Copy size={11} class="shrink-0 mt-0.75 opacity-80" aria-hidden="true" />
+      )}
+    </button>
+  );
+}
+
+function InfoPanelBody() {
   const ops = operations.value;
   const toolCounts = new Map<string, number>();
   for (const op of ops) {
@@ -194,25 +243,20 @@ function InfoPanel() {
   const isConnected = connected.value;
 
   return (
-    <div
-      class={cn(
-        'absolute top-3 left-3 bottom-3 w-[300px] z-40 transition-all duration-300 ease-ml-spring',
-        glass.surface,
-        'flex flex-col overflow-hidden',
-        showInfoPanel.value ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none',
-      )}
-    >
+    <>
       <div class="px-4 py-3 border-b border-ml-glass-fg/[0.1] shrink-0 flex items-center justify-between">
         <h2 class="text-[13px] font-semibold text-ml-glass-fg/80 m-0">Annotation Info</h2>
         <button
           type="button"
           onClick={() => (showInfoPanel.value = false)}
-          class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1] active:scale-[0.94] transition-all duration-150"
+          class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1] active:scale-[0.96] transition-[color,background-color,scale] duration-150"
         >
           <X size={14} aria-hidden="true" />
         </button>
       </div>
-      <div class="flex-1 overflow-y-auto px-4 py-2">
+      {/* pb clears the floating toolbar that overlaps the panel's bottom-right,
+          so the last rows can always be scrolled out from under it. */}
+      <div class="flex-1 overflow-y-auto px-4 pt-2 pb-16">
         {created != null && (
           <InfoRow
             icon={Calendar}
@@ -232,9 +276,9 @@ function InfoPanel() {
           }
         />
         <div class="flex items-start gap-3 py-2">
-          <Users size={14} class="text-ml-glass-fg/25 shrink-0 mt-0.5" aria-hidden="true" />
+          <Users size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
           <div class="flex-1 min-w-0">
-            <div class="text-[10px] text-ml-glass-fg/30 font-medium uppercase tracking-wider">Session</div>
+            <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">Session</div>
             <div class="flex items-center gap-2 mt-0.5">
               <span
                 class={cn(
@@ -251,14 +295,14 @@ function InfoPanel() {
         <InfoRow icon={readonly ? Lock : Upload} label="Access" value={readonly ? 'Read-only' : 'Editable'} />
         {url && (
           <div class="flex items-start gap-3 py-2">
-            <Link size={14} class="text-ml-glass-fg/25 shrink-0 mt-0.5" aria-hidden="true" />
+            <Link size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
             <div class="flex-1 min-w-0">
-              <div class="text-[10px] text-ml-glass-fg/30 font-medium uppercase tracking-wider">Page URL</div>
+              <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">Page URL</div>
               <a
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-[12.5px] text-ml-glass-fg/50 hover:text-ml-glass-fg/80 mt-0.5 break-all no-underline hover:underline block transition-colors"
+                class="text-[12.5px] text-ml-glass-fg/60 hover:text-ml-glass-fg/80 mt-0.5 break-all no-underline hover:underline block transition-colors"
               >
                 {url}
               </a>
@@ -267,32 +311,60 @@ function InfoPanel() {
         )}
         {id && (
           <div class="flex items-start gap-3 py-2">
-            <Hash size={14} class="text-ml-glass-fg/25 shrink-0 mt-0.5" aria-hidden="true" />
+            <Hash size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
             <div class="flex-1 min-w-0">
-              <div class="text-[10px] text-ml-glass-fg/30 font-medium uppercase tracking-wider">ID</div>
+              <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">ID</div>
               <button
                 type="button"
-                class="flex items-center gap-1.5 text-[12.5px] text-ml-glass-fg/50 hover:text-ml-glass-fg/80 mt-0.5 bg-transparent border-none cursor-pointer p-0 font-mono transition-colors"
-                onClick={() => {
-                  navigator.clipboard.writeText(id).then(
-                    () => toast('ID copied!', 'success'),
-                    () => toast('Failed to copy', 'error'),
-                  );
-                }}
+                class="flex items-center gap-1.5 text-[12.5px] text-ml-glass-fg/60 hover:text-ml-glass-fg/80 mt-0.5 bg-transparent border-none cursor-pointer p-0 font-mono transition-colors"
+                onClick={() => copyText(id, 'ID copied!')}
                 title="Click to copy"
               >
                 {id}
-                <Copy size={11} class="shrink-0 opacity-40" aria-hidden="true" />
+                <Copy size={11} class="shrink-0 opacity-80" aria-hidden="true" />
               </button>
             </div>
           </div>
+        )}
+        {/* Connect an agent — the room ID above is what the MCP server joins, so
+            the command belongs directly under it. Shown wherever a room exists;
+            read-only is a viewer-side flag and does not stop an agent writing. */}
+        {id && (
+          <>
+            <div class="h-px bg-ml-glass-fg/[0.06] my-2" />
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <Bot size={14} class="text-ml-glass-fg/60" aria-hidden="true" />
+                <span class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">
+                  Connect an AI agent
+                </span>
+              </div>
+              <div class="pl-[26px] flex flex-col gap-1.5">
+                <p class="text-[11.5px] text-ml-glass-fg/60 leading-snug m-0">
+                  An agent can work these annotations and resolve them here, live. Run once in your project:
+                </p>
+                <CommandField label="Claude Code command" value={claudeMcpCommand(id)} />
+                <details class="text-[11px] text-ml-glass-fg/60">
+                  <summary class="cursor-pointer select-none hover:text-ml-glass-fg/70 transition-colors duration-150">
+                    Cursor, Codex, Windsurf…
+                  </summary>
+                  <div class="mt-1.5 flex flex-col gap-1.5">
+                    <CommandField label="npx command" value={npxMcpCommand(id)} />
+                    <p class="text-[10.5px] text-ml-glass-fg/60 leading-snug m-0">
+                      Paste into your MCP config under a "marklayer" entry.
+                    </p>
+                  </div>
+                </details>
+              </div>
+            </div>
+          </>
         )}
         {ops.length > 0 && <div class="h-px bg-ml-glass-fg/[0.06] my-2" />}
         {ops.length > 0 && (
           <div>
             <div class="flex items-center gap-2 mb-2">
-              <PenTool size={14} class="text-ml-glass-fg/25" aria-hidden="true" />
-              <span class="text-[10px] text-ml-glass-fg/30 font-medium uppercase tracking-wider">
+              <PenTool size={14} class="text-ml-glass-fg/60" aria-hidden="true" />
+              <span class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">
                 Annotations ({ops.length})
               </span>
             </div>
@@ -301,15 +373,54 @@ function InfoPanel() {
                 .sort((a, b) => b[1] - a[1])
                 .map(([tool, count]) => (
                   <div key={tool} class="flex items-center justify-between">
-                    <span class="text-[11.5px] text-ml-glass-fg/50">{TOOL_LABELS[tool] || tool}</span>
-                    <span class="text-[11.5px] text-ml-glass-fg/30 tabular-nums">{count}</span>
+                    <span class="text-[11.5px] text-ml-glass-fg/60">{TOOL_LABELS[tool] || tool}</span>
+                    <span class="text-[11.5px] text-ml-glass-fg/60 tabular-nums">{count}</span>
                   </div>
                 ))}
             </div>
           </div>
         )}
       </div>
+    </>
+  );
+}
+
+const INFO_PANEL_WIDTH = 300;
+/** Narrowest space auto-fit will size a device frame into before letting it overflow and scroll. */
+const MIN_DEVICE_FIT_WIDTH = 320;
+
+function InfoPanel() {
+  return (
+    <div
+      class={cn(
+        'absolute top-3 left-3 bottom-3 z-40',
+        PANEL_TRANSITION,
+        PANEL_BASE,
+        showInfoPanel.value ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none',
+      )}
+      style={{ width: INFO_PANEL_WIDTH }}
+    >
+      <InfoPanelBody />
     </div>
+  );
+}
+
+// In a device viewport the frame is only 390–768px wide, so an overlaid panel
+// would bury the page being reviewed. Dock it beside the frame instead, the way
+// DockedAnnotationPanel does on the other side.
+function DockedInfoPanel() {
+  return (
+    <DockedPanel visible={showInfoPanel.value} width={INFO_PANEL_WIDTH}>
+      <InfoPanelBody />
+    </DockedPanel>
+  );
+}
+
+/** Horizontal space the open docked panels take from a device frame. */
+function dockedPanelsWidth(): number {
+  return (
+    (showInfoPanel.value ? INFO_PANEL_WIDTH + DOCK_GUTTER : 0) +
+    (showAnnotationPanel.value ? DOCKED_ANNOTATION_WIDTH + DOCK_GUTTER : 0)
   );
 }
 
@@ -464,10 +575,11 @@ export default function Viewer() {
   const renderStartRef = useRef(0);
   const captureRenderFailed = (reason: 'timeout' | 'no-marker' | 'iframe-error', extra?: Record<string, unknown>) => {
     capture('page_render_failed', {
-      url: pageUrl.value,
+      // Deliberately no `url` and no `annotation_id`: the annotated page can be
+      // private and the room ID is an unlisted share credential. `reason` plus
+      // timing is enough to spot a proxy regression.
       reason,
       duration_ms: Math.round(performance.now() - renderStartRef.current),
-      annotation_id: annotationId.value || null,
       ...extra,
     });
   };
@@ -824,12 +936,21 @@ export default function Viewer() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const viewer = viewerRef.current;
-    const viewerW = viewer ? viewer.clientWidth : window.innerWidth;
+    // Fit against the scroll container, never #viewer itself — #viewer's width
+    // is `originalWidth * cssScale`, so measuring it turns auto-fit into a
+    // one-way ratchet (shrinks once, never recovers when the window widens).
+    const containerW = viewer?.parentElement ? viewer.parentElement.clientWidth : window.innerWidth;
     const viewerH = viewer ? viewer.clientHeight : window.innerHeight;
     const dev = deviceMode.value;
-    const refW = dev === 'desktop' ? originalWidth.value || viewerW : DEVICE_WIDTHS[dev];
+    // In a device viewport the panels dock as flex siblings and take real width
+    // from the frame, so auto-fit has to size against what is left — measuring
+    // the container alone scales the frame under whichever panel is open. The
+    // floor keeps a narrow window from fitting the frame down to a sliver; past
+    // it the frame keeps its size and the row scrolls.
+    const availW = dev === 'desktop' ? containerW : Math.max(MIN_DEVICE_FIT_WIDTH, containerW - dockedPanelsWidth());
+    const refW = dev === 'desktop' ? originalWidth.value || availW : DEVICE_WIDTHS[dev];
     const z = viewerZoom.value;
-    const cs = !refW || !viewerW ? 1 : z === 'auto' ? Math.min(1, viewerW / refW) : z;
+    const cs = !refW || !availW ? 1 : z === 'auto' ? Math.min(MAX_AUTO_UPSCALE, availW / refW) : z;
     if (cssScale.value !== cs) cssScale.value = cs;
     const canvasW = refW;
     const canvasH = Math.round(viewerH / cs);
@@ -1206,7 +1327,7 @@ export default function Viewer() {
       >
         <Logo size={48} />
         <h1 class="text-[24px] font-bold text-ml-fg mt-6 mb-2">Desktop only</h1>
-        <p class="text-[15px] text-ml-fg/50 max-w-[320px] leading-relaxed mb-8">
+        <p class="text-[15px] text-ml-fg/60 max-w-[320px] leading-relaxed mb-8">
           Annotation tools require a desktop browser. Open this link on your computer to view and collaborate.
         </p>
         <a
@@ -1230,7 +1351,7 @@ export default function Viewer() {
       <div class="md:hidden fixed inset-0 z-2147483647 bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Geist',system-ui,sans-serif]">
         <Logo size={48} />
         <h2 class="text-[22px] font-bold text-ml-fg mt-6 mb-3 tracking-[-0.02em]">Desktop only</h2>
-        <p class="text-[16px] text-ml-fg/40 leading-relaxed max-w-[300px] mb-8">
+        <p class="text-[16px] text-ml-fg/60 leading-relaxed max-w-[300px] mb-8">
           MarkLayer's annotation tools are designed for desktop screens. Open this link on your computer.
         </p>
         <a href="/" class="px-5 py-2.5 rounded-xl bg-ml-btn text-ml-btn-fg text-[14px] font-semibold no-underline">
@@ -1245,9 +1366,7 @@ export default function Viewer() {
           class="flex items-center gap-1 no-underline shrink-0 group cursor-pointer rounded-lg px-2 py-1 -ml-2 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150"
         >
           <Logo size={24} />
-          <span class="text-[14px] font-semibold text-ml-glass-fg group-hover:text-ml-glass-fg transition-colors">
-            MarkLayer
-          </span>
+          <span class="text-[14px] font-semibold text-ml-glass-fg">MarkLayer</span>
         </a>
 
         <div class={glass.sep} />
@@ -1256,14 +1375,9 @@ export default function Viewer() {
         <div class="flex-1 min-w-0 flex items-center gap-2 px-2 rounded-lg py-1 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150">
           <Link
             size={16}
-            class="text-ml-glass-fg/55 shrink-0 cursor-pointer hover:text-ml-glass-fg transition-colors"
+            class="text-ml-glass-fg/60 shrink-0 cursor-pointer hover:text-ml-glass-fg transition-colors"
             aria-label="Copy URL"
-            onClick={() => {
-              navigator.clipboard.writeText(pageUrl.value).then(
-                () => toast('URL copied!', 'success'),
-                () => toast('Failed to copy', 'error'),
-              );
-            }}
+            onClick={() => copyText(pageUrl.value, 'URL copied!')}
           />
           <input
             name="pageUrl"
@@ -1288,7 +1402,7 @@ export default function Viewer() {
           type="button"
           onClick={() => (showInfoPanel.value = !showInfoPanel.value)}
           class={cn(
-            'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] shrink-0',
+            'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] shrink-0',
             showInfoPanel.value
               ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
               : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
@@ -1308,7 +1422,7 @@ export default function Viewer() {
               type="button"
               onClick={() => (deviceMode.value = mode)}
               class={cn(
-                'group relative w-8 h-8 rounded-lg grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+                'group relative w-8 h-8 rounded-lg grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
                 deviceMode.value === mode
                   ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
                   : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
@@ -1328,7 +1442,7 @@ export default function Viewer() {
             type="button"
             onClick={() => (zoomMenuOpen.value = !zoomMenuOpen.value)}
             class={cn(
-              'group relative h-8 px-2 rounded-lg flex items-center gap-1 cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+              'group relative h-8 px-2 rounded-lg flex items-center gap-1 cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
               'text-[12px] font-medium tabular-nums min-w-14 justify-center',
               zoomMenuOpen.value
                 ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
@@ -1441,9 +1555,9 @@ export default function Viewer() {
                 type="button"
                 onClick={() => (voiceMuted.value = !voiceMuted.value)}
                 class={cn(
-                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
                   voiceMuted.value
-                    ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/30'
+                    ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/60'
                     : 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]',
                 )}
               >
@@ -1454,7 +1568,7 @@ export default function Viewer() {
                 type="button"
                 onClick={() => (videoActive.value = !videoActive.value)}
                 class={cn(
-                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
                   videoActive.value
                     ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
                     : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
@@ -1472,7 +1586,7 @@ export default function Viewer() {
               <button
                 type="button"
                 onClick={() => (voiceActive.value = true)}
-                class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
+                class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
               >
                 <Mic size={16} aria-hidden="true" />
                 <Tooltip text="Join voice" placement="bottom" />
@@ -1501,7 +1615,7 @@ export default function Viewer() {
             type="button"
             onClick={() => (showAnnotationPanel.value = !showAnnotationPanel.value)}
             class={cn(
-              'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94]',
+              'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
               showAnnotationPanel.value
                 ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
                 : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
@@ -1518,7 +1632,7 @@ export default function Viewer() {
               onClick={() => doShare()}
               disabled={sharing.value}
               class={cn(
-                'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
+                'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
                 sharing.value && 'opacity-50 pointer-events-none',
               )}
             >
@@ -1534,7 +1648,7 @@ export default function Viewer() {
               cycleTheme();
               e.currentTarget.blur();
             }}
-            class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-all duration-150 active:scale-[0.94] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
+            class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
           >
             {theme.value === 'dark' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
             <Tooltip
@@ -1551,11 +1665,14 @@ export default function Viewer() {
       {/* `mx-auto` (not `justify-center`) so flex auto-margins collapse on overflow
           — scroll starts at the page's left edge instead of clipping content. */}
       <div class="flex-1 w-full relative overflow-x-auto overflow-y-hidden flex items-stretch bg-ml-bg-device">
+        {deviceMode.value !== 'desktop' && <DockedInfoPanel />}
         <div
           id="viewer"
           ref={viewerRef}
           class={cn(
-            'relative h-full mx-auto',
+            // shrink-0: a docked panel must push the frame into the scroll area,
+            // never compress it — a squeezed frame is no longer that viewport.
+            'relative h-full mx-auto shrink-0',
             deviceMode.value === 'desktop'
               ? originalWidth.value > 0 || cssScale.value !== 1
                 ? 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)]'
@@ -1583,40 +1700,49 @@ export default function Viewer() {
             }}
           >
             {renderFailed.value && pageUrl.value ? (
-              <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white px-8 text-center">
-                <Logo size={48} />
-                <h2 class="text-base font-semibold text-zinc-800 m-0">
-                  {isLikelyEmbedHostile(pageUrl.value) ? 'This site blocks embedding' : "We couldn't load this page"}
-                </h2>
-                <p class="text-sm text-zinc-500 max-w-md leading-snug m-0">
-                  {isLikelyEmbedHostile(pageUrl.value)
-                    ? 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.'
-                    : 'The page took too long, was blocked, or returned an error. The annotations are saved — try the extension on the live page, or share a different URL.'}
-                </p>
-                <div class="flex items-center gap-2">
-                  <a
-                    href={pageUrl.value}
-                    target="_blank"
-                    rel="noreferrer"
-                    class="px-4 py-2 rounded-lg bg-zinc-900 text-white text-[13px] font-medium hover:bg-zinc-800"
-                  >
-                    Open original site
-                  </a>
-                  <a
-                    href="/"
-                    class="px-4 py-2 rounded-lg border border-zinc-200 text-zinc-700 text-[13px] font-medium hover:bg-zinc-50"
-                  >
-                    Back home
-                  </a>
+              /* Scroll container + `min-h-full` inner, rather than a centred flex
+                 box: the ancestor clips on the y axis, so in a short device
+                 preview a centred box would have its top and bottom shaved off
+                 with no way to reach them. This centres when there is room and
+                 scrolls, padding intact, when there is not. */
+              <div class="absolute inset-0 z-10 overflow-y-auto bg-ml-bg-viewer">
+                <div class="min-h-full flex flex-col items-center justify-center gap-4 px-8 py-10 text-center">
+                  <Logo size={48} />
+                  <h2 class="text-base font-semibold text-ml-fg m-0">
+                    {isLikelyEmbedHostile(pageUrl.value) ? 'This site blocks embedding' : "We couldn't load this page"}
+                  </h2>
+                  <p class="text-sm text-ml-fg/70 max-w-md leading-snug m-0">
+                    {isLikelyEmbedHostile(pageUrl.value)
+                      ? 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.'
+                      : 'The page took too long, was blocked, or returned an error. The annotations are saved — try the extension on the live page, or share a different URL.'}
+                  </p>
+                  {/* One primary action; the escape route is a text link rather than
+                      a second outlined button, so the recovery path has a clear rank. */}
+                  <div class="flex flex-col items-center gap-3">
+                    <a
+                      href={pageUrl.value}
+                      target="_blank"
+                      rel="noreferrer"
+                      class="px-4 py-2 rounded-lg bg-ml-btn text-ml-btn-fg text-[13px] font-medium no-underline hover:bg-ml-btn-hover transition-colors"
+                    >
+                      Open original site
+                    </a>
+                    <a
+                      href="/"
+                      class="text-[13px] text-ml-fg/70 underline underline-offset-2 hover:text-ml-fg transition-colors"
+                    >
+                      Back home
+                    </a>
+                  </div>
                 </div>
               </div>
             ) : (
               !iframeLoaded.value &&
               pageUrl.value && (
-                <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
+                <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-ml-bg-viewer">
                   <Logo size={48} />
-                  <Loader2 size={32} class="animate-spin text-violet-500" aria-hidden="true" />
-                  <p class="text-sm text-zinc-400">Loading page…</p>
+                  <Loader2 size={32} class="animate-spin text-ml-accent" aria-hidden="true" />
+                  <p class="text-sm text-ml-fg/70">Loading page…</p>
                 </div>
               )
             )}
@@ -1631,7 +1757,7 @@ export default function Viewer() {
                 // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
                 const doc = frameRef.current?.contentDocument;
                 if (doc?.documentElement?.dataset?.marklayer === '1') return;
-                captureRenderFailed('no-marker', { body_preview: doc?.body?.textContent?.slice(0, 200) });
+                captureRenderFailed('no-marker', { proxy_error: classifyProxyError(doc?.body?.textContent) });
                 renderFailed.value = 'no-marker';
               }}
               onError={() => {
@@ -1639,7 +1765,9 @@ export default function Viewer() {
                 renderFailed.value = 'iframe-error';
               }}
               class={cn(
-                'w-full h-full border-none bg-white',
+                // ph-no-capture: the proxied page is same-origin, so session replay
+                // would record its contents — block it and replay only our chrome.
+                'ph-no-capture w-full h-full border-none bg-white',
                 !iframeLoaded.value && 'invisible',
                 (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
               )}
@@ -1786,8 +1914,8 @@ export default function Viewer() {
             glass.font,
           )}
         >
-          <Lock size={14} class="text-ml-glass-fg/40" aria-hidden="true" />
-          <span class="text-[12px] text-ml-glass-fg/50 font-medium">View-only mode</span>
+          <Lock size={14} class="text-ml-glass-fg/60" aria-hidden="true" />
+          <span class="text-[12px] text-ml-glass-fg/60 font-medium">View-only mode</span>
         </div>
       )}
 
@@ -1850,7 +1978,7 @@ export default function Viewer() {
               <span class="text-xs font-medium text-ml-glass-fg/70">Following {peer.name}</span>
               <button
                 type="button"
-                class="ml-1 text-ml-glass-fg/40 hover:text-ml-glass-fg/70 transition-colors"
+                class="ml-1 text-ml-glass-fg/60 hover:text-ml-glass-fg/70 transition-colors"
                 onClick={() => {
                   followingPeer.value = null;
                 }}
@@ -1895,8 +2023,8 @@ function VoicePill() {
         type="button"
         onClick={() => (voiceMuted.value = !voiceMuted.value)}
         class={cn(
-          'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-all duration-150 active:scale-[0.94]',
-          muted ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/30' : 'bg-green-500/20 text-green-400',
+          'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
+          muted ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/60' : 'bg-green-500/20 text-green-400',
         )}
         title={muted ? 'Unmute' : 'Mute'}
       >
@@ -1911,7 +2039,7 @@ function VoicePill() {
           return (
             <div
               key={i}
-              class="w-[2.5px] rounded-full transition-all duration-100 ease-out"
+              class="w-[2.5px] rounded-full transition-[opacity,transform] duration-100 ease-out"
               style={{
                 height: `${40 + ((i + 1) / 4) * 60}%`,
                 background: 'var(--color-ml-glass-fg, #888)',
@@ -1926,7 +2054,7 @@ function VoicePill() {
       <button
         type="button"
         onClick={() => (voiceActive.value = false)}
-        class="w-6 h-6 rounded-md grid place-items-center border-none cursor-pointer bg-transparent text-ml-glass-fg/20 hover:text-ml-glass-fg/50 hover:bg-ml-glass-fg/[0.06] transition-all duration-150 active:scale-[0.94]"
+        class="w-6 h-6 rounded-md grid place-items-center border-none cursor-pointer bg-transparent text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-fg/[0.06] transition-[color,background-color,scale] duration-150 active:scale-[0.96]"
         title="Leave voice"
       >
         <X size={11} aria-hidden="true" />
