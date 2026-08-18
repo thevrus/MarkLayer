@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { App } from '../../components/App';
+import { portalContainer } from '../../lib/portal';
 import { restoreDraft, visible } from '../../lib/state';
 import './style.css';
 
@@ -27,10 +28,12 @@ export default defineContentScript({
       name: 'mark-layer',
       position: 'overlay',
       onMount(container) {
+        portalContainer.value = container;
         render(<App />, container);
         return container;
       },
       onRemove(container) {
+        portalContainer.value = null;
         if (container) render(null, container);
       },
     });

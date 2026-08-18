@@ -9,26 +9,30 @@
     "build": "wxt build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "zip:all": "bun run zip && bun run zip:firefox",
     "check": "tsc --noEmit",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
-    "@preact/preset-vite": "^2.10.5",
-    "@tailwindcss/vite": "^4.3.0",
-    "tailwindcss": "^4.3.0",
-    "typescript": "^6.0.3",
-    "wxt": "^0.20.26"
+    "@preact/preset-vite": "^2.10.6",
+    "@tailwindcss/vite": "^4.3.3",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.1",
+    "web-ext": "^10.6.0",
+    "wxt": "^0.21.4"
   },
   "dependencies": {
-    "@floating-ui/dom": "^1.7.6",
+    "@base-ui/react": "^1.7.0",
     "@marklayer/types": "workspace:*",
-    "@preact/signals": "^2.9.0",
-    "idb-keyval": "^6.2.2",
-    "lucide-preact": "^1.16.0",
-    "nanoid": "^5.1.11",
+    "@preact/signals": "^2.11.1",
+    "idb-keyval": "^6.3.0",
+    "lucide-preact": "^1.31.0",
+    "nanoid": "^6.0.0",
     "perfect-freehand": "^1.2.3",
-    "preact": "^10.29.2",
-    "simple-icons": "^16.20.0",
-    "tinykeys": "^3.0.0"
+    "preact": "^10.29.8",
+    "simple-icons": "^16.28.0",
+    "tinykeys": "^4.0.0"
   }
 }

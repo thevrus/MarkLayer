@@ -1,10 +1,20 @@
+import { Dialog } from '@base-ui/react/dialog';
 import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { AlertTriangle, Bot, Check, Copy, Link2, MonitorOff, X } from 'lucide-preact';
 import { nanoid } from 'nanoid';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useState } from 'preact/hooks';
 import { glass } from '../lib/glass';
-import { getShareUrl, isLikelyEmbedHostile, isShareableUrl, saveAnnotations } from '../lib/share';
+import { portalContainer } from '../lib/portal';
+import {
+  claudeMcpCommand,
+  getRoomId,
+  getShareUrl,
+  isLikelyEmbedHostile,
+  isShareableUrl,
+  npxMcpCommand,
+  saveAnnotations,
+} from '../lib/share';
 import {
   clearInspectorStack,
   color,
@@ -18,9 +28,7 @@ import {
   toast,
 } from '../lib/state';
 import type { CommentOp } from '../lib/types';
-
-const NPX_COMMAND_PREFIX = 'npx -y marklayer-mcp --room ';
-const CLAUDE_COMMAND_PREFIX = 'claude mcp add marklayer -- npx -y marklayer-mcp --room ';
+import { useCopyToClipboard } from '../lib/useCopy';
 
 /**
  * Convert any pending inspector-stack items into CommentOps so they sync to the
@@ -76,36 +84,19 @@ function flushInspectorStackToComments(): number {
 }
 
 function CopyButton({ value, label }: { value: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-  const onClick = () => {
-    navigator.clipboard.writeText(value).then(
-      () => {
-        setCopied(true);
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => setCopied(false), 1400);
-      },
-      () => toast('Failed to copy', 'error'),
-    );
-  };
+  const { copied, copy } = useCopyToClipboard();
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => copy(value)}
       aria-label={label}
       class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer
              border border-ml-glass-fg/12 bg-ml-glass-fg/5
              text-ml-glass-fg/80 hover:text-ml-glass-fg hover:bg-ml-glass-fg/10
              transition-[color,background-color,border-color] duration-150"
     >
-      {copied ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
-      {copied ? 'Copied' : 'Copy'}
+      {copied.value ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
+      {copied.value ? 'Copied' : 'Copy'}
     </button>
   );
 }
@@ -135,131 +126,122 @@ export function ShareDialog() {
     }
   });
 
-  // Esc to close
-  useSignalEffect(() => {
-    if (!showShareDialog.value) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') showShareDialog.value = false;
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  });
-
   if (!showShareDialog.value || !shareUrl) return null;
 
-  const roomId = shareUrl.split('/s/')[1] ?? '';
-  const claudeCommand = `${CLAUDE_COMMAND_PREFIX}${roomId}`;
-  const npxCommand = `${NPX_COMMAND_PREFIX}${roomId}`;
+  const roomId = getRoomId();
+  const claudeCommand = claudeMcpCommand(roomId);
+  const npxCommand = npxMcpCommand(roomId);
   const shareable = isShareableUrl();
   const embedHostile = shareable && isLikelyEmbedHostile();
 
   return (
-    <div
-      class="fixed inset-0 z-[2147483646] grid place-items-center bg-black/40 backdrop-blur-sm
-             animate-[fadeInDown_0.15s_ease-out]"
-      onClick={() => {
-        showShareDialog.value = false;
+    <Dialog.Root
+      open={showShareDialog.value}
+      onOpenChange={(open: boolean) => {
+        if (!open) showShareDialog.value = false;
       }}
     >
-      <div
-        class={cn(
-          glass.surfaceSmall,
-          glass.font,
-          'w-[420px] max-w-[calc(100vw-32px)] p-4 flex flex-col gap-3 pointer-events-auto',
-        )}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div class="flex items-center justify-between">
-          <h2 class="text-[13px] font-semibold text-ml-glass-fg/90 m-0">Share annotations</h2>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={() => {
-              showShareDialog.value = false;
-            }}
-            class="p-1 rounded-md text-ml-glass-fg/55 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8 cursor-pointer"
-          >
-            <X size={13} aria-hidden="true" />
-          </button>
-        </div>
+      <Dialog.Portal container={portalContainer.value ?? undefined}>
+        <Dialog.Backdrop
+          className="fixed inset-0 z-[2147483646] bg-black/40 backdrop-blur-sm
+                     animate-[fadeInDown_0.15s_ease-out]"
+        />
+        <Dialog.Popup
+          className={cn(
+            glass.surfaceSmall,
+            glass.font,
+            'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[2147483646]',
+            'w-[420px] max-w-[calc(100vw-32px)] p-4 flex flex-col gap-3 pointer-events-auto',
+          )}
+        >
+          <div class="flex items-center justify-between">
+            <Dialog.Title className="text-[13px] font-semibold text-ml-glass-fg/90 m-0">Share annotations</Dialog.Title>
+            <Dialog.Close
+              aria-label="Close"
+              className="p-1 rounded-md text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8 cursor-pointer"
+            >
+              <X size={13} aria-hidden="true" />
+            </Dialog.Close>
+          </div>
 
-        {/* Share link — only when the page can actually be proxied through marklayer.app */}
-        {shareable ? (
-          <div class="flex flex-col gap-1.5">
-            <div class="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-ml-glass-fg/55">
-              <Link2 size={11} aria-hidden="true" />
-              Public link
+          {/* Share link — only when the page can actually be proxied through marklayer.app */}
+          {shareable ? (
+            <div class="flex flex-col gap-1.5">
+              <div class="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-ml-glass-fg/60">
+                <Link2 size={11} aria-hidden="true" />
+                Public link
+              </div>
+              <div class="flex items-center gap-1.5">
+                <code
+                  class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
+                         text-[12px] text-ml-glass-fg/85 font-mono truncate"
+                >
+                  {shareUrl}
+                </code>
+                <CopyButton value={shareUrl} label="Copy link" />
+              </div>
+              {embedHostile && (
+                <div
+                  class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-amber-400/10 border border-amber-400/25
+                         text-[11.5px] text-ml-glass-fg/75 leading-snug"
+                >
+                  <AlertTriangle size={12} class="shrink-0 mt-px text-amber-400/90" aria-hidden="true" />
+                  <span>
+                    This site usually blocks embedding, so the public viewer may not load. Annotations still sync to
+                    agents via the command below.
+                  </span>
+                </div>
+              )}
             </div>
+          ) : (
+            <div
+              class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
+                     text-[11.5px] text-ml-glass-fg/70 leading-snug"
+            >
+              <MonitorOff size={12} class="shrink-0 mt-px" aria-hidden="true" />
+              <span>
+                Public viewer isn't available on local pages — the marklayer.app proxy can't reach localhost. Agent
+                connections work fine; copy the command below.
+              </span>
+            </div>
+          )}
+
+          {/* Connect an AI agent */}
+          <div class="flex flex-col gap-1.5">
+            <div class="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-ml-glass-fg/60">
+              <Bot size={11} aria-hidden="true" />
+              Connect an AI agent
+            </div>
+            <p class="text-[11.5px] text-ml-glass-fg/70 leading-snug m-0">
+              Let an agent read and resolve your annotations. Run once in any project:
+            </p>
             <div class="flex items-center gap-1.5">
               <code
                 class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                       text-[12px] text-ml-glass-fg/85 font-mono truncate"
+                       text-[11.5px] text-ml-glass-fg/85 font-mono truncate"
               >
-                {shareUrl}
+                {claudeCommand}
               </code>
-              <CopyButton value={shareUrl} label="Copy link" />
+              <CopyButton value={claudeCommand} label="Copy Claude Code command" />
             </div>
-            {embedHostile && (
-              <div
-                class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-amber-400/10 border border-amber-400/25
-                       text-[11.5px] text-ml-glass-fg/75 leading-snug"
-              >
-                <AlertTriangle size={12} class="shrink-0 mt-px text-amber-400/90" aria-hidden="true" />
-                <span>
-                  This site usually blocks embedding, so the public viewer may not load. Annotations still sync to
-                  agents via the command below.
-                </span>
+            <details class="text-[11px] text-ml-glass-fg/60">
+              <summary class="cursor-pointer select-none hover:text-ml-glass-fg/80">Other agents…</summary>
+              <div class="mt-1.5 flex items-center gap-1.5">
+                <code
+                  class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
+                         text-[11px] text-ml-glass-fg/85 font-mono truncate"
+                >
+                  {npxCommand}
+                </code>
+                <CopyButton value={npxCommand} label="Copy npx command" />
               </div>
-            )}
+              <p class="mt-1.5 text-[10.5px] text-ml-glass-fg/60 leading-snug">
+                Cursor / Codex / Windsurf: paste the npx command into your MCP config under a "marklayer" entry.
+              </p>
+            </details>
           </div>
-        ) : (
-          <div
-            class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                   text-[11.5px] text-ml-glass-fg/70 leading-snug"
-          >
-            <MonitorOff size={12} class="shrink-0 mt-px" aria-hidden="true" />
-            <span>
-              Public viewer isn't available on local pages — the marklayer.app proxy can't reach localhost. Agent
-              connections work fine; copy the command below.
-            </span>
-          </div>
-        )}
-
-        {/* Connect an AI agent */}
-        <div class="flex flex-col gap-1.5">
-          <div class="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-ml-glass-fg/55">
-            <Bot size={11} aria-hidden="true" />
-            Connect an AI agent
-          </div>
-          <p class="text-[11.5px] text-ml-glass-fg/70 leading-snug m-0">
-            Let an agent read and resolve your annotations. Run once in any project:
-          </p>
-          <div class="flex items-center gap-1.5">
-            <code
-              class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                     text-[11.5px] text-ml-glass-fg/85 font-mono truncate"
-            >
-              {claudeCommand}
-            </code>
-            <CopyButton value={claudeCommand} label="Copy Claude Code command" />
-          </div>
-          <details class="text-[11px] text-ml-glass-fg/60">
-            <summary class="cursor-pointer select-none hover:text-ml-glass-fg/80">Other agents…</summary>
-            <div class="mt-1.5 flex items-center gap-1.5">
-              <code
-                class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                       text-[11px] text-ml-glass-fg/85 font-mono truncate"
-              >
-                {npxCommand}
-              </code>
-              <CopyButton value={npxCommand} label="Copy npx command" />
-            </div>
-            <p class="mt-1.5 text-[10.5px] text-ml-glass-fg/55 leading-snug">
-              Cursor / Codex / Windsurf: paste the npx command into your MCP config under a "marklayer" entry.
-            </p>
-          </details>
-        </div>
-      </div>
-    </div>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

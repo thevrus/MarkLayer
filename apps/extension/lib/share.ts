@@ -15,14 +15,28 @@ export function setAnnotationId(id: string) {
   currentAnnotationId = id;
 }
 
-function ensureAnnotationId(): string {
+/** The room id every share surface addresses (generates one if needed). */
+export function getRoomId(): string {
   if (!currentAnnotationId) currentAnnotationId = nanoid();
   return currentAnnotationId;
 }
 
 /** Get share URL synchronously (generates ID if needed) */
 export function getShareUrl(): string {
-  return `${APP_ORIGIN}/s/${ensureAnnotationId()}`;
+  return `${APP_ORIGIN}/s/${getRoomId()}`;
+}
+
+/**
+ * MCP connect commands for a room. Both the extension's ShareDialog and the web
+ * viewer's info panel offer these, so they live here rather than being spelled
+ * out twice — a drifted flag in one copy would hand users a command that fails.
+ */
+export function claudeMcpCommand(roomId: string): string {
+  return `claude mcp add marklayer -- npx -y marklayer-mcp --room ${roomId}`;
+}
+
+export function npxMcpCommand(roomId: string): string {
+  return `npx -y marklayer-mcp --room ${roomId}`;
 }
 
 /**
@@ -68,7 +82,7 @@ export function isLikelyEmbedHostile(url: string = window.location.href): boolea
 
 /** Save ops to server. Returns true on success. */
 export async function saveAnnotations(ops: DrawOp[]): Promise<boolean> {
-  const id = ensureAnnotationId();
+  const id = getRoomId();
   try {
     const url = window.location.href.split('#')[0];
     const width = window.innerWidth;
@@ -100,10 +114,11 @@ export function parseUrlHash(): { width: number; id: string } | null {
   const hash = window.location.hash;
   if (hash.startsWith('#ant=')) {
     const parts = hash.substring(5).split('=');
-    if (parts.length === 2) {
-      const width = parseInt(parts[0], 10);
+    const [rawWidth, id] = parts;
+    if (parts.length === 2 && rawWidth !== undefined && id !== undefined) {
+      const width = parseInt(rawWidth, 10);
       if (!width || width <= 0 || Number.isNaN(width)) return null;
-      return { width, id: parts[1] };
+      return { width, id };
     }
   }
   return null;
