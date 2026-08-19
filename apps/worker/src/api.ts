@@ -3,6 +3,7 @@ import { opsArraySchema } from '@marklayer/types';
 import { cors } from 'hono/cors';
 import { dayCached, once } from './http';
 import type { Env } from './index';
+import { annotationStore, isExpired, projectStore } from './store';
 
 const api = new OpenAPIHono<Env>();
 api.use('*', cors());
@@ -121,12 +122,7 @@ api.openapi(storeAnnotation, async (c) => {
     return c.json({ error: 'Invalid operations data' }, 400);
   }
 
-  await c.env.DB.prepare(
-    `INSERT INTO annotations (id, ops, url, width, expires_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, url = COALESCE(excluded.url, url), width = COALESCE(excluded.width, width), expires_at = excluded.expires_at`,
-  )
-    .bind(id, JSON.stringify(result.data), url, width, expiresAt)
-    .run();
+  await annotationStore(c.env.DB).put({ id, ops: result.data, url, width, expiresAt });
 
   return c.json({ ok: true }, 200);
 });
@@ -145,23 +141,18 @@ const getAnnotation = createRoute({
 
 api.openapi(getAnnotation, async (c) => {
   const { id } = c.req.valid('param');
-  const row = await c.env.DB.prepare('SELECT ops, url, width, expires_at FROM annotations WHERE id = ?')
-    .bind(id)
-    .first<{ ops: string; url: string | null; width: number | null; expires_at: number | null }>();
+  const store = annotationStore(c.env.DB);
+  const row = await store.get(id);
 
   if (!row) return c.json({ error: 'not found' }, 404);
 
-  // Check expiration
-  if (row.expires_at && Math.floor(Date.now() / 1000) > row.expires_at) {
-    c.executionCtx.waitUntil(c.env.DB.prepare('DELETE FROM annotations WHERE id = ?').bind(id).run());
+  if (isExpired(row.expiresAt)) {
+    c.executionCtx.waitUntil(store.remove(id));
     return c.json({ error: 'expired' }, 410);
   }
 
-  // Touch last_accessed_at (fire-and-forget)
-  c.executionCtx.waitUntil(
-    c.env.DB.prepare('UPDATE annotations SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run(),
-  );
-  return c.json({ ops: JSON.parse(row.ops), url: row.url, width: row.width }, 200);
+  c.executionCtx.waitUntil(store.touch(id));
+  return c.json({ ops: row.ops, url: row.url, width: row.width }, 200);
 });
 
 // ---------- Projects (multi-page bundles) ----------
@@ -209,12 +200,7 @@ api.openapi(storeProject, async (c) => {
     return c.json({ error: `Project exceeds ${MAX_PAGES_PER_PROJECT} pages` }, 400);
   }
   const expiresAt = expiresAtFrom(body.expires_in);
-  await c.env.DB.prepare(
-    `INSERT INTO projects (id, page_ids, expires_at) VALUES (?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET page_ids = excluded.page_ids, expires_at = excluded.expires_at, last_accessed_at = unixepoch()`,
-  )
-    .bind(id, JSON.stringify(pageIds), expiresAt)
-    .run();
+  await projectStore(c.env.DB).put({ id, pageIds, expiresAt });
   return c.json({ ok: true }, 200);
 });
 
@@ -232,45 +218,20 @@ const getProject = createRoute({
 
 api.openapi(getProject, async (c) => {
   const { id } = c.req.valid('param');
-  const row = await c.env.DB.prepare('SELECT page_ids, created_at, expires_at FROM projects WHERE id = ?')
-    .bind(id)
-    .first<{ page_ids: string; created_at: number | null; expires_at: number | null }>();
+  const projects = projectStore(c.env.DB);
+  const row = await projects.get(id);
   if (!row) return c.json({ error: 'not found' }, 404);
-  if (row.expires_at && Math.floor(Date.now() / 1000) > row.expires_at) {
-    c.executionCtx.waitUntil(c.env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(id).run());
+  if (isExpired(row.expiresAt)) {
+    c.executionCtx.waitUntil(projects.remove(id));
     return c.json({ error: 'expired' }, 410);
   }
-  c.executionCtx.waitUntil(
-    c.env.DB.prepare('UPDATE projects SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run(),
-  );
-  let pageIds: string[] = [];
-  try {
-    const parsed = JSON.parse(row.page_ids);
-    if (Array.isArray(parsed)) pageIds = parsed.filter((x): x is string => typeof x === 'string');
-  } catch {
-    /* corrupt row → empty list */
-  }
-  if (!pageIds.length) {
-    return c.json({ pageIds: [], pages: [], createdAt: row.created_at, expiresAt: row.expires_at }, 200);
-  }
-  const placeholders = pageIds.map(() => '?').join(',');
-  const pageRows = await c.env.DB.prepare(`SELECT id, ops, url, width FROM annotations WHERE id IN (${placeholders})`)
-    .bind(...pageIds)
-    .all<{ id: string; ops: string; url: string | null; width: number | null }>();
-  const byId = new Map<string, { id: string; ops: unknown[]; url: string | null; width: number | null }>();
-  for (const r of pageRows.results) {
-    let parsedOps: unknown[] = [];
-    try {
-      const v = JSON.parse(r.ops);
-      if (Array.isArray(v)) parsedOps = v;
-    } catch {
-      /* */
-    }
-    byId.set(r.id, { id: r.id, ops: parsedOps, url: r.url, width: r.width });
-  }
+  c.executionCtx.waitUntil(projects.touch(id));
+  const { pageIds, createdAt, expiresAt } = row;
+  if (!pageIds.length) return c.json({ pageIds: [], pages: [], createdAt, expiresAt }, 200);
+  const byId = await annotationStore(c.env.DB).getMany(pageIds);
   // Preserve original order; missing rows become empty placeholders
   const pages = pageIds.map((pid) => byId.get(pid) ?? { id: pid, ops: [], url: null, width: null });
-  return c.json({ pageIds, pages, createdAt: row.created_at, expiresAt: row.expires_at }, 200);
+  return c.json({ pageIds, pages, createdAt, expiresAt }, 200);
 });
 
 export { api };

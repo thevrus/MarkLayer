@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "deploy": "wrangler deploy",
     "check": "tsc --noEmit",
-    "sync:shell": "node scripts/sync-shell.mjs"
+    "sync:shell": "node scripts/sync-shell.mjs",
+    "test": "bun test src"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -33,6 +34,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260815.1",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/bun": "^1.3.14",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.1",
