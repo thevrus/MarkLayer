@@ -8,6 +8,7 @@ import { api } from './api';
 import { dayCached, once } from './http';
 import { generateOgImage } from './og';
 import { proxy } from './proxy';
+import { annotationStore, nowInSeconds, projectStore } from './store';
 
 export { AnnotationRoom } from './annotation-room';
 
@@ -47,27 +48,9 @@ app.use('*', async (c, next) => {
   }
 });
 
-/** Parse a JSON-encoded array of page ids, dropping any non-string entries. */
-function parsePageIds(raw: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
 type OgOp = { tool: string; parentId?: string };
 function isOgOp(o: unknown): o is OgOp {
   return !!o && typeof o === 'object' && 'tool' in o && typeof o.tool === 'string';
-}
-function parseOgOps(raw: string): OgOp[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter(isOgOp) : [];
-  } catch {
-    return [];
-  }
 }
 
 app.route('/api', api);
@@ -77,12 +60,10 @@ app.get('/s/:id', async (c) => {
   const annotationId = c.req.param('id');
   const reqUrl = new URL(c.req.url);
   let domain = 'a webpage';
-  const row = await c.env.DB.prepare('SELECT url FROM annotations WHERE id = ?')
-    .bind(annotationId)
-    .first<{ url: string | null }>();
-  if (row?.url) {
+  const pageUrl = await annotationStore(c.env.DB).getUrl(annotationId);
+  if (pageUrl) {
     try {
-      domain = new URL(row.url).hostname;
+      domain = new URL(pageUrl).hostname;
     } catch {}
   } else {
     const viewParam = reqUrl.searchParams.get('view');
@@ -118,24 +99,16 @@ app.get('/p/:id', async (c) => {
   let pageCount = 0;
   // Asset shell is independent of the project metadata — fetch in parallel.
   const assetsPromise = c.env.ASSETS.fetch(new Request(new URL('/', reqUrl)));
-  const projectRow = await c.env.DB.prepare('SELECT page_ids FROM projects WHERE id = ?')
-    .bind(projectId)
-    .first<{ page_ids: string }>();
-  if (projectRow) {
-    try {
-      const pageIds = parsePageIds(projectRow.page_ids);
-      pageCount = pageIds.length;
-      if (pageIds.length > 0) {
-        const first = await c.env.DB.prepare('SELECT url FROM annotations WHERE id = ?')
-          .bind(pageIds[0])
-          .first<{ url: string | null }>();
-        if (first?.url) {
-          try {
-            domain = new URL(first.url).hostname;
-          } catch {}
-        }
-      }
-    } catch {}
+  const project = await projectStore(c.env.DB).get(projectId);
+  const firstPageId = project?.pageIds[0];
+  pageCount = project?.pageIds.length ?? 0;
+  if (firstPageId) {
+    const firstUrl = await annotationStore(c.env.DB).getUrl(firstPageId);
+    if (firstUrl) {
+      try {
+        domain = new URL(firstUrl).hostname;
+      } catch {}
+    }
   }
   const res = await assetsPromise;
   let html = await res.text();
@@ -166,25 +139,14 @@ app.get('/og/:key', async (c) => {
     return new Response(cached.body, { headers: dayCached('image/png') });
   }
 
-  let ops: OgOp[] = [];
-  const annoRow = await c.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?').bind(id).first<{ ops: string }>();
-  if (annoRow) {
-    ops = parseOgOps(annoRow.ops);
-  } else {
+  const annotations = annotationStore(c.env.DB);
+  let stored = await annotations.getOps(id);
+  if (!stored) {
     // Fall back to project: render the first page's ops as the preview
-    const projRow = await c.env.DB.prepare('SELECT page_ids FROM projects WHERE id = ?')
-      .bind(id)
-      .first<{ page_ids: string }>();
-    if (projRow) {
-      const pageIds = parsePageIds(projRow.page_ids);
-      if (pageIds.length > 0) {
-        const firstPage = await c.env.DB.prepare('SELECT ops FROM annotations WHERE id = ?')
-          .bind(pageIds[0])
-          .first<{ ops: string }>();
-        if (firstPage) ops = parseOgOps(firstPage.ops);
-      }
-    }
+    const firstPageId = (await projectStore(c.env.DB).get(id))?.pageIds[0];
+    if (firstPageId) stored = await annotations.getOps(firstPageId);
   }
+  const ops: OgOp[] = (stored ?? []).filter(isOgOp);
   const png = await generateOgImage({ domain, ops });
 
   c.executionCtx.waitUntil(c.env.OG_BUCKET.put(key, png, { httpMetadata: { contentType: 'image/png' } }));
@@ -293,38 +255,21 @@ app.route('/', proxy);
 
 // Scheduled cleanup: delete stale and expired annotations + their OG images
 const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_event, env) => {
-  const ninetyDaysAgo = Math.floor(Date.now() / 1000) - 90 * 24 * 60 * 60;
-  const now = Math.floor(Date.now() / 1000);
+  const ninetyDaysAgo = nowInSeconds() - 90 * 24 * 60 * 60;
 
-  const deleted = await env.DB.prepare(
-    'DELETE FROM annotations WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
-  )
-    .bind(ninetyDaysAgo, now)
-    .all<{ id: string }>();
-
-  if (deleted.results.length > 0) {
-    const keys = deleted.results.map((r) => `${r.id}.png`);
-    const r2Deletes: Promise<void>[] = [];
+  // R2 caps a batch delete at 1000 keys.
+  const dropOgCards = async (ids: string[]) => {
+    const keys = ids.map((id) => `${id}.png`);
+    const batches: Promise<void>[] = [];
     for (let i = 0; i < keys.length; i += 1000) {
-      r2Deletes.push(env.OG_BUCKET.delete(keys.slice(i, i + 1000)));
+      batches.push(env.OG_BUCKET.delete(keys.slice(i, i + 1000)));
     }
-    await Promise.all(r2Deletes);
-  }
+    await Promise.all(batches);
+  };
 
-  // Same retention policy for project bundles
-  const deletedProjects = await env.DB.prepare(
-    'DELETE FROM projects WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
-  )
-    .bind(ninetyDaysAgo, now)
-    .all<{ id: string }>();
-  if (deletedProjects.results.length > 0) {
-    const keys = deletedProjects.results.map((r) => `${r.id}.png`);
-    const r2Deletes: Promise<void>[] = [];
-    for (let i = 0; i < keys.length; i += 1000) {
-      r2Deletes.push(env.OG_BUCKET.delete(keys.slice(i, i + 1000)));
-    }
-    await Promise.all(r2Deletes);
-  }
+  // Same retention policy for single annotations and project bundles.
+  await dropOgCards(await annotationStore(env.DB).deleteExpired({ unusedSince: ninetyDaysAgo }));
+  await dropOgCards(await projectStore(env.DB).deleteExpired({ unusedSince: ninetyDaysAgo }));
 };
 
 export default { ...app, scheduled };

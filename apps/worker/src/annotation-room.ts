@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { applyOpPatch, clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType } from '@marklayer/types';
 import { captureServer } from './posthog';
+import { annotationStore } from './store';
 
 interface Env {
   DB: D1Database;
@@ -135,25 +136,15 @@ export class AnnotationRoom extends DurableObject<Env> {
 
   private async loadOps(id: string): Promise<unknown[]> {
     this.annotationId = id;
-    const row = await this.env.DB.prepare(
-      'SELECT ops, url, width, created_at, expires_at FROM annotations WHERE id = ?',
-    )
-      .bind(id)
-      .first<{
-        ops: string;
-        url: string | null;
-        width: number | null;
-        created_at: number | null;
-        expires_at: number | null;
-      }>();
-    this.ops = row ? JSON.parse(row.ops) : [];
-    this.createdAt = row?.created_at ?? null;
-    this.expiresAt = row?.expires_at ?? null;
+    const store = annotationStore(this.env.DB);
+    const row = await store.get(id);
+    this.ops = row?.ops ?? [];
+    this.createdAt = row?.createdAt ?? null;
+    this.expiresAt = row?.expiresAt ?? null;
     this.url = row?.url ?? null;
     this.width = row?.width ?? null;
-    // Touch last_accessed_at
-    this.env.DB.prepare('UPDATE annotations SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run();
-    return this.ops!;
+    store.touch(id);
+    return this.ops;
   }
 
   /** Read peer metadata from the socket attachment — survives DO hibernation. */
@@ -425,11 +416,6 @@ export class AnnotationRoom extends DurableObject<Env> {
   async alarm() {
     if (!this.dirty || !this.ops || !this.annotationId) return;
     this.dirty = false;
-    await this.env.DB.prepare(
-      `INSERT INTO annotations (id, ops, last_accessed_at) VALUES (?, ?, unixepoch())
-       ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, last_accessed_at = unixepoch()`,
-    )
-      .bind(this.annotationId, JSON.stringify(this.ops))
-      .run();
+    await annotationStore(this.env.DB).putOps({ id: this.annotationId, ops: this.ops });
   }
 }
