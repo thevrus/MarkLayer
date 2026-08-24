@@ -1,5 +1,5 @@
 ---
-order: 0
+order: 1
 title: "Bug Report MCP Servers Compared: 5 Tools (2026)"
 description: "Marker.io, BugHerd, Jam, Usersnap, and MarkLayer all ship MCP servers for AI coding agents. What each agent can read, and which loops it can close. Compared."
 h1: "MCP servers for bug reports and visual feedback, compared"

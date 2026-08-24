@@ -23,13 +23,15 @@
 - 🧰 **Customizable toolbar** — drag tools to reorder; layout persists across sessions
 - 💾 **Draft auto-save** — annotations persist locally and restore on revisit
 - 📸 **Export to PNG** — save annotations as an image
-- 🔒 **Privacy-first** — no accounts, no tracking, auto-expires after 30 days
+- 🔒 **Privacy-first** — no accounts, no tracking, share links auto-expire 90 days after their last view
 
 ## 🚀 Quick Start
 
 ### Web App
 
 Go to **[marklayer.app](https://marklayer.app)**, paste a URL, done.
+
+Not a developer? [How MarkLayer works, in plain English](https://marklayer.app/guides/how-marklayer-works) covers what happens when you close the page, how to get a share link back, and how long annotations last.
 
 ### From Source
 

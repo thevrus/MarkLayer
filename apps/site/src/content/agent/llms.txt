@@ -108,6 +108,7 @@ To mint many links at once (e.g. user gives you 10 URLs), loop the POST per URL 
 
 ## Guides
 
+- How MarkLayer works, in plain English: https://marklayer.app/guides/how-marklayer-works
 - Bug report MCP servers compared: https://marklayer.app/guides/bug-report-mcp-servers
 - Free website annotation tools, audited: https://marklayer.app/guides/free-website-annotation-tools
 - Website feedback without logins: https://marklayer.app/guides/website-feedback-without-login

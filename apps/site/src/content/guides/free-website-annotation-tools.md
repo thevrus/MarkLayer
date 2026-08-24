@@ -1,5 +1,5 @@
 ---
-order: 1
+order: 2
 title: "Free Website Annotation Tools: What Free Means (2026)"
 description: "Eleven annotation tools claim a free path. Most free tiers hide a catch: one canvas, 20 items, 2-minute retention, or a trial in disguise. The real list, audited."
 h1: "The best free website annotation tools in 2026, audited"
