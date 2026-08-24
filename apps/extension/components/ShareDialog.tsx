@@ -10,6 +10,7 @@ import {
   claudeMcpCommand,
   getRoomId,
   getShareUrl,
+  HOW_IT_WORKS_URL,
   isLikelyEmbedHostile,
   isShareableUrl,
   npxMcpCommand,
@@ -240,6 +241,15 @@ export function ShareDialog() {
               </p>
             </details>
           </div>
+
+          <a
+            href={HOW_IT_WORKS_URL}
+            target="_blank"
+            rel="noopener"
+            class="text-[11px] text-ml-glass-fg/55 hover:text-ml-glass-fg/80 no-underline hover:underline transition-colors"
+          >
+            How MarkLayer works
+          </a>
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

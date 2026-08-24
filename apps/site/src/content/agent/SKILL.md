@@ -58,4 +58,5 @@ Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
 
 When a human opens a share link in a browser whose agent supports WebMCP, the
 same actions (list / get / acknowledge / resolve / dismiss / reply) are exposed
-on the page via \`navigator.modelContext\`, with no install required.
+on the page via \`document.modelContext\` (falling back to the deprecated
+\`navigator.modelContext\` on Chrome 149), with no install required.

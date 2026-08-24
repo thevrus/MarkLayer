@@ -6,7 +6,7 @@ import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze'
 import { glass } from '@ext/lib/glass';
 import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
 import { captureTarget } from '@ext/lib/selector';
-import { claudeMcpCommand, isLikelyEmbedHostile, npxMcpCommand } from '@ext/lib/share';
+import { claudeMcpCommand, HOW_IT_WORKS_URL, isLikelyEmbedHostile, npxMcpCommand } from '@ext/lib/share';
 import {
   activeTool,
   areas,
@@ -382,6 +382,15 @@ function InfoPanelBody() {
             </div>
           </div>
         )}
+        <div class="h-px bg-ml-glass-fg/[0.06] my-2" />
+        <a
+          href={HOW_IT_WORKS_URL}
+          target="_blank"
+          rel="noopener"
+          class="block text-[11.5px] text-ml-glass-fg/60 hover:text-ml-glass-fg/80 no-underline hover:underline transition-colors"
+        >
+          How MarkLayer works
+        </a>
       </div>
     </>
   );
