@@ -1,6 +1,5 @@
 import { color, lineWidth } from '@ext/lib/state';
-import type { LucideIcon } from 'lucide-preact';
-import { Code, Link, Loader2, Lock, MessageSquare, PenTool, Puzzle, User, Users } from 'lucide-preact';
+import { Loader2 } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
 
 export function Spinner() {
@@ -27,17 +26,22 @@ export function Logo({ size = 24 }: { size?: number }) {
   );
 }
 
+/* The box is the tap target, not a resting container: it carries no background
+   until hover, and it matches the sibling icon link in the landing nav so the
+   two read as one pair rather than two differently-sized glyphs. 44px under
+   `sm` clears the touch-target floor; the bare 18px anchor did not. */
+const ICON_LINK_CLS =
+  'inline-flex items-center justify-center size-11 sm:size-9 rounded-lg transition-colors no-underline hover:bg-current/[0.04]';
+
 export function GithubLink({ dark }: { dark?: boolean }) {
   return (
     <a
       href="https://github.com/thevrus/MarkLayer"
       target="_blank"
       rel="noopener"
-      class={
-        dark
-          ? 'text-ml-fg/60 hover:text-ml-fg transition-colors no-underline'
-          : 'text-ml-glass-fg/60 hover:text-ml-glass-fg transition-colors no-underline'
-      }
+      class={`${ICON_LINK_CLS} ${
+        dark ? 'text-ml-fg/60 hover:text-ml-fg' : 'text-ml-glass-fg/60 hover:text-ml-glass-fg'
+      }`}
     >
       <span class="sr-only">GitHub</span>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -46,57 +50,6 @@ export function GithubLink({ dark }: { dark?: boolean }) {
     </a>
   );
 }
-
-export const FEATURES: { label: string; desc: string; icon: LucideIcon; anim: string }[] = [
-  {
-    label: 'Drawing tools',
-    desc: 'Freehand drawing, shapes, arrows, and lines. Mark up any page with precision.',
-    icon: PenTool,
-    anim: 'lp-anim-wiggle',
-  },
-  {
-    label: 'Real-time collaboration',
-    desc: 'Live cursors so everyone sees changes as they happen. Collaborate on any webpage.',
-    icon: Users,
-    anim: 'lp-anim-bounce',
-  },
-  {
-    label: 'Shareable links',
-    desc: 'Share a link so anyone can see your annotations instantly. No extension needed to view.',
-    icon: Link,
-    anim: 'lp-anim-rotate',
-  },
-  {
-    label: 'Threaded comments',
-    desc: 'Pin comments to any spot on the page. Have conversations in context, not in Slack.',
-    icon: MessageSquare,
-    anim: 'lp-anim-bounce',
-  },
-  {
-    label: 'No sign-up required',
-    desc: 'Just install and go. No accounts, no emails, no onboarding flows.',
-    icon: User,
-    anim: 'lp-anim-bounce',
-  },
-  {
-    label: 'Private by default',
-    desc: 'Your data stays on your device. Annotations are only shared when you choose.',
-    icon: Lock,
-    anim: 'lp-anim-shake',
-  },
-  {
-    label: 'Browser extension',
-    desc: 'Works on any webpage — no exceptions. One click to start annotating.',
-    icon: Puzzle,
-    anim: 'lp-anim-rotate',
-  },
-  {
-    label: 'Free & open source',
-    desc: 'No paywall, no trial period. Inspect the code, contribute, or self-host.',
-    icon: Code,
-    anim: 'lp-anim-pulse',
-  },
-];
 
 export function TextInputOverlay({
   x,

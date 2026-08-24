@@ -26,6 +26,13 @@
   --color-ml-btn-fg: #fff;
   --color-ml-card: oklch(1 0 0 / 0.3);
   --color-ml-card-border: oklch(0.1 0 0 / 0.06);
+  /* Landing surface steps. Depth on the landing page comes from these two
+     background steps and nothing else — no borders, no shadows between
+     co-planar sections. Both are white carrying ~2% of the brand violet, so the
+     board reads as MarkLayer's own paper rather than the stock gray-100 every
+     UI kit ships as its "neutral surface". */
+  --color-ml-board: #f6f5f9;
+  --color-ml-board-deep: #eeecf3;
   --color-ml-input: oklch(1 0 0 / 0.85);
   --color-ml-input-border: oklch(0 0 0 / 0.12);
   /* Glass overlay surfaces (toolbar, panels, popovers) */
@@ -440,153 +447,30 @@
   }
 }
 
-/* Flat white, wall to wall. This was an animated pastel wash (butter-pink into
-   lavender, drifting on a 12s loop) — the candy-gradient background that reads
-   as machine-made, and it fought the achromatic palette everywhere else. */
-.lp-bg-animate {
-  background: #fff;
+/* The page is one continuous board, wall to wall.
+   Two rewrites ago this was an animated pastel wash (butter-pink into lavender
+   on a 12s loop) — the candy-gradient background that reads as machine-made.
+   Then it was flat white, which left the whole page below the hero with no
+   atmosphere at all and forced every section to invent its own separation.
+   Now the board IS the surface and white is reserved for objects sitting on it
+   (the URL field, the feature artifacts, the FAQ rows), so sections need no
+   bands, no rules and no seams to be told apart. */
+.lp-board {
+  background: var(--color-ml-board);
 }
 
-@keyframes lpShine {
-  0% {
-    transform: translateX(-100%) skewX(-15deg);
-  }
-  100% {
-    transform: translateX(200%) skewX(-15deg);
-  }
-}
-
-/* One flat black surface. This was a gradient fill with two inset highlights,
-   a drop shadow and a white shine sweeping across it every 4s — the glowy
-   gradient button, and the loop drew the eye away from the page's actual
-   content. The hover is a value step; nothing lifts, sweeps or glows. */
-.lp-shine {
-  position: relative;
+/* The primary call to action: one flat black surface. This was a gradient fill
+   with two inset highlights, a drop shadow and a white shine sweeping across it
+   every 4s — the glowy gradient button, and the loop drew the eye away from the
+   page's own content. The hover is a value step; nothing lifts, sweeps or glows. */
+.lp-cta {
   background: #000;
 }
-.lp-shine:hover {
+.lp-cta:hover {
   background: #282828;
 }
-.lp-shine:active {
+.lp-cta:active {
   background: #111;
-}
-
-.lp-shine-toolbar {
-  position: relative;
-  overflow: hidden;
-  border-radius: 16px;
-}
-.lp-shine-toolbar::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    105deg,
-    transparent 40%,
-    rgba(255, 255, 255, 0.08) 48%,
-    rgba(255, 255, 255, 0.14) 50%,
-    rgba(255, 255, 255, 0.08) 52%,
-    transparent 60%
-  );
-  transform: translateX(-100%) skewX(-15deg);
-  animation: lpShine 5s ease-in-out 3s infinite;
-  pointer-events: none;
-  z-index: 9999;
-}
-
-/* Feature icon hover animations */
-@keyframes lpWiggle {
-  0%,
-  100% {
-    transform: rotate(0deg) translateY(0);
-  }
-  15% {
-    transform: rotate(8deg) translateY(2px);
-  }
-  40% {
-    transform: rotate(-3deg) translateY(-1px);
-  }
-  65% {
-    transform: rotate(8deg) translateY(0);
-  }
-  85% {
-    transform: rotate(-1deg);
-  }
-}
-
-@keyframes lpBounce {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-6px);
-  }
-  50% {
-    transform: translateY(2px);
-  }
-  70% {
-    transform: translateY(-2px);
-  }
-}
-
-@keyframes lpRotate {
-  0%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(-12deg);
-  }
-  75% {
-    transform: rotate(12deg);
-  }
-}
-@keyframes lpShake {
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-3px);
-  }
-  40% {
-    transform: translateX(3px);
-  }
-  60% {
-    transform: translateX(-2px);
-  }
-  80% {
-    transform: translateX(2px);
-  }
-}
-
-@keyframes lpPulse {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.12);
-    opacity: 0.85;
-  }
-}
-
-.lp-anim-wiggle:hover svg {
-  animation: lpWiggle 0.8s ease-in-out;
-}
-.lp-anim-bounce:hover svg {
-  animation: lpBounce 0.6s ease-in-out;
-}
-.lp-anim-rotate:hover svg {
-  animation: lpRotate 0.7s ease-in-out;
-}
-.lp-anim-shake:hover svg {
-  animation: lpShake 0.5s ease-in-out;
-}
-.lp-anim-pulse:hover svg {
-  animation: lpPulse 0.7s ease-in-out;
 }
 
 /* Voice activity bars on cursor badges */
@@ -654,7 +538,7 @@ html.ml-cursor-swapped *:not(input, textarea, [contenteditable]) {
 }
 
 /* Reduce motion for users who request it: collapse durations and stop infinite
- * loops (lpShine, voice bars, status pulse).
+ * loops (voice bars, status pulse).
  * `!important` is required here to override inline and utility animation styles
  * — this is the WCAG-recommended pattern. */
 @media (prefers-reduced-motion: reduce) {
