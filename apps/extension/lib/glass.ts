@@ -24,6 +24,16 @@ export const glass = {
     .replace(/\n\s+/g, ' ')
     .trim(),
 
+  /** Base UI `Menu.Popup` shell — the context menu and the triage dropdowns share it. */
+  menuPopup: 'py-1 select-none outline-none animate-[mlPanelIn_140ms_cubic-bezier(0.16,1,0.3,1)]',
+
+  /** Interactive menu row: the part every row shares, whatever its colour. */
+  menuItem: 'outline-none cursor-pointer transition-[background-color,color] duration-100',
+
+  /** The default (non-danger) menu row colours and highlight states. */
+  menuItemHighlight:
+    'text-ml-glass-fg/80 hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg data-highlighted:bg-ml-glass-fg/10 data-highlighted:text-ml-glass-fg',
+
   /** Divider line */
   divider: 'h-px bg-gradient-to-r from-transparent via-[var(--ml-glass-divider)] to-transparent',
 

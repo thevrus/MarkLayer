@@ -1,3 +1,4 @@
+import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
 import { PriorityBadge, PriorityPin } from '@ext/components/PriorityPicker';
 import { applyAnchorDelta } from '@ext/lib/anchor';
 import { glass } from '@ext/lib/glass';
@@ -50,6 +51,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
   const showBadge = status !== 'open';
   const replies = getReplies(op.id);
   const [showReply, setShowReply] = useState(false);
+  const triage = useTriageHold();
   const replyRef = useRef<HTMLTextAreaElement>(null);
 
   if (op.parentId)
@@ -77,7 +79,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
 
   return (
     <div
-      class={cn('absolute pointer-events-auto cursor-pointer hover:z-50 group/pin', glass.font)}
+      class={cn('absolute pointer-events-auto cursor-pointer hover:z-50 group/pin', triage.rootCls, glass.font)}
       style={{ left, top }}
       data-anchor-drift={strategy === 'text' ? 'text' : undefined}
       onContextMenu={onContextMenu}
@@ -125,6 +127,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             flipV ? 'bottom-0' : 'top-0',
             flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
             'pointer-events-none group-hover/pin:pointer-events-auto',
+            triage.wrapCls,
           )}
         >
           <div
@@ -137,6 +140,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
               'transition-[opacity,scale,translate] duration-200 ease-out',
               'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0',
+              triage.cardCls,
               'max-h-[400px] overflow-y-auto',
             )}
             onClick={(e) => e.stopPropagation()}
@@ -183,7 +187,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             {/* Replies */}
             {replies.length > 0 && (
               <div>
-                <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+                <div class={cn(glass.divider, 'mx-3')} />
                 {replies.map((reply) => (
                   <div key={reply.id} class="px-3.5 py-2 border-l-2 border-ml-glass-fg/[0.06] ml-3">
                     <div class="flex items-center gap-2 mb-1">
@@ -205,7 +209,16 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             )}
 
             {/* Divider */}
-            <div class="mx-3 h-px bg-gradient-to-r from-transparent via-white/[0.07] to-transparent" />
+            <div class={cn(glass.divider, 'mx-3')} />
+
+            <TriageSection
+              opId={op.id}
+              status={status}
+              assignee={op.assignee ?? null}
+              onOpenChange={triage.onOpenChange}
+            />
+
+            <div class={cn(glass.divider, 'mx-3')} />
 
             {/* Reply input */}
             {showReply ? (
@@ -269,19 +282,6 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                        transition-[color,background-color,border-color] duration-150"
                 >
                   Reply
-                </button>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setOpStatus(op.id, resolved ? 'open' : 'resolved');
-                  }}
-                  class="text-[11.5px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
-                       border border-ml-glass-fg/12 bg-ml-glass-fg/4
-                       text-ml-glass-fg/75 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8
-                       transition-[color,background-color,border-color] duration-150"
-                >
-                  {resolved ? 'Reopen' : 'Resolve'}
                 </button>
               </div>
             )}

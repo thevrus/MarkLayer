@@ -15,6 +15,7 @@ import {
 } from '../lib/state';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
+import { TriageSection, useTriageHold } from './CommentTriage';
 import { PriorityBadge, PriorityPin } from './PriorityPicker';
 
 /**
@@ -90,6 +91,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
   const styles = STATUS_STYLES[status];
   const inspector = parseInspectorComment(op.text);
   const resolved = status === 'resolved' || status === 'dismissed';
+  const triage = useTriageHold();
 
   const onContextMenu = (e: MouseEvent) =>
     openContextMenu(e, [
@@ -107,7 +109,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
 
   return (
     <div
-      class={cn('absolute pointer-events-auto cursor-pointer hover:z-50', 'group/pin', glass.font)}
+      class={cn('absolute pointer-events-auto cursor-pointer hover:z-50', triage.rootCls, 'group/pin', glass.font)}
       style={{ left, top }}
       data-doc-x={op.x}
       data-doc-y={op.y}
@@ -154,6 +156,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
             flipV ? 'bottom-0' : 'top-0',
             flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
             'pointer-events-none group-hover/pin:pointer-events-auto',
+            triage.wrapCls,
           )}
         >
           <div
@@ -164,6 +167,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
               'transition-[opacity,scale,translate] duration-200 ease-out',
               'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0',
+              triage.cardCls,
               'overflow-hidden',
             )}
           >
@@ -197,6 +201,15 @@ export function CommentPin({ op }: { op: CommentOp }) {
                 </p>
               )}
             </div>
+
+            <div class={cn(glass.divider, 'mx-3')} />
+
+            <TriageSection
+              opId={op.id}
+              status={status}
+              assignee={op.assignee ?? null}
+              onOpenChange={triage.onOpenChange}
+            />
 
             <div class={cn(glass.divider, 'mx-3')} />
 

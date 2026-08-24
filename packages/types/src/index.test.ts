@@ -38,6 +38,16 @@ describe('applyOpPatch', () => {
     expect(applyOpPatch({ op: comment, patch: { x: 'over there' } })).toBeNull();
   });
 
+  // Unassign travels as an explicit null so it survives JSON.stringify on the wire.
+  test('accepts an assignee, and null to clear it', () => {
+    const assigned = applyOpPatch({ op: comment, patch: { assignee: 'Grace' } });
+    if (assigned?.tool === 'comment') expect(assigned.assignee).toBe('Grace');
+    const cleared = applyOpPatch({ op: assigned, patch: { assignee: null } });
+    expect(cleared).not.toBeNull();
+    if (cleared?.tool === 'comment') expect(cleared.assignee).toBeNull();
+    expect(applyOpPatch({ op: comment, patch: { assignee: 42 } })).toBeNull();
+  });
+
   test('rejects a patch that would change the op into another tool', () => {
     expect(applyOpPatch({ op: comment, patch: { tool: 'guide' } })).toBeNull();
   });

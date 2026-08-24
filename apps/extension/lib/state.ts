@@ -1,4 +1,4 @@
-import { resolveOpStatus } from '@marklayer/types';
+import { isAnnotationOp, resolveOpStatus } from '@marklayer/types';
 import { computed, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createDraftStore } from './drafts';
@@ -622,6 +622,17 @@ export function setOpStatus(opId: string, status: CommentStatus) {
     return op;
   });
   if (patch) onOpUpdated.value?.(opId, patch);
+}
+
+/** Assign the annotation's thread to a person by display name; null clears it. */
+export function setOpAssignee({ opId, assignee }: { opId: string; assignee: string | null }) {
+  let changed = false;
+  operations.value = operations.value.map((op) => {
+    if (op.id !== opId || !isAnnotationOp(op) || (op.assignee ?? null) === assignee) return op;
+    changed = true;
+    return { ...op, assignee };
+  });
+  if (changed) onOpUpdated.value?.(opId, { assignee });
 }
 
 /** @deprecated Use setOpStatus instead */
