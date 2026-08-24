@@ -383,3 +383,10 @@ export const clientMsgSchema = z.discriminatedUnion('type', [
   }),
 ]);
 export type ClientMsg = z.infer<typeof clientMsgSchema>;
+
+/**
+ * Days of inactivity before a share link and its OG card are deleted. The
+ * cleanup cron enforces it; the viewer quotes it back to the user, so both read
+ * it from here rather than each hand-typing "90 days".
+ */
+export const RETENTION_DAYS = 90;

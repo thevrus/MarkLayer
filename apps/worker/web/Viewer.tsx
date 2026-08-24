@@ -39,7 +39,7 @@ import {
 } from '@ext/lib/state';
 import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
-import { cn } from '@marklayer/types';
+import { cn, RETENTION_DAYS } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import {
   Bot,
@@ -271,7 +271,7 @@ function InfoPanelBody() {
           label="Expires"
           value={
             expires == null
-              ? 'Never'
+              ? `${RETENTION_DAYS} days after last view`
               : expires * 1000 < Date.now()
                 ? 'Expired'
                 : `${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(expires * 1000)} (${timeAgo(expires)})`
