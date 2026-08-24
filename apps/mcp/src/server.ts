@@ -16,6 +16,7 @@ function projectAnnotation(op: AnnotationOp) {
     kind: op.tool,
     status: resolveStatus(op),
     author: op.author ?? null,
+    assignee: op.assignee ?? null,
     assignedAgent: op.assignedAgent ?? null,
     ts: op.ts,
   };
