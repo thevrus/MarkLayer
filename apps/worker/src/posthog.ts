@@ -39,6 +39,15 @@ function scrub(props: CaptureProps): CaptureProps {
   return out;
 }
 
+/**
+ * Telemetry is optional — a self-hosted deployment is meant to run without a
+ * key. But returning silently meant every server-side event was discarded in
+ * production for months while client-side events flowed normally, and nothing
+ * anywhere said so. Warn once per isolate instead; `observability.logs` in
+ * wrangler.jsonc is what makes it visible.
+ */
+let warnedMissingKey = false;
+
 export function captureServer(
   env: { POSTHOG_KEY?: string; POSTHOG_HOST?: string },
   // Only waitUntil is used — narrowing to it keeps this off the workers-types
@@ -49,7 +58,13 @@ export function captureServer(
   props: CaptureProps,
 ) {
   const key = env.POSTHOG_KEY;
-  if (!key) return;
+  if (!key) {
+    if (!warnedMissingKey) {
+      warnedMissingKey = true;
+      console.warn('captureServer: POSTHOG_KEY is unset, so no server-side telemetry is being sent.');
+    }
+    return;
+  }
   const host = env.POSTHOG_HOST || 'https://us.i.posthog.com';
   const body = JSON.stringify({
     api_key: key,
