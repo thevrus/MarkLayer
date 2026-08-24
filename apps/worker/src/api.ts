@@ -3,6 +3,7 @@ import { opsArraySchema } from '@marklayer/types';
 import { cors } from 'hono/cors';
 import { dayCached, once } from './http';
 import type { Env } from './index';
+import { captureServer } from './posthog';
 import { annotationStore, isExpired, projectStore } from './store';
 
 const api = new OpenAPIHono<Env>();
@@ -86,6 +87,33 @@ const annotationShape = {
 
 const AnnotationResponse = z.object(annotationShape).openapi('Annotation');
 
+/**
+ * Which surface published this payload, from the CORS `Origin` header.
+ *
+ * A content-script fetch carries the *annotated page's* origin, not the extension's
+ * (chromium.org/Home/chromium-security/extension-content-script-fetches), so
+ * same-origin vs cross-origin is the only split available, which is exactly the
+ * web-app vs extension split. No Origin at all is a non-browser caller: curl, a
+ * script, or an agent using the public API.
+ *
+ * The header names a page we have no business recording, so it never leaves this
+ * function; only the enum does. See posthog.ts for the wider contract.
+ */
+function surfaceFrom({
+  origin,
+  host,
+}: {
+  origin: string | undefined;
+  host: string | undefined;
+}): 'web' | 'extension' | 'api' {
+  if (!origin) return 'api';
+  try {
+    return new URL(origin).host === host ? 'web' : 'extension';
+  } catch {
+    return 'api'; // opaque origin ("null") or a malformed header
+  }
+}
+
 const storeAnnotation = createRoute({
   method: 'post',
   path: '/{id}',
@@ -123,6 +151,16 @@ api.openapi(storeAnnotation, async (c) => {
   }
 
   await annotationStore(c.env.DB).put({ id, ops: result.data, url, width, expiresAt });
+
+  // The web app autosaves a bare ops array every few seconds (useRealtimeSync);
+  // the extension and API callers send the object form only when someone
+  // deliberately publishes. `explicit` separates the two so real publishes are
+  // countable instead of being drowned by autosave traffic.
+  captureServer(c.env, c.executionCtx, 'share_link_saved', {
+    surface: surfaceFrom({ origin: c.req.header('origin'), host: c.req.header('host') }),
+    explicit: !Array.isArray(body),
+    ops_count: result.data.length,
+  });
 
   return c.json({ ok: true }, 200);
 });

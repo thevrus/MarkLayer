@@ -36,6 +36,17 @@
       "/.well-known/*"
     ]
   },
+  // Secrets, set with `wrangler secret put <NAME>` — deliberately not `vars`,
+  // and never checked in. Listed here because their absence is silent:
+  //
+  //   POSTHOG_KEY   The MarkLayer project's ingest key. Without it
+  //                 captureServer() disables itself (src/posthog.ts) and every
+  //                 server-side event is dropped. This was unset in production
+  //                 until August 2026, so `annotation_session_ended` and
+  //                 `proxy_render_failed` never recorded a single event while
+  //                 client-side telemetry looked healthy. Verify a deploy by
+  //                 checking the PostHog event list, not the code.
+  //   POSTHOG_HOST  Optional. Defaults to https://us.i.posthog.com.
   "d1_databases": [
     {
       "binding": "DB",
