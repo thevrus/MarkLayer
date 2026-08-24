@@ -1,3 +1,4 @@
+import { RETENTION_DAYS } from '@marklayer/types';
 import LLMS_TXT from '@site/content/agent/llms.txt?raw';
 import LLMS_FULL_TXT from '@site/content/agent/llms-full.txt?raw';
 import ROBOTS_TXT from '@site/content/agent/robots.txt?raw';
@@ -255,7 +256,7 @@ app.route('/', proxy);
 
 // Scheduled cleanup: delete stale and expired annotations + their OG images
 const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_event, env) => {
-  const ninetyDaysAgo = nowInSeconds() - 90 * 24 * 60 * 60;
+  const staleBefore = nowInSeconds() - RETENTION_DAYS * 24 * 60 * 60;
 
   // R2 caps a batch delete at 1000 keys.
   const dropOgCards = async (ids: string[]) => {
@@ -268,8 +269,8 @@ const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_even
   };
 
   // Same retention policy for single annotations and project bundles.
-  await dropOgCards(await annotationStore(env.DB).deleteExpired({ unusedSince: ninetyDaysAgo }));
-  await dropOgCards(await projectStore(env.DB).deleteExpired({ unusedSince: ninetyDaysAgo }));
+  await dropOgCards(await annotationStore(env.DB).deleteExpired({ unusedSince: staleBefore }));
+  await dropOgCards(await projectStore(env.DB).deleteExpired({ unusedSince: staleBefore }));
 };
 
 export default { ...app, scheduled };
