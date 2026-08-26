@@ -85,7 +85,7 @@ export function HoverHighlight({ state }: { state: HoverState }) {
   );
 }
 
-function HoverTooltip({ state }: { state: HoverState }) {
+export function HoverTooltip({ state }: { state: HoverState }) {
   const { el, rect, selector, component } = state;
   const tag = el.tagName.toLowerCase();
   const id = el.id;

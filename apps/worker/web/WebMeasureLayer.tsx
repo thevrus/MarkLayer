@@ -1,7 +1,7 @@
 import { MeasureOverlayContent, type MeasureState } from '@ext/components/MeasureLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { nextAnchorElement, type TraverseDir } from '@ext/lib/measure';
-import { activeTool } from '@ext/lib/state';
+import { altHeld, measureActive, measureToolActive } from '@ext/lib/state';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
@@ -11,14 +11,13 @@ import { isElementNode, rectsEqual, toViewportRect, useIframeOverlay, useIframeR
 export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const anchors = useSignal<MeasureState[]>([]);
   const hover = useSignal<MeasureState | null>(null);
-  const altPressed = useSignal(false);
 
   useIframeOverlay(frameRef, ({ win, doc, frame }) => {
     const isHost = (el: Element) => el === doc.documentElement || el === doc.body;
     const isAnchored = (el: Element) => anchors.peek().some((a) => a.el === el);
 
     const onMove = (e: MouseEvent) => {
-      if (activeTool.value !== 'measure') return;
+      if (!measureActive.value) return;
       const el = isElementNode(e.target) ? e.target : null;
       if (!el || isHost(el) || isAnchored(el)) {
         hover.value = null;
@@ -29,7 +28,7 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
     };
 
     const onClick = (e: MouseEvent) => {
-      if (activeTool.value !== 'measure') return;
+      if (!measureToolActive.value) return;
       const el = isElementNode(e.target) ? e.target : null;
       if (!el || isHost(el)) return;
       e.preventDefault();
@@ -56,24 +55,21 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
     };
 
     const tryTraverse = (e: KeyboardEvent, dir: TraverseDir) => {
-      if (activeTool.value !== 'measure') return;
+      if (!measureToolActive.value) return;
       if (!traverse(dir)) return;
       e.preventDefault();
       e.stopPropagation();
     };
 
     const popPrimary = (e: KeyboardEvent) => {
-      if (activeTool.value !== 'measure' || !anchors.peek().length) return;
+      if (!measureToolActive.value || !anchors.peek().length) return;
       e.preventDefault();
       e.stopPropagation();
       anchors.value = anchors.peek().slice(0, -1);
     };
     const keyBindings = {
-      Alt: () => {
-        if (activeTool.value === 'measure') altPressed.value = true;
-      },
       Escape: (e: KeyboardEvent) => {
-        if (activeTool.value !== 'measure' || !anchors.peek().length) return;
+        if (!measureToolActive.value || !anchors.peek().length) return;
         e.preventDefault();
         e.stopPropagation();
         anchors.value = [];
@@ -87,41 +83,36 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
       ArrowUp: (e: KeyboardEvent) => tryTraverse(e, 'prev'),
       ArrowLeft: (e: KeyboardEvent) => tryTraverse(e, 'prev'),
     };
-    const keyBindingsUp = {
-      Alt: () => {
-        altPressed.value = false;
-      },
-    };
 
     win.addEventListener('mousemove', onMove, true);
     win.addEventListener('click', onClick, true);
-    const unbindWinDown = tinykeys(win as Window, keyBindings);
-    const unbindWinUp = tinykeys(win as Window, keyBindingsUp, { event: 'keyup' });
+    const unbindWinDown = tinykeys(win, keyBindings);
     const unbindHostDown = tinykeys(window, keyBindings);
-    const unbindHostUp = tinykeys(window, keyBindingsUp, { event: 'keyup' });
     return () => {
       try {
         win.removeEventListener('mousemove', onMove, true);
         win.removeEventListener('click', onClick, true);
         unbindWinDown();
-        unbindWinUp();
       } catch {
         /* iframe may have navigated cross-origin */
       }
       unbindHostDown();
-      unbindHostUp();
     };
   });
 
+  // Pinned anchors belong to the tool; the hover readout also runs on a held Alt.
   useSignalEffect(() => {
-    if (activeTool.value === 'measure') return;
-    hover.value = null;
+    if (measureToolActive.value) return;
     anchors.value = [];
-    altPressed.value = false;
+  });
+
+  useSignalEffect(() => {
+    if (measureActive.value) return;
+    hover.value = null;
   });
 
   useIframeRectSync(
-    () => activeTool.value === 'measure',
+    () => measureActive.value,
     () => {
       const frame = frameRef.current;
       if (!frame) return;
@@ -150,19 +141,22 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
     },
   );
 
+  // Only the real tool takes the cursor — a held Alt must not restyle the framed
+  // page out from under whatever tool is actually selected.
   useSignalEffect(() => {
-    if (activeTool.value !== 'measure') return;
+    if (!measureToolActive.value) return;
     return injectCrosshairCursor(frameRef.current?.contentDocument);
   });
 
-  if (activeTool.value !== 'measure') return null;
+  if (!measureActive.value) return null;
 
   const frame = frameRef.current;
   return createPortal(
     <MeasureOverlayContent
       anchors={anchors.value}
       hover={hover.value}
-      altPressed={altPressed.value}
+      altPressed={altHeld.value}
+      showHint={measureToolActive.value}
       viewport={{ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }}
       getContainerRect={(el) => {
         if (!frame) return null;

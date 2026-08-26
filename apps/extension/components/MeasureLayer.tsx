@@ -14,7 +14,7 @@ import {
   type TraverseDir,
 } from '../lib/measure';
 import { isExtensionElement } from '../lib/selector';
-import { activeTool } from '../lib/state';
+import { altHeld, measureActive, measureToolActive } from '../lib/state';
 
 const HUE = 200;
 const FG = `oklch(0.78 0.13 ${HUE})`;
@@ -309,6 +309,7 @@ export function MeasureOverlayContent({
   altPressed,
   viewport,
   getContainerRect,
+  showHint = true,
 }: {
   anchors: MeasureState[];
   hover: MeasureState | null;
@@ -316,6 +317,8 @@ export function MeasureOverlayContent({
   viewport: RectLike;
   /** Returns the rect of `el`'s relevant container in the same coord system as anchor rects. */
   getContainerRect?: (el: Element) => RectLike | null;
+  /** False for the momentary Alt-hover readout, which has no pinning to explain. */
+  showHint?: boolean;
 }) {
   const primary = anchors[anchors.length - 1] ?? null;
   const showAlt = altPressed && !!primary;
@@ -325,7 +328,7 @@ export function MeasureOverlayContent({
 
   return (
     <>
-      {!anchors.length && !hover && <HintBadge />}
+      {showHint && !anchors.length && !hover && <HintBadge />}
       {anchors.map((a) => (
         <Fragment key={a.id}>
           <ElementOutline rect={a.rect} />
@@ -349,32 +352,29 @@ export function MeasureOverlayContent({
 export function MeasureLayer() {
   const anchors = useSignal<MeasureState[]>([]);
   const hover = useSignal<MeasureState | null>(null);
-  const altPressed = useSignal(false);
   const lastEl = useRef<Element | null>(null);
 
   useEffect(() => {
     const isAnchored = (el: Element) => anchors.peek().some((a) => a.el === el);
 
     const onMove = (e: MouseEvent) => {
-      if (activeTool.value !== 'measure') return;
+      if (!measureActive.value) return;
       const el = e.target instanceof Element ? e.target : null;
-      if (!el || isExtensionElement(el)) {
+      // Identity first: it settles the overwhelming majority of moves without the
+      // ancestor walk in isExtensionElement. Safe because every path that makes an
+      // element extension-owned or anchored also clears lastEl.
+      if (el && el === lastEl.current) return;
+      if (!el || isExtensionElement(el) || isAnchored(el)) {
         hover.value = null;
         lastEl.current = null;
         return;
       }
-      if (isAnchored(el)) {
-        hover.value = null;
-        lastEl.current = null;
-        return;
-      }
-      if (el === lastEl.current) return;
       lastEl.current = el;
       hover.value = { id: 'hover', el, rect: el.getBoundingClientRect() };
     };
 
     const onClick = (e: MouseEvent) => {
-      if (activeTool.value !== 'measure') return;
+      if (!measureToolActive.value) return;
       const el = e.target instanceof Element ? e.target : null;
       if (!el || isExtensionElement(el)) return;
       e.preventDefault();
@@ -403,28 +403,21 @@ export function MeasureLayer() {
     };
 
     const tryTraverse = (e: KeyboardEvent, dir: TraverseDir) => {
-      if (activeTool.value !== 'measure') return;
+      if (!measureToolActive.value) return;
       if (!traverse(dir)) return;
       e.preventDefault();
       e.stopPropagation();
     };
 
-    const onBlur = () => {
-      altPressed.value = false;
-    };
-
     const popPrimary = (e: KeyboardEvent) => {
-      if (activeTool.value !== 'measure' || !anchors.peek().length) return;
+      if (!measureToolActive.value || !anchors.peek().length) return;
       e.preventDefault();
       e.stopPropagation();
       anchors.value = anchors.peek().slice(0, -1);
     };
     const unbindDown = tinykeys(window, {
-      Alt: () => {
-        if (activeTool.value === 'measure') altPressed.value = true;
-      },
       Escape: (e) => {
-        if (activeTool.value !== 'measure' || !anchors.peek().length) return;
+        if (!measureToolActive.value || !anchors.peek().length) return;
         e.preventDefault();
         e.stopPropagation();
         anchors.value = [];
@@ -438,39 +431,30 @@ export function MeasureLayer() {
       ArrowUp: (e) => tryTraverse(e, 'prev'),
       ArrowLeft: (e) => tryTraverse(e, 'prev'),
     });
-    const unbindUp = tinykeys(
-      window,
-      {
-        Alt: () => {
-          altPressed.value = false;
-        },
-      },
-      { event: 'keyup' },
-    );
 
     window.addEventListener('mousemove', onMove, true);
     window.addEventListener('click', onClick, true);
-    window.addEventListener('blur', onBlur);
     return () => {
       window.removeEventListener('mousemove', onMove, true);
       window.removeEventListener('click', onClick, true);
-      window.removeEventListener('blur', onBlur);
       unbindDown();
-      unbindUp();
     };
   }, []);
 
-  // Reset when leaving the tool
+  // Pinned anchors belong to the tool; the hover readout also runs on a held Alt.
   useSignalEffect(() => {
-    if (activeTool.value === 'measure') return;
-    hover.value = null;
+    if (measureToolActive.value) return;
     anchors.value = [];
-    altPressed.value = false;
+  });
+
+  useSignalEffect(() => {
+    if (measureActive.value) return;
+    hover.value = null;
     lastEl.current = null;
   });
 
   useSignalEffect(() => {
-    if (activeTool.value !== 'measure') return;
+    if (!measureActive.value) return;
     let raf = 0;
     const refresh = <T extends MeasureState>(cur: T | null): T | null => {
       if (!cur) return null;
@@ -509,18 +493,21 @@ export function MeasureLayer() {
     };
   });
 
+  // Only the real tool takes the cursor — a held Alt must not restyle the page
+  // out from under whatever tool is actually selected.
   useSignalEffect(() => {
-    if (activeTool.value !== 'measure') return;
+    if (!measureToolActive.value) return;
     return injectCrosshairCursor(document);
   });
 
-  if (activeTool.value !== 'measure') return null;
+  if (!measureActive.value) return null;
 
   return (
     <MeasureOverlayContent
       anchors={anchors.value}
       hover={hover.value}
-      altPressed={altPressed.value}
+      altPressed={altHeld.value}
+      showHint={measureToolActive.value}
       viewport={{ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }}
       getContainerRect={(el) => {
         const p = el.parentElement;

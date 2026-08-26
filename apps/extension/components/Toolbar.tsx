@@ -276,6 +276,7 @@ function DragGrip({ drag }: { drag: DragApi }) {
 }
 
 const TOOL_LABELS: Partial<Record<Tool, string>> = {
+  navigate: 'Move',
   multiInspect: 'Multi-select',
 };
 const lbl = (t: Tool) => TOOL_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1);

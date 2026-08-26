@@ -1,4 +1,5 @@
 import { ContextMenu } from '@ext/components/ContextMenu';
+import { PanLayer } from '@ext/components/PanLayer';
 import { Toolbar } from '@ext/components/Toolbar';
 import { Tooltip } from '@ext/components/Tooltip';
 import { captureScale } from '@ext/lib/anchor';
@@ -9,12 +10,16 @@ import { captureTarget } from '@ext/lib/selector';
 import { claudeMcpCommand, HOW_IT_WORKS_URL, isLikelyEmbedHostile, npxMcpCommand } from '@ext/lib/share';
 import {
   activeTool,
+  altHeld,
   areas,
+  bindHeldModifierRelease,
   color,
   comments as commentsComputed,
   copyText,
   cycleTheme,
+  duplicateLastOp,
   FREEHAND,
+  handTool,
   isDrawingActive,
   isDrawingTool,
   lineWidth,
@@ -22,18 +27,21 @@ import {
   onCursorMove,
   onExportPng,
   operations,
+  panScrollBy,
   peerCount,
   peers,
   redo,
   SHAPES,
-  SHORTCUT_MAP,
   selections,
   setUserName,
   showAnnotationPanel,
   showShareDialog,
+  spaceHeld,
+  TOOL_SHORTCUTS,
   theme,
   toast,
   toasts,
+  toggleToolbarMinimized,
   undo,
   undoRedoFlash,
 } from '@ext/lib/state';
@@ -739,6 +747,12 @@ export default function Viewer() {
         win.addEventListener('mousemove', (e) => {
           onCursorMove.value?.(e.clientX, e.clientY + (win.scrollY || 0), activeTool.value);
         });
+        // Hand tool: the framed page is its own scroller, and it sits behind a CSS
+        // scale, so a screen-space drag delta has to be divided back out.
+        panScrollBy.value = (dx: number, dy: number) => {
+          const s = cssScale.value || 1;
+          win.scrollBy(dx / s, dy / s);
+        };
         // Follow mode: scroll iframe to followed peer's Y
         onFollowScroll.value = (y: number) => {
           programmaticScroll.current = true;
@@ -758,6 +772,7 @@ export default function Viewer() {
       frame.removeEventListener('load', setupFrame);
       detachMutationObserver?.();
       onFollowScroll.value = null;
+      panScrollBy.value = null;
     };
   }, []);
 
@@ -781,11 +796,17 @@ export default function Viewer() {
       if (isReadonly.value || isEditable(e.target)) return;
       fn(e);
     };
-    const zoomKey = (fn: () => void) => (e: KeyboardEvent) => {
+    // Zoom, panning and the Alt measure readout are navigation, so they bypass
+    // `guard` and stay available to a read-only viewer.
+    const viewKey = (fn: (e: KeyboardEvent) => void) => (e: KeyboardEvent) => {
       if (isEditable(e.target)) return;
-      e.preventDefault();
-      fn();
+      fn(e);
     };
+    const viewKeyPD = (fn: () => void) =>
+      viewKey((e) => {
+        e.preventDefault();
+        fn();
+      });
 
     const bindings: Record<string, (e: KeyboardEvent) => void> = {
       '$mod+KeyR': guard((e) => {
@@ -804,11 +825,25 @@ export default function Viewer() {
         e.preventDefault();
         redo();
       }),
-      // Zoom shortcuts bypass `guard` so they work in readonly (view-only operation).
-      '$mod+Equal': zoomKey(() => stepZoom(1)),
-      '$mod+Minus': zoomKey(() => stepZoom(-1)),
-      '$mod+Digit0': zoomKey(() => {
+      '$mod+KeyD': guard((e) => {
+        e.preventDefault();
+        duplicateLastOp();
+      }),
+      '$mod+Equal': viewKeyPD(() => stepZoom(1)),
+      '$mod+Minus': viewKeyPD(() => stepZoom(-1)),
+      '$mod+Digit0': viewKeyPD(() => {
         viewerZoom.value = 'auto';
+      }),
+      // Figma's ⌘\ — hide the chrome, keep the annotations on screen.
+      '$mod+Backslash': viewKeyPD(() => toggleToolbarMinimized()),
+      KeyH: viewKeyPD(() => {
+        handTool.value = !handTool.value;
+      }),
+      Space: viewKeyPD(() => {
+        spaceHeld.value = true;
+      }),
+      Alt: viewKey(() => {
+        altHeld.value = true;
       }),
       Escape: (e) => {
         if (isReadonly.value) return;
@@ -831,17 +866,27 @@ export default function Viewer() {
           e.preventDefault();
           return;
         }
+        if (handTool.value) {
+          handTool.value = false;
+          e.preventDefault();
+          return;
+        }
         activeTool.value = 'navigate';
         e.preventDefault();
       },
     };
-    for (const [letter, tool] of Object.entries(SHORTCUT_MAP)) {
-      bindings[`Key${letter}`] = guard((e) => {
+    for (const { tool, pattern } of TOOL_SHORTCUTS) {
+      bindings[pattern] = guard((e) => {
         activeTool.value = tool;
         e.preventDefault();
       });
     }
-    return tinykeys(window, bindings);
+    const unbind = tinykeys(window, bindings);
+    const unbindRelease = bindHeldModifierRelease(window);
+    return () => {
+      unbind();
+      unbindRelease();
+    };
   }, []);
 
   // Share dialog signal
@@ -1886,6 +1931,7 @@ export default function Viewer() {
             {!readonly && <WebAreaLayer frameRef={frameRef} />}
             {!readonly && <WebMultiInspectLayer frameRef={frameRef} />}
             <CursorLayer scale={1} scrollY={iframeScrollY.value} />
+            <PanLayer class="absolute inset-0 z-20" />
           </div>
 
           {commentPopover.value && (
