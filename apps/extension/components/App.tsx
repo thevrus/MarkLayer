@@ -6,17 +6,23 @@ import { glass } from '../lib/glass';
 import { loadAnnotations, parseUrlHash, setAnnotationId } from '../lib/share';
 import {
   activeTool,
+  altHeld,
+  bindHeldModifierRelease,
   blockInteractions,
+  duplicateLastOp,
   ensureHostMutationObserver,
   ensureScrollTickListener,
+  handTool,
   markersVisible,
   operations,
   redo,
-  SHORTCUT_MAP,
   showSettings,
   showShareDialog,
+  spaceHeld,
+  TOOL_SHORTCUTS,
   theme,
   toasts,
+  toggleToolbarMinimized,
   undo,
   visible,
 } from '../lib/state';
@@ -29,6 +35,7 @@ import { InspectorLayer } from './InspectorLayer';
 import { InspectorMarkerLayer } from './InspectorMarkerLayer';
 import { MeasureLayer } from './MeasureLayer';
 import { MultiInspectLayer } from './MultiInspectLayer';
+import { PanLayer } from './PanLayer';
 import { QuickGrabLayer } from './QuickGrabLayer';
 import { SelectionLayer } from './SelectionLayer';
 import { ShareDialog } from './ShareDialog';
@@ -68,6 +75,27 @@ export function App() {
         e.preventDefault();
         redo();
       }),
+      '$mod+KeyD': guard((e) => {
+        e.preventDefault();
+        duplicateLastOp();
+      }),
+      // Figma's ⌘\ — hide the chrome, keep the annotations on screen.
+      '$mod+Backslash': guard((e) => {
+        e.preventDefault();
+        toggleToolbarMinimized();
+      }),
+      KeyH: guard((e) => {
+        e.preventDefault();
+        handTool.value = !handTool.value;
+      }),
+      // preventDefault stops the host page from page-scrolling under the pan.
+      Space: guard((e) => {
+        e.preventDefault();
+        spaceHeld.value = true;
+      }),
+      Alt: guard(() => {
+        altHeld.value = true;
+      }),
       Escape: (e) => {
         if (!visible.value) return;
         const t = editableTarget(e);
@@ -85,17 +113,27 @@ export function App() {
           e.preventDefault();
           return;
         }
+        if (handTool.value) {
+          handTool.value = false;
+          e.preventDefault();
+          return;
+        }
         activeTool.value = 'navigate';
         e.preventDefault();
       },
     };
-    for (const [letter, tool] of Object.entries(SHORTCUT_MAP)) {
-      bindings[`Key${letter}`] = guard((e) => {
+    for (const { tool, pattern } of TOOL_SHORTCUTS) {
+      bindings[pattern] = guard((e) => {
         activeTool.value = tool;
         e.preventDefault();
       });
     }
-    return tinykeys(window, bindings);
+    const unbind = tinykeys(window, bindings);
+    const unbindRelease = bindHeldModifierRelease(window);
+    return () => {
+      unbind();
+      unbindRelease();
+    };
   }, []);
 
   // Warn before leaving page with unsaved drawings
@@ -196,6 +234,7 @@ export function App() {
       <MeasureLayer />
       <GuideLayer />
       <QuickGrabLayer />
+      <PanLayer />
       <Toolbar />
       <ShareDialog />
       <ContextMenu />

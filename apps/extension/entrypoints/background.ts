@@ -29,6 +29,16 @@ export default defineBackground(() => {
     }
   });
 
+  // QuickGrab screenshot: capture the sender's window (activeTab grants this after the icon click).
+  browser.runtime.onMessage.addListener((msg, sender) => {
+    if (msg?.type !== 'capture-tab') return;
+    const windowId = sender.tab?.windowId ?? browser.windows.WINDOW_ID_CURRENT;
+    return browser.tabs.captureVisibleTab(windowId, { format: 'png' }).then(
+      (dataUrl) => ({ dataUrl }),
+      (err) => ({ error: String(err) }),
+    );
+  });
+
   // Clean up when tabs close or navigate
   browser.tabs.onRemoved.addListener((tabId) => injected.delete(tabId));
   browser.tabs.onUpdated.addListener((tabId, info) => {

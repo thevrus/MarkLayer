@@ -1,6 +1,7 @@
 import { isAnnotationOp, resolveOpStatus } from '@marklayer/types';
-import { computed, signal } from '@preact/signals';
+import { computed, effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
+import { tinykeys } from 'tinykeys';
 import { createDraftStore } from './drafts';
 import { ELEMENT_INSPECTOR_HEADING, type OutputDetail } from './selector';
 
@@ -555,27 +556,129 @@ export function moveTool(from: number, to: number) {
   lsSet('ml-tool-order', JSON.stringify(next));
 }
 
-export const SHORTCUT_MAP: Record<string, Tool> = {
-  V: 'navigate',
-  H: 'highlight',
-  P: 'pen',
-  L: 'line',
-  A: 'arrow',
-  R: 'rectangle',
-  O: 'circle',
-  T: 'text',
-  C: 'comment',
-  S: 'selection',
-  G: 'area',
-  E: 'eraser',
-  I: 'inspect',
-  X: 'multiInspect',
-  M: 'measure',
-  U: 'guide',
-};
-export const SHORTCUTS: Partial<Record<Tool, string>> = Object.fromEntries(
-  Object.entries(SHORTCUT_MAP).map(([k, v]) => [v, k]),
-);
+/**
+ * Tool keybindings, aligned with Figma so the muscle memory transfers: V move,
+ * R rectangle, O ellipse, T text, C comment, P pen, L line, E eraser. `H` is
+ * the hand tool here as it is there, which is why the highlighter moved to
+ * Shift+H. A tool may list more than one pattern — Figma binds the arrow to
+ * Shift+L and the frame to both F and A — and the first entry is the one the
+ * toolbar shows.
+ */
+export interface ToolShortcut {
+  tool: Tool;
+  /** tinykeys pattern, e.g. `KeyR` or `Shift+KeyL`. */
+  pattern: string;
+}
+
+export const TOOL_SHORTCUTS: ToolShortcut[] = [
+  { tool: 'navigate', pattern: 'KeyV' },
+  { tool: 'pen', pattern: 'KeyP' },
+  { tool: 'highlight', pattern: 'Shift+KeyH' },
+  { tool: 'line', pattern: 'KeyL' },
+  { tool: 'arrow', pattern: 'KeyA' },
+  { tool: 'arrow', pattern: 'Shift+KeyL' },
+  { tool: 'rectangle', pattern: 'KeyR' },
+  { tool: 'circle', pattern: 'KeyO' },
+  { tool: 'text', pattern: 'KeyT' },
+  { tool: 'comment', pattern: 'KeyC' },
+  { tool: 'selection', pattern: 'KeyS' },
+  { tool: 'area', pattern: 'KeyG' },
+  { tool: 'area', pattern: 'KeyF' },
+  { tool: 'eraser', pattern: 'KeyE' },
+  { tool: 'inspect', pattern: 'KeyI' },
+  { tool: 'multiInspect', pattern: 'KeyX' },
+  { tool: 'measure', pattern: 'KeyM' },
+  { tool: 'guide', pattern: 'KeyU' },
+];
+
+const keyLabel = (pattern: string) => pattern.replace('Shift+', '\u21e7').replace('Key', '');
+
+/** First pattern per tool — what the toolbar tooltip displays. */
+export const SHORTCUTS: Partial<Record<Tool, string>> = {};
+for (const { tool, pattern } of TOOL_SHORTCUTS) SHORTCUTS[tool] ??= keyLabel(pattern);
+
+/**
+ * Resolve a raw keydown to a tool, for hosts that hand-roll their key handling
+ * instead of going through tinykeys. Any of ⌘/⌃/⌥ held means the key belongs to
+ * some other binding, so nothing matches.
+ */
+export function toolForKeyEvent(e: KeyboardEvent): Tool | null {
+  if (e.metaKey || e.ctrlKey || e.altKey) return null;
+  const pattern = `${e.shiftKey ? 'Shift+' : ''}${e.code}`;
+  return TOOL_SHORTCUTS.find((s) => s.pattern === pattern)?.tool ?? null;
+}
+
+/**
+ * Hand tool. Sticky while `H` is toggled on, momentary while Space is held —
+ * both drag-scroll the annotated surface without leaving the current tool.
+ */
+export const handTool = signal(false);
+export const spaceHeld = signal(false);
+export const panActive = computed(() => handTool.value || spaceHeld.value);
+
+// Structural rather than a setTool() wrapper: every tool writer (toolbar click,
+// shortcut, Escape, the inspect layers) has to drop sticky hand mode, and a
+// wrapper only the shortcut path called left the others holding it.
+effect(() => {
+  activeTool.value;
+  handTool.value = false;
+});
+
+/**
+ * Scrolls the annotated surface by a viewport delta. Null means the host window
+ * itself (the extension); the web viewer sets it to scroll the proxied iframe,
+ * which is a different scroller sitting behind a CSS transform.
+ */
+export const panScrollBy = signal<((dx: number, dy: number) => void) | null>(null);
+
+export function panBy(dx: number, dy: number) {
+  const fn = panScrollBy.value;
+  fn ? fn(dx, dy) : window.scrollBy(dx, dy);
+}
+
+/**
+ * Alt held on its own. Figma shows measurements whenever you hover with Alt
+ * down, from any tool, so the measure overlays read this alongside their own
+ * tool check. Each host feeds it via `bindHeldModifierRelease` plus its own
+ * keydown binding, which differ in what counts as a typing target.
+ */
+export const altHeld = signal(false);
+
+/**
+ * Releases the held modifiers, and keeps them released across a window blur —
+ * a blur (⌘Tab, devtools) eats the keyup, which would otherwise leave the pan
+ * overlay or the measure readout stuck on. Both hosts bind their own keydown
+ * (the guard differs) and share this half.
+ */
+export function bindHeldModifierRelease(target: Window): () => void {
+  const release = () => {
+    spaceHeld.value = false;
+    altHeld.value = false;
+  };
+  const unbindUp = tinykeys(
+    target,
+    {
+      Space: () => {
+        spaceHeld.value = false;
+      },
+      Alt: () => {
+        altHeld.value = false;
+      },
+    },
+    { event: 'keyup' },
+  );
+  target.addEventListener('blur', release);
+  return () => {
+    unbindUp();
+    target.removeEventListener('blur', release);
+  };
+}
+
+/** The M tool is selected — pinned anchors and the crosshair belong to it alone. */
+export const measureToolActive = computed(() => activeTool.value === 'measure');
+
+/** The measure overlays should render: the M tool, or a held Alt from any tool. */
+export const measureActive = computed(() => measureToolActive.value || altHeld.value);
 
 export function pushOp(op: DrawOp) {
   operations.value = [...operations.value, op];
@@ -740,6 +843,64 @@ export function deleteOp(id: string) {
   operations.value = ops.filter((o) => o.id !== id);
   onUndone.value?.(id);
   drafts.scheduleSave();
+}
+
+const DUPLICATE_OFFSET = 12;
+
+/**
+ * A copy of `op` shifted down-right, or null for ops a copy would be meaningless
+ * for: a comment owns a thread, a selection owns a text range, an inspect owns an
+ * element handoff, a guide owns an axis, and an eraser stroke is a subtraction.
+ * The element anchor is dropped along the way — re-resolving it would snap the
+ * copy back onto the original and eat the offset.
+ */
+function duplicateOf(op: DrawOp): DrawOp | null {
+  const d = DUPLICATE_OFFSET;
+  const fresh = { id: nanoid(), target: undefined };
+  const shiftBox = (o: { startX: number; startY: number; endX: number; endY: number }) => ({
+    startX: o.startX + d,
+    startY: o.startY + d,
+    endX: o.endX + d,
+    endY: o.endY + d,
+  });
+  switch (op.tool) {
+    case 'pen':
+    case 'highlight':
+      return { ...op, ...fresh, points: op.points.map((pt) => ({ x: pt.x + d, y: pt.y + d })) };
+    case 'rectangle':
+    case 'line':
+      return { ...op, ...fresh, ...shiftBox(op) };
+    case 'circle':
+      return { ...op, ...fresh, centerX: op.centerX + d, centerY: op.centerY + d };
+    case 'text':
+      return { ...op, ...fresh, x: op.x + d, y: op.y + d };
+    // `ts` is required on an area op, so the copy needs its own rather than the original's.
+    case 'area':
+      return { ...op, ...fresh, ...shiftBox(op), ts: Date.now() };
+    case 'eraser':
+    case 'comment':
+    case 'selection':
+    case 'inspect':
+    case 'guide':
+      return null;
+    default: {
+      const _exhaustive: never = op;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Figma's ⌘D. Annotations have no selection model yet, so this duplicates the most
+ * recent duplicable op — the one Figma would have left selected right after you drew
+ * it. Repeat presses cascade, because each copy becomes the new most-recent op.
+ */
+export function duplicateLastOp() {
+  for (const op of [...operations.value].reverse()) {
+    const copy = duplicateOf(op);
+    if (copy) return pushOp(copy);
+  }
+  toast('Nothing to duplicate', 'info', 1800);
 }
 
 /**

@@ -1,25 +1,18 @@
-import { useSignal } from '@preact/signals';
+import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
+import { copyElementShot } from '../lib/capture';
 import { detectFrameworkComponent } from '../lib/fiber-bridge';
 import { getSelector, isExtensionElement, snapshotElement } from '../lib/selector';
-import { activeTool, copyText, outputDetail, visible } from '../lib/state';
-import { HoverHighlight, type HoverState } from './InspectorLayer';
+import { activeTool, altHeld, outputDetail } from '../lib/state';
+import { type HoverState, HoverTooltip } from './InspectorLayer';
 
 // Suppressed when inspect tools are active so their overlays own the input.
 export function QuickGrabLayer() {
-  const armed = useSignal(false);
   const hover = useSignal<HoverState | null>(null);
   const lastEl = useRef<Element | null>(null);
   const debounce = useRef(0);
 
   useEffect(() => {
-    const disarm = () => {
-      armed.value = false;
-      hover.value = null;
-      lastEl.current = null;
-      clearTimeout(debounce.current);
-    };
-
     const isTypingTarget = (e: Event): boolean => {
       const t = e.composedPath()[0];
       if (!(t instanceof HTMLElement)) return false;
@@ -32,43 +25,35 @@ export function QuickGrabLayer() {
     const grabHovered = () => {
       const h = hover.value;
       if (!h) return false;
-      const snap = snapshotElement(h.el, getSelector(h.el), h.el.getBoundingClientRect(), outputDetail.value);
-      copyText(snap.markdown, 'Element copied — paste into your AI');
+      const rect = h.el.getBoundingClientRect();
+      const snap = snapshotElement(h.el, getSelector(h.el), rect, outputDetail.value);
+      // Hide the highlight before capture so it doesn't appear in the shot.
+      hover.value = null;
+      void copyElementShot({ rect, markdown: snap.markdown });
       return true;
     };
 
+    // stopPropagation prevents App.tsx's tool shortcuts from also reading "C" as comment.
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!visible.value || inspectorOwnsInput() || isTypingTarget(e)) return;
-
-      // stopPropagation prevents App.tsx's SHORTCUT_MAP from also reading "C" as the comment shortcut.
-      if (e.altKey && !e.metaKey && !e.ctrlKey && e.key.toLowerCase() === 'c') {
-        if (armed.value && grabHovered()) {
-          e.preventDefault();
-          e.stopPropagation();
-          disarm();
-        }
-        return;
-      }
-
-      // Modifier mixes (Cmd+Alt, Shift+Alt) pass through so native shortcuts still work.
-      if (e.key === 'Alt' && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
-        if (!armed.value) armed.value = true;
-      }
-    };
-
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Alt' || !e.altKey) disarm();
+      if (inspectorOwnsInput() || isTypingTarget(e)) return;
+      if (!e.altKey || e.metaKey || e.ctrlKey || e.key.toLowerCase() !== 'c') return;
+      if (!altHeld.value || !grabHovered()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      altHeld.value = false;
     };
 
     const onMove = (e: MouseEvent) => {
-      if (!armed.value) return;
+      if (!altHeld.value || inspectorOwnsInput()) return;
       const el = e.target instanceof Element ? e.target : null;
-      if (isExtensionElement(el)) {
+      // Identity first: it settles the overwhelming majority of moves without the
+      // ancestor walk in isExtensionElement, which only ever runs for a new element.
+      if (el && el === lastEl.current) return;
+      if (!el || isExtensionElement(el)) {
         hover.value = null;
         lastEl.current = null;
         return;
       }
-      if (!el || el === lastEl.current) return;
       lastEl.current = el;
 
       const rect = el.getBoundingClientRect();
@@ -82,18 +67,25 @@ export function QuickGrabLayer() {
     };
 
     window.addEventListener('keydown', onKeyDown, true);
-    window.addEventListener('keyup', onKeyUp, true);
     window.addEventListener('mousemove', onMove, true);
-    window.addEventListener('blur', disarm);
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
-      window.removeEventListener('keyup', onKeyUp, true);
       window.removeEventListener('mousemove', onMove, true);
-      window.removeEventListener('blur', disarm);
       clearTimeout(debounce.current);
     };
   }, []);
 
-  if (!armed.value || !hover.value) return null;
-  return <HoverHighlight state={hover.value} />;
+  // Alt is tracked once, in App.tsx, and shared with the measure overlays. Clear
+  // the hover on release so the next Alt starts from a fresh element.
+  useSignalEffect(() => {
+    if (altHeld.value) return;
+    hover.value = null;
+    lastEl.current = null;
+    clearTimeout(debounce.current);
+  });
+
+  if (!altHeld.value || !hover.value) return null;
+  // MeasureLayer outlines and dimensions the hovered element for the same held Alt,
+  // so this contributes only the selector/component readout it does not draw.
+  return <HoverTooltip state={hover.value} />;
 }

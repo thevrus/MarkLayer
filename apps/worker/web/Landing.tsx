@@ -15,11 +15,11 @@ import {
   operations,
   redo,
   SHAPES,
-  SHORTCUT_MAP,
   selections,
   showAnnotationPanel,
   showShareDialog,
   toasts,
+  toolForKeyEvent,
   undo,
   undoRedoFlash,
 } from '@ext/lib/state';
@@ -352,7 +352,7 @@ export function Landing() {
           return;
         }
       }
-      const m = SHORTCUT_MAP[e.key.toUpperCase()];
+      const m = toolForKeyEvent(e);
       if (m) {
         activeTool.value = m;
         e.preventDefault();
