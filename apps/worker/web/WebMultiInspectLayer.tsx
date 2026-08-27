@@ -251,9 +251,8 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
             top: marquee.top,
             width: marquee.width,
             height: marquee.height,
-            background: 'color-mix(in oklch, var(--ml-state-green) 8%, transparent)',
-            boxShadow:
-              '0 0 0 1.5px color-mix(in oklch, var(--ml-state-green) 90%, transparent), 0 0 16px color-mix(in oklch, var(--ml-state-green) 18%, transparent)',
+            background: 'color-mix(in oklch, var(--ds-green-700) 8%, transparent)',
+            boxShadow: '0 0 0 1.5px color-mix(in oklab, var(--ds-green-700) 90%, transparent)',
           }}
         />
       )}

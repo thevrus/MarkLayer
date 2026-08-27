@@ -3,6 +3,7 @@ import { cn } from '@marklayer/types';
 import { type ComponentChildren, createContext } from 'preact';
 import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { animationsFrozen, toggleAnimationsFrozen } from '../lib/freeze';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { getRoomId } from '../lib/share';
@@ -10,7 +11,7 @@ import {
   blockInteractions,
   clearOnCopyEnabled,
   color,
-  cycleTheme,
+  colorName,
   isOutputDetail,
   lineWidth,
   markersVisible,
@@ -20,7 +21,6 @@ import {
   setOutputDetail,
   showSettings,
   showShareDialog,
-  theme,
   toggleBlockInteractions,
   toggleClearOnCopy,
   toggleMarkersVisible,
@@ -33,7 +33,7 @@ const PANEL_WIDTH = 296;
 const PANEL_GAP = 12;
 const VIEWPORT_PAD = 8;
 
-const sectionLabel = 'text-[10.5px] text-ml-glass-fg/60 font-bold uppercase tracking-[0.08em]';
+const sectionLabel = cn(geist.meta, 'font-medium');
 
 /**
  * Hint surfaced at the bottom of the panel for whichever row is hovered or focused.
@@ -58,8 +58,8 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   const setHint = useHintSetter();
   const focusOn = () => hint && setHint(hint);
   return (
-    <div class="flex items-center justify-between gap-3 py-2" onMouseEnter={focusOn} onFocusIn={focusOn}>
-      <span class="text-[13px] text-ml-glass-fg/75 font-medium">{label}</span>
+    <div class="flex items-center justify-between gap-3 h-9" onMouseEnter={focusOn} onFocusIn={focusOn}>
+      <span class="text-[13px] text-(--ds-gray-1000)">{label}</span>
       <span class="shrink-0 inline-flex items-center">{children}</span>
     </div>
   );
@@ -68,9 +68,9 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 function Section({ children, title }: { children: ComponentChildren; title?: string }) {
   return (
     <>
-      <div class={cn(glass.divider, 'mx-4')} />
-      <div class={title ? 'px-4 pt-2.5 pb-3' : 'px-4 py-1.5'}>
-        {title && <div class={cn(sectionLabel, 'mb-2')}>{title}</div>}
+      <div class={geist.divider} />
+      <div class={title ? 'px-4 pt-3 pb-3.5' : 'px-4 py-1.5'}>
+        {title && <div class={cn(sectionLabel, 'mb-2.5')}>{title}</div>}
         {children}
       </div>
     </>
@@ -84,86 +84,88 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
       onCheckedChange={(_checked: boolean) => onClick()}
       aria-label={label}
       className={cn(
-        'relative inline-flex items-center w-9 h-5 rounded-full cursor-pointer appearance-none border-none p-0',
-        'transition-[background-color] duration-150',
-        'data-checked:bg-(--ml-state-blue) data-unchecked:bg-ml-glass-fg/15',
+        'relative inline-flex items-center w-8 h-5 rounded-full cursor-pointer appearance-none border-none p-0',
+        'transition-[background-color] duration-150 outline-none',
+        'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2',
+        'focus-visible:outline-(--ds-focus-color)',
+        'data-checked:bg-(--ds-gray-1000) data-unchecked:bg-(--ds-gray-alpha-500)',
       )}
     >
       <Switch.Thumb
         className={cn(
-          'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-[0_1px_2px_oklch(0_0_0/0.2)]',
-          'transition-[left] duration-200 ease-out',
-          'data-checked:left-4.5 data-unchecked:left-0.5',
+          'absolute top-0.5 w-4 h-4 rounded-full bg-(--ds-background-100)',
+          '[box-shadow:var(--ds-shadow-border-small)]',
+          'transition-[left] duration-150 ease-out',
+          'data-checked:left-3.5 data-unchecked:left-0.5',
         )}
       />
     </Switch.Root>
   );
 }
 
-function ThemeToggleButton() {
-  const t = theme.value;
-  const label = t === 'system' ? 'Theme: system' : t === 'dark' ? 'Theme: dark' : 'Theme: light';
+const LINE_WIDTHS = [1, 2, 3, 5, 8, 12, 20];
+
+const fieldSelect = cn(
+  geist.field,
+  'w-full h-8 pl-2.5 pr-7 appearance-none cursor-pointer outline-none',
+  'text-[13px] tabular-nums text-(--ds-gray-1000)',
+  'hover:border-(--ds-gray-700)',
+  'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1',
+  'focus-visible:outline-(--ds-focus-color)',
+);
+
+/**
+ * The chevron a native `<select>` loses to `appearance-none`. `pointer-events-none`
+ * so the whole field, arrow included, still opens the native list.
+ */
+function SelectShell({ children }: { children: ComponentChildren }) {
   return (
-    <button
-      type="button"
-      onClick={cycleTheme}
-      aria-label={label}
-      title={label}
-      class={cn(
-        'appearance-none border-none bg-transparent text-ml-glass-fg/65 cursor-pointer',
-        'inline-flex items-center justify-center w-7 h-7 rounded-full',
-        'hover:text-ml-glass-fg hover:bg-ml-glass-fg/10 transition-[color,background-color] duration-150',
-      )}
-    >
-      <Icon name={t === 'dark' ? 'moon' : 'sun'} size={14} />
-    </button>
+    <span class="relative inline-flex items-center">
+      {children}
+      <span class="absolute right-2 inline-flex text-(--ds-gray-900) pointer-events-none">
+        <Icon name="chevDown" size={14} strokeWidth={1.5} />
+      </span>
+    </span>
   );
 }
 
-const LINE_WIDTHS = [1, 2, 3, 5, 8, 12, 20];
-
-const pillSelect = cn(
-  'h-7 pl-2.5 pr-1.5 rounded-full appearance-none cursor-pointer outline-none',
-  'bg-ml-glass-fg/8 border border-ml-glass-fg/10',
-  'text-[11px] font-semibold tabular-nums leading-none text-ml-glass-fg/75',
-  'transition-[background-color,color] duration-150',
-  'hover:text-ml-glass-fg hover:bg-ml-glass-fg/12',
-  'focus-visible:ring-2 focus-visible:ring-ml-glass-fg/40',
-);
-
 function StrokeWidthSelect() {
   return (
-    <select
-      aria-label="Stroke width"
-      value={lineWidth.value}
-      onChange={(e) => (lineWidth.value = +e.currentTarget.value)}
-      class={pillSelect}
-    >
-      {LINE_WIDTHS.map((v) => (
-        <option key={v} value={v}>
-          {v}px
-        </option>
-      ))}
-    </select>
+    <SelectShell>
+      <select
+        aria-label="Stroke width"
+        value={lineWidth.value}
+        onChange={(e) => (lineWidth.value = +e.currentTarget.value)}
+        class={fieldSelect}
+      >
+        {LINE_WIDTHS.map((v) => (
+          <option key={v} value={v}>
+            {v}px
+          </option>
+        ))}
+      </select>
+    </SelectShell>
   );
 }
 
 function OutputDetailSelect() {
   return (
-    <select
-      aria-label="Output detail"
-      value={outputDetail.value}
-      onChange={(e) => {
-        const v = e.currentTarget.value;
-        if (isOutputDetail(v)) setOutputDetail(v);
-      }}
-      class={pillSelect}
-    >
-      <option value="compact">Compact</option>
-      <option value="standard">Standard</option>
-      <option value="detailed">Detailed</option>
-      <option value="forensic">Verbose</option>
-    </select>
+    <SelectShell>
+      <select
+        aria-label="Output detail"
+        value={outputDetail.value}
+        onChange={(e) => {
+          const v = e.currentTarget.value;
+          if (isOutputDetail(v)) setOutputDetail(v);
+        }}
+        class={fieldSelect}
+      >
+        <option value="compact">Compact</option>
+        <option value="standard">Standard</option>
+        <option value="detailed">Detailed</option>
+        <option value="forensic">Verbose</option>
+      </select>
+    </SelectShell>
   );
 }
 
@@ -172,19 +174,20 @@ function ColorChip({ value }: { value: string }) {
   return (
     <button
       type="button"
-      aria-label={`Color ${value}`}
+      aria-label={`Color ${colorName(value)}`}
       aria-pressed={selected}
       onClick={() => setColor(value)}
       class={cn(
-        'relative w-7 h-7 rounded-full cursor-pointer appearance-none border-none p-0',
-        'transition-transform duration-150 hover:scale-110',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ml-glass-fg/40',
+        'relative w-6 h-6 rounded-full cursor-pointer appearance-none border-none p-0 outline-none',
+        'transition-[box-shadow] duration-150',
+        'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2',
+        'focus-visible:outline-(--ds-focus-color)',
       )}
       style={{
         background: value,
         boxShadow: selected
-          ? `0 0 0 2px var(--ml-glass-bg), 0 0 0 4px ${value}`
-          : '0 0 0 1px color-mix(in oklch, var(--ml-glass-fg) 18%, transparent)',
+          ? `0 0 0 2px var(--ds-background-100), 0 0 0 4px ${value}`
+          : '0 0 0 1px color-mix(in oklab, #000 12%, transparent)',
       }}
     />
   );
@@ -199,18 +202,16 @@ function ChevronLinkRow({ icon, label, href, hint }: { icon: string; label: stri
       rel="noopener noreferrer"
       onMouseEnter={() => setHint(hint)}
       onFocus={() => setHint(hint)}
-      class={cn(
-        'flex items-center justify-between w-full px-4 py-3 cursor-pointer no-underline',
-        'text-[13px] text-ml-glass-fg/70 font-medium',
-        'hover:bg-ml-glass-fg/5 transition-colors duration-150',
-      )}
+      class={cn(geist.row, geist.rowHover)}
     >
-      <span class="inline-flex items-center gap-2">
-        <Icon name={icon} size={14} />
+      <span class="inline-flex items-center gap-2.5">
+        <span class="text-(--ds-gray-900)">
+          <Icon name={icon} size={14} strokeWidth={1.5} />
+        </span>
         {label}
       </span>
-      <span class="text-ml-glass-fg/60">
-        <Icon name="chevRight" size={14} />
+      <span class="text-(--ds-gray-900)">
+        <Icon name="chevRight" size={14} strokeWidth={1.5} />
       </span>
     </a>
   );
@@ -227,14 +228,11 @@ function ShareRow() {
         showShareDialog.value = true;
         showSettings.value = false;
       }}
-      class={cn(
-        'flex items-center gap-2 w-full px-4 py-3 cursor-pointer',
-        'appearance-none bg-transparent border-none text-left',
-        'text-[13px] text-ml-glass-fg/70 font-medium',
-        'hover:bg-ml-glass-fg/5 transition-colors duration-150',
-      )}
+      class={cn(geist.row, geist.rowHover, 'justify-start gap-2.5')}
     >
-      <Icon name="share" size={14} />
+      <span class="text-(--ds-gray-900)">
+        <Icon name="share" size={14} strokeWidth={1.5} />
+      </span>
       Share
     </button>
   );
@@ -252,20 +250,17 @@ function RoomIdRow() {
       onMouseEnter={() => setHint(hint)}
       onFocus={() => setHint(hint)}
       onClick={() => copy(roomId)}
-      class={cn(
-        'flex items-center justify-between gap-3 w-full px-4 py-3 cursor-pointer',
-        'appearance-none bg-transparent border-none text-left',
-        'text-[13px] text-ml-glass-fg/70 font-medium',
-        'hover:bg-ml-glass-fg/5 transition-colors duration-150',
-      )}
+      class={cn(geist.row, geist.rowHover)}
     >
-      <span class="inline-flex items-center gap-2">
-        <Icon name="link" size={14} />
+      <span class="inline-flex items-center gap-2.5">
+        <span class="text-(--ds-gray-900)">
+          <Icon name="link" size={14} strokeWidth={1.5} />
+        </span>
         Room ID
       </span>
-      <span class="inline-flex items-center gap-1.5 min-w-0 text-ml-glass-fg/60">
-        <code class="text-[11px] font-mono tabular-nums truncate max-w-35">{roomId}</code>
-        <Icon name={copied.value ? 'check' : 'copy'} size={12} />
+      <span class={cn(geist.meta, 'inline-flex items-center gap-1.5 min-w-0')}>
+        <code class="text-[12px] font-mono truncate max-w-35">{roomId}</code>
+        <Icon name={copied.value ? 'check' : 'copy'} size={13} strokeWidth={1.5} />
       </span>
     </button>
   );
@@ -273,27 +268,27 @@ function RoomIdRow() {
 
 function PanelHeader() {
   return (
-    <div class="flex items-center justify-between px-4 pt-3 pb-2">
-      <span class="text-[13px] font-semibold tracking-[-0.005em] text-ml-glass-fg/65">MarkLayer</span>
-      <span class="inline-flex items-center gap-1 text-[11px] text-ml-glass-fg/60 font-medium tabular-nums">
-        <span>v0.3</span>
-        <ThemeToggleButton />
-      </span>
+    <div class="flex items-center justify-between px-4 h-11">
+      <span class="text-[13px] font-semibold tracking-[-0.01em] text-(--ds-gray-1000)">MarkLayer</span>
+      <span class={cn(geist.meta, 'text-[12px] tabular-nums')}>v0.3</span>
     </div>
   );
 }
 
 function PanelFootnote({ text }: { text: string }) {
   // Fixed height — the panel is bottom-anchored, so any growth here pushes the
-  // top edge upward and looks like the panel is jumping. Reserve enough room
-  // for the longest hint (≈4 wrapped lines at 11px on a 264px content width).
-  return <div class="px-4 pt-2 pb-3 text-[11px] leading-snug text-ml-glass-fg/60 h-22 overflow-hidden">{text}</div>;
+  // top edge upward and looks like the panel is jumping. It holds 4 wrapped lines
+  // at this size on a 264px content width, so every hint has to fit in ~120
+  // characters; a longer one gets its tail clipped rather than wrapping.
+  return (
+    <div class="px-4 pt-2.5 pb-3.5 text-[12px] leading-snug text-(--ds-gray-900) h-22 overflow-hidden">{text}</div>
+  );
 }
 
 export function SettingsPanel() {
   const open = showSettings.value;
   const panelRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; bottom: number; maxHeight: number } | null>(null);
   const [hint, setHint] = useState<string | null>(null);
 
   useLayoutEffect(() => {
@@ -318,7 +313,11 @@ export function SettingsPanel() {
       let left = r.right - PANEL_WIDTH;
       left = Math.max(VIEWPORT_PAD, Math.min(left, vw - PANEL_WIDTH - VIEWPORT_PAD));
       const bottom = Math.max(VIEWPORT_PAD, vh - r.top + PANEL_GAP);
-      setPos({ left, bottom });
+      // The ceiling is the room left above the anchor, not the viewport: the
+      // panel hangs off the toolbar, so on a short window an uncapped panel
+      // ran straight off the top edge instead of scrolling.
+      const maxHeight = Math.max(160, vh - bottom - VIEWPORT_PAD);
+      setPos({ left, bottom, maxHeight });
     };
     place();
     window.addEventListener('resize', place);
@@ -339,14 +338,16 @@ export function SettingsPanel() {
         ref={panelRef}
         class={cn(
           'fixed z-2147483646 pointer-events-auto select-none',
-          'animate-[mlPanelIn_240ms_cubic-bezier(0.34,1.2,0.64,1)]',
-          glass.surface,
+          'overflow-y-auto overscroll-contain',
+          'animate-[mlPanelIn_140ms_cubic-bezier(0.16,1,0.3,1)]',
+          geist.surface,
           glass.font,
         )}
         style={{
           width: PANEL_WIDTH,
           left: pos ? pos.left : undefined,
           bottom: pos ? pos.bottom : 88,
+          maxHeight: pos?.maxHeight,
           // Hidden until measured to avoid a one-frame flash at the wrong position
           visibility: pos ? 'visible' : 'hidden',
         }}
@@ -366,7 +367,7 @@ export function SettingsPanel() {
           <Section>
             <Row
               label="AI handoff detail"
-              hint="How much context to bundle into the markdown copied for AI agents. Compact (selector+size) → Standard (+markup) → Detailed (+layout & hierarchy) → Forensic (+computed styles)."
+              hint="How much detail the copied markdown carries. Each level adds to the last: selector, markup, layout, computed styles."
             >
               <OutputDetailSelect />
             </Row>
@@ -401,12 +402,12 @@ export function SettingsPanel() {
             </div>
           </Section>
 
-          <div class={cn(glass.divider, 'mx-4')} />
+          <div class={geist.divider} />
           <ShareRow />
           <RoomIdRow />
           <ChevronLinkRow
             icon="terminal"
-            label="MCP & webhooks"
+            label="Connect an AI agent"
             href="https://www.npmjs.com/package/marklayer-mcp"
             hint="Connect Claude Code, Cursor, and other agents to this room. Opens setup docs."
           />

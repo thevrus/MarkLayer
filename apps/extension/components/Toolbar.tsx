@@ -1,7 +1,10 @@
+import { Toggle } from '@base-ui/react/toggle';
+import { Toolbar as BaseToolbar } from '@base-ui/react/toolbar';
 import { cn } from '@marklayer/types';
 import { signal, useSignalEffect } from '@preact/signals';
-import type { RefObject } from 'preact';
+import type { ComponentChildren, RefObject } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { prefersReducedMotion } from '../lib/media';
@@ -9,13 +12,16 @@ import {
   activeTool,
   clearAll,
   color,
+  colorName,
   connectionStatus,
+  ensureScrollTickListener,
   inspectorStack,
   isDrawingActive,
   moveTool,
   operations,
   redo,
   SHORTCUTS,
+  scrollTick,
   showSettings,
   showShareDialog,
   toggleToolbarMinimized,
@@ -27,81 +33,99 @@ import type { Tool } from '../lib/types';
 import { SettingsPanel } from './SettingsPanel';
 import { Tooltip } from './Tooltip';
 
-const TOOLBTN_VARIANTS = {
-  idle: 'bg-transparent text-ml-glass-fg/60',
-  accent: 'shadow-[inset_0_0_0_1px_var(--ml-glass-border),inset_0_0.5px_0_var(--ml-glass-border)]',
-  plain: 'bg-ml-glass-fg/[0.1] text-ml-glass-fg shadow-[inset_0_0.5px_0_var(--ml-glass-border)]',
-} as const;
+/** Geist icon metrics: 16px on a 1.5 stroke, the weight Geist draws at. */
+const GLYPH = { size: 16, strokeWidth: 1.5 } as const;
 
-function ToolBtn({
-  name,
-  active,
-  onClick,
+/**
+ * A toolbar action. `Toolbar.Button` is what carries the roving tabindex, so
+ * the whole bar is one tab stop with arrow keys moving between controls — we
+ * only dress it.
+ */
+function Ctl({
+  icon,
+  children,
   tip,
   shortcut,
-  accent,
-  accentColor,
-  round,
-  reorderIndex,
-  onReorderPointerDown,
-  dragging,
-  suppressTooltip,
+  onClick,
+  on,
   anchor,
 }: {
-  name: string;
-  active?: boolean;
-  onClick: () => void;
+  icon?: string;
+  /** A glyph other than an icon — the colour swatch is the only one so far. */
+  children?: ComponentChildren;
   tip: string;
   shortcut?: string;
-  accent?: boolean;
-  accentColor?: string;
-  round?: boolean;
-  reorderIndex?: number;
-  onReorderPointerDown?: (e: PointerEvent, tool: string, index: number) => void;
-  dragging?: boolean;
-  suppressTooltip?: boolean;
+  onClick: () => void;
+  /** Selected — Geist's inverted primary fill. */
+  on?: boolean;
   anchor?: string;
 }) {
-  const variant = !active ? 'idle' : accent ? 'accent' : 'plain';
-  const reorderable = reorderIndex !== undefined && onReorderPointerDown !== undefined;
-  const accentStyle =
-    variant === 'accent' && accentColor
-      ? {
-          color: accentColor,
-          background: `color-mix(in oklch, ${accentColor} 18%, transparent)`,
-        }
-      : undefined;
   return (
-    <button
-      type="button"
+    <BaseToolbar.Button
       onClick={onClick}
       aria-label={tip}
-      data-tool={reorderable ? name : undefined}
-      data-dragging={dragging ? '' : undefined}
       data-ml-anchor={anchor}
-      onPointerDown={reorderable ? (e) => onReorderPointerDown(e, name, reorderIndex) : undefined}
-      class={cn(
-        'group relative appearance-none border-none p-1.5 cursor-pointer touch-none',
-        'leading-none inline-flex items-center justify-center min-w-7.5 min-h-7.5',
-        'transition-[background,box-shadow,color,opacity,scale] duration-150 ease-out outline-none',
-        'hover:bg-ml-glass-fg/[0.08] hover:shadow-[inset_0_0.5px_0_var(--ml-glass-border)]',
-        !dragging && 'active:bg-ml-glass-fg/4 active:scale-[0.96]',
-        'focus-visible:ring-2 focus-visible:ring-ml-glass-fg/40 focus-visible:ring-offset-0',
-        // Concentric with the toolbar shell: its 22px radius minus the 8px `p-2`
-        // gutter is 14px. At `rounded-xl` (12px) the button corners curved
-        // tighter than the shell they sit in, which is what makes a nested
-        // rounded surface read as slightly off.
-        round ? 'rounded-full' : 'rounded-[14px]',
-        TOOLBTN_VARIANTS[variant],
-        dragging && 'scale-110 z-10 cursor-grabbing shadow-[0_10px_28px_-6px_oklch(0_0_0/0.45)]',
-      )}
-      style={accentStyle}
+      className={cn(geist.ctl, on ? geist.ctlOn : geist.ctlIdle)}
     >
-      <Icon name={name} />
+      {children ?? (icon && <Icon name={icon} {...GLYPH} />)}
+      <Tooltip text={tip} shortcut={shortcut} />
+    </BaseToolbar.Button>
+  );
+}
+
+/**
+ * A tool in the picker. `Toggle` carries the `aria-pressed` semantics; the
+ * pressed state itself is read from `activeTool`, so there is one source of
+ * truth for which tool is selected.
+ */
+function ToolToggle({
+  tool,
+  tip,
+  shortcut,
+  reorderIndex,
+  onReorderPointerDown,
+  onSelect,
+  draggingTool,
+}: {
+  tool: Tool;
+  tip: string;
+  shortcut?: string;
+  reorderIndex: number;
+  onReorderPointerDown: (e: PointerEvent, tool: string, index: number) => void;
+  onSelect: (tool: Tool) => void;
+  /** The tool being dragged, if any — both "am I moving" and "is a drag on" come from it. */
+  draggingTool: string | null;
+}) {
+  const dragging = draggingTool === tool;
+  const on = activeTool.value === tool;
+  return (
+    <Toggle
+      pressed={on}
+      // Un-pressing is ignored: there is always exactly one active tool, so a
+      // click on the selected one holds it rather than clearing the selection.
+      onPressedChange={(pressed: boolean) => {
+        if (pressed) onSelect(tool);
+      }}
+      aria-label={tip}
+      data-tool={tool}
+      data-dragging={dragging ? '' : undefined}
+      onPointerDown={(e: PointerEvent) => onReorderPointerDown(e, tool, reorderIndex)}
+      className={cn(
+        geist.ctl,
+        // Same two recipes every other control in the bar uses, so a token change
+        // lands on the whole row rather than half of it.
+        on ? geist.ctlOn : geist.ctlIdle,
+        // Picked up: it keeps its size and lifts on the shell's own shadow, so
+        // nothing about the row's rhythm changes while it travels — and the press
+        // fill stays off, because the drag owns the pointer.
+        dragging && 'active:bg-transparent z-10 cursor-grabbing [box-shadow:var(--ds-shadow-menu)]',
+      )}
+    >
+      <Icon name={tool} {...GLYPH} />
       {/* Disabled, not unmounted: tearing every tooltip out of the tree at the
           moment a reorder starts costs a hitch on the first frame of the drag. */}
-      <Tooltip text={tip} shortcut={shortcut} disabled={suppressTooltip} />
-    </button>
+      <Tooltip text={tip} shortcut={shortcut} disabled={draggingTool !== null} />
+    </Toggle>
   );
 }
 
@@ -254,6 +278,29 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
     el.style.translate = '';
   }, [ref]);
 
+  // A drag swaps the toolbar off `bottom-5` onto absolute `left`/`top`, clamped
+  // once against the viewport it was dragged in. Nothing revisits that, so a
+  // later shrink — a window resize, DevTools opening — leaves the bar hanging
+  // past the bottom edge with no grip left to pull it back. `scrollTick` already
+  // coalesces resize into a signal, so the re-clamp rides it rather than adding
+  // a second listener.
+  useSignalEffect(() => {
+    scrollTick.value;
+    ensureScrollTickListener();
+    const el = ref.current;
+    // No inline `top` means the drag never ran and `bottom-5` still owns it.
+    if (!el?.style.top) return;
+    const r = el.getBoundingClientRect();
+    const x = Math.min(Math.max(r.left, 0), Math.max(0, innerWidth - r.width));
+    const y = Math.min(Math.max(r.top, 0), Math.max(0, innerHeight - r.height));
+    if (x === r.left && y === r.top) return;
+    // Zeroing `translate` lets `left`/`top` carry the whole position, so the
+    // clamp lands exactly instead of compounding with the drag's own offset.
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    el.style.translate = '0 0';
+  });
+
   return { dragging, start, reset };
 }
 
@@ -263,15 +310,18 @@ function DragGrip({ drag }: { drag: DragApi }) {
       onPointerDown={drag.start}
       aria-hidden="true"
       class={cn(
-        // The grip is a real control, so it has to clear 3:1 against the glass;
-        // 0.3 over the 0.9-alpha grip colour left it at ~1.9:1 and unfindable.
-        'w-3 h-5 cursor-grab shrink-0 opacity-50 mx-1 touch-none',
-        'hover:opacity-75 transition-opacity duration-200',
-        'bg-[radial-gradient(circle,var(--ml-glass-grip)_0.8px,transparent_0.8px)]',
-        '[background-size:5px_5px] bg-center bg-repeat',
+        'inline-flex items-center justify-center h-8 w-5 shrink-0 cursor-grab touch-none',
+        // Grey-900, not the muted grey-600 Geist uses for decorative marks:
+        // the grip is a real control and has to clear 3:1 on both surfaces.
+        'text-(--ds-gray-900) hover:text-(--ds-gray-1000) transition-colors duration-150 ease-out',
       )}
       style={drag.dragging ? { cursor: 'grabbing' } : undefined}
-    />
+    >
+      {/* 14px, not the 16px every other glyph gets: six filled dots carry more
+          ink than a 1.5 stroke, so matching the box would out-weigh the row. */}
+      <Icon name="grip" size={14} />
+      <Tooltip text="Drag to move" />
+    </div>
   );
 }
 
@@ -301,24 +351,30 @@ function ConnectionDot() {
   // Surface the dot only as an alert — connected is the expected steady state.
   if (!status || status === 'connected') return null;
   const colors = {
-    connecting: 'var(--ml-state-yellow)',
-    disconnected: 'var(--ml-state-red)',
+    connecting: 'var(--ds-amber-700)',
+    disconnected: 'var(--ds-red-700)',
   } as const;
   const labels = {
     connecting: 'Reconnecting…',
     disconnected: 'Disconnected',
   } as const;
+  const c = colors[status];
   return (
     <span
       role="status"
-      class="relative inline-flex items-center justify-center w-2 h-2 rounded-full mx-1.5 shrink-0"
-      style={{
-        color: colors[status],
-        backgroundColor: colors[status],
-        animation: status === 'disconnected' ? undefined : 'mlStatusPulse 2.4s ease-in-out infinite',
-      }}
+      // A full-height slot so the dot sits on the same axis as the controls.
+      class="inline-flex items-center justify-center h-8 w-4 shrink-0"
       title={labels[status]}
     >
+      <span
+        class="w-1.5 h-1.5 rounded-full"
+        style={{
+          backgroundColor: c,
+          boxShadow: `0 0 0 3px color-mix(in oklab, ${c} 20%, transparent)`,
+          animation:
+            status === 'disconnected' || prefersReducedMotion() ? undefined : 'mlStatusPulse 2.4s ease-in-out infinite',
+        }}
+      />
       <span class="sr-only">{labels[status]}</span>
     </span>
   );
@@ -328,12 +384,13 @@ function CountBadge({ value }: { value: number }) {
   if (value <= 0) return null;
   return (
     <span
-      class="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full inline-flex items-center justify-center
-             text-[10px] font-bold tabular-nums leading-none pointer-events-none"
+      class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full inline-flex items-center justify-center
+             text-[10px] font-semibold tabular-nums leading-none pointer-events-none"
       style={{
-        background: 'var(--ml-state-blue)',
-        color: 'white',
-        boxShadow: '0 0 0 2px var(--ml-glass-bg), 0 1px 3px oklch(0 0 0 / 0.25)',
+        background: 'var(--ds-blue-800)',
+        color: '#fff',
+        // Cut out of the bar rather than shadowed onto it.
+        boxShadow: '0 0 0 2px var(--ds-background-100)',
       }}
     >
       {value > 99 ? '99+' : value}
@@ -341,20 +398,36 @@ function CountBadge({ value }: { value: number }) {
   );
 }
 
+/**
+ * The color the drawing tools are using. It reads out the live value and
+ * opens the panel that holds the palette — the selected-tool fill stays
+ * monochrome, so this is where the color lives in the bar.
+ */
+function ColorChip() {
+  const tip = `Color · ${colorName(color.value)}`;
+  return (
+    <Ctl
+      tip={tip}
+      onClick={() => {
+        showSettings.value = !showSettings.value;
+      }}
+    >
+      <span
+        class="w-3 h-3 rounded-sm"
+        // Self-colored inner edge: it defines the swatch against both surfaces
+        // without a border that would fight the color it is reporting.
+        style={{ background: color.value, boxShadow: 'inset 0 0 0 1px color-mix(in oklab, #000 20%, transparent)' }}
+      />
+    </Ctl>
+  );
+}
+
 function MinimizedToolbar({ onExpand, drag }: { onExpand: () => void; drag: DragApi }) {
   return (
-    <div class="flex items-center gap-0.5">
-      <ToolBtn
-        name={activeTool.value}
-        active
-        accent={activeTool.value !== 'navigate'}
-        accentColor={color.value}
-        onClick={onExpand}
-        tip="Expand toolbar"
-        round
-      />
+    <BaseToolbar.Root data-ml-tb="row" className="flex items-center gap-1">
+      <Ctl icon={activeTool.value} on onClick={onExpand} tip="Expand toolbar" />
       <DragGrip drag={drag} />
-    </div>
+    </BaseToolbar.Root>
   );
 }
 
@@ -574,58 +647,60 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
   const toolsRef = useFlipReorder([tools]);
   const reorder = useToolReorder(toolsRef);
 
-  // Hooks for the landing page's staggered entrance (apps/worker/web/style.css).
-  // Attributes only: nothing reads them here, and the animation is scoped to
-  // `.lp-toolbar-in`, so the Viewer and the extension are unaffected.
+  // `data-ml-tb` hooks the landing page's staggered entrance
+  // (apps/worker/web/style.css). Attributes only: nothing reads them here, and
+  // the animation is scoped to `.lp-toolbar-in`, so the Viewer and the
+  // extension are unaffected.
   return (
-    <div data-ml-tb="row" class="flex items-center gap-0.5">
-      <div ref={toolsRef} data-ml-tb="tools" class="flex gap-0.5 items-center">
-        {tools.map((t) => {
-          const realIndex = toolOrder.value.indexOf(t);
+    <BaseToolbar.Root data-ml-tb="row" className="flex items-center gap-1">
+      {/* Each `Toggle` is controlled from `activeTool` directly rather than wrapped
+          in a `ToggleGroup`: the signal is already the single source of the pressed
+          state, and the group's composite machinery — a childList MutationObserver
+          that re-sorts every button with `compareDocumentPosition` on each render —
+          re-ran on every slot crossing of a reorder, on top of the FLIP pass. */}
+      <div ref={toolsRef} data-ml-tb="tools" class="flex gap-1 items-center">
+        {tools.map((t, i) => {
           const showStackBadge = t === 'inspect' && inspectorStack.value.length > 0;
           const isDragging = reorder.draggingTool === t;
-          const onClick = () => {
-            if (reorder.consumeClickSuppression()) return;
-            activeTool.value = t;
-          };
-          const btn = (
-            <ToolBtn
+          const toggle = (
+            <ToolToggle
               key={t}
-              name={t}
-              active={activeTool.value === t}
-              onClick={onClick}
+              tool={t}
               tip={lbl(t)}
               shortcut={SHORTCUTS[t]}
-              accent={t !== 'navigate'}
-              accentColor={color.value}
-              reorderIndex={realIndex}
+              reorderIndex={i}
               onReorderPointerDown={reorder.onPointerDown}
-              dragging={isDragging}
-              suppressTooltip={reorder.draggingTool !== null}
+              // The click that lands a reorder must not also switch tools.
+              onSelect={(next) => {
+                if (!reorder.consumeClickSuppression()) activeTool.value = next;
+              }}
+              draggingTool={reorder.draggingTool}
             />
           );
-          if (!showStackBadge) return btn;
+          if (!showStackBadge) return toggle;
           return (
             <span key={t} class={cn('relative inline-flex', isDragging && 'z-10')}>
-              {btn}
+              {toggle}
               <CountBadge value={inspectorStack.value.length} />
             </span>
           );
         })}
       </div>
 
-      <div class={glass.sep} />
+      <BaseToolbar.Separator className={geist.sep} />
 
-      <div data-ml-tb="history" class="flex gap-0.5 items-center">
+      <ColorChip />
+
+      <BaseToolbar.Group aria-label="History" data-ml-tb="history" className="flex gap-1 items-center">
         {HISTORY_ACTIONS.map((a) => (
-          <ToolBtn key={a.id} name={a.icon} onClick={a.fn} tip={a.tip} shortcut={a.shortcut} />
+          <Ctl key={a.id} icon={a.icon} onClick={a.fn} tip={a.tip} shortcut={a.shortcut} />
         ))}
-      </div>
+      </BaseToolbar.Group>
 
       {(operations.value.length > 0 || inspectorStack.value.length > 0) && (
         <>
-          <div class={glass.sep} />
-          <ToolBtn name={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} />
+          <BaseToolbar.Separator className={geist.sep} />
+          <Ctl icon={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} />
         </>
       )}
 
@@ -633,18 +708,18 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
 
       <ConnectionDot />
 
-      <ToolBtn name="minimize" onClick={onMinimize} tip="Minimize" />
+      <Ctl icon="minimize" onClick={onMinimize} tip="Minimize" />
 
-      <ToolBtn
-        name="settings"
-        active={showSettings.value}
+      <Ctl
+        icon="settings"
+        on={showSettings.value}
         onClick={() => {
           showSettings.value = !showSettings.value;
         }}
         tip="Settings"
         anchor="settings"
       />
-    </div>
+    </BaseToolbar.Root>
   );
 }
 
@@ -735,10 +810,12 @@ export function Toolbar() {
         ref={tbRef}
         class={cn(
           'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 select-none',
-          glass.surface,
+          geist.surface,
           glass.font,
-          'text-ml-glass-fg/80 max-w-[calc(100dvw-24px)] w-max',
-          minimized ? 'p-1' : 'p-2',
+          // 4px gutter, which is what makes the 8px control radius concentric
+          // with the shell's 12px. Same in both states, so the FLIP between
+          // them only has width to animate.
+          'text-(--ds-gray-1000) max-w-[calc(100dvw-24px)] w-max p-1',
         )}
       >
         {minimized ? (

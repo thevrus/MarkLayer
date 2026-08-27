@@ -4,6 +4,7 @@ import { computed } from '@preact/signals';
 import { Check, ChevronDown, CircleUserRound } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
 import { localUser, peers, STATUS_LABELS, STATUS_STYLES, setOpAssignee, setOpStatus } from '../lib/state';
@@ -11,7 +12,7 @@ import { localUser, peers, STATUS_LABELS, STATUS_STYLES, setOpAssignee, setOpSta
 const STATUS_ORDER = commentStatusSchema.options;
 
 /** STATUS_STYLES leaves `open` transparent (pins show no badge); menus need a visible dot. */
-const statusDot = (s: CommentStatus) => (s === 'open' ? 'var(--color-ml-accent)' : STATUS_STYLES[s].color);
+const statusDot = (s: CommentStatus) => (s === 'open' ? 'var(--ds-blue-800)' : STATUS_STYLES[s].color);
 
 /** Sentinel RadioGroup value standing in for "no assignee" (`null` on the op). */
 const UNASSIGNED = '\u0000unassigned';
@@ -37,10 +38,10 @@ const peerRoster = computed(() => {
 
 const triggerCls = cn(
   'w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer select-none',
-  'border border-ml-glass-fg/12 bg-ml-glass-fg/4',
-  'text-[11.5px] font-medium text-ml-glass-fg/85',
-  'hover:bg-ml-glass-fg/8 hover:text-ml-glass-fg',
-  'data-popup-open:bg-ml-glass-fg/8 data-popup-open:text-ml-glass-fg',
+  'border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)',
+  'text-[12px] font-medium text-(--ds-gray-1000)',
+  'hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000)',
+  'data-popup-open:bg-(--ds-gray-alpha-100) data-popup-open:text-(--ds-gray-1000)',
   'transition-[background-color,color] duration-150',
 );
 
@@ -49,7 +50,7 @@ const itemCls = cn(
   'text-[12px] font-medium leading-none',
   glass.menuItem,
   glass.menuItemHighlight,
-  'data-checked:text-ml-glass-fg',
+  'data-checked:text-(--ds-gray-1000)',
 );
 
 function TriageMenu({
@@ -65,7 +66,7 @@ function TriageMenu({
     <Menu.Root onOpenChange={onOpenChange}>
       <Menu.Trigger className={triggerCls} onClick={(e: MouseEvent) => e.stopPropagation()}>
         {trigger}
-        <ChevronDown size={12} class="text-ml-glass-fg/50 shrink-0 ml-auto" aria-hidden="true" />
+        <ChevronDown size={12} class="text-(--ds-gray-900) shrink-0 ml-auto" aria-hidden="true" />
       </Menu.Trigger>
       <Menu.Portal container={portalContainer.value ?? undefined}>
         <Menu.Positioner
@@ -75,7 +76,7 @@ function TriageMenu({
           collisionPadding={6}
           className="z-2147483647 outline-none"
         >
-          <Menu.Popup className={cn('min-w-40', glass.menuPopup, glass.surfaceSmall, glass.font)}>
+          <Menu.Popup className={cn('min-w-40', glass.menuPopup, geist.surfaceSmall, glass.font)}>
             {children}
           </Menu.Popup>
         </Menu.Positioner>
@@ -86,7 +87,7 @@ function TriageMenu({
 
 function CheckMark() {
   return (
-    <Menu.RadioItemIndicator className="shrink-0 inline-flex opacity-90 ml-auto">
+    <Menu.RadioItemIndicator className="shrink-0 inline-flex text-(--ds-gray-900) ml-auto">
       <Check size={12} strokeWidth={2.5} aria-hidden="true" />
     </Menu.RadioItemIndicator>
   );
@@ -134,7 +135,7 @@ function StatusPicker({
 function InitialAvatar({ name, color }: { name: string; color: string }) {
   return (
     <span
-      class="w-4 h-4 rounded-full text-white text-[8px] font-bold grid place-items-center shrink-0
+      class="w-4 h-4 rounded-full text-white text-[9px] font-medium grid place-items-center shrink-0
              shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
       style={{ background: color }}
     >
@@ -168,8 +169,8 @@ function AssigneePicker({
           </>
         ) : (
           <>
-            <CircleUserRound size={13} class="text-ml-glass-fg/50 shrink-0" aria-hidden="true" />
-            <span class="truncate text-ml-glass-fg/60">Assign</span>
+            <CircleUserRound size={13} class="text-(--ds-gray-900) shrink-0" aria-hidden="true" />
+            <span class="truncate text-(--ds-gray-900)">Assign</span>
           </>
         )
       }
@@ -179,7 +180,7 @@ function AssigneePicker({
         onValueChange={(value: string) => setOpAssignee({ opId, assignee: value === UNASSIGNED ? null : value })}
       >
         <Menu.RadioItem value={UNASSIGNED} closeOnClick className={itemCls}>
-          <CircleUserRound size={13} class="text-ml-glass-fg/50 shrink-0" aria-hidden="true" />
+          <CircleUserRound size={13} class="text-(--ds-gray-900) shrink-0" aria-hidden="true" />
           Unassigned
           <CheckMark />
         </Menu.RadioItem>
@@ -195,7 +196,7 @@ function AssigneePicker({
   );
 }
 
-const triageLabelCls = 'text-[9.5px] uppercase tracking-[0.06em] text-ml-glass-fg/50 font-semibold';
+const triageLabelCls = 'text-[12px] text-(--ds-gray-900) font-medium';
 
 /**
  * A triage dropdown portals outside the pin, so the pointer leaving for the menu

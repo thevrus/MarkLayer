@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { reprojectBox } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { constrainEnd, hexToRgba } from '../lib/renderer';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
@@ -117,33 +118,33 @@ function AreaShape({ op }: { op: AreaOp }) {
         style={{ left: x - 4, top: y - 4, width: 12, height: 12 }}
         onContextMenu={onAreaContextMenu}
       >
-        <div class="w-3 h-3 rounded-full ring-2 ring-(--ml-glass-bg)" style={{ background: stroke }} />
+        <div class="w-3 h-3 rounded-full ring-2 ring-(--ds-background-100)" style={{ background: stroke }} />
         <div
           class={cn(
             'absolute hidden group-hover/area:block z-10 w-[240px]',
             flipV ? 'bottom-3' : 'top-3',
             flipH ? 'right-3' : 'left-3',
-            glass.surfaceSmall,
+            geist.surfaceSmall,
             glass.font,
             'p-3',
           )}
         >
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area</span>
+            <span class={geist.sectionLabel}>Area</span>
             {op.priority && <PriorityBadge priority={op.priority} />}
           </div>
           {op.comment ? (
             <p
-              class="text-[12.5px] text-ml-glass-fg/85 m-0 mt-1 leading-relaxed whitespace-pre-wrap"
+              class="text-[13px] text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           ) : (
-            <p class="text-[12px] text-ml-glass-fg/60 m-0 mt-1 italic">No comment</p>
+            <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1">No comment</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
+            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
             <div class="flex items-center gap-3">
               <button
                 type="button"
@@ -151,7 +152,7 @@ function AreaShape({ op }: { op: AreaOp }) {
                   e.stopPropagation();
                   deleteOp(op.id);
                 }}
-                class="text-[10.5px] font-medium text-(--ml-state-red)/70 hover:text-(--ml-state-red) bg-transparent border-none cursor-pointer p-0 transition-colors"
+                class={cn(geist.bareBtn, geist.bareBtnDanger, 'font-medium')}
               >
                 Delete
               </button>
@@ -161,7 +162,7 @@ function AreaShape({ op }: { op: AreaOp }) {
                   e.stopPropagation();
                   setOpStatus(op.id, resolved ? 'open' : 'resolved');
                 }}
-                class="text-[10.5px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+                class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
               >
                 {resolved ? 'Reopen' : 'Resolve'}
               </button>
@@ -201,7 +202,7 @@ export function AreaPopover({
       class={cn(
         'fixed z-2147483647 pointer-events-auto',
         'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
+        geist.surface,
         glass.font,
         'overflow-hidden w-[290px]',
       )}
@@ -210,13 +211,13 @@ export function AreaPopover({
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div class="px-4 pt-3.5 pb-2">
-        <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area annotation</span>
-        <p class="text-[12px] text-ml-glass-fg/60 m-0 mt-1 tabular-nums">
+        <span class={geist.sectionLabel}>Area annotation</span>
+        <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1 tabular-nums">
           {Math.round(rect.w)} × {Math.round(rect.h)} px
         </p>
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="p-3.5">
         <textarea
@@ -238,17 +239,12 @@ export function AreaPopover({
         <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
-          <kbd
-            class="text-[10.5px] text-ml-glass-fg/75 bg-ml-glass-fg/8 border border-ml-glass-fg/15
-                      rounded-md px-1.5 py-0.5 font-mono font-medium leading-none"
-          >
-            Esc
-          </kbd>
-          <span class="text-[11px] text-ml-glass-fg/60 font-medium">cancel</span>
+          <kbd class={geist.kbd}>Esc</kbd>
+          <span class="text-[12px] text-(--ds-gray-900) font-medium">cancel</span>
         </div>
         <button
           type="button"
@@ -344,7 +340,7 @@ export function AreaLayer() {
       priority,
       ts: Date.now(),
       author: localUser.name,
-      target: el ? captureTarget(el, { x: r.x, y: r.y }) : undefined,
+      target: el ? captureTarget({ el, anchor: { x: r.x, y: r.y } }) : undefined,
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };
     pushOp(op);

@@ -5,6 +5,7 @@ import {
   ChevronRight,
   ChevronUp,
   Circle,
+  CircleAlert,
   Copy,
   Crosshair,
   Download,
@@ -12,11 +13,14 @@ import {
   Eye,
   EyeOff,
   Grid3x3,
+  GripVertical,
   HelpCircle,
   Highlighter,
+  Info,
   Link2,
   MessageCircle,
   Minimize2,
+  Monitor,
   Moon,
   MousePointer2,
   MoveUpRight,
@@ -58,6 +62,7 @@ const iconMap: Record<string, typeof MousePointer2> = {
   multiInspect: SquareDashedMousePointer,
   measure: Ruler,
   guide: Grid3x3,
+  grip: GripVertical,
   pause: Pause,
   play: Play,
   share: Share2,
@@ -73,19 +78,22 @@ const iconMap: Record<string, typeof MousePointer2> = {
   minimize: Minimize2,
   sun: Sun,
   moon: Moon,
+  monitor: Monitor,
   settings: Settings,
   help: HelpCircle,
   eye: Eye,
   eyeOff: EyeOff,
   check: Check,
+  alert: CircleAlert,
+  info: Info,
   copy: Copy,
   link: Link2,
 };
 
-export function Icon({ name, size = 18 }: { name: string; size?: number }) {
+export function Icon({ name, size = 18, strokeWidth = 2 }: { name: string; size?: number; strokeWidth?: number }) {
   const Comp = iconMap[name];
   if (!Comp) return null;
-  return <Comp size={size} strokeWidth={2} />;
+  return <Comp size={size} strokeWidth={strokeWidth} />;
 }
 
 const brandIconMap = {

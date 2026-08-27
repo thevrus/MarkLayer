@@ -1,56 +1,54 @@
 /**
  * Shared form-control class recipes.
  *
- * Companion to `glass.ts`. Each export is a Tailwind class string consumed via
- * `class={cn(submitBtn, '...overrides')}`. The accent gradient/shadow stops
- * live here so the popovers (extension + worker) stay in sync.
+ * Companion to `geist.ts` — same Geist language, and the same `--ds-*` tokens.
+ * Each export is a Tailwind class string consumed via
+ * `class={cn(submitBtn, '...overrides')}`, so the popovers (extension + worker)
+ * stay in sync from one place.
  */
 
-const trim = (s: string) => s.replace(/\n\s+/g, ' ').trim();
+/** Collapse a multi-line class recipe to one line. Shared with `glass.ts` and `geist.ts`. */
+export const trim = (s: string) => s.replace(/\n\s+/g, ' ').trim();
 
-/** Primary action button — purple gradient, white text. Used for "Post", "Save", "Comment". */
+/**
+ * Primary action — "Post", "Save", "Comment". Geist's inverted primary: the ink
+ * colour becomes the fill, so the strongest control on a surface is the one with
+ * the most contrast rather than the most colour.
+ */
 export const submitBtn = trim(`
-  px-4 py-1.5 text-[12px] font-semibold rounded-[10px] border-none cursor-pointer
-  bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
-  text-white outline-none
-  shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
-  transition-[box-shadow,transform] duration-150
-  hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
-  hover:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_2px_16px_oklch(0.65_0.15_300/0.2)]
-  focus-visible:shadow-[inset_0_1px_0_oklch(1_0_0/0.2),0_0_0_3px_oklch(0.65_0.15_300/0.35)]
-  active:scale-[0.96]
+  inline-flex items-center justify-center gap-1.5 h-8 px-3 whitespace-nowrap
+  text-[13px] font-medium rounded-md border-none cursor-pointer outline-none
+  bg-(--ds-gray-1000) text-(--ds-background-100)
+  transition-[background-color] duration-150 ease-out
+  hover:bg-(--ds-gray-1000)/90
+  focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2
+  focus-visible:outline-(--ds-focus-color)
 `);
 
-/** Secondary outline button — used as paired siblings (Add to stack / Copy). Layout flex is caller-supplied. */
+/** Secondary action — the same shape, carried by its border instead of a fill. */
 export const secondaryBtn = trim(`
-  inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold rounded-[10px]
-  cursor-pointer whitespace-nowrap
-  bg-ml-glass-fg/6 text-ml-glass-fg/85 border border-ml-glass-fg/15
-  transition-[background-color,border-color,color,transform] duration-150
-  hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg hover:border-ml-glass-fg/25
-  active:scale-[0.96]
+  inline-flex items-center justify-center gap-1.5 h-8 px-3 whitespace-nowrap
+  text-[13px] font-medium rounded-md cursor-pointer outline-none
+  bg-(--ds-background-100) text-(--ds-gray-1000) border border-(--ds-gray-alpha-400)
+  transition-[background-color,border-color] duration-150 ease-out
+  hover:bg-(--ds-gray-alpha-100) hover:border-(--ds-gray-700)
+  focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2
+  focus-visible:outline-(--ds-focus-color)
 `);
 
 /**
- * Textarea — accent caret, accent focus ring, glass-tinted background. Caller adds
- * w-full + min/max-h overrides.
+ * Textarea. The border is the control: it steps one value on focus and nothing
+ * glows. Caller adds w-full + min/max-h overrides.
  *
- * The placeholder sits at /60: the floor documented in worker/web/style.css,
- * below which text stops clearing 4.5:1 on the glass. It was /45 (~3:1), the only
- * placeholder in either app under that floor.
- *
- * 13.5px is deliberate and stays: the usual "16px or iOS zooms the page" rule has
- * no purchase here, since both consumers are desktop-only — the extension is a
- * Chrome content script, and the web viewer blocks itself below `md`.
+ * 13px is deliberate: the usual "16px or iOS zooms the page" rule has no purchase
+ * here, since both consumers are desktop-only — the extension is a Chrome content
+ * script, and the web viewer blocks itself below `md`.
  */
 export const textareaCls = trim(`
-  bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-xl px-3.5 py-2.5
-  text-ml-glass-fg text-[13.5px] leading-relaxed
-  resize-none outline-none
-  caret-ml-accent
-  transition-[border-color,background-color,box-shadow] duration-150
-  focus:border-ml-accent/50
-  focus:shadow-[0_0_0_3px_color-mix(in_oklch,var(--color-ml-accent)_12%,transparent),inset_0_0.5px_0_oklch(1_0_0/0.04)]
-  focus:bg-ml-glass-fg/6
-  placeholder:text-ml-glass-fg/60
+  bg-(--ds-background-100) border border-(--ds-gray-alpha-400) rounded-md px-3 py-2
+  text-(--ds-gray-1000) text-[13px] leading-relaxed
+  resize-none outline-none caret-(--ds-gray-1000)
+  transition-[border-color] duration-150 ease-out
+  focus:border-(--ds-gray-700)
+  placeholder:text-(--ds-gray-700)
 `);

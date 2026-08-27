@@ -3,6 +3,7 @@ import { useSignal, useSignalEffect } from '@preact/signals';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useRef } from 'preact/hooks';
 import { secondaryBtn, submitBtn, textareaCls } from '../lib/buttons';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { getSelector, isExtensionElement, pickElementAtPoint, snapshotElement } from '../lib/selector';
 import { activeTool, addToInspectorStack, inspectorStack, outputDetail, toast } from '../lib/state';
@@ -66,9 +67,9 @@ export function SelectedOutline({ rect }: { rect: DOMRect }) {
         top: rect.top - 2,
         width: rect.width + 4,
         height: rect.height + 4,
-        background: 'color-mix(in oklch, var(--ml-state-green) 12%, transparent)',
+        background: 'color-mix(in oklch, var(--ds-green-700) 12%, transparent)',
         boxShadow:
-          '0 0 0 1.5px var(--ml-state-green), 0 0 0 4px color-mix(in oklch, var(--ml-state-green) 18%, transparent), 0 0 18px color-mix(in oklch, var(--ml-state-green) 22%, transparent)',
+          '0 0 0 1.5px var(--ds-green-700), 0 0 0 4px color-mix(in oklch, var(--ds-green-700) 18%, transparent), 0 0 18px color-mix(in oklch, var(--ds-green-700) 22%, transparent)',
       }}
     />
   );
@@ -105,7 +106,7 @@ export function MultiSelectPopover({
       class={cn(
         'fixed z-2147483647 pointer-events-auto w-[300px] flex flex-col overflow-hidden',
         'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
+        geist.surface,
         glass.font,
       )}
       style={{ left, top }}
@@ -114,14 +115,14 @@ export function MultiSelectPopover({
       onPointerDown={(e) => e.stopPropagation()}
     >
       <div class="px-4 pt-3.5 pb-1.5 flex items-center justify-between">
-        <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">
+        <span class={geist.sectionLabel}>
           {count} element{count === 1 ? '' : 's'} selected
         </span>
         <span
           class="inline-flex items-center justify-center w-2 h-2 rounded-full"
           style={{
-            background: 'var(--ml-state-green)',
-            boxShadow: '0 0 0 3px color-mix(in oklch, var(--ml-state-green) 22%, transparent)',
+            background: 'var(--ds-green-700)',
+            boxShadow: '0 0 0 3px color-mix(in oklch, var(--ds-green-700) 22%, transparent)',
           }}
           role="img"
           aria-label="Multi-select active"
@@ -149,7 +150,7 @@ export function MultiSelectPopover({
         />
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between gap-2 px-3 py-2.5">
         <button
@@ -346,9 +347,8 @@ export function MultiInspectLayer() {
             top: marquee.top,
             width: marquee.width,
             height: marquee.height,
-            background: 'color-mix(in oklch, var(--ml-state-green) 8%, transparent)',
-            boxShadow:
-              '0 0 0 1.5px color-mix(in oklch, var(--ml-state-green) 90%, transparent), 0 0 16px color-mix(in oklch, var(--ml-state-green) 18%, transparent)',
+            background: 'color-mix(in oklch, var(--ds-green-700) 8%, transparent)',
+            boxShadow: '0 0 0 1.5px color-mix(in oklab, var(--ds-green-700) 90%, transparent)',
           }}
         />
       )}

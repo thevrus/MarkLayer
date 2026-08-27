@@ -3,8 +3,9 @@ import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
-import { secondaryBtn, textareaCls } from '../lib/buttons';
+import { secondaryBtn, submitBtn, textareaCls } from '../lib/buttons';
 import { detectFrameworkComponent, type FrameworkComponent } from '../lib/fiber-bridge';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { BrandIcon, type BrandIconName, Icon } from '../lib/icons';
 import { getSelector, isExtensionElement, type SelectedInfo, shortClassLabel, snapshotElement } from '../lib/selector';
@@ -59,9 +60,7 @@ const FRAMEWORK_BRAND: Record<FrameworkComponent['framework'], BrandIconName> = 
   Svelte: 'svelte',
 };
 
-const sectionHeader = 'text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]';
-
-const metaLabel = 'text-[10px] text-ml-glass-fg/60 font-semibold uppercase tracking-[0.06em] tabular-nums';
+const metaLabel = 'text-[12px] text-(--ds-gray-900) font-medium tabular-nums';
 
 export function HoverHighlight({ state }: { state: HoverState }) {
   const { rect } = state;
@@ -74,9 +73,9 @@ export function HoverHighlight({ state }: { state: HoverState }) {
           top: rect.top,
           width: rect.width,
           height: rect.height,
-          background: 'color-mix(in oklch, var(--color-ml-accent) 7%, transparent)',
+          background: 'color-mix(in oklab, var(--ds-blue-800) 8%, transparent)',
           boxShadow:
-            '0 0 0 1.5px color-mix(in oklch, var(--color-ml-accent) 85%, transparent), 0 0 0 4px color-mix(in oklch, var(--color-ml-accent) 16%, transparent), 0 0 16px color-mix(in oklch, var(--color-ml-accent) 22%, transparent)',
+            '0 0 0 1.5px color-mix(in oklab, var(--ds-blue-800) 90%, transparent), 0 0 0 4px color-mix(in oklab, var(--ds-blue-800) 14%, transparent)',
           transition: 'left 80ms ease, top 80ms ease, width 80ms ease, height 80ms ease',
         }}
       />
@@ -95,7 +94,7 @@ export function HoverTooltip({ state }: { state: HoverState }) {
   return (
     <div
       class="fixed z-2147483647 pointer-events-none inline-flex items-center gap-2 rounded-[8px]
-             whitespace-nowrap font-mono text-[11px] leading-[1.1] tracking-[0.01em]
+             whitespace-nowrap font-mono text-[12px] leading-[1.1] tracking-[0.01em]
              animate-[fadeIn_140ms_ease-out]"
       style={{
         left: rect.left,
@@ -133,7 +132,7 @@ export function HoverTooltip({ state }: { state: HoverState }) {
         style={{
           padding: '2px 6px',
           borderRadius: 5,
-          background: 'color-mix(in oklch, var(--color-ml-accent) 22%, transparent)',
+          background: 'color-mix(in oklab, var(--ds-blue-800) 20%, transparent)',
           color: 'oklch(0.86 0.08 300)',
           fontWeight: 600,
           fontSize: 10.5,
@@ -178,7 +177,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
     return `${priorityLine}${state.markdown}`;
   };
 
-  const copySelector = () => copyText(state.selector, 'Selector copied!');
+  const copySelector = () => copyText(state.selector, 'Selector copied');
   const copyForAI = () => copyText(buildPrompt(), 'Copied for AI!');
   const addToStack = () => {
     const comment = taRef.current?.value.trim() || '';
@@ -278,7 +277,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       class={cn(
         'fixed z-2147483647 pointer-events-auto w-[320px] flex flex-col overflow-hidden',
         'animate-[fadeIn_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
+        geist.surface,
         glass.font,
       )}
       style={posStyle}
@@ -292,16 +291,14 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
           onPointerUp={onDragPointerUp}
           onPointerCancel={onDragPointerUp}
         >
-          <span class={sectionHeader}>Element Inspector</span>
+          <span class="text-[13px] font-semibold tracking-[-0.01em] text-(--ds-gray-1000)">Element inspector</span>
           <button
             type="button"
             aria-label="Close inspector"
             onClick={onClose}
-            class="text-ml-glass-fg/65 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer
-                   inline-flex items-center justify-center w-7 h-7 -mr-1 rounded-md
-                   hover:bg-ml-glass-fg/8 active:scale-[0.96] transition-[color,background-color,transform] duration-150"
+            class={cn(geist.ctlSm, geist.ctlIdle, '-mr-1')}
           >
-            <Icon name="close" size={14} />
+            <Icon name="close" size={16} strokeWidth={1.5} />
           </button>
         </div>
 
@@ -341,7 +338,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
               type="button"
               onClick={copyForAI}
               title="Copy prompt to clipboard"
-              class={cn(secondaryBtn, 'flex-1')}
+              class={cn(canSend ? secondaryBtn : submitBtn, 'flex-1')}
             >
               Copy
             </button>
@@ -350,7 +347,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                 type="button"
                 onClick={sendToAgent}
                 title="Push to the connected room — an MCP-watching agent will pick it up"
-                class={cn(secondaryBtn, 'flex-1')}
+                class={cn(submitBtn, 'flex-1')}
               >
                 Send
               </button>
@@ -359,45 +356,45 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
         </div>
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5 shrink-0')} />
+      <div class={cn(geist.divider, 'mx-3.5 shrink-0')} />
 
       <div class="overflow-y-auto min-h-0">
         <div class="px-4 pt-2.5 pb-3">
           <div class="flex items-center justify-between mb-1.5">
-            <span class={sectionHeader}>Selector</span>
+            <span class={geist.sectionLabel}>Selector</span>
             <button
               type="button"
               onClick={copySelector}
               aria-label="Copy selector"
-              class="text-[11px] font-medium text-ml-glass-fg/65 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+              class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
             >
               Copy
             </button>
           </div>
           <code
-            class="block text-[11.5px] text-ml-glass-fg bg-ml-glass-fg/4 border border-ml-glass-fg/12
-                   rounded-xl px-3 py-2 wrap-break-word font-mono leading-[1.55] select-all max-h-17 overflow-y-auto"
+            class="block text-[12px] text-(--ds-gray-1000) bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
+                   rounded-md px-3 py-2 wrap-break-word font-mono leading-[1.55] select-all max-h-17 overflow-y-auto"
           >
             {state.selector}
           </code>
         </div>
 
-        <div class={cn(glass.divider, 'mx-3.5')} />
+        <div class={cn(geist.divider, 'mx-3.5')} />
 
         <div class="px-4 pt-3 pb-3">
-          <dl class="grid grid-cols-[58px_1fr] gap-x-3 gap-y-1.5 items-baseline text-[11.5px]">
+          <dl class="grid grid-cols-[58px_1fr] gap-x-3 gap-y-1.5 items-baseline text-[12px]">
             <dt class={metaLabel}>Tag</dt>
-            <dd class="text-ml-glass-fg font-mono">&lt;{state.tag}&gt;</dd>
+            <dd class="text-(--ds-gray-1000) font-mono">&lt;{state.tag}&gt;</dd>
 
             <dt class={metaLabel}>Size</dt>
-            <dd class="text-ml-glass-fg font-mono tabular-nums">
+            <dd class="text-(--ds-gray-1000) font-mono tabular-nums">
               {Math.round(state.rect.width)}×{Math.round(state.rect.height)}
             </dd>
 
             <dt class={metaLabel}>Viewport</dt>
-            <dd class="text-ml-glass-fg font-mono tabular-nums">
+            <dd class="text-(--ds-gray-1000) font-mono tabular-nums">
               {state.viewport.width}×{state.viewport.height}
-              {state.viewport.dpr !== 1 && <span class="text-ml-glass-fg/60"> @ {state.viewport.dpr}x</span>}
+              {state.viewport.dpr !== 1 && <span class="text-(--ds-gray-900)"> @ {state.viewport.dpr}x</span>}
             </dd>
 
             {showFrameworkBadges.value && state.component?.chain.length ? (
@@ -409,7 +406,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                   <BrandIcon name={FRAMEWORK_BRAND[state.component.framework]} size={11} />
                   {state.component.framework}
                 </dt>
-                <dd class="text-ml-glass-fg font-mono wrap-break-word">{state.component.chain.join(' ← ')}</dd>
+                <dd class="text-(--ds-gray-1000) font-mono wrap-break-word">{state.component.chain.join(' ← ')}</dd>
               </>
             ) : null}
 
@@ -419,16 +416,16 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                   <BrandIcon name="tailwind" size={11} />
                   CSS
                 </dt>
-                <dd class="text-ml-glass-fg font-mono">Tailwind</dd>
+                <dd class="text-(--ds-gray-1000) font-mono">Tailwind</dd>
               </>
             )}
 
             {state.component?.source && (
               <>
                 <dt class={metaLabel}>Source</dt>
-                <dd class="text-ml-glass-fg font-mono break-all">
+                <dd class="text-(--ds-gray-1000) font-mono break-all">
                   {shortenSourcePath(state.component.source.fileName)}
-                  <span class="text-ml-glass-fg/60">:{state.component.source.lineNumber}</span>
+                  <span class="text-(--ds-gray-900)">:{state.component.source.lineNumber}</span>
                 </dd>
               </>
             )}
@@ -436,14 +433,14 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             {state.id && (
               <>
                 <dt class={metaLabel}>ID</dt>
-                <dd class="text-ml-glass-fg font-mono wrap-break-word">{state.id}</dd>
+                <dd class="text-(--ds-gray-1000) font-mono wrap-break-word">{state.id}</dd>
               </>
             )}
 
             {state.classes && (
               <>
                 <dt class={metaLabel}>Classes</dt>
-                <dd class="text-ml-glass-fg/90 font-mono text-[10.5px] leading-[1.55] wrap-break-word line-clamp-3">
+                <dd class="text-(--ds-gray-1000) font-mono text-[12px] leading-[1.55] wrap-break-word line-clamp-3">
                   {state.classes}
                 </dd>
               </>
@@ -452,9 +449,9 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 
           {state.text && (
             <blockquote
-              class="mt-3 px-3 py-2 rounded-lg text-[12px] italic leading-snug line-clamp-3
+              class="mt-3 px-3 py-2 rounded-lg text-[12px] leading-snug line-clamp-3
                      bg-(--ml-syntax-bg) text-(--ml-syntax-quote)
-                     border-l-2 border-ml-glass-fg/15"
+                     border-l-2 border-(--ds-gray-alpha-400)"
             >
               {state.text}
             </blockquote>
@@ -463,7 +460,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 
         {Object.keys(state.styles).length > 0 && (
           <>
-            <div class={cn(glass.divider, 'mx-3.5')} />
+            <div class={cn(geist.divider, 'mx-3.5')} />
             <StylesSection styles={state.styles} />
           </>
         )}
@@ -487,14 +484,14 @@ function StylesSection({ styles }: { styles: Record<string, string> }) {
       >
         <span
           class={cn(
-            sectionHeader,
-            'inline-flex items-center gap-1.5 group-hover:text-ml-glass-fg/85 transition-colors',
+            geist.sectionLabel,
+            'inline-flex items-center gap-1.5 group-hover:text-(--ds-gray-1000) transition-colors',
           )}
         >
           Styles
-          <span class="text-ml-glass-fg/60 font-medium normal-case tracking-normal tabular-nums">{count}</span>
+          <span class="text-(--ds-gray-900) font-medium tabular-nums">{count}</span>
         </span>
-        <span class="text-ml-glass-fg/60 group-hover:text-ml-glass-fg/85 transition-colors">
+        <span class="text-(--ds-gray-900) group-hover:text-(--ds-gray-1000) transition-colors">
           <Icon name={open.value ? 'chevUp' : 'chevDown'} size={12} />
         </span>
       </button>
@@ -505,7 +502,7 @@ function StylesSection({ styles }: { styles: Record<string, string> }) {
         <div class="overflow-hidden min-h-0">
           <div
             class="mt-2 px-2.5 py-2 rounded-lg bg-(--ml-syntax-bg)
-                   grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[10.5px] font-mono leading-normal"
+                   grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px] font-mono leading-normal"
           >
             {Object.entries(styles).map(([k, v]) => (
               <div key={k} class="contents">
@@ -549,7 +546,7 @@ export function InspectorStackPanel() {
       class={cn(
         'fixed bottom-5 right-5 z-2147483646 pointer-events-auto w-70 flex flex-col overflow-hidden',
         'animate-[fadeIn_220ms_cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
+        geist.surface,
         glass.font,
       )}
       onClick={(e) => e.stopPropagation()}
@@ -562,38 +559,38 @@ export function InspectorStackPanel() {
           inspectorStackOpen.value = !open;
         }}
         class="flex items-center gap-2 px-3.5 py-2.5 bg-transparent border-none cursor-pointer text-left
-               hover:bg-ml-glass-fg/5 transition-colors"
+               hover:bg-(--ds-gray-alpha-100) transition-colors"
       >
         <span
-          class="inline-flex items-center justify-center min-w-5.5 h-5.5 px-1.5 rounded-full text-[11px] font-bold tabular-nums
+          class="inline-flex items-center justify-center min-w-5.5 h-5.5 px-1.5 rounded-full text-[12px] font-medium tabular-nums
                  bg-ml-accent/22 text-[oklch(0.86_0.08_300)]"
         >
           {items.length}
         </span>
-        <span class="text-[11.5px] font-semibold text-ml-glass-fg tracking-[0.01em]">
+        <span class="text-[12px] font-semibold text-(--ds-gray-1000) tracking-[0.01em]">
           Element{items.length === 1 ? '' : 's'} stacked
         </span>
-        <span class="ml-auto text-ml-glass-fg/60">
+        <span class="ml-auto text-(--ds-gray-900)">
           <Icon name={open ? 'chevDown' : 'chevUp'} size={14} />
         </span>
       </button>
 
       {open && (
         <>
-          <div class={cn(glass.divider, 'mx-3.5 shrink-0')} />
+          <div class={cn(geist.divider, 'mx-3.5 shrink-0')} />
           <div class="max-h-55 overflow-y-auto px-2 py-1.5">
             {items.map((it, i) => (
               <div
                 key={it.id}
-                class="group flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-ml-glass-fg/5 transition-colors"
+                class="group flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-(--ds-gray-alpha-100) transition-colors"
               >
-                <span class="text-[10.5px] text-ml-glass-fg/60 font-mono tabular-nums leading-normal mt-0.5 shrink-0">
+                <span class="text-[12px] text-(--ds-gray-900) font-mono tabular-nums leading-normal mt-0.5 shrink-0">
                   {i + 1}
                 </span>
                 <div class="min-w-0 flex-1">
-                  <div class="text-[11px] font-mono text-ml-glass-fg/70 truncate">{stackItemLabel(it.selector)}</div>
-                  <div class="text-[12px] text-ml-glass-fg/95 leading-snug line-clamp-2">
-                    {it.comment || <span class="text-ml-glass-fg/60 italic">No task description</span>}
+                  <div class="text-[12px] font-mono text-(--ds-gray-900) truncate">{stackItemLabel(it.selector)}</div>
+                  <div class="text-[12px] text-(--ds-gray-1000) leading-snug line-clamp-2">
+                    {it.comment || <span class="text-(--ds-gray-900)">No task description</span>}
                   </div>
                 </div>
                 <button
@@ -601,8 +598,8 @@ export function InspectorStackPanel() {
                   aria-label="Remove from stack"
                   onClick={() => removeFromInspectorStack(it.id)}
                   class="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity
-                         text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer
-                         inline-flex items-center justify-center w-6 h-6 rounded-md hover:bg-ml-glass-fg/10 shrink-0"
+                         text-(--ds-gray-900) hover:text-(--ds-gray-1000) bg-transparent border-none cursor-pointer
+                         inline-flex items-center justify-center w-6 h-6 rounded-md hover:bg-(--ds-gray-alpha-100) shrink-0"
                 >
                   <Icon name="close" size={12} />
                 </button>
@@ -612,15 +609,15 @@ export function InspectorStackPanel() {
         </>
       )}
 
-      <div class={cn(glass.divider, 'mx-3.5 shrink-0')} />
+      <div class={cn(geist.divider, 'mx-3.5 shrink-0')} />
       <div class="flex items-center gap-2 px-3 py-2.5">
         <button
           type="button"
           onClick={clearInspectorStack}
-          class="px-2.5 py-1.5 text-[11.5px] font-medium rounded-lg cursor-pointer
-                 bg-transparent text-ml-glass-fg/65 border border-transparent
+          class="px-2.5 py-1.5 text-[12px] font-medium rounded-lg cursor-pointer
+                 bg-transparent text-(--ds-gray-900) border border-transparent
                  transition-[background-color,color] duration-150
-                 hover:bg-ml-glass-fg/8 hover:text-ml-glass-fg"
+                 hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000)"
         >
           Clear
         </button>
@@ -628,10 +625,10 @@ export function InspectorStackPanel() {
           type="button"
           onClick={copyInspectorStack}
           title="Copy all to clipboard"
-          class="ml-auto px-2.5 py-1.5 text-[11.5px] font-medium rounded-lg cursor-pointer
-                 bg-ml-glass-fg/6 text-ml-glass-fg/85 border border-ml-glass-fg/15
+          class="ml-auto px-2.5 py-1.5 text-[12px] font-medium rounded-lg cursor-pointer
+                 bg-(--ds-gray-alpha-100) text-(--ds-gray-1000) border border-(--ds-gray-alpha-400)
                  transition-[background-color,border-color,color] duration-150
-                 hover:bg-ml-glass-fg/10 hover:text-ml-glass-fg hover:border-ml-glass-fg/25"
+                 hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000) hover:border-(--ds-gray-alpha-400)"
         >
           Copy all
         </button>
@@ -650,9 +647,8 @@ export function SelectedHighlight({ rect }: { rect: DOMRect }) {
         top: rect.top - 2,
         width: rect.width + 4,
         height: rect.height + 4,
-        background: 'color-mix(in oklch, var(--color-ml-accent) 10%, transparent)',
-        boxShadow:
-          '0 0 0 4px color-mix(in oklch, var(--color-ml-accent) 12%, transparent), 0 0 24px color-mix(in oklch, var(--color-ml-accent) 20%, transparent)',
+        background: 'color-mix(in oklab, var(--ds-blue-800) 10%, transparent)',
+        boxShadow: '0 0 0 4px color-mix(in oklab, var(--ds-blue-800) 14%, transparent)',
         transition: 'left 120ms ease, top 120ms ease, width 120ms ease, height 120ms ease',
       }}
     />

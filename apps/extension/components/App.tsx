@@ -2,14 +2,11 @@ import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { glass } from '../lib/glass';
 import { loadAnnotations, parseUrlHash, setAnnotationId } from '../lib/share';
 import {
   activeTool,
-  altHeld,
-  bindHeldModifierRelease,
+  bindFigmaKeys,
   blockInteractions,
-  duplicateLastOp,
   ensureHostMutationObserver,
   ensureScrollTickListener,
   handTool,
@@ -18,11 +15,7 @@ import {
   redo,
   showSettings,
   showShareDialog,
-  spaceHeld,
-  TOOL_SHORTCUTS,
   theme,
-  toasts,
-  toggleToolbarMinimized,
   undo,
   visible,
 } from '../lib/state';
@@ -40,6 +33,7 @@ import { QuickGrabLayer } from './QuickGrabLayer';
 import { SelectionLayer } from './SelectionLayer';
 import { ShareDialog } from './ShareDialog';
 import { TextLayer } from './TextLayer';
+import { Toasts } from './Toasts';
 import { Toolbar } from './Toolbar';
 
 export function App() {
@@ -75,27 +69,6 @@ export function App() {
         e.preventDefault();
         redo();
       }),
-      '$mod+KeyD': guard((e) => {
-        e.preventDefault();
-        duplicateLastOp();
-      }),
-      // Figma's ⌘\ — hide the chrome, keep the annotations on screen.
-      '$mod+Backslash': guard((e) => {
-        e.preventDefault();
-        toggleToolbarMinimized();
-      }),
-      KeyH: guard((e) => {
-        e.preventDefault();
-        handTool.value = !handTool.value;
-      }),
-      // preventDefault stops the host page from page-scrolling under the pan.
-      Space: guard((e) => {
-        e.preventDefault();
-        spaceHeld.value = true;
-      }),
-      Alt: guard(() => {
-        altHeld.value = true;
-      }),
       Escape: (e) => {
         if (!visible.value) return;
         const t = editableTarget(e);
@@ -122,17 +95,11 @@ export function App() {
         e.preventDefault();
       },
     };
-    for (const { tool, pattern } of TOOL_SHORTCUTS) {
-      bindings[pattern] = guard((e) => {
-        activeTool.value = tool;
-        e.preventDefault();
-      });
-    }
     const unbind = tinykeys(window, bindings);
-    const unbindRelease = bindHeldModifierRelease(window);
+    const unbindFigma = bindFigmaKeys({ target: window, guard });
     return () => {
       unbind();
-      unbindRelease();
+      unbindFigma();
     };
   }, []);
 
@@ -202,7 +169,12 @@ export function App() {
   const blocking = blockInteractions.value;
 
   return (
-    <div class={cn('transition-opacity duration-200 ease-out', visible.value ? 'opacity-100' : 'opacity-0')}>
+    <div
+      class={cn(
+        'transition-opacity duration-200 ease-out pointer-events-auto',
+        visible.value ? 'opacity-100' : 'opacity-0',
+      )}
+    >
       {blocking && (
         <div
           aria-hidden="true"
@@ -238,20 +210,7 @@ export function App() {
       <Toolbar />
       <ShareDialog />
       <ContextMenu />
-      {toasts.value.length > 0 && (
-        <div class="fixed top-5 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">
-          {toasts.value.map((t) => (
-            <div
-              key={t.id}
-              class={`${glass.surfaceSmall} ${glass.font} px-4 py-2.5 text-[12px] font-medium
-                      animate-[fadeInDown_0.2s_ease-out]
-                      ${t.type === 'error' ? 'text-red-500' : t.type === 'success' ? 'text-green-500' : 'text-ml-glass-fg/70'}`}
-            >
-              {t.message}
-            </div>
-          ))}
-        </div>
-      )}
+      <Toasts />
     </div>
   );
 }

@@ -1,6 +1,9 @@
 import { color, lineWidth } from '@ext/lib/state';
-import { Loader2 } from 'lucide-preact';
+import { Loader2, Monitor, Smartphone, Tablet } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
+
+/** One glyph per viewport, so the switcher and the op badge can never disagree. */
+export const DEVICE_ICONS = { desktop: Monitor, tablet: Tablet, mobile: Smartphone } as const;
 
 export function Spinner() {
   return <Loader2 size={16} class="animate-spin" aria-hidden="true" />;
@@ -40,7 +43,7 @@ export function GithubLink({ dark }: { dark?: boolean }) {
       target="_blank"
       rel="noopener"
       class={`${ICON_LINK_CLS} ${
-        dark ? 'text-ml-fg/60 hover:text-ml-fg' : 'text-ml-glass-fg/60 hover:text-ml-glass-fg'
+        dark ? 'text-ml-fg/60 hover:text-ml-fg' : 'text-(--ds-gray-900) hover:text-(--ds-gray-900)'
       }`}
     >
       <span class="sr-only">GitHub</span>

@@ -1,5 +1,9 @@
+import { Avatar } from '@ext/components/Avatar';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
+import { SuggestionDiff } from '@ext/components/SelectionEdit';
+import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from '@ext/lib/export-text';
+import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
   areas,
@@ -20,21 +24,10 @@ import {
 import { timeAgo } from '@ext/lib/time';
 import type { AreaOp, CommentOp, CommentStatus, DeviceMode, DrawOp, SelectionOp, TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
-import {
-  BoxSelect,
-  Check,
-  ClipboardCopy,
-  Download,
-  MessageSquare,
-  Monitor,
-  Smartphone,
-  Tablet,
-  TextSelect,
-  Type,
-  X,
-} from 'lucide-preact';
+import { BoxSelect, Check, ClipboardCopy, Download, MessageSquare, Replace, TextSelect, Type, X } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { DEVICE_ICONS } from './shared';
 
 interface BodyProps {
   onScrollTo: (x: number, y: number) => void;
@@ -48,10 +41,10 @@ type AnnotationItem =
   | { kind: 'area'; op: AreaOp };
 
 const STATUS_COLORS: Record<CommentStatus, string> = {
-  open: 'var(--ml-state-blue)',
-  in_progress: 'var(--ml-state-yellow)',
-  resolved: 'var(--ml-state-green)',
-  dismissed: 'var(--color-ml-resolved)',
+  open: 'var(--ds-blue-800)',
+  in_progress: 'var(--ds-amber-700)',
+  resolved: 'var(--ds-green-700)',
+  dismissed: 'var(--ds-gray-700)',
 };
 const STATUS_ACTIONS: Record<CommentStatus, string> = {
   open: 'Mark in progress',
@@ -63,7 +56,7 @@ const STATUS_ACTIONS: Record<CommentStatus, string> = {
 function StatusBadge({ status }: { status: CommentStatus }) {
   return (
     <span
-      class="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-md"
+      class="text-[12px] font-medium px-1.5 py-0.5 rounded-md"
       style={{
         color: STATUS_COLORS[status],
         background: `color-mix(in oklch, ${STATUS_COLORS[status]} 14%, transparent)`,
@@ -74,14 +67,13 @@ function StatusBadge({ status }: { status: CommentStatus }) {
   );
 }
 
-const DEVICE_ICONS = { desktop: Monitor, tablet: Tablet, mobile: Smartphone } as const;
 const DEVICE_LABELS: Record<DeviceMode, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' };
 
 function DeviceBadge({ device }: { device?: DeviceMode }) {
   if (!device || device === 'desktop') return null;
   const Icon = DEVICE_ICONS[device];
   return (
-    <span class="inline-flex items-center gap-0.5 text-[9px] text-ml-glass-fg/60 font-medium">
+    <span class="inline-flex items-center gap-0.5 text-[12px] text-(--ds-gray-900) font-medium">
       <Icon size={9} aria-hidden="true" />
       {DEVICE_LABELS[device]}
     </span>
@@ -95,7 +87,7 @@ function MetaInfo({ op }: { op: CommentOp }) {
   if (op.meta.os) parts.push(op.meta.os);
   if (op.meta.viewport) parts.push(`${op.meta.viewport.width}×${op.meta.viewport.height}`);
   if (!parts.length) return null;
-  return <span class="text-[9px] text-ml-glass-fg/60 mt-1 block">{parts.join(' · ')}</span>;
+  return <span class="text-[12px] text-(--ds-gray-900) mt-1 block">{parts.join(' · ')}</span>;
 }
 
 function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: number, y: number) => void }) {
@@ -121,30 +113,32 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
   };
 
   return (
-    <div class="border-b border-ml-glass-fg/[0.06]">
+    <div class="border-b border-(--ds-gray-alpha-400)">
       {/* Root comment header — click to expand */}
       <div
         class={cn(
-          'px-4 py-3 cursor-pointer transition-colors duration-100 hover:bg-ml-glass-accent/[0.04]',
-          expanded && 'bg-ml-glass-accent/[0.03]',
+          'px-4 py-3 cursor-pointer transition-colors duration-100 hover:bg-(--ds-gray-alpha-100)',
+          expanded && 'bg-(--ds-gray-alpha-100)',
         )}
         onClick={() => setExpanded(!expanded)}
       >
         <div class="flex items-center gap-2 mb-1.5">
           <div
-            class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0"
-            style={{ background: status === 'resolved' ? 'var(--color-ml-resolved)' : op.color }}
+            class="w-5 h-5 rounded-full text-white text-[11px] font-medium tabular-nums grid place-items-center shrink-0"
+            style={{ background: status === 'resolved' ? 'var(--ds-gray-700)' : op.color }}
           >
-            {status === 'resolved' ? <Check size={11} strokeWidth={3} aria-hidden="true" /> : op.num}
+            {status === 'resolved' ? <Check size={11} strokeWidth={2} aria-hidden="true" /> : op.num}
           </div>
-          <span class="text-[12px] text-ml-glass-fg/80 font-semibold flex-1 truncate">{op.author || 'Anonymous'}</span>
+          <span class="text-[12px] text-(--ds-gray-1000) font-semibold flex-1 truncate">
+            {op.author || 'Anonymous'}
+          </span>
           {op.priority && <PriorityBadge priority={op.priority} />}
           <DeviceBadge device={op.device} />
           <StatusBadge status={status} />
-          <span class="text-[11px] text-ml-glass-fg/60 tabular-nums">{timeAgo(op.ts)}</span>
+          <span class="text-[12px] text-(--ds-gray-900) tabular-nums">{timeAgo(op.ts)}</span>
         </div>
         <p
-          class={cn('text-[13px] text-ml-glass-fg/85 leading-relaxed m-0', !expanded && 'line-clamp-2')}
+          class={cn('text-[13px] text-(--ds-gray-1000) leading-relaxed m-0', !expanded && 'line-clamp-2')}
           style={{
             textDecoration: status === 'resolved' ? 'line-through' : 'none',
             opacity: status === 'resolved' ? 0.5 : 1,
@@ -155,7 +149,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
         {expanded && <MetaInfo op={op} />}
         <div class="flex items-center gap-3 mt-2">
           {replies.length > 0 && (
-            <span class="text-[11px] text-ml-glass-fg/60 flex items-center gap-1 font-medium">
+            <span class="text-[12px] text-(--ds-gray-900) flex items-center gap-1 font-medium">
               <MessageSquare size={11} aria-hidden="true" />
               {replies.length}
             </span>
@@ -166,41 +160,32 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
               e.stopPropagation();
               onScrollTo(op.x, op.y);
             }}
-            class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
+            class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
           >
             Go to
           </button>
-          <button
-            type="button"
-            onClick={cycleStatus}
-            class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
-          >
+          <button type="button" onClick={cycleStatus} class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}>
             {STATUS_ACTIONS[status]}
           </button>
         </div>
       </div>
 
       {expanded && (
-        <div class="bg-ml-glass-accent/[0.02]">
+        <div class="bg-(--ds-gray-alpha-100)">
           {replies.length > 0 && (
             <div class="px-4 pb-1">
               {replies.map((reply) => (
-                <div key={reply.id} class="flex gap-2 py-2 border-t border-ml-glass-fg/[0.05] first:border-t-0">
-                  <div
-                    class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0 mt-0.5"
-                    style={{ background: reply.color }}
-                  >
-                    {(reply.author || '?').charAt(0).toUpperCase()}
-                  </div>
+                <div key={reply.id} class="flex gap-2 py-2 border-t border-(--ds-gray-alpha-400) first:border-t-0">
+                  <Avatar name={reply.author || '?'} color={reply.color} size="sm" style={{ marginTop: 2 }} />
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="text-[11.5px] text-ml-glass-fg/80 font-semibold truncate">
+                      <span class="text-[12px] text-(--ds-gray-1000) font-semibold truncate">
                         {reply.author || 'Anonymous'}
                       </span>
-                      <span class="text-[10.5px] text-ml-glass-fg/60 tabular-nums">{timeAgo(reply.ts)}</span>
+                      <span class="text-[12px] text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
                     </div>
                     <p
-                      class="text-[12.5px] text-ml-glass-fg/80 leading-relaxed m-0 mt-0.5"
+                      class="text-[13px] text-(--ds-gray-1000) leading-relaxed m-0 mt-0.5"
                       style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
                       {reply.text}
@@ -215,26 +200,14 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
           {replying ? (
             <div class="px-4 pb-3 pt-1">
               <div class="flex gap-2">
-                <div
-                  class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0 mt-1.5"
-                  style={{ background: color.value }}
-                >
-                  {localUser.name.charAt(0).toUpperCase()}
-                </div>
+                <Avatar name={localUser.name} color={color.value} size="sm" style={{ marginTop: 6 }} />
                 <div class="flex-1">
                   <textarea
                     name="reply"
                     ref={replyRef}
                     placeholder="Write a reply…"
                     rows={1}
-                    class={cn(
-                      'w-full bg-ml-glass-accent/[0.06] border border-ml-glass-fg/[0.1] rounded-lg px-3 py-2',
-                      'text-ml-glass-fg/80 text-[12px] leading-relaxed',
-                      'resize-none outline-none min-h-8 max-h-[100px]',
-                      'focus:border-ml-glass-fg/[0.2] focus:bg-ml-glass-accent/[0.08]',
-                      'placeholder:text-ml-glass-fg/60',
-                      glass.font,
-                    )}
+                    class={cn(textareaCls, glass.font, 'w-full min-h-8 max-h-[100px]')}
                     style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
@@ -249,19 +222,11 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                     <button
                       type="button"
                       onClick={() => setReplying(false)}
-                      class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer px-2 py-1 transition-colors"
+                      class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-[13px] font-medium')}
                     >
                       Cancel
                     </button>
-                    <button
-                      type="button"
-                      onClick={submitReply}
-                      class="text-[11px] font-semibold px-3 py-1.5 rounded-lg cursor-pointer border-none text-white
-                             bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
-                             shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
-                             hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
-                             active:scale-[0.96] transition-[box-shadow,transform] duration-150"
-                    >
+                    <button type="button" onClick={submitReply} class={submitBtn}>
                       Reply
                     </button>
                   </div>
@@ -276,10 +241,13 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   setReplying(true);
                   setTimeout(() => replyRef.current?.focus(), 50);
                 }}
-                class="w-full text-left px-3 py-2 rounded-lg border border-ml-glass-fg/10 bg-ml-glass-fg/3
-                       text-[12px] text-ml-glass-fg/60 cursor-text hover:border-ml-glass-fg/20 hover:bg-ml-glass-fg/6 hover:text-ml-glass-fg/75 transition-colors"
+                class={cn(
+                  geist.field,
+                  'w-full flex items-center px-3 text-left text-[13px] text-(--ds-gray-700) cursor-text',
+                  'hover:border-(--ds-gray-700)',
+                )}
               >
-                Reply...
+                Reply…
               </button>
             </div>
           )}
@@ -300,12 +268,12 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
     const data = getExportData?.() ?? { ops: operations.value };
     return buildMarkdownExport(data.ops, { url: data.url, pages: data.pages });
   };
-  const handleCopy = () => copyText(buildExport(), 'Markdown copied!');
+  const handleCopy = () => copyText(buildExport(), 'Markdown copied');
   const handleDownload = () => {
     const md = buildExport();
     const data = getExportData?.() ?? { ops: operations.value };
     downloadMarkdown(md, defaultExportFilename(data.url));
-    toast('Markdown exported!', 'success');
+    toast('Markdown exported', 'success');
   };
 
   const allOps = operations.value;
@@ -342,13 +310,13 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   return (
     <>
       {/* Header */}
-      <div class="px-4 py-3 border-b border-ml-glass-fg/[0.1] shrink-0">
+      <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400) shrink-0">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-[15px] font-semibold text-ml-glass-fg m-0 tracking-[-0.01em]">Comments</h2>
-            <span class="text-[12px] text-ml-glass-fg/60">
+            <h2 class="text-[15px] font-semibold text-(--ds-gray-1000) m-0 tracking-[-0.01em]">Comments</h2>
+            <span class="text-[12px] text-(--ds-gray-900)">
               {rootComments.value.length} thread{rootComments.value.length !== 1 ? 's' : ''}
-              {statusCounts.resolved > 0 && <span class="text-green-500/80"> · {statusCounts.resolved} resolved</span>}
+              {statusCounts.resolved > 0 && ` · ${statusCounts.resolved} resolved`}
               {textCount > 0 && ` · ${textCount} text`}
               {selectionCount > 0 && ` · ${selectionCount} selection`}
               {areaList.length > 0 && ` · ${areaList.length} area`}
@@ -359,52 +327,42 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               type="button"
               onClick={handleCopy}
               title="Copy comments + selections as Markdown"
-              class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
-                     bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
-                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.96]
-                     transition-[color,background-color,transform] duration-150"
+              class={cn(geist.ctl, geist.ctlIdle)}
             >
-              <ClipboardCopy size={15} aria-hidden="true" />
+              <ClipboardCopy size={16} strokeWidth={1.5} aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={handleDownload}
               title="Download Markdown (.md)"
-              class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
-                     bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
-                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.96]
-                     transition-[color,background-color,transform] duration-150"
+              class={cn(geist.ctl, geist.ctlIdle)}
             >
-              <Download size={15} aria-hidden="true" />
+              <Download size={16} strokeWidth={1.5} aria-hidden="true" />
             </button>
             <button
               type="button"
               onClick={() => (showAnnotationPanel.value = false)}
               title="Close panel"
-              class="w-8 h-8 rounded-xl grid place-items-center cursor-pointer
-                     bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg
-                     hover:bg-ml-glass-fg/8 active:bg-ml-glass-fg/12 active:scale-[0.96]
-                     transition-[color,background-color,transform] duration-150"
+              class={cn(geist.ctl, geist.ctlIdle)}
             >
-              <X size={16} aria-hidden="true" />
+              <X size={16} strokeWidth={1.5} aria-hidden="true" />
             </button>
           </div>
         </div>
         {/* Filter tabs */}
-        <div class="flex gap-1 mt-3">
+        <div class={cn(geist.track, 'mt-3')} role="tablist">
           {FILTER_OPTIONS.map((f) => {
             const count = f.value === 'all' ? rootComments.value.length : statusCounts[f.value];
+            const on = filter === f.value;
             return (
               <button
                 key={f.value}
                 type="button"
+                role="tab"
+                aria-selected={on}
+                data-pressed={on ? '' : undefined}
                 onClick={() => (commentFilter.value = f.value)}
-                class={cn(
-                  'text-[11.5px] font-medium px-2.5 py-1 rounded-lg border-none cursor-pointer transition-[color,background-color] duration-150',
-                  filter === f.value
-                    ? 'bg-ml-glass-fg/12 text-ml-glass-fg'
-                    : 'bg-transparent text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-fg/6',
-                )}
+                class={geist.segmentText}
               >
                 {f.label}
                 {count > 0 ? ` (${count})` : ''}
@@ -418,9 +376,9 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
       <div class="flex-1 overflow-y-auto">
         {items.length === 0 && (
           <div class="flex flex-col items-center justify-center h-44 gap-2 px-6 text-center">
-            <MessageSquare size={28} strokeWidth={1.5} class="text-ml-glass-fg/60" aria-hidden="true" />
-            <span class="text-[14px] font-medium text-ml-glass-fg/75">No comments yet</span>
-            <span class="text-[12px] text-ml-glass-fg/60 leading-snug">Use the comment tool (C) to add one</span>
+            <MessageSquare size={24} strokeWidth={1.5} class="text-(--ds-gray-700)" aria-hidden="true" />
+            <span class="text-[13px] font-medium text-(--ds-gray-1000)">No comments yet</span>
+            <span class="text-[12px] text-(--ds-gray-900) leading-snug">Use the comment tool (C) to add one</span>
           </div>
         )}
 
@@ -437,27 +395,23 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
             const h = Math.abs(op.endY - op.startY);
             const areaResolved = op.status === 'resolved';
             return (
-              <div key={op.id} class="border-b border-ml-glass-fg/[0.06]">
+              <div key={op.id} class="border-b border-(--ds-gray-alpha-400)">
                 <button
                   type="button"
                   class="w-full text-left px-4 py-3
                          bg-transparent cursor-pointer transition-colors duration-100
-                         hover:bg-ml-glass-accent/[0.04]"
+                         hover:bg-(--ds-gray-alpha-100)"
                   onClick={() => onScrollTo(minX, minY)}
                 >
                   <div class="flex items-center gap-2 mb-1">
-                    <BoxSelect
-                      size={12}
-                      color={areaResolved ? 'var(--color-ml-resolved)' : op.color}
-                      aria-hidden="true"
-                    />
-                    <span class="text-[11px] text-ml-glass-fg/60 font-medium flex-1">Area</span>
+                    <BoxSelect size={12} color={areaResolved ? 'var(--ds-gray-700)' : op.color} aria-hidden="true" />
+                    <span class="text-[12px] text-(--ds-gray-900) font-medium flex-1">Area</span>
                     <DeviceBadge device={op.device} />
                     {areaResolved && <StatusBadge status="resolved" />}
                   </div>
                   {op.comment ? (
                     <p
-                      class="text-[12px] text-ml-glass-fg/80 m-0 line-clamp-2 leading-relaxed"
+                      class="text-[12px] text-(--ds-gray-1000) m-0 line-clamp-2 leading-relaxed"
                       style={{
                         textDecoration: areaResolved ? 'line-through' : 'none',
                         opacity: areaResolved ? 0.5 : 1,
@@ -466,9 +420,9 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                       {op.comment}
                     </p>
                   ) : (
-                    <p class="text-[12px] text-ml-glass-fg/60 m-0 italic">No comment</p>
+                    <p class="text-[12px] text-(--ds-gray-900) m-0">No comment</p>
                   )}
-                  <p class="text-[10px] text-ml-glass-fg/60 m-0 mt-1 tabular-nums">
+                  <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1 tabular-nums">
                     {Math.round(w)} × {Math.round(h)} px
                   </p>
                 </button>
@@ -476,14 +430,14 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   <button
                     type="button"
                     onClick={() => onScrollTo(minX, minY)}
-                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
                   >
                     Go to
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpStatus(op.id, areaResolved ? 'open' : 'resolved')}
-                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
                   >
                     {areaResolved ? 'Reopen' : 'Resolve'}
                   </button>
@@ -496,34 +450,37 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
             const { op } = item;
             const firstRect = op.rects[0];
             const selResolved = op.status === 'resolved';
+            const SelIcon = op.suggestion ? Replace : TextSelect;
             return (
-              <div key={op.id} class="border-b border-ml-glass-fg/[0.06]">
+              <div key={op.id} class="border-b border-(--ds-gray-alpha-400)">
                 <button
                   type="button"
                   class="w-full text-left px-4 py-3
                          bg-transparent cursor-pointer transition-colors duration-100
-                         hover:bg-ml-glass-accent/[0.04]"
+                         hover:bg-(--ds-gray-alpha-100)"
                   onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
                 >
                   <div class="flex items-center gap-2 mb-1">
-                    <TextSelect
-                      size={12}
-                      color={selResolved ? 'var(--color-ml-resolved)' : op.color}
-                      aria-hidden="true"
-                    />
-                    <span class="text-[11px] text-ml-glass-fg/60 font-medium flex-1">Selection</span>
+                    <SelIcon size={12} color={selResolved ? 'var(--ds-gray-700)' : op.color} aria-hidden="true" />
+                    <span class="text-[12px] text-(--ds-gray-900) font-medium flex-1">
+                      {op.suggestion ? 'Text edit' : 'Selection'}
+                    </span>
                     <DeviceBadge device={op.device} />
                     {selResolved && <StatusBadge status="resolved" />}
                   </div>
-                  <p
-                    class="text-[12px] text-ml-glass-fg/60 m-0 line-clamp-2 leading-relaxed italic"
-                    style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
-                  >
-                    "{op.text}"
-                  </p>
+                  {op.suggestion ? (
+                    <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={selResolved} />
+                  ) : (
+                    <p
+                      class="text-[12px] text-(--ds-gray-900) m-0 line-clamp-2 leading-relaxed"
+                      style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
+                    >
+                      "{op.text}"
+                    </p>
+                  )}
                   {op.comment && (
                     <p
-                      class="text-[11px] text-ml-glass-fg/60 m-0 mt-1 line-clamp-1"
+                      class="text-[12px] text-(--ds-gray-900) m-0 mt-1 line-clamp-1"
                       style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
                     >
                       {op.comment}
@@ -534,14 +491,14 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   <button
                     type="button"
                     onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
-                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-accent bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
                   >
                     Go to
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpStatus(op.id, selResolved ? 'open' : 'resolved')}
-                    class="text-[10px] text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
                   >
                     {selResolved ? 'Reopen' : 'Resolve'}
                   </button>
@@ -555,14 +512,14 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
             <button
               key={op.id}
               type="button"
-              class="w-full text-left px-4 py-3 border-b border-ml-glass-fg/[0.06]
+              class="w-full text-left px-4 py-3 border-b border-(--ds-gray-alpha-400)
                      bg-transparent cursor-pointer transition-colors duration-100
-                     hover:bg-ml-glass-accent/[0.04]"
+                     hover:bg-(--ds-gray-alpha-100)"
               onClick={() => onScrollTo(op.x, op.y)}
             >
               <div class="flex items-center gap-2 mb-1">
                 <Type size={12} color={op.color} aria-hidden="true" />
-                <span class="text-[11px] text-ml-glass-fg/60 font-medium flex-1">Text</span>
+                <span class="text-[12px] text-(--ds-gray-900) font-medium flex-1">Text</span>
                 <DeviceBadge device={op.device} />
               </div>
               <p class="text-[12px] m-0 line-clamp-2 leading-relaxed" style={{ color: op.color }}>
@@ -576,7 +533,17 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   );
 }
 
-export const PANEL_BASE = cn(glass.surface, 'flex flex-col overflow-hidden');
+export const PANEL_BASE = cn(geist.surface, 'flex flex-col overflow-hidden');
+
+/**
+ * The desktop panels as flush sidebars: square, hard against the window edge, and
+ * separated from the frame by one inner hairline rather than an all-round shadow —
+ * a panel welded to an edge has no side for a shadow to fall on. Layered above the
+ * toolbar (z-2147483646) so a sidebar covers it instead of being covered by it.
+ */
+export const PANEL_SIDEBAR = cn(
+  'absolute inset-y-0 z-2147483647 flex flex-col overflow-hidden bg-(--ds-background-100)',
+);
 export const PANEL_TRANSITION = 'transition-[opacity,translate] duration-300 ease-ml-spring';
 
 /** Width of the docked variant, and the `m-3` gutters around it. The viewer subtracts
@@ -601,7 +568,7 @@ export function DockedPanel({
   return (
     <div
       class={cn(
-        'shrink-0 m-3 rounded-2xl',
+        'shrink-0 m-3 rounded-xl',
         PANEL_TRANSITION,
         PANEL_BASE,
         visible ? 'opacity-100' : 'opacity-0 !mx-0 !p-0 !border-0',
@@ -618,9 +585,9 @@ export function AnnotationPanel(props: BodyProps) {
   return (
     <div
       class={cn(
-        'absolute top-3 right-3 bottom-3 w-[340px] z-40',
+        PANEL_SIDEBAR,
+        'right-0 w-[340px] border-l border-(--ds-gray-alpha-400)',
         PANEL_TRANSITION,
-        PANEL_BASE,
         visible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none',
       )}
     >

@@ -1,23 +1,27 @@
+import { Menu } from '@base-ui/react/menu';
+import { Toggle } from '@base-ui/react/toggle';
+import { ToggleGroup } from '@base-ui/react/toggle-group';
+import { Avatar } from '@ext/components/Avatar';
 import { ContextMenu } from '@ext/components/ContextMenu';
 import { PanLayer } from '@ext/components/PanLayer';
+import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
 import { Tooltip } from '@ext/components/Tooltip';
 import { captureScale } from '@ext/lib/anchor';
 import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze';
+import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
 import { captureTarget } from '@ext/lib/selector';
 import { claudeMcpCommand, HOW_IT_WORKS_URL, isLikelyEmbedHostile, npxMcpCommand } from '@ext/lib/share';
 import {
   activeTool,
-  altHeld,
   areas,
-  bindHeldModifierRelease,
+  bindFigmaKeys,
   color,
   comments as commentsComputed,
   copyText,
   cycleTheme,
-  duplicateLastOp,
   FREEHAND,
   handTool,
   isDrawingActive,
@@ -36,16 +40,12 @@ import {
   setUserName,
   showAnnotationPanel,
   showShareDialog,
-  spaceHeld,
-  TOOL_SHORTCUTS,
   theme,
   toast,
-  toasts,
-  toggleToolbarMinimized,
   undo,
   undoRedoFlash,
 } from '@ext/lib/state';
-import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
+import type { DeviceMode, FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
 import { cn, RETENTION_DAYS } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
@@ -63,12 +63,10 @@ import {
   MessageSquare,
   Mic,
   MicOff,
-  Monitor,
+  MonitorCog,
   Moon,
   PenTool,
-  Smartphone,
   Sun,
-  Tablet,
   Timer,
   Upload,
   Users,
@@ -77,8 +75,9 @@ import {
   X,
 } from 'lucide-preact';
 import { nanoid } from 'nanoid';
+import type { ComponentChildren, RefObject } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
-import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { classifyProxyError } from '../src/proxy-errors';
 import {
@@ -87,14 +86,14 @@ import {
   DOCKED_ANNOTATION_WIDTH,
   DockedAnnotationPanel,
   DockedPanel,
-  PANEL_BASE,
+  PANEL_SIDEBAR,
   PANEL_TRANSITION,
 } from './AnnotationPanel';
 import { capture } from './analytics';
 import { CursorLayer } from './CursorLayer';
 import { frameViewport, isElementNode, pickFrameTarget } from './iframeOverlay';
 import { ProjectTabs } from './ProjectTabs';
-import { Logo, TextInputOverlay } from './shared';
+import { DEVICE_ICONS, Logo, TextInputOverlay } from './shared';
 import {
   API_BASE,
   annotationId,
@@ -192,10 +191,10 @@ function zoomLabel(z: ViewerZoom): string {
 function InfoRow({ icon: Icon, label, value }: { icon: typeof Info; label: string; value: string }) {
   return (
     <div class="flex items-start gap-3 py-2">
-      <Icon size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
+      <Icon size={14} strokeWidth={1.5} class="text-(--ds-gray-900) shrink-0 mt-0.5" aria-hidden="true" />
       <div class="flex-1 min-w-0">
-        <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">{label}</div>
-        <div class="text-[12.5px] text-ml-glass-fg/70 mt-0.5 break-all">{value}</div>
+        <div class="text-[12px] text-(--ds-gray-900)">{label}</div>
+        <div class="text-[13px] text-(--ds-gray-1000) mt-0.5 break-all">{value}</div>
       </div>
     </div>
   );
@@ -216,12 +215,12 @@ function CommandField({ label, value }: { label: string; value: string }) {
       title="Click to copy"
       aria-label={`Copy ${label}`}
       class="w-full flex items-start gap-1.5 text-left px-2 py-1.5 rounded-lg cursor-pointer
-             bg-ml-glass-fg/[0.04] border border-ml-glass-fg/[0.08] text-ml-glass-fg/75
-             hover:text-ml-glass-fg hover:bg-ml-glass-fg/[0.07] transition-colors duration-150"
+             bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) text-(--ds-gray-1000)
+             hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) transition-colors duration-150"
     >
       {/* Wrap at spaces, never mid-token: `break-all` split "npx" across lines,
           which makes the command unreadable and unverifiable before pasting. */}
-      <code class="flex-1 min-w-0 font-mono text-[11px] leading-normal whitespace-pre-wrap wrap-break-word">
+      <code class="flex-1 min-w-0 font-mono text-[12px] leading-normal whitespace-pre-wrap wrap-break-word">
         {value}
       </code>
       {/* mt centers the 11px glyph on the 16.5px first line box, not on the block */}
@@ -230,7 +229,7 @@ function CommandField({ label, value }: { label: string; value: string }) {
       {copied.value ? (
         <Check size={11} class="shrink-0 mt-0.75" aria-hidden="true" />
       ) : (
-        <Copy size={11} class="shrink-0 mt-0.75 opacity-80" aria-hidden="true" />
+        <Copy size={12} strokeWidth={1.5} class="shrink-0 mt-0.5 text-(--ds-gray-900)" aria-hidden="true" />
       )}
     </button>
   );
@@ -254,12 +253,12 @@ function InfoPanelBody() {
 
   return (
     <>
-      <div class="px-4 py-3 border-b border-ml-glass-fg/[0.1] shrink-0 flex items-center justify-between">
-        <h2 class="text-[13px] font-semibold text-ml-glass-fg/80 m-0">Annotation Info</h2>
+      <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400) shrink-0 flex items-center justify-between">
+        <h2 class="text-[13px] font-semibold tracking-[-0.01em] text-(--ds-gray-1000) m-0">Annotation info</h2>
         <button
           type="button"
           onClick={() => (showInfoPanel.value = false)}
-          class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer bg-transparent border-none text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1] active:scale-[0.96] transition-[color,background-color,scale] duration-150"
+          class="w-7 h-7 rounded-xl grid place-items-center cursor-pointer bg-transparent border-none text-(--ds-gray-900) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) transition-[color,background-color] duration-150"
         >
           <X size={14} aria-hidden="true" />
         </button>
@@ -286,17 +285,12 @@ function InfoPanelBody() {
           }
         />
         <div class="flex items-start gap-3 py-2">
-          <Users size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
+          <Users size={14} class="text-(--ds-gray-900) shrink-0 mt-0.5" aria-hidden="true" />
           <div class="flex-1 min-w-0">
-            <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">Session</div>
+            <div class="text-[12px] text-(--ds-gray-900) font-medium">Session</div>
             <div class="flex items-center gap-2 mt-0.5">
-              <span
-                class={cn(
-                  'w-1.5 h-1.5 rounded-full shrink-0',
-                  isConnected ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.5)]' : 'bg-ml-glass-fg/20',
-                )}
-              />
-              <span class="text-[12.5px] text-ml-glass-fg/70">
+              <PresenceDot live={isConnected} />
+              <span class="text-[13px] text-(--ds-gray-1000)">
                 {isConnected ? `Connected · ${online} online` : 'Offline'}
               </span>
             </div>
@@ -305,14 +299,14 @@ function InfoPanelBody() {
         <InfoRow icon={readonly ? Lock : Upload} label="Access" value={readonly ? 'Read-only' : 'Editable'} />
         {url && (
           <div class="flex items-start gap-3 py-2">
-            <Link size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
+            <Link size={14} class="text-(--ds-gray-900) shrink-0 mt-0.5" aria-hidden="true" />
             <div class="flex-1 min-w-0">
-              <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">Page URL</div>
+              <div class="text-[12px] text-(--ds-gray-900) font-medium">Page URL</div>
               <a
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer"
-                class="text-[12.5px] text-ml-glass-fg/60 hover:text-ml-glass-fg/80 mt-0.5 break-all no-underline hover:underline block transition-colors"
+                class="text-[13px] text-(--ds-gray-1000) mt-0.5 break-all no-underline hover:underline block transition-colors"
               >
                 {url}
               </a>
@@ -321,17 +315,17 @@ function InfoPanelBody() {
         )}
         {id && (
           <div class="flex items-start gap-3 py-2">
-            <Hash size={14} class="text-ml-glass-fg/60 shrink-0 mt-0.5" aria-hidden="true" />
+            <Hash size={14} class="text-(--ds-gray-900) shrink-0 mt-0.5" aria-hidden="true" />
             <div class="flex-1 min-w-0">
-              <div class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">ID</div>
+              <div class="text-[12px] text-(--ds-gray-900) font-medium">ID</div>
               <button
                 type="button"
-                class="flex items-center gap-1.5 text-[12.5px] text-ml-glass-fg/60 hover:text-ml-glass-fg/80 mt-0.5 bg-transparent border-none cursor-pointer p-0 font-mono transition-colors"
-                onClick={() => copyText(id, 'ID copied!')}
+                class="flex items-center gap-1.5 text-[13px] text-(--ds-gray-1000) mt-0.5 bg-transparent border-none cursor-pointer p-0 font-mono transition-colors"
+                onClick={() => copyText(id, 'ID copied')}
                 title="Click to copy"
               >
                 {id}
-                <Copy size={11} class="shrink-0 opacity-80" aria-hidden="true" />
+                <Copy size={12} strokeWidth={1.5} class="shrink-0 text-(--ds-gray-900)" aria-hidden="true" />
               </button>
             </div>
           </div>
@@ -341,26 +335,24 @@ function InfoPanelBody() {
             read-only is a viewer-side flag and does not stop an agent writing. */}
         {id && (
           <>
-            <div class="h-px bg-ml-glass-fg/[0.06] my-2" />
+            <div class={cn(geist.divider, 'my-3')} />
             <div>
               <div class="flex items-center gap-2 mb-2">
-                <Bot size={14} class="text-ml-glass-fg/60" aria-hidden="true" />
-                <span class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">
-                  Connect an AI agent
-                </span>
+                <Bot size={14} class="text-(--ds-gray-900)" aria-hidden="true" />
+                <span class="text-[12px] text-(--ds-gray-900) font-medium">Connect an AI agent</span>
               </div>
               <div class="pl-[26px] flex flex-col gap-1.5">
-                <p class="text-[11.5px] text-ml-glass-fg/60 leading-snug m-0">
+                <p class="text-[12px] text-(--ds-gray-900) leading-snug m-0">
                   An agent can work these annotations and resolve them here, live. Run once in your project:
                 </p>
                 <CommandField label="Claude Code command" value={claudeMcpCommand(id)} />
-                <details class="text-[11px] text-ml-glass-fg/60">
-                  <summary class="cursor-pointer select-none hover:text-ml-glass-fg/70 transition-colors duration-150">
+                <details class="text-[12px] text-(--ds-gray-900)">
+                  <summary class="cursor-pointer select-none hover:text-(--ds-gray-900) transition-colors duration-150">
                     Cursor, Codex, Windsurf…
                   </summary>
                   <div class="mt-1.5 flex flex-col gap-1.5">
                     <CommandField label="npx command" value={npxMcpCommand(id)} />
-                    <p class="text-[10.5px] text-ml-glass-fg/60 leading-snug m-0">
+                    <p class="text-[12px] text-(--ds-gray-900) leading-snug m-0">
                       Paste into your MCP config under a "marklayer" entry.
                     </p>
                   </div>
@@ -369,33 +361,31 @@ function InfoPanelBody() {
             </div>
           </>
         )}
-        {ops.length > 0 && <div class="h-px bg-ml-glass-fg/[0.06] my-2" />}
+        {ops.length > 0 && <div class={cn(geist.divider, 'my-3')} />}
         {ops.length > 0 && (
           <div>
             <div class="flex items-center gap-2 mb-2">
-              <PenTool size={14} class="text-ml-glass-fg/60" aria-hidden="true" />
-              <span class="text-[10px] text-ml-glass-fg/60 font-medium uppercase tracking-wider">
-                Annotations ({ops.length})
-              </span>
+              <PenTool size={14} class="text-(--ds-gray-900)" aria-hidden="true" />
+              <span class="text-[12px] text-(--ds-gray-900) font-medium">Annotations ({ops.length})</span>
             </div>
             <div class="grid grid-cols-2 gap-x-4 gap-y-1 pl-[26px]">
               {Array.from(toolCounts.entries())
                 .sort((a, b) => b[1] - a[1])
                 .map(([tool, count]) => (
                   <div key={tool} class="flex items-center justify-between">
-                    <span class="text-[11.5px] text-ml-glass-fg/60">{TOOL_LABELS[tool] || tool}</span>
-                    <span class="text-[11.5px] text-ml-glass-fg/60 tabular-nums">{count}</span>
+                    <span class="text-[12px] text-(--ds-gray-900)">{TOOL_LABELS[tool] || tool}</span>
+                    <span class="text-[12px] text-(--ds-gray-900) tabular-nums">{count}</span>
                   </div>
                 ))}
             </div>
           </div>
         )}
-        <div class="h-px bg-ml-glass-fg/[0.06] my-2" />
+        <div class={cn(geist.divider, 'my-3')} />
         <a
           href={HOW_IT_WORKS_URL}
           target="_blank"
           rel="noopener"
-          class="block text-[11.5px] text-ml-glass-fg/60 hover:text-ml-glass-fg/80 no-underline hover:underline transition-colors"
+          class="block text-[12px] text-(--ds-gray-900) hover:text-(--ds-gray-1000) no-underline hover:underline transition-colors"
         >
           How MarkLayer works
         </a>
@@ -412,9 +402,9 @@ function InfoPanel() {
   return (
     <div
       class={cn(
-        'absolute top-3 left-3 bottom-3 z-40',
+        PANEL_SIDEBAR,
+        'left-0 border-r border-(--ds-gray-alpha-400)',
         PANEL_TRANSITION,
-        PANEL_BASE,
         showInfoPanel.value ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none',
       )}
       style={{ width: INFO_PANEL_WIDTH }}
@@ -452,6 +442,377 @@ const AVATAR_FALLOFF = 0.35;
 // at index 0, so the overflow badge lands at MAX_VISIBLE_PEERS + 1 in the group.
 const MAX_VISIBLE_PEERS = 3;
 
+/* ── Top bar ──
+   Each control below owns the signals it reads, so the bar itself is a
+   composition rather than a render with a dozen flags threaded through it. */
+
+/** Presence: a solid dot in a ring of its own colour, never a glow. */
+function PresenceDot({ live }: { live: boolean }) {
+  return (
+    <span
+      class="w-1.5 h-1.5 rounded-full shrink-0"
+      style={
+        live
+          ? {
+              background: 'var(--ds-green-700)',
+              boxShadow: '0 0 0 3px color-mix(in oklab, var(--ds-green-700) 20%, transparent)',
+            }
+          : { background: 'var(--ds-gray-700)' }
+      }
+    />
+  );
+}
+
+/** Icon control in the bar. `on` is the control's state, not a style variant. */
+function BarButton({
+  icon,
+  tip,
+  onClick,
+  on,
+  disabled,
+}: {
+  icon: ComponentChildren;
+  tip: string;
+  onClick: () => void;
+  on?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={tip}
+      class={cn(geist.ctl, on ? geist.ctlOn : geist.ctlIdle, disabled && 'opacity-50 pointer-events-none')}
+    >
+      {icon}
+      <Tooltip text={tip} placement="bottom" />
+    </button>
+  );
+}
+
+function BrandLink() {
+  return (
+    <a
+      href="/"
+      class={cn(
+        'flex items-center gap-1.5 h-8 px-2 rounded-md no-underline shrink-0 cursor-pointer',
+        'hover:bg-(--ds-gray-alpha-100) transition-colors duration-150',
+      )}
+    >
+      <Logo size={20} />
+      <span class="text-[13px] font-semibold tracking-[-0.01em] text-(--ds-gray-1000)">MarkLayer</span>
+    </a>
+  );
+}
+
+/** The page being annotated: editable, Enter to navigate, click the icon to copy. */
+function UrlField() {
+  return (
+    <div class={cn(geist.field, 'flex-1 min-w-0 flex items-center gap-2 px-2.5')}>
+      <Link
+        size={14}
+        strokeWidth={1.5}
+        class="text-(--ds-gray-900) shrink-0 cursor-pointer hover:text-(--ds-gray-1000) transition-colors duration-150"
+        aria-label="Copy URL"
+        onClick={() => copyText(pageUrl.value, 'URL copied')}
+      />
+      <input
+        name="pageUrl"
+        type="text"
+        defaultValue={pageUrl.value}
+        class={cn(geist.input, 'flex-1 truncate cursor-text')}
+        title="Edit URL and press Enter to navigate"
+        onKeyDown={(e) => {
+          if (e.key !== 'Enter') return;
+          let url = e.currentTarget.value.trim();
+          if (!url) return;
+          if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+          navigateTo(url);
+        }}
+        onFocus={(e) => e.currentTarget.select()}
+      />
+    </div>
+  );
+}
+
+const VIEWPORTS = ['desktop', 'tablet', 'mobile'] as const;
+const viewportLabel = (m: DeviceMode) => `${m.charAt(0).toUpperCase() + m.slice(1)} viewport`;
+
+function ViewportToggle({ mode }: { mode: DeviceMode }) {
+  const Icon = DEVICE_ICONS[mode];
+  const label = viewportLabel(mode);
+  return (
+    <Toggle value={mode} aria-label={label} className={geist.segment}>
+      <Icon size={15} strokeWidth={1.5} aria-hidden="true" />
+      <Tooltip text={label} placement="bottom" />
+    </Toggle>
+  );
+}
+
+/** Mutually exclusive views, so the selection reads as a panel raised off a track. */
+function ViewportSwitcher() {
+  return (
+    <ToggleGroup
+      value={[deviceMode.value]}
+      onValueChange={(next: DeviceMode[]) => {
+        // One viewport is always shown, so an empty selection holds the current one.
+        if (next[0]) deviceMode.value = next[0];
+      }}
+      aria-label="Viewport"
+      className={geist.track}
+    >
+      {VIEWPORTS.map((mode) => (
+        <ViewportToggle key={mode} mode={mode} />
+      ))}
+    </ToggleGroup>
+  );
+}
+
+function ZoomMenu({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  return (
+    <Menu.Root open={open} onOpenChange={onOpenChange}>
+      <Menu.Trigger
+        className={cn(
+          geist.ctl,
+          geist.ctlIdle,
+          'w-auto min-w-16 gap-1 px-2 text-[12px] font-medium tabular-nums',
+          'data-popup-open:bg-(--ds-gray-alpha-100) data-popup-open:text-(--ds-gray-1000)',
+        )}
+      >
+        {zoomLabel(viewerZoom.value)}
+        <ChevronDown size={12} strokeWidth={1.5} aria-hidden="true" />
+        <Tooltip text="Zoom" placement="bottom" />
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner
+          positionMethod="fixed"
+          side="bottom"
+          align="end"
+          sideOffset={6}
+          collisionPadding={8}
+          className="z-2147483647 outline-none"
+        >
+          <Menu.Popup className={cn(geist.surface, glass.font, 'min-w-32 p-1')}>
+            <Menu.RadioGroup
+              value={viewerZoom.value}
+              onValueChange={(next: ViewerZoom) => {
+                viewerZoom.value = next;
+              }}
+            >
+              {ZOOM_PRESETS.map((preset) => (
+                <Menu.RadioItem
+                  key={String(preset.value)}
+                  value={preset.value}
+                  closeOnClick
+                  className={cn(
+                    'flex items-center justify-between gap-3 h-8 px-2 rounded-md cursor-pointer outline-none',
+                    'text-[13px] tabular-nums text-(--ds-gray-1000)',
+                    'transition-colors duration-100 data-highlighted:bg-(--ds-gray-alpha-100)',
+                  )}
+                >
+                  {preset.label}
+                  <Menu.RadioItemIndicator className="inline-flex text-(--ds-gray-900)">
+                    <Check size={14} strokeWidth={1.5} aria-hidden="true" />
+                  </Menu.RadioItemIndicator>
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}
+
+function PresenceGroup({
+  groupRef,
+  onAvatarEnter,
+  onLeave,
+}: {
+  groupRef: RefObject<HTMLDivElement>;
+  onAvatarEnter: (index: number) => void;
+  onLeave: () => void;
+}) {
+  const visible = Array.from(peers.value.values()).slice(0, MAX_VISIBLE_PEERS);
+  const overflow = peers.value.size - MAX_VISIBLE_PEERS;
+  // The stack overlaps, so whoever is hovered has to come to the front —
+  // otherwise the neighbour on top clips the name you are reaching for.
+  const [hovered, setHovered] = useState<number | null>(null);
+  const enter = (index: number) => () => {
+    setHovered(index);
+    onAvatarEnter(index);
+  };
+  const zOf = (index: number, base: number) => (hovered === index ? peers.value.size + 10 : base);
+
+  return (
+    <div
+      ref={groupRef}
+      class="flex items-center -space-x-2 mr-1"
+      onMouseLeave={() => {
+        setHovered(null);
+        onLeave();
+      }}
+    >
+      <Avatar
+        name={localUser.name}
+        color={color.value}
+        stacked
+        style={{ zIndex: zOf(0, peers.value.size + 1) }}
+        onMouseEnter={enter(0)}
+      />
+      {visible.map((p, i) => (
+        <Avatar
+          key={p.id}
+          name={p.name}
+          color={p.color}
+          stacked
+          dim={p.cursor == null}
+          title={p.cursor != null ? p.name : `${p.name} (inactive)`}
+          style={{ zIndex: zOf(i + 1, peers.value.size - i) }}
+          onMouseEnter={enter(i + 1)}
+          onClick={() => {
+            if (p.cursor) onFollowScroll.value?.(p.cursor.y);
+          }}
+        />
+      ))}
+      {overflow > 0 && (
+        <div
+          class="ml-avatar w-6 h-6 rounded-full grid place-items-center shrink-0 bg-(--ds-gray-100) text-(--ds-gray-900) text-[12px] font-medium tabular-nums"
+          style={{
+            boxShadow: '0 0 0 1.5px var(--ds-gray-alpha-400), 0 0 0 3px var(--ds-background-100)',
+            zIndex: zOf(MAX_VISIBLE_PEERS + 1, 0),
+          }}
+          onMouseEnter={enter(MAX_VISIBLE_PEERS + 1)}
+        >
+          +{overflow}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NameField() {
+  return (
+    <input
+      name="displayName"
+      type="text"
+      defaultValue={localUser.name}
+      maxLength={24}
+      class={cn(
+        geist.input,
+        'w-28 h-8 px-2 rounded-md truncate cursor-text',
+        'border border-transparent transition-[border-color,background-color] duration-150',
+        'hover:bg-(--ds-gray-alpha-100) focus:bg-(--ds-background-100) focus:border-(--ds-gray-700)',
+      )}
+      title="Click to edit your name"
+      onBlur={(e) => {
+        setUserName(e.currentTarget.value);
+        e.currentTarget.value = localUser.name;
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur();
+      }}
+    />
+  );
+}
+
+function VoiceControls() {
+  if (!voiceActive.value) {
+    return (
+      <div class="flex items-center gap-0.5">
+        <BarButton
+          icon={<Mic size={16} strokeWidth={1.5} aria-hidden="true" />}
+          tip="Join voice"
+          onClick={() => {
+            voiceActive.value = true;
+          }}
+        />
+        <Suspense fallback={null}>
+          <DeviceMenu hasPermission={false} />
+        </Suspense>
+      </div>
+    );
+  }
+  return (
+    <div class="flex items-center gap-0.5">
+      <BarButton
+        icon={
+          voiceMuted.value ? (
+            <MicOff size={16} strokeWidth={1.5} aria-hidden="true" />
+          ) : (
+            <Mic size={16} strokeWidth={1.5} aria-hidden="true" />
+          )
+        }
+        tip={voiceMuted.value ? 'Unmute' : 'Mute'}
+        on={!voiceMuted.value}
+        onClick={() => {
+          voiceMuted.value = !voiceMuted.value;
+        }}
+      />
+      <BarButton
+        icon={
+          videoActive.value ? (
+            <Video size={16} strokeWidth={1.5} aria-hidden="true" />
+          ) : (
+            <VideoOff size={16} strokeWidth={1.5} aria-hidden="true" />
+          )
+        }
+        tip={videoActive.value ? 'Turn off camera' : 'Turn on camera'}
+        on={videoActive.value}
+        onClick={() => {
+          videoActive.value = !videoActive.value;
+        }}
+      />
+      <Suspense fallback={null}>
+        <DeviceMenu hasPermission />
+      </Suspense>
+    </div>
+  );
+}
+
+function ConnectionStatus() {
+  const live = connected.value;
+  return (
+    <div class="flex items-center gap-2 h-8 px-1.5 shrink-0">
+      <PresenceDot live={live} />
+      <span class={cn(geist.meta, 'text-[12px] font-medium tabular-nums whitespace-nowrap')}>
+        {live ? `${peerCount.value} online` : 'offline'}
+      </span>
+    </div>
+  );
+}
+
+function ShareButton({ onShare }: { onShare: () => void }) {
+  return (
+    <BarButton
+      icon={<Upload size={16} strokeWidth={1.5} aria-hidden="true" />}
+      tip="Copy editable link"
+      onClick={onShare}
+      disabled={sharing.value}
+    />
+  );
+}
+
+function ThemeButton() {
+  const t = theme.value;
+  return (
+    <BarButton
+      icon={
+        t === 'system' ? (
+          <MonitorCog size={16} strokeWidth={1.5} aria-hidden="true" />
+        ) : t === 'dark' ? (
+          <Moon size={16} strokeWidth={1.5} aria-hidden="true" />
+        ) : (
+          <Sun size={16} strokeWidth={1.5} aria-hidden="true" />
+        )
+      }
+      tip={`Theme: ${t === 'system' ? 'System' : t === 'dark' ? 'Dark' : 'Light'}`}
+      onClick={cycleTheme}
+    />
+  );
+}
+
 export default function Viewer() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const iframeLoaded = useSignal(false);
@@ -460,7 +821,6 @@ export default function Viewer() {
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const zoomMenuOpen = useSignal(false);
-  const zoomRef = useRef<HTMLDivElement>(null);
   const drawingRef = useRef(false);
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
@@ -508,29 +868,24 @@ export default function Viewer() {
   useRealtimeSync(annotationId.value);
   const voiceMounted = voiceActive.value || videoActive.value;
 
-  // Close zoom menu when clicking outside.
-  // Re-runs when iframeLoaded flips so we also catch clicks inside the iframe document,
-  // which don't bubble to the host document.
+  // The zoom menu dismisses itself on any outside pointerdown in our document —
+  // but a click inside the previewed page is inside an iframe, and never reaches
+  // us. Re-runs when iframeLoaded flips so it reattaches after each (re)load.
   useSignalEffect(() => {
     if (!zoomMenuOpen.value) return;
     iframeLoaded.value; // subscribe so we reattach after iframe (re)loads
-    const onDown = (e: MouseEvent) => {
-      const t = e.target;
-      if (!(t instanceof Node) || !zoomRef.current?.contains(t)) zoomMenuOpen.value = false;
+    const close = () => {
+      zoomMenuOpen.value = false;
     };
-    document.addEventListener('mousedown', onDown);
-    const iframeWin = frameRef.current?.contentWindow;
-    let iframeAttached: Window | null = null;
+    const win = frameRef.current?.contentWindow;
     try {
-      iframeWin?.addEventListener('mousedown', onDown);
-      iframeAttached = iframeWin ?? null;
+      win?.addEventListener('mousedown', close);
     } catch {
-      /* cross-origin iframe — host listener still works for toolbar clicks */
+      return; // cross-origin — nothing to attach, and nothing to clean up
     }
     return () => {
-      document.removeEventListener('mousedown', onDown);
       try {
-        iframeAttached?.removeEventListener('mousedown', onDown);
+        win?.removeEventListener('mousedown', close);
       } catch {
         /* ignore */
       }
@@ -649,7 +1004,7 @@ export default function Viewer() {
         });
         if (blob) {
           downloadBlob(blob);
-          toast('PNG exported!', 'success');
+          toast('PNG exported', 'success');
         } else {
           fallbackToCanvas();
         }
@@ -825,25 +1180,10 @@ export default function Viewer() {
         e.preventDefault();
         redo();
       }),
-      '$mod+KeyD': guard((e) => {
-        e.preventDefault();
-        duplicateLastOp();
-      }),
       '$mod+Equal': viewKeyPD(() => stepZoom(1)),
       '$mod+Minus': viewKeyPD(() => stepZoom(-1)),
       '$mod+Digit0': viewKeyPD(() => {
         viewerZoom.value = 'auto';
-      }),
-      // Figma's ⌘\ — hide the chrome, keep the annotations on screen.
-      '$mod+Backslash': viewKeyPD(() => toggleToolbarMinimized()),
-      KeyH: viewKeyPD(() => {
-        handTool.value = !handTool.value;
-      }),
-      Space: viewKeyPD(() => {
-        spaceHeld.value = true;
-      }),
-      Alt: viewKey(() => {
-        altHeld.value = true;
       }),
       Escape: (e) => {
         if (isReadonly.value) return;
@@ -875,17 +1215,11 @@ export default function Viewer() {
         e.preventDefault();
       },
     };
-    for (const { tool, pattern } of TOOL_SHORTCUTS) {
-      bindings[pattern] = guard((e) => {
-        activeTool.value = tool;
-        e.preventDefault();
-      });
-    }
     const unbind = tinykeys(window, bindings);
-    const unbindRelease = bindHeldModifierRelease(window);
+    const unbindFigma = bindFigmaKeys({ target: window, guard, viewGuard: viewKey });
     return () => {
       unbind();
-      unbindRelease();
+      unbindFigma();
     };
   }, []);
 
@@ -906,7 +1240,7 @@ export default function Viewer() {
       if (opts?.readonly) shareUrl += '?readonly=1';
       try {
         await navigator.clipboard.writeText(shareUrl);
-        toast('Project link copied!', 'success');
+        toast('Project link copied', 'success');
       } catch {
         toast('Failed to copy link', 'error');
       } finally {
@@ -924,7 +1258,7 @@ export default function Viewer() {
     let shareUrl = `${location.origin}/s/${id}`;
     if (opts?.readonly) shareUrl += '?readonly=1';
     await navigator.clipboard.writeText(shareUrl);
-    toast('Link copied!', 'success');
+    toast('Link copied', 'success');
 
     // Save to server in the background
     try {
@@ -936,6 +1270,7 @@ export default function Viewer() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
+      capture('share_created', { readonly: Boolean(opts?.readonly), ops: operations.value.length });
     } catch {
       toast('Failed to save — link may not work', 'error');
     } finally {
@@ -1317,7 +1652,7 @@ export default function Viewer() {
       rects,
       screenX: fromIframe && ir ? last.right * cs + ir.left : last.right,
       screenY: fromIframe && ir ? last.bottom * cs + ir.top : last.bottom,
-      target: el && first ? captureTarget(el, { x: first.x, y: first.y }) : undefined,
+      target: el && first ? captureTarget({ el, anchor: { x: first.x, y: first.y }, selectedText: text }) : undefined,
       captureViewport: frameViewport(frameRef.current),
     };
   }, []);
@@ -1389,7 +1724,7 @@ export default function Viewer() {
         style={{ background: 'var(--color-ml-bg)' }}
       >
         <Logo size={48} />
-        <h1 class="text-[24px] font-bold text-ml-fg mt-6 mb-2">Desktop only</h1>
+        <h1 class="text-[24px] font-semibold tracking-[-0.02em] text-ml-fg mt-6 mb-2">Desktop only</h1>
         <p class="text-[15px] text-ml-fg/60 max-w-[320px] leading-relaxed mb-8">
           Annotation tools require a desktop browser. Open this link on your computer to view and collaborate.
         </p>
@@ -1413,7 +1748,7 @@ export default function Viewer() {
       {/* Mobile gate */}
       <div class="md:hidden fixed inset-0 z-2147483647 bg-ml-bg flex flex-col items-center justify-center px-8 text-center font-['Geist',system-ui,sans-serif]">
         <Logo size={48} />
-        <h2 class="text-[22px] font-bold text-ml-fg mt-6 mb-3 tracking-[-0.02em]">Desktop only</h2>
+        <h2 class="text-[22px] font-semibold text-ml-fg mt-6 mb-3 tracking-[-0.02em]">Desktop only</h2>
         <p class="text-[16px] text-ml-fg/60 leading-relaxed max-w-[300px] mb-8">
           MarkLayer's annotation tools are designed for desktop screens. Open this link on your computer.
         </p>
@@ -1423,547 +1758,285 @@ export default function Viewer() {
       </div>
 
       {/* Top bar */}
-      <div class="flex items-center gap-3 px-4 h-[48px] z-50 shrink-0 bg-[var(--ml-glass-bg)] backdrop-blur-[80px] backdrop-saturate-[1.9] backdrop-brightness-[1.1] shadow-[0_1px_3px_oklch(0_0_0/0.08)]">
-        <a
-          href="/"
-          class="flex items-center gap-1 no-underline shrink-0 group cursor-pointer rounded-lg px-2 py-1 -ml-2 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150"
-        >
-          <Logo size={24} />
-          <span class="text-[14px] font-semibold text-ml-glass-fg">MarkLayer</span>
-        </a>
-
-        <div class={glass.sep} />
-
-        {/* URL — editable, Enter to navigate, click icon to copy */}
-        <div class="flex-1 min-w-0 flex items-center gap-2 px-2 rounded-lg py-1 hover:bg-ml-glass-fg/[0.05] transition-colors duration-150">
-          <Link
-            size={16}
-            class="text-ml-glass-fg/60 shrink-0 cursor-pointer hover:text-ml-glass-fg transition-colors"
-            aria-label="Copy URL"
-            onClick={() => copyText(pageUrl.value, 'URL copied!')}
-          />
-          <input
-            name="pageUrl"
-            type="text"
-            defaultValue={pageUrl.value}
-            class="flex-1 min-w-0 bg-transparent border-none outline-none text-[13.5px] text-ml-glass-fg/75 focus:text-ml-glass-fg truncate cursor-text"
-            title="Edit URL and press Enter to navigate"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                let url = e.currentTarget.value.trim();
-                if (!url) return;
-                if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-                navigateTo(url);
-              }
-            }}
-            onFocus={(e) => e.currentTarget.select()}
-          />
-        </div>
-
-        {/* Info panel toggle */}
-        <button
-          type="button"
+      <div class={cn('flex items-center gap-2 px-3 h-12 z-50 shrink-0', geist.bar)}>
+        <BrandLink />
+        <div class={geist.sep} />
+        <UrlField />
+        <BarButton
+          icon={<Info size={16} strokeWidth={1.5} aria-hidden="true" />}
+          tip="Annotation info"
+          on={showInfoPanel.value}
           onClick={() => (showInfoPanel.value = !showInfoPanel.value)}
-          class={cn(
-            'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] shrink-0',
-            showInfoPanel.value
-              ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-              : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
-          )}
-        >
-          <Info size={16} aria-hidden="true" />
-          <Tooltip text="Annotation info" placement="bottom" />
-        </button>
+        />
+        <div class={geist.sep} />
+        <ViewportSwitcher />
+        <ZoomMenu open={zoomMenuOpen.value} onOpenChange={(next) => (zoomMenuOpen.value = next)} />
+        <div class={geist.sep} />
 
-        <div class={glass.sep} />
-
-        {/* Device viewport picker */}
-        <div class="flex items-center gap-0.5 shrink-0">
-          {(['desktop', 'tablet', 'mobile'] as const).map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => (deviceMode.value = mode)}
-              class={cn(
-                'group relative w-8 h-8 rounded-lg grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
-                deviceMode.value === mode
-                  ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                  : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
-              )}
-            >
-              {mode === 'desktop' && <Monitor size={16} aria-hidden="true" />}
-              {mode === 'tablet' && <Tablet size={16} aria-hidden="true" />}
-              {mode === 'mobile' && <Smartphone size={16} aria-hidden="true" />}
-              <Tooltip text={`${mode.charAt(0).toUpperCase() + mode.slice(1)} viewport`} placement="bottom" />
-            </button>
-          ))}
-        </div>
-
-        {/* Zoom picker */}
-        <div ref={zoomRef} class="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => (zoomMenuOpen.value = !zoomMenuOpen.value)}
-            class={cn(
-              'group relative h-8 px-2 rounded-lg flex items-center gap-1 cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
-              'text-[12px] font-medium tabular-nums min-w-14 justify-center',
-              zoomMenuOpen.value
-                ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
-            )}
-          >
-            {zoomLabel(viewerZoom.value)}
-            <ChevronDown size={12} aria-hidden="true" />
-            <Tooltip text="Zoom" placement="bottom" />
-          </button>
-          {zoomMenuOpen.value && (
-            <div class={cn(glass.surfaceSmall, 'absolute top-full mt-1 right-0 z-10 py-1 min-w-28')}>
-              {ZOOM_PRESETS.map((preset) => (
-                <button
-                  key={String(preset.value)}
-                  type="button"
-                  onClick={() => {
-                    viewerZoom.value = preset.value;
-                    zoomMenuOpen.value = false;
-                  }}
-                  class={cn(
-                    'w-full px-3 py-1.5 text-center text-[12px] font-medium tabular-nums cursor-pointer border-none transition-colors',
-                    viewerZoom.value === preset.value
-                      ? 'bg-ml-glass-accent/[0.10] text-ml-glass-fg'
-                      : 'bg-transparent text-ml-glass-fg/70 hover:bg-ml-glass-accent/[0.08] hover:text-ml-glass-fg',
-                  )}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div class={glass.sep} />
-
-        <div class="flex items-center gap-1.5 shrink-0">
-          {/* Avatar group */}
-          <div ref={avatarGroupRef} class="flex items-center -space-x-2.5 mr-1" onMouseLeave={resetAvatars}>
-            {/* Local user */}
-            <div
-              class="ml-avatar w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center shrink-0 ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-colors duration-150"
-              style={{ background: color.value, zIndex: peers.value.size + 1 }}
-              title={localUser.name}
-              onMouseEnter={() => springAvatars(0)}
-            >
-              {localUser.name
-                .split(' ')
-                .map((w) => w[0])
-                .join('')
-                .slice(0, 2)}
-            </div>
-            {/* Peer avatars */}
-            {Array.from(peers.value.values())
-              .slice(0, MAX_VISIBLE_PEERS)
-              .map((p, i) => {
-                const active = p.cursor != null;
-                return (
-                  <div
-                    key={p.id}
-                    class={cn(
-                      'ml-avatar w-7 h-7 rounded-full text-white text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] shadow-sm transition-opacity duration-200',
-                      active ? 'opacity-100 cursor-pointer' : 'opacity-40 cursor-default',
-                    )}
-                    style={{ background: p.color, zIndex: peers.value.size - i }}
-                    title={active ? p.name : `${p.name} (inactive)`}
-                    onMouseEnter={() => springAvatars(i + 1)}
-                    onClick={() => {
-                      if (p.cursor) onFollowScroll.value?.(p.cursor.y);
-                    }}
-                  >
-                    {p.name
-                      .split(' ')
-                      .map((w) => w[0])
-                      .join('')
-                      .slice(0, 2)}
-                  </div>
-                );
-              })}
-            {peers.value.size > MAX_VISIBLE_PEERS && (
-              <div
-                class="ml-avatar w-7 h-7 rounded-full bg-ml-glass-fg/10 text-ml-glass-fg/70 text-[10px] font-bold grid place-items-center ring-2 ring-[var(--ml-glass-bg)] tabular-nums"
-                onMouseEnter={() => springAvatars(MAX_VISIBLE_PEERS + 1)}
-              >
-                +{peers.value.size - MAX_VISIBLE_PEERS}
-              </div>
-            )}
-          </div>
-          {/* Editable name */}
-          <input
-            name="displayName"
-            type="text"
-            defaultValue={localUser.name}
-            maxLength={24}
-            class="w-[90px] bg-transparent border-none text-[12px] text-ml-glass-fg/85 font-semibold outline-none truncate px-1.5 py-0.5 rounded hover:bg-ml-glass-fg/6 focus:bg-ml-glass-fg/8 focus:text-ml-glass-fg cursor-text"
-            title="Click to edit your name"
-            onBlur={(e) => {
-              setUserName(e.currentTarget.value);
-              e.currentTarget.value = localUser.name;
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') e.currentTarget.blur();
-            }}
-          />
-
-          {/* Voice + Video room */}
-          {voiceActive.value ? (
-            <div class="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => (voiceMuted.value = !voiceMuted.value)}
-                class={cn(
-                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
-                  voiceMuted.value
-                    ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/60'
-                    : 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]',
-                )}
-              >
-                {voiceMuted.value ? <MicOff size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
-                <Tooltip text={voiceMuted.value ? 'Unmute' : 'Mute'} placement="bottom" />
-              </button>
-              <button
-                type="button"
-                onClick={() => (videoActive.value = !videoActive.value)}
-                class={cn(
-                  'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
-                  videoActive.value
-                    ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                    : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]',
-                )}
-              >
-                {videoActive.value ? <Video size={16} aria-hidden="true" /> : <VideoOff size={16} aria-hidden="true" />}
-                <Tooltip text={videoActive.value ? 'Turn off camera' : 'Turn on camera'} placement="bottom" />
-              </button>
-              <Suspense fallback={null}>
-                <DeviceMenu hasPermission />
-              </Suspense>
-            </div>
-          ) : (
-            <div class="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => (voiceActive.value = true)}
-                class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
-              >
-                <Mic size={16} aria-hidden="true" />
-                <Tooltip text="Join voice" placement="bottom" />
-              </button>
-              <Suspense fallback={null}>
-                <DeviceMenu hasPermission={false} />
-              </Suspense>
-            </div>
-          )}
-
-          {/* Connection indicator */}
-          <div class="flex items-center gap-1.5 mr-0.5">
-            <span
-              class={cn(
-                'w-2 h-2 rounded-full shrink-0',
-                connected.value ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-ml-glass-accent/20',
-              )}
-            />
-            <span class="text-ml-glass-fg/75 text-[12px] font-medium tabular-nums">
-              {connected.value ? `${peerCount.value} online` : 'offline'}
-            </span>
-          </div>
-
-          {/* Annotations panel toggle */}
-          <button
-            type="button"
+        <div class="flex items-center gap-1 shrink-0">
+          <PresenceGroup groupRef={avatarGroupRef} onAvatarEnter={springAvatars} onLeave={resetAvatars} />
+          <NameField />
+          <VoiceControls />
+          <ConnectionStatus />
+          <BarButton
+            icon={<MessageSquare size={16} strokeWidth={1.5} aria-hidden="true" />}
+            tip="Annotations panel"
+            on={showAnnotationPanel.value}
             onClick={() => (showAnnotationPanel.value = !showAnnotationPanel.value)}
-            class={cn(
-              'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
-              showAnnotationPanel.value
-                ? 'bg-ml-glass-accent/[0.14] text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
-            )}
-          >
-            <MessageSquare size={16} aria-hidden="true" />
-            <Tooltip text="Annotations panel" placement="bottom" />
-          </button>
-
-          {/* Share session */}
-          {!readonly && (
-            <button
-              type="button"
-              onClick={() => doShare()}
-              disabled={sharing.value}
-              class={cn(
-                'group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]',
-                sharing.value && 'opacity-50 pointer-events-none',
-              )}
-            >
-              <Upload size={16} aria-hidden="true" />
-              <Tooltip text="Copy editable link" placement="bottom" />
-            </button>
-          )}
-
-          {/* Theme toggle */}
-          <button
-            type="button"
-            onClick={(e) => {
-              cycleTheme();
-              e.currentTarget.blur();
-            }}
-            class="group relative w-9 h-9 rounded-xl grid place-items-center cursor-pointer border-none transition-[color,background-color,scale] duration-150 active:scale-[0.96] bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]"
-          >
-            {theme.value === 'dark' ? <Moon size={16} aria-hidden="true" /> : <Sun size={16} aria-hidden="true" />}
-            <Tooltip
-              text={`Theme: ${theme.value === 'system' ? 'System' : theme.value === 'dark' ? 'Dark' : 'Light'}`}
-              placement="bottom"
-            />
-          </button>
+          />
+          {!readonly && <ShareButton onShare={() => doShare()} />}
+          <ThemeButton />
         </div>
       </div>
-
       {/* Project page tabs (only rendered when /p/:id) */}
       <ProjectTabs />
 
       {/* `mx-auto` (not `justify-center`) so flex auto-margins collapse on overflow
           — scroll starts at the page's left edge instead of clipping content. */}
-      <div class="flex-1 w-full relative overflow-x-auto overflow-y-hidden flex items-stretch bg-ml-bg-device">
-        {deviceMode.value !== 'desktop' && <DockedInfoPanel />}
-        <div
-          id="viewer"
-          ref={viewerRef}
-          class={cn(
-            // shrink-0: a docked panel must push the frame into the scroll area,
-            // never compress it — a squeezed frame is no longer that viewport.
-            'relative h-full mx-auto shrink-0',
-            deviceMode.value === 'desktop'
-              ? originalWidth.value > 0 || cssScale.value !== 1
-                ? 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)]'
-                : 'w-full overflow-hidden'
-              : 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)] bg-white',
-          )}
-          style={
-            deviceMode.value === 'desktop'
-              ? originalWidth.value > 0
-                ? { width: originalWidth.value * cssScale.value }
-                : cssScale.value !== 1
-                  ? { width: `${cssScale.value * 100}%` }
-                  : undefined
-              : { width: DEVICE_WIDTHS[deviceMode.value] * cssScale.value }
-          }
-        >
+      <div class="flex-1 w-full relative min-h-0 bg-ml-bg-device">
+        <div class="absolute inset-0 overflow-x-auto overflow-y-hidden flex items-stretch">
+          {deviceMode.value !== 'desktop' && <DockedInfoPanel />}
           <div
-            ref={innerRef}
-            class="absolute top-0 left-0 will-change-transform"
-            style={{
-              width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
-              height: `${100 / cssScale.value}%`,
-              transform: cssScale.value !== 1 ? `scale(${cssScale.value})` : undefined,
-              transformOrigin: 'top left',
-            }}
+            id="viewer"
+            ref={viewerRef}
+            class={cn(
+              // shrink-0: a docked panel must push the frame into the scroll area,
+              // never compress it — a squeezed frame is no longer that viewport.
+              'relative h-full mx-auto shrink-0',
+              deviceMode.value === 'desktop'
+                ? originalWidth.value > 0 || cssScale.value !== 1
+                  ? 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)]'
+                  : 'w-full overflow-hidden'
+                : 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)] bg-white',
+            )}
+            style={
+              deviceMode.value === 'desktop'
+                ? originalWidth.value > 0
+                  ? { width: originalWidth.value * cssScale.value }
+                  : cssScale.value !== 1
+                    ? { width: `${cssScale.value * 100}%` }
+                    : undefined
+                : { width: DEVICE_WIDTHS[deviceMode.value] * cssScale.value }
+            }
           >
-            {renderFailed.value && pageUrl.value ? (
-              /* Scroll container + `min-h-full` inner, rather than a centred flex
+            <div
+              ref={innerRef}
+              class="absolute top-0 left-0 will-change-transform"
+              style={{
+                width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
+                height: `${100 / cssScale.value}%`,
+                transform: cssScale.value !== 1 ? `scale(${cssScale.value})` : undefined,
+                transformOrigin: 'top left',
+              }}
+            >
+              {renderFailed.value && pageUrl.value ? (
+                /* Scroll container + `min-h-full` inner, rather than a centred flex
                  box: the ancestor clips on the y axis, so in a short device
                  preview a centred box would have its top and bottom shaved off
                  with no way to reach them. This centres when there is room and
                  scrolls, padding intact, when there is not. */
-              <div class="absolute inset-0 z-10 overflow-y-auto bg-ml-bg-viewer">
-                <div class="min-h-full flex flex-col items-center justify-center gap-4 px-8 py-10 text-center">
-                  <Logo size={48} />
-                  <h2 class="text-base font-semibold text-ml-fg m-0">
-                    {isLikelyEmbedHostile(pageUrl.value) ? 'This site blocks embedding' : "We couldn't load this page"}
-                  </h2>
-                  <p class="text-sm text-ml-fg/70 max-w-md leading-snug m-0">
-                    {isLikelyEmbedHostile(pageUrl.value)
-                      ? 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.'
-                      : 'The page took too long, was blocked, or returned an error. The annotations are saved — try the extension on the live page, or share a different URL.'}
-                  </p>
-                  {/* One primary action; the escape route is a text link rather than
+                <div class="absolute inset-0 z-10 overflow-y-auto bg-ml-bg-viewer">
+                  <div class="min-h-full flex flex-col items-center justify-center gap-4 px-8 py-10 text-center">
+                    <Logo size={48} />
+                    <h2 class="text-base font-semibold text-ml-fg m-0">
+                      {isLikelyEmbedHostile(pageUrl.value)
+                        ? 'This site blocks embedding'
+                        : "We couldn't load this page"}
+                    </h2>
+                    <p class="text-[13px] text-ml-fg/70 max-w-md leading-snug m-0">
+                      {isLikelyEmbedHostile(pageUrl.value)
+                        ? 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.'
+                        : 'The page took too long, was blocked, or returned an error. The annotations are saved — try the extension on the live page, or share a different URL.'}
+                    </p>
+                    {/* One primary action; the escape route is a text link rather than
                       a second outlined button, so the recovery path has a clear rank. */}
-                  <div class="flex flex-col items-center gap-3">
-                    <a
-                      href={pageUrl.value}
-                      target="_blank"
-                      rel="noreferrer"
-                      class="px-4 py-2 rounded-lg bg-ml-btn text-ml-btn-fg text-[13px] font-medium no-underline hover:bg-ml-btn-hover transition-colors"
-                    >
-                      Open original site
-                    </a>
-                    <a
-                      href="/"
-                      class="text-[13px] text-ml-fg/70 underline underline-offset-2 hover:text-ml-fg transition-colors"
-                    >
-                      Back home
-                    </a>
+                    <div class="flex flex-col items-center gap-3">
+                      <a
+                        href={pageUrl.value}
+                        target="_blank"
+                        rel="noreferrer"
+                        class="px-4 py-2 rounded-lg bg-ml-btn text-ml-btn-fg text-[13px] font-medium no-underline hover:bg-ml-btn-hover transition-colors"
+                      >
+                        Open original site
+                      </a>
+                      <a
+                        href="/"
+                        class="text-[13px] text-ml-fg/70 underline underline-offset-2 hover:text-ml-fg transition-colors"
+                      >
+                        Back home
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              !iframeLoaded.value &&
-              pageUrl.value && (
-                <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-ml-bg-viewer">
-                  <Logo size={48} />
-                  <Loader2 size={32} class="animate-spin text-ml-accent" aria-hidden="true" />
-                  <p class="text-sm text-ml-fg/70">Loading page…</p>
-                </div>
-              )
-            )}
-            <iframe
-              ref={frameRef}
-              title="Annotated page"
-              src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-              onLoad={() => {
-                iframeLoaded.value = true;
-                if (!pageUrl.value) return;
-                // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
-                const doc = frameRef.current?.contentDocument;
-                if (doc?.documentElement?.dataset?.marklayer === '1') return;
-                captureRenderFailed('no-marker', { proxy_error: classifyProxyError(doc?.body?.textContent) });
-                renderFailed.value = 'no-marker';
-              }}
-              onError={() => {
-                captureRenderFailed('iframe-error');
-                renderFailed.value = 'iframe-error';
-              }}
-              class={cn(
-                // ph-no-capture: the proxied page is same-origin, so session replay
-                // would record its contents — block it and replay only our chrome.
-                'ph-no-capture w-full h-full border-none bg-white',
-                !iframeLoaded.value && 'invisible',
-                (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
+              ) : (
+                !iframeLoaded.value &&
+                pageUrl.value && (
+                  <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-ml-bg-viewer">
+                    <Logo size={48} />
+                    <Loader2 size={32} class="animate-spin text-ml-accent" aria-hidden="true" />
+                    <p class="text-[13px] text-ml-fg/70">Loading page…</p>
+                  </div>
+                )
               )}
-            />
+              <iframe
+                ref={frameRef}
+                title="Annotated page"
+                src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+                onLoad={() => {
+                  iframeLoaded.value = true;
+                  if (!pageUrl.value) return;
+                  // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
+                  const doc = frameRef.current?.contentDocument;
+                  if (doc?.documentElement?.dataset?.marklayer === '1') return;
+                  captureRenderFailed('no-marker', { proxy_error: classifyProxyError(doc?.body?.textContent) });
+                  renderFailed.value = 'no-marker';
+                }}
+                onError={() => {
+                  captureRenderFailed('iframe-error');
+                  renderFailed.value = 'iframe-error';
+                }}
+                class={cn(
+                  // ph-no-capture: the proxied page is same-origin, so session replay
+                  // would record its contents — block it and replay only our chrome.
+                  'ph-no-capture w-full h-full border-none bg-white',
+                  !iframeLoaded.value && 'invisible',
+                  (showCanvas || showCommentCursor || showTextCursor) && 'pointer-events-none',
+                )}
+              />
 
-            <canvas
-              ref={canvasRef}
-              onMouseDown={onDown}
-              class="absolute inset-0"
-              style={{ pointerEvents: showCanvas ? 'auto' : 'none', cursor: showCanvas ? 'crosshair' : 'default' }}
-            />
+              <canvas
+                ref={canvasRef}
+                onMouseDown={onDown}
+                class="absolute inset-0"
+                style={{ pointerEvents: showCanvas ? 'auto' : 'none', cursor: showCanvas ? 'crosshair' : 'default' }}
+              />
 
-            <div
-              class="absolute inset-0"
-              style={{
-                pointerEvents: showCommentCursor ? 'auto' : 'none',
-                cursor: showCommentCursor ? 'crosshair' : 'default',
-              }}
-              onClick={(e) => {
-                if (tool !== 'comment') return;
-                commentPopover.value = canvasCoords(e);
-              }}
-            >
-              {comments.filter(opMatchesDevice).map((c) => (
-                <WebCommentPin
-                  key={c.id}
-                  op={c}
+              <div
+                class="absolute inset-0"
+                style={{
+                  pointerEvents: showCommentCursor ? 'auto' : 'none',
+                  cursor: showCommentCursor ? 'crosshair' : 'default',
+                }}
+                onClick={(e) => {
+                  if (tool !== 'comment') return;
+                  commentPopover.value = canvasCoords(e);
+                }}
+              >
+                {comments.filter(opMatchesDevice).map((c) => (
+                  <WebCommentPin
+                    key={c.id}
+                    op={c}
+                    scale={1}
+                    scrollY={iframeScrollY.value}
+                    frameDoc={frameRef.current?.contentDocument}
+                  />
+                ))}
+              </div>
+
+              <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                {selections.value.filter(opMatchesDevice).map((op) => (
+                  <WebSelectionHighlight
+                    key={op.id}
+                    op={op}
+                    scale={1}
+                    scrollY={iframeScrollY.value}
+                    frameDoc={frameRef.current?.contentDocument}
+                  />
+                ))}
+              </div>
+
+              <div class="absolute inset-0 pointer-events-none overflow-hidden">
+                {areas.value.filter(opMatchesDevice).map((op) => (
+                  <WebAreaShape
+                    key={op.id}
+                    op={op}
+                    scale={1}
+                    scrollY={iframeScrollY.value}
+                    frameDoc={frameRef.current?.contentDocument}
+                  />
+                ))}
+              </div>
+
+              <div
+                class="absolute inset-0"
+                style={{ pointerEvents: showTextCursor ? 'auto' : 'none', cursor: showTextCursor ? 'text' : 'default' }}
+                onClick={(e) => {
+                  if (tool !== 'text') return;
+                  textInput.value = canvasCoords(e);
+                }}
+              />
+              {textInput.value && (
+                <TextInputOverlay
+                  x={textInput.value.x}
+                  y={textInput.value.y}
                   scale={1}
                   scrollY={iframeScrollY.value}
-                  frameDoc={frameRef.current?.contentDocument}
+                  onCommit={(text) => {
+                    if (text && textInput.value) {
+                      const { x, y } = textInput.value;
+                      const op: TextOp = {
+                        id: nanoid(),
+                        tool: 'text',
+                        text,
+                        x,
+                        y,
+                        fontSize: Math.max(14, lineWidth.value * 6),
+                        color: color.value,
+                        lineWidth: lineWidth.value,
+                        target: pickFrameTarget({ frame: frameRef.current, x, y }),
+                        captureViewport: frameViewport(frameRef.current),
+                      };
+                      pushDeviceOp(op);
+                    }
+                    textInput.value = null;
+                  }}
                 />
-              ))}
+              )}
+
+              {!readonly && <WebInspectorLayer frameRef={frameRef} />}
+              {!readonly && <WebMeasureLayer frameRef={frameRef} />}
+              {!readonly && <WebGuideLayer frameRef={frameRef} />}
+              {!readonly && <WebAreaLayer frameRef={frameRef} />}
+              {!readonly && <WebMultiInspectLayer frameRef={frameRef} />}
+              <CursorLayer scale={1} scrollY={iframeScrollY.value} />
+              <PanLayer class="absolute inset-0 z-20" />
             </div>
 
-            <div class="absolute inset-0 pointer-events-none overflow-hidden">
-              {selections.value.filter(opMatchesDevice).map((op) => (
-                <WebSelectionHighlight
-                  key={op.id}
-                  op={op}
-                  scale={1}
-                  scrollY={iframeScrollY.value}
-                  frameDoc={frameRef.current?.contentDocument}
-                />
-              ))}
-            </div>
-
-            <div class="absolute inset-0 pointer-events-none overflow-hidden">
-              {areas.value.filter(opMatchesDevice).map((op) => (
-                <WebAreaShape
-                  key={op.id}
-                  op={op}
-                  scale={1}
-                  scrollY={iframeScrollY.value}
-                  frameDoc={frameRef.current?.contentDocument}
-                />
-              ))}
-            </div>
-
-            <div
-              class="absolute inset-0"
-              style={{ pointerEvents: showTextCursor ? 'auto' : 'none', cursor: showTextCursor ? 'text' : 'default' }}
-              onClick={(e) => {
-                if (tool !== 'text') return;
-                textInput.value = canvasCoords(e);
-              }}
-            />
-            {textInput.value && (
-              <TextInputOverlay
-                x={textInput.value.x}
-                y={textInput.value.y}
-                scale={1}
+            {commentPopover.value && (
+              <WebCommentPopover
+                x={commentPopover.value.x}
+                y={commentPopover.value.y}
+                scale={cssScale.value}
                 scrollY={iframeScrollY.value}
-                onCommit={(text) => {
-                  if (text && textInput.value) {
-                    const { x, y } = textInput.value;
-                    const op: TextOp = {
-                      id: nanoid(),
-                      tool: 'text',
-                      text,
-                      x,
-                      y,
-                      fontSize: Math.max(14, lineWidth.value * 6),
-                      color: color.value,
-                      lineWidth: lineWidth.value,
-                      target: pickFrameTarget({ frame: frameRef.current, x, y }),
-                      captureViewport: frameViewport(frameRef.current),
-                    };
-                    pushDeviceOp(op);
-                  }
-                  textInput.value = null;
+                frameRef={frameRef}
+                onClose={() => {
+                  commentPopover.value = null;
                 }}
               />
             )}
 
-            {!readonly && <WebInspectorLayer frameRef={frameRef} />}
-            {!readonly && <WebMeasureLayer frameRef={frameRef} />}
-            {!readonly && <WebGuideLayer frameRef={frameRef} />}
-            {!readonly && <WebAreaLayer frameRef={frameRef} />}
-            {!readonly && <WebMultiInspectLayer frameRef={frameRef} />}
-            <CursorLayer scale={1} scrollY={iframeScrollY.value} />
-            <PanLayer class="absolute inset-0 z-20" />
+            {selectionPopover.value && (
+              <WebSelectionPopover
+                {...selectionPopover.value}
+                onClose={() => {
+                  selectionPopover.value = null;
+                }}
+              />
+            )}
           </div>
 
-          {commentPopover.value && (
-            <WebCommentPopover
-              x={commentPopover.value.x}
-              y={commentPopover.value.y}
-              scale={cssScale.value}
-              scrollY={iframeScrollY.value}
-              frameRef={frameRef}
-              onClose={() => {
-                commentPopover.value = null;
-              }}
-            />
+          {deviceMode.value !== 'desktop' && (
+            <DockedAnnotationPanel onScrollTo={scrollToAnnotation} getExportData={buildExportData} />
           )}
-
-          {selectionPopover.value && (
-            <WebSelectionPopover
-              {...selectionPopover.value}
-              onClose={() => {
-                selectionPopover.value = null;
-              }}
-            />
-          )}
-
-          {deviceMode.value === 'desktop' && (
-            <AnnotationPanel onScrollTo={scrollToAnnotation} getExportData={buildExportData} />
-          )}
-          {deviceMode.value === 'desktop' && <InfoPanel />}
         </div>
 
-        {deviceMode.value !== 'desktop' && (
-          <DockedAnnotationPanel onScrollTo={scrollToAnnotation} getExportData={buildExportData} />
+        {/* Flush sidebars, outside the scroller: they overlay the frame rather than
+            compress it (a squeezed frame is no longer that viewport) and they stay
+            put when the frame scrolls sideways under them. */}
+        {deviceMode.value === 'desktop' && <InfoPanel />}
+        {deviceMode.value === 'desktop' && (
+          <AnnotationPanel onScrollTo={scrollToAnnotation} getExportData={buildExportData} />
         )}
       </div>
 
@@ -1973,13 +2046,13 @@ export default function Viewer() {
       {readonly && (
         <div
           class={cn(
-            'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 px-4 py-2.5 flex items-center gap-3',
-            glass.surfaceSmall,
+            'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 h-9 px-3 flex items-center gap-2',
+            geist.surfaceSmall,
             glass.font,
           )}
         >
-          <Lock size={14} class="text-ml-glass-fg/60" aria-hidden="true" />
-          <span class="text-[12px] text-ml-glass-fg/60 font-medium">View-only mode</span>
+          <Lock size={14} strokeWidth={1.5} class="text-(--ds-gray-900)" aria-hidden="true" />
+          <span class="text-[13px] text-(--ds-gray-1000) font-medium">View-only mode</span>
         </div>
       )}
 
@@ -2023,8 +2096,14 @@ export default function Viewer() {
         <button
           type="button"
           onClick={resumeBlockedAudio}
-          class="fixed top-12 left-1/2 -translate-x-1/2 z-2147483647 px-3 py-2 rounded-xl bg-amber-500/90 text-white text-xs font-medium shadow-lg cursor-pointer border-none animate-[fadeInDown_0.2s_ease-out]"
+          class={cn(
+            'fixed top-16 left-1/2 -translate-x-1/2 z-2147483647 flex items-center gap-2 h-9 px-3',
+            geist.surfaceSmall,
+            'text-[13px] font-medium text-(--ds-gray-1000) cursor-pointer border-none',
+            'animate-[fadeInDown_0.2s_ease-out]',
+          )}
         >
+          <span class="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--ds-amber-700)' }} />
           Click to enable call audio
         </button>
       )}
@@ -2036,13 +2115,18 @@ export default function Viewer() {
           if (!peer) return null;
           return (
             <div
-              class={`fixed top-3 left-1/2 -translate-x-1/2 z-2147483646 flex items-center gap-2 px-3 py-2 ${glass.surfaceSmall} ${glass.font} animate-[fadeInDown_0.2s_ease-out]`}
+              class={cn(
+                'fixed top-3 left-1/2 -translate-x-1/2 z-2147483646 flex items-center gap-2 h-9 px-3',
+                geist.surfaceSmall,
+                glass.font,
+                'animate-[fadeInDown_0.2s_ease-out]',
+              )}
             >
               <span class="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: peer.color }} />
-              <span class="text-xs font-medium text-ml-glass-fg/70">Following {peer.name}</span>
+              <span class="text-[13px] font-medium text-(--ds-gray-1000)">Following {peer.name}</span>
               <button
                 type="button"
-                class="ml-1 text-ml-glass-fg/60 hover:text-ml-glass-fg/70 transition-colors"
+                class="ml-1 text-(--ds-gray-900) hover:text-(--ds-gray-900) transition-colors"
                 onClick={() => {
                   followingPeer.value = null;
                 }}
@@ -2053,18 +2137,7 @@ export default function Viewer() {
           );
         })()}
 
-      {toasts.value.length > 0 && (
-        <div class="fixed top-12 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">
-          {toasts.value.map((t) => (
-            <div
-              key={t.id}
-              class={`${glass.surfaceSmall} ${glass.font} px-4 py-2.5 text-xs font-medium animate-[fadeInDown_0.2s_ease-out] ${t.type === 'error' ? 'text-red-500' : t.type === 'success' ? 'text-green-500' : 'text-ml-glass-fg/70'}`}
-            >
-              {t.message}
-            </div>
-          ))}
-        </div>
-      )}
+      <Toasts offset="below-bar" />
     </div>
   );
 }
@@ -2078,7 +2151,7 @@ function VoicePill() {
       class={cn(
         'fixed top-[60px] z-2147483646 flex items-center gap-2 px-3 py-2 rounded-xl transition-[right] duration-200',
         showAnnotationPanel.value ? 'right-[364px]' : 'right-4',
-        'bg-[var(--ml-glass-bg)] backdrop-blur-[80px] backdrop-saturate-[1.9] border border-ml-glass-fg/[0.06] shadow-[0_2px_10px_oklch(0_0_0/0.08)]',
+        'bg-(--ds-background-100) border border-(--ds-gray-alpha-400) [box-shadow:var(--ds-shadow-tooltip)]',
         'animate-[fadeInDown_0.2s_ease-out]',
         'select-none',
       )}
@@ -2087,8 +2160,8 @@ function VoicePill() {
         type="button"
         onClick={() => (voiceMuted.value = !voiceMuted.value)}
         class={cn(
-          'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-[color,background-color,scale] duration-150 active:scale-[0.96]',
-          muted ? 'bg-ml-glass-fg/[0.06] text-ml-glass-fg/60' : 'bg-green-500/20 text-green-400',
+          'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-[color,background-color] duration-150',
+          muted ? 'bg-(--ds-gray-alpha-100) text-(--ds-gray-900)' : 'bg-green-500/20 text-green-400',
         )}
         title={muted ? 'Unmute' : 'Mute'}
       >
@@ -2106,7 +2179,7 @@ function VoicePill() {
               class="w-[2.5px] rounded-full transition-[opacity,transform] duration-100 ease-out"
               style={{
                 height: `${40 + ((i + 1) / 4) * 60}%`,
-                background: 'var(--color-ml-glass-fg, #888)',
+                background: 'var(--ds-gray-700)',
                 opacity: active ? 0.5 : 0.1,
                 transform: active ? `scaleY(${0.7 + level * 0.3})` : 'scaleY(0.5)',
               }}
@@ -2118,7 +2191,7 @@ function VoicePill() {
       <button
         type="button"
         onClick={() => (voiceActive.value = false)}
-        class="w-6 h-6 rounded-md grid place-items-center border-none cursor-pointer bg-transparent text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-fg/[0.06] transition-[color,background-color,scale] duration-150 active:scale-[0.96]"
+        class="w-6 h-6 rounded-md grid place-items-center border-none cursor-pointer bg-transparent text-(--ds-gray-900) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) transition-[color,background-color] duration-150"
         title="Leave voice"
       >
         <X size={11} aria-hidden="true" />

@@ -14,6 +14,23 @@
 
 @layer base {
   :host {
+    /* Viewport-sized and click-through: each layer owns its own hit area, and
+       the empty space between them must stay transparent to the page. The rest
+       undoes the UA styles a `popover` element gets (border, padding, centred
+       fit-content box, background, `overflow: auto`). */
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+    pointer-events: none;
+
     /* font-family inherits across the shadow boundary, so the overlay used to
        render in whatever face the annotated page sets. `glass.font` pinned it
        per-surface, which left the components without that class (Tooltip,
@@ -29,16 +46,33 @@
     --ml-glass-bg: oklch(0.96 0.003 280);
     --ml-glass-bg-small: oklch(0.96 0.003 280);
     --ml-glass-border: oklch(0 0 0 / 0.16);
-    --ml-glass-shadow:
-      0 0 0 0.5px oklch(0 0 0 / 0.12), 0 8px 40px oklch(0 0 0 / 0.1),
-      0 24px 60px oklch(0 0 0 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.6),
-      inset 0 -0.5px 0 oklch(0 0 0 / 0.05);
     --ml-glass-shadow-small:
       0 0 0 0.5px oklch(0 0 0 / 0.1), 0 6px 24px oklch(0 0 0 / 0.08), 0 16px 48px oklch(0 0 0 / 0.05),
       inset 0 0.5px 0 oklch(1 0 0 / 0.5);
-    --ml-glass-sep: oklch(0 0 0 / 0.12);
-    --ml-glass-divider: oklch(0 0 0 / 0.09);
-    --ml-glass-grip: oklch(0 0 0 / 0.9);
+
+    /* ── Geist ── the design system's own token values, copied from the
+       stylesheet it ships. The toolbar and its tooltip are built from these;
+       the --ml-glass-* surfaces above still carry the panels. `shadow-menu`
+       drops Geist's outer background-200 ring — the bar floats over someone
+       else's page, where a solid ring of our own background reads as a
+       second border. */
+    --ds-background-100: #fff;
+    --ds-gray-100: #f2f2f2;
+    --ds-gray-700: #8f8f8f;
+    --ds-gray-900: #4d4d4d;
+    --ds-gray-1000: #171717;
+    --ds-gray-alpha-100: #0000000d;
+    --ds-gray-alpha-200: #00000015;
+    --ds-gray-alpha-400: #00000014;
+    --ds-gray-alpha-500: #00000036;
+    --ds-blue-800: #005edc;
+    --ds-amber-700: #ffb200;
+    --ds-red-700: #fc0035;
+    --ds-green-700: #28a948;
+    --ds-focus-color: #0070f7;
+    --ds-shadow-menu: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px -4px #0000000a, 0 16px 24px -8px #0000000f;
+    --ds-shadow-tooltip: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px #0000000a;
+    --ds-shadow-border-small: 0 0 0 1px #00000014, 0 2px 2px #0000000a;
 
     /* Semantic state colors — used for active/success/error/warning UI */
     --ml-state-blue: oklch(0.62 0.18 250);
@@ -64,19 +98,28 @@
       --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
       --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
       --ml-glass-border: oklch(1 0 0 / 0.18);
-      --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
-      --ml-glass-shadow:
-        0 0 0 0.5px oklch(0 0 0 / 0.5),
-        0 8px 40px oklch(0 0 0 / 0.35),
-        0 24px 60px oklch(0 0 0 / 0.22),
-        inset 0 1px 0 oklch(1 0 0 / 0.28),
-        inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
       --ml-glass-shadow-small:
         0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
         inset 0 0.5px 0 oklch(1 0 0 / 0.15);
-      --ml-glass-sep: oklch(1 0 0 / 0.12);
-      --ml-glass-divider: oklch(1 0 0 / 0.1);
-      --ml-glass-grip: oklch(1 0 0 / 0.9);
+
+      /* Geist tokens — same set as the light block above. */
+      --ds-background-100: #000;
+      --ds-gray-100: #1a1a1a;
+      --ds-gray-700: #8f8f8f;
+      --ds-gray-900: #a0a0a0;
+      --ds-gray-1000: #ededed;
+      --ds-gray-alpha-100: #ffffff0f;
+      --ds-gray-alpha-200: #ffffff17;
+      --ds-gray-alpha-400: #ffffff24;
+      --ds-gray-alpha-500: #ffffff3d;
+      --ds-blue-800: #005fd8;
+      --ds-amber-700: #ffb200;
+      --ds-red-700: #f13242;
+      --ds-green-700: #00ab3e;
+      --ds-focus-color: #50a8ff;
+      --ds-shadow-menu: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px -4px #00000052, 0 16px 24px -8px #00000052;
+      --ds-shadow-tooltip: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px #00000052;
+      --ds-shadow-border-small: 0 0 0 1px #ffffff25, 0 1px 2px #00000029;
 
       --ml-state-blue: oklch(0.72 0.17 250);
       --ml-state-green: oklch(0.78 0.18 145);
@@ -101,19 +144,28 @@
     --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
     --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
     --ml-glass-border: oklch(1 0 0 / 0.18);
-    --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
-    --ml-glass-shadow:
-      0 0 0 0.5px oklch(0 0 0 / 0.5),
-      0 8px 40px oklch(0 0 0 / 0.35),
-      0 24px 60px oklch(0 0 0 / 0.22),
-      inset 0 1px 0 oklch(1 0 0 / 0.28),
-      inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
     --ml-glass-shadow-small:
       0 0 0 0.5px oklch(0 0 0 / 0.3), 0 6px 24px oklch(0 0 0 / 0.25), 0 16px 48px oklch(0 0 0 / 0.15),
       inset 0 0.5px 0 oklch(1 0 0 / 0.15);
-    --ml-glass-sep: oklch(1 0 0 / 0.12);
-    --ml-glass-divider: oklch(1 0 0 / 0.1);
-    --ml-glass-grip: oklch(1 0 0 / 0.9);
+
+    /* Geist tokens — same set as the light block above. */
+    --ds-background-100: #000;
+    --ds-gray-100: #1a1a1a;
+    --ds-gray-700: #8f8f8f;
+    --ds-gray-900: #a0a0a0;
+    --ds-gray-1000: #ededed;
+    --ds-gray-alpha-100: #ffffff0f;
+    --ds-gray-alpha-200: #ffffff17;
+    --ds-gray-alpha-400: #ffffff24;
+    --ds-gray-alpha-500: #ffffff3d;
+    --ds-blue-800: #005fd8;
+    --ds-amber-700: #ffb200;
+    --ds-red-700: #f13242;
+    --ds-green-700: #00ab3e;
+    --ds-focus-color: #50a8ff;
+    --ds-shadow-menu: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px -4px #00000052, 0 16px 24px -8px #00000052;
+    --ds-shadow-tooltip: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px #00000052;
+    --ds-shadow-border-small: 0 0 0 1px #ffffff25, 0 1px 2px #00000029;
 
     --ml-state-blue: oklch(0.72 0.17 250);
     --ml-state-green: oklch(0.78 0.18 145);
