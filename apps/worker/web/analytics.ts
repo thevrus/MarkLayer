@@ -64,6 +64,19 @@ export function capture(event: string, props?: Props): void {
   queue.push([event, props]);
 }
 
+const firedOnce = new Set<string>();
+
+/**
+ * Capture an event at most once per page load. Used for the events that gate
+ * session replay recording: the trigger only needs to fire once, and a repeat
+ * per brush stroke would be pure noise.
+ */
+export function captureOnce(event: string, props?: Props): void {
+  if (firedOnce.has(event)) return;
+  firedOnce.add(event);
+  capture(event, props);
+}
+
 export function initAnalytics(key: string, host: string | undefined): void {
   if (hasOptedOut()) return;
 

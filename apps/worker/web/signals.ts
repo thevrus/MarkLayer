@@ -2,6 +2,7 @@ import { bumpAnchorGeneration, pushOp, toast as showToast } from '@ext/lib/state
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import type { CaptureViewport, TargetElement } from '@marklayer/types';
 import { effect, signal } from '@preact/signals';
+import { captureOnce } from './analytics';
 import { fromBase64 } from './encoding';
 import { annotationId, currentPageIdx, originalWidth, pageUrl, projectId } from './projects';
 
@@ -141,6 +142,14 @@ effect(() => {
 
 /** Tag an operation with the current device mode before pushing */
 export function pushDeviceOp(op: DrawOp) {
+  // Gates session replay: a visitor who annotates is worth recording, one who
+  // bounces off the landing page is not. See the replay trigger groups in PostHog.
+  captureOnce('annotation_started', { tool: op.tool });
+  seedDeviceOp(op);
+}
+
+/** Same device tagging, for ops the app places itself — never counts as the visitor annotating. */
+export function seedDeviceOp(op: DrawOp) {
   pushOp({ ...op, device: deviceMode.value });
 }
 
