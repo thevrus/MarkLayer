@@ -41,6 +41,9 @@ function projectAnnotation(op: AnnotationOp) {
     return {
       ...common,
       text: op.text,
+      // A proposed replacement for `text` — present when the reviewer asked for a
+      // copy edit rather than leaving a note, so it can be applied as a diff.
+      suggestion: op.suggestion ?? null,
       comment: op.comment ?? null,
       rects: op.rects,
       target: op.target ?? null,
@@ -248,7 +251,7 @@ const TOOLS: Tool[] = [
 
 export async function startServer(opts: ServerOptions): Promise<void> {
   const server = new Server(
-    { name: 'marklayer-mcp', version: '0.1.2' },
+    { name: 'marklayer-mcp', version: '0.1.3' },
     {
       capabilities: { tools: {} },
       instructions:
@@ -257,6 +260,8 @@ export async function startServer(opts: ServerOptions): Promise<void> {
         'Each annotation carries a `kind` (comment | area | selection | inspect) and, where available, ' +
         'a `target` block with the element selector + markdown — that is your handle for code changes; ' +
         'do not ask the user to repeat what was clicked. ' +
+        'A selection annotation may also carry a `suggestion`: the exact text the reviewer wants in place of its ' +
+        '`text`. Apply it verbatim rather than paraphrasing it. ' +
         'Typical loop: marklayer_list_annotations to backfill anything pending, then marklayer_watch_annotations ' +
         'in a loop. For each one: acknowledge, make the requested code changes, resolve with a summary. ' +
         'Use dismiss when an annotation cannot be acted on, with a reason the human can read.',

@@ -1,6 +1,6 @@
 {
   "name": "marklayer-mcp",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "MCP server that bridges MarkLayer annotations to AI coding agents.",
   "type": "module",
   "license": "MIT",

@@ -16,6 +16,16 @@ function quote(text: string): string {
   return text.replace(/\r?\n/g, '\n> ');
 }
 
+/**
+ * A proposed copy edit as a fenced diff — the one shape every coding agent and
+ * review tool already knows how to read, so "change this to that" arrives as
+ * something appliable rather than as a sentence to interpret.
+ */
+function diffBlock({ from, to }: { from: string; to: string }): string[] {
+  const sign = (prefix: string, body: string) => body.split(/\r?\n/).map((line) => `${prefix} ${line}`);
+  return ['```diff', ...sign('-', from), ...sign('+', to), '```'];
+}
+
 function partition(ops: DrawOp[]) {
   const roots: CommentOp[] = [];
   const replies = new Map<string, CommentOp[]>();
@@ -80,6 +90,7 @@ function renderSection(
       const status = s.status ?? 'open';
       const oneLine = s.text.replace(/\s+/g, ' ').trim();
       out.push(`${sub} "${oneLine}" _(${STATUS_LABELS[status]})_`);
+      if (s.suggestion) out.push('', ...diffBlock({ from: s.text, to: s.suggestion }));
       if (s.comment) out.push('', `> ${quote(s.comment)}`);
       out.push('');
     }

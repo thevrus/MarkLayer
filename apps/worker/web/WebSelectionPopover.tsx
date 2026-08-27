@@ -1,9 +1,18 @@
 import { PriorityPicker } from '@ext/components/PriorityPicker';
+import { SelectionEdit } from '@ext/components/SelectionEdit';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
+import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
+import { useEdgeClamp } from '@ext/lib/popover';
 import { color, lineWidth, localUser } from '@ext/lib/state';
 import type { SelectionOp, SelectionRect } from '@ext/lib/types';
-import { type CaptureViewport, type CommentPriority, cn, type TargetElement } from '@marklayer/types';
+import {
+  type CaptureViewport,
+  type CommentPriority,
+  cn,
+  normalizeSuggestion,
+  type TargetElement,
+} from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { pushDeviceOp } from './signals';
@@ -21,6 +30,7 @@ interface Props {
 export function WebSelectionPopover({ text, rects, screenX, screenY, target, captureViewport, onClose }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
 
   useEffect(() => {
     taRef.current?.focus();
@@ -35,6 +45,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, target, cap
         text,
         rects,
         comment: comment || undefined,
+        suggestion: normalizeSuggestion({ text, suggestion }),
         priority,
         color: color.value,
         lineWidth: lineWidth.value,
@@ -50,27 +61,24 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, target, cap
   };
 
   const left = Math.min(screenX + 16, innerWidth - 300);
-  const top = screenY + 24 > innerHeight - 200 ? Math.max(4, screenY - 200) : screenY + 16;
+  const { ref: panelRef, top } = useEdgeClamp({ top: screenY + 16 });
 
   return (
     <div
       class={cn(
         'fixed z-2147483647',
         'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
+        geist.surface,
         glass.font,
         'overflow-hidden w-[290px]',
       )}
+      ref={panelRef}
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Selected text preview */}
-      <div class="px-4 pt-3.5 pb-2">
-        <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Selected text</span>
-        <p class="text-[12.5px] text-ml-glass-fg/80 m-0 mt-1 italic line-clamp-3 leading-relaxed">"{text}"</p>
-      </div>
+      <SelectionEdit text={text} suggestion={suggestion} onChange={setSuggestion} onSubmit={() => commit(true)} />
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="p-3.5">
         <textarea
@@ -93,17 +101,12 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, target, cap
         <PriorityPicker value={priority} onChange={setPriority} class="mt-1.5 -ml-1.5" />
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
-          <kbd
-            class="text-[10.5px] text-ml-glass-fg/75 bg-ml-glass-fg/8 border border-ml-glass-fg/15
-                      rounded-md px-1.5 py-0.5 font-mono font-medium leading-none"
-          >
-            Esc
-          </kbd>
-          <span class="text-[11px] text-ml-glass-fg/60 font-medium">skip comment</span>
+          <kbd class={geist.kbd}>Esc</kbd>
+          <span class="text-[12px] text-(--ds-gray-900) font-medium">skip comment</span>
         </div>
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵

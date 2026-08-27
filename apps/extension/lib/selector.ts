@@ -55,14 +55,26 @@ export function textFingerprint(el: Element): string | undefined {
  * own ownerDocument/defaultView provides the scroll origin, so this works
  * uniformly for host-page and iframe elements.
  *
- * `anchorDocXY` (optional) is the annotation's anchor point in document px
+ * `anchor` (optional) is the annotation's anchor point in document px
  * (e.g. comment pin position, area top-left, selection's first rect origin).
  * When provided, the returned target carries `offsetX/offsetY` — the offset
  * from the element's top-left to that anchor — so the renderer can reproject
  * the annotation against the element's *current* rect on screens where the
  * page has reflowed.
+ *
+ * `selectedText` narrows the payload to the run of text the annotation is about,
+ * which an element snapshot alone cannot say — it is what tells an agent reading
+ * only `markdown` which words a copy edit refers to.
  */
-export function captureTarget(el: Element, anchorDocXY?: { x: number; y: number }): TargetElement {
+export function captureTarget({
+  el,
+  anchor,
+  selectedText,
+}: {
+  el: Element;
+  anchor?: { x: number; y: number };
+  selectedText?: string;
+}): TargetElement {
   const selector = getSelector(el);
   const rect = el.getBoundingClientRect();
   const win = el.ownerDocument.defaultView ?? window;
@@ -71,10 +83,10 @@ export function captureTarget(el: Element, anchorDocXY?: { x: number; y: number 
   return {
     selector,
     tag: el.tagName.toLowerCase(),
-    markdown: formatForAI(el, selector),
+    markdown: formatForAI(el, selector, { selectedText }),
     rect: { x: docX, y: docY, width: rect.width, height: rect.height },
-    offsetX: anchorDocXY ? anchorDocXY.x - docX : undefined,
-    offsetY: anchorDocXY ? anchorDocXY.y - docY : undefined,
+    offsetX: anchor ? anchor.x - docX : undefined,
+    offsetY: anchor ? anchor.y - docY : undefined,
     text: textFingerprint(el),
   };
 }
