@@ -12,37 +12,44 @@ function nextPaint(): Promise<void> {
   });
 }
 
-async function requestTabCapture(): Promise<string> {
-  const res: unknown = await browser.runtime.sendMessage({ type: 'capture-tab' });
+/** The `capture-element` message payload — declared here, where the sender lives. */
+export interface Crop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** CSS px width of the sender's viewport, to scale the crop into device px. */
+  viewportWidth: number;
+}
+
+/**
+ * One element's viewport rect clamped to the visible area, or null when nothing of
+ * it is on screen. The single authority on what "croppable" means — the background
+ * crops to exactly this box, so the content script can also use it as a preflight
+ * and skip the paint wait plus the message roundtrip for an off-screen element.
+ */
+function visibleCrop(rect: DOMRect): Omit<Crop, 'viewportWidth'> | null {
+  const x = Math.max(0, rect.left);
+  const y = Math.max(0, rect.top);
+  const width = Math.min(rect.right, window.innerWidth) - x;
+  const height = Math.min(rect.bottom, window.innerHeight) - y;
+  return width >= 1 && height >= 1 ? { x, y, width, height } : null;
+}
+
+/**
+ * Ask the background to screenshot the tab and crop it, returning only the cropped
+ * PNG as a data URL. Cropping there rather than here is the point: a full viewport
+ * at DPR 2 is a multi-megabyte PNG, and extension messaging is JSON, so shipping
+ * the whole tab back would base64-inflate it another third, copy it into the host
+ * page's heap, and decode every pixel to keep a fraction of them.
+ */
+async function requestElementCapture(crop: Crop): Promise<string> {
+  const res: unknown = await browser.runtime.sendMessage({ type: 'capture-element', crop });
   if (res !== null && typeof res === 'object') {
     if ('dataUrl' in res && typeof res.dataUrl === 'string') return res.dataUrl;
     if ('error' in res && typeof res.error === 'string') throw new Error(res.error);
   }
   throw new Error('Tab capture failed');
-}
-
-/** Crop a full-tab screenshot down to one element's viewport rect, clamped to the visible area. */
-async function cropToRect({ dataUrl, rect }: { dataUrl: string; rect: DOMRect }): Promise<Blob> {
-  const source = await fetch(dataUrl);
-  const bitmap = await createImageBitmap(await source.blob());
-  try {
-    // captureVisibleTab returns device pixels; derive the scale from the bitmap itself
-    // rather than trusting devicePixelRatio (zoom changes both, differently).
-    const scale = bitmap.width / window.innerWidth;
-    const left = Math.max(0, rect.left) * scale;
-    const top = Math.max(0, rect.top) * scale;
-    const width = Math.round(Math.min(rect.right, window.innerWidth) * scale - left);
-    const height = Math.round(Math.min(rect.bottom, window.innerHeight) * scale - top);
-    if (width < 1 || height < 1) throw new Error('Element is outside the viewport');
-
-    const canvas = new OffscreenCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('No 2d context');
-    ctx.drawImage(bitmap, left, top, width, height, 0, 0, width, height);
-    return canvas.convertToBlob({ type: 'image/png' });
-  } finally {
-    bitmap.close();
-  }
 }
 
 /**
@@ -53,13 +60,11 @@ async function cropToRect({ dataUrl, rect }: { dataUrl: string; rect: DOMRect })
  */
 export async function copyElementShot({ rect, markdown }: { rect: DOMRect; markdown: string }): Promise<void> {
   try {
-    // Cheap enough to check before the paint wait and the message roundtrip.
-    if (rect.right <= 0 || rect.bottom <= 0 || rect.left >= window.innerWidth || rect.top >= window.innerHeight) {
-      throw new Error('Element is outside the viewport');
-    }
+    const crop = visibleCrop(rect);
+    if (!crop) throw new Error('Element is outside the viewport');
     await nextPaint();
-    const dataUrl = await requestTabCapture();
-    const png = await cropToRect({ dataUrl, rect });
+    const dataUrl = await requestElementCapture({ ...crop, viewportWidth: window.innerWidth });
+    const png = await (await fetch(dataUrl)).blob();
     await navigator.clipboard.write([
       new ClipboardItem({ 'image/png': png, 'text/plain': new Blob([markdown], { type: 'text/plain' }) }),
     ]);
