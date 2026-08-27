@@ -1,5 +1,6 @@
 import { cn } from '@marklayer/types';
 import { signal, useSignalEffect } from '@preact/signals';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { copyText, deleteOp, inspects, openContextMenu, STATUS_STYLES, setOpStatus } from '../lib/state';
@@ -64,10 +65,10 @@ function InspectorMarker({ op }: { op: InspectOp }) {
         onContextMenu={onContextMenu}
       >
         <div
-          class="w-4 h-4 rounded-md inline-flex items-center justify-center ring-2 ring-(--ml-glass-bg) shadow-[0_1px_2px_oklch(0_0_0/0.25)]"
+          class="w-4 h-4 rounded-md inline-flex items-center justify-center ring-2 ring-(--ds-background-100) shadow-[0_1px_2px_oklch(0_0_0/0.25)]"
           style={{ background: stroke, opacity: styles.pinOpacity }}
         >
-          <span class="text-[9px] font-bold text-white leading-none">
+          <span class="text-[12px] font-medium text-white leading-none">
             <Icon name="terminal" size={9} />
           </span>
         </div>
@@ -76,16 +77,16 @@ function InspectorMarker({ op }: { op: InspectOp }) {
             'absolute hidden group-hover/inspect:block z-10 w-[260px]',
             flipV ? 'bottom-4' : 'top-4',
             flipH ? 'right-4' : 'left-4',
-            glass.surfaceSmall,
+            geist.surfaceSmall,
             glass.font,
             'p-3',
           )}
         >
           <div class="flex items-center justify-between gap-2 mb-1">
-            <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Inspect</span>
+            <span class={geist.sectionLabel}>Inspect</span>
             {status !== 'open' && (
               <span
-                class="text-[9.5px] font-bold uppercase tracking-[0.06em] px-1.5 py-0.5 rounded"
+                class="text-[12px] font-medium px-1.5 py-0.5 rounded-sm"
                 style={{ background: `color-mix(in oklch, ${styles.bg} 18%, transparent)`, color: styles.color }}
               >
                 {styles.label}
@@ -93,24 +94,24 @@ function InspectorMarker({ op }: { op: InspectOp }) {
             )}
           </div>
           <code
-            class="block text-[10.5px] text-ml-glass-fg/85 bg-ml-glass-fg/4 border border-ml-glass-fg/12
+            class="block text-[12px] text-(--ds-gray-1000) bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
                      rounded-lg px-2 py-1.5 wrap-break-word font-mono leading-snug max-h-12 overflow-hidden mb-2"
           >
             {op.selector}
           </code>
           {op.comment ? (
             <p
-              class="text-[12px] text-ml-glass-fg/85 m-0 leading-relaxed whitespace-pre-wrap"
+              class="text-[12px] text-(--ds-gray-1000) m-0 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
             >
               {op.comment}
             </p>
           ) : (
-            <p class="text-[11.5px] text-ml-glass-fg/60 m-0 italic">No task description</p>
+            <p class="text-[12px] text-(--ds-gray-900) m-0">No task description</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author ?? 'Anonymous'}</span>
-            {op.assignedAgent && <span class="text-[10px] text-ml-glass-fg/60 font-medium">→ {op.assignedAgent}</span>}
+            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author ?? 'Anonymous'}</span>
+            {op.assignedAgent && <span class="text-[12px] text-(--ds-gray-900) font-medium">→ {op.assignedAgent}</span>}
           </div>
         </div>
       </div>

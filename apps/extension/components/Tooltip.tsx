@@ -1,10 +1,30 @@
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { cn } from '@marklayer/types';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { glass } from '../lib/glass';
+import { geist } from '../lib/geist';
 import { portalContainer } from '../lib/portal';
 
 type Placement = 'top' | 'bottom';
+
+const MODIFIER_GLYPHS = '⌘⇧⌥⌃';
+
+/**
+ * A shortcut label as its parts: the leading modifier glyphs, then the key. Split
+ * so the modifiers can carry their own optical size — `⇧H` and `⌘⇧Z` both come
+ * through here, and the letter is always what remains after the run of modifiers.
+ */
+function ShortcutChip({ shortcut }: { shortcut: string }) {
+  const chars = [...shortcut];
+  const keyAt = chars.findIndex((c) => !MODIFIER_GLYPHS.includes(c));
+  const modifiers = (keyAt === -1 ? chars : chars.slice(0, keyAt)).join('');
+  const key = keyAt === -1 ? '' : chars.slice(keyAt).join('');
+  return (
+    <kbd class={geist.kbd}>
+      {modifiers && <span class={geist.kbdModifier}>{modifiers}</span>}
+      {key}
+    </kbd>
+  );
+}
 
 /**
  * Tooltip — render as a child of a `class="group …"` trigger; the trigger
@@ -51,7 +71,21 @@ export function Tooltip({
     const { signal } = ctrl;
     anchor.addEventListener('mouseenter', update('hover', true), { signal });
     anchor.addEventListener('mouseleave', update('hover', false), { signal });
-    anchor.addEventListener('focusin', update('focus', true), { signal });
+    // Keyboard focus only. Clicking a button focuses it too, and that focus
+    // outlives the pointer — which left the tooltip pinned open after every tool
+    // selection, long after the cursor had moved away.
+    anchor.addEventListener(
+      'focusin',
+      () => {
+        active.focus = anchor.matches(':focus-visible');
+        setOpen(active.hover || active.focus);
+      },
+      { signal },
+    );
+    // A pointer press ends keyboard mode, and `focusin` does not fire again for an
+    // already-focused button — so tabbing to a control and then clicking it would
+    // otherwise keep the hold set from the earlier keyboard focus.
+    anchor.addEventListener('pointerdown', update('focus', false), { signal });
     anchor.addEventListener('focusout', update('focus', false), { signal });
     return () => ctrl.abort();
   }, []);
@@ -74,26 +108,18 @@ export function Tooltip({
           >
             <BaseTooltip.Popup
               className={cn(
-                glass.surfaceSmall,
-                'rounded-[10px] px-2.5 py-1.5 flex items-center gap-2 outline-none',
-                'transition-[opacity,transform] duration-150 ease-out',
-                'data-starting-style:opacity-0 data-starting-style:scale-90',
-                'data-ending-style:opacity-0 data-ending-style:scale-90',
+                geist.surfaceSmall,
+                'px-2 py-1.5 flex items-center gap-2 outline-none',
+                // Opacity only, and only on something already on screen: no
+                // scale, so the label never wobbles as it settles.
+                'transition-opacity duration-100 ease-out',
+                'data-starting-style:opacity-0 data-ending-style:opacity-0',
                 'data-instant:transition-none',
                 wrap ? 'w-44 leading-snug' : 'whitespace-nowrap',
               )}
             >
-              <span class="text-[11px] text-ml-glass-fg/70 font-medium tracking-[0.01em]">{text}</span>
-              {shortcut && (
-                <kbd
-                  class={cn(
-                    'text-[10px] text-ml-glass-fg/60 bg-ml-glass-accent/[0.06] border border-ml-glass-fg/[0.08]',
-                    'rounded-[5px] px-1.5 py-0.5 font-mono leading-none',
-                  )}
-                >
-                  {shortcut}
-                </kbd>
-              )}
+              <span class="text-[12px] text-(--ds-gray-1000) font-medium tracking-[-0.01em]">{text}</span>
+              {shortcut && <ShortcutChip shortcut={shortcut} />}
             </BaseTooltip.Popup>
           </BaseTooltip.Positioner>
         </BaseTooltip.Portal>

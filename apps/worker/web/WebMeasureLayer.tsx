@@ -1,7 +1,7 @@
 import { MeasureOverlayContent, type MeasureState } from '@ext/components/MeasureLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { nextAnchorElement, type TraverseDir } from '@ext/lib/measure';
-import { altHeld, measureActive, measureToolActive } from '@ext/lib/state';
+import { measureActive, measureToolActive } from '@ext/lib/state';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
@@ -155,8 +155,6 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
     <MeasureOverlayContent
       anchors={anchors.value}
       hover={hover.value}
-      altPressed={altHeld.value}
-      showHint={measureToolActive.value}
       viewport={{ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }}
       getContainerRect={(el) => {
         if (!frame) return null;

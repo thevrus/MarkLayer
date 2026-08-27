@@ -1,6 +1,8 @@
 import { PriorityPicker } from '@ext/components/PriorityPicker';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
+import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
+import { useEdgeClamp } from '@ext/lib/popover';
 import { color, commentCounter, getCommentMeta, lineWidth, localUser } from '@ext/lib/state';
 import { type CommentPriority, cn } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
@@ -56,32 +58,33 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, frameRef, onClose }
   const vx = x * s;
   const vy = (y - scrollY) * s;
   const left = Math.min(vx + 16, innerWidth - 300);
-  const top = vy + 24 > innerHeight - 200 ? Math.max(4, vy - 200) : vy + 16;
+  const { ref: panelRef, top } = useEdgeClamp({ top: vy + 16 });
 
   return (
     <div
       class={cn(
         'fixed z-2147483647',
         'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
+        geist.surface,
         glass.font,
         'overflow-hidden w-[290px]',
       )}
+      ref={panelRef}
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
     >
       <div class="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
         <div
-          class="w-6 h-6 rounded-full text-white text-[10px] font-bold grid place-items-center shrink-0
+          class="w-6 h-6 rounded-full text-white text-[12px] font-medium grid place-items-center shrink-0
                  shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
           style={{ background: color.value }}
         >
           {num}
         </div>
-        <span class="text-[13px] text-ml-glass-fg font-semibold tracking-[-0.01em] flex-1">New comment</span>
+        <span class="text-[13px] text-(--ds-gray-1000) font-semibold tracking-[-0.01em] flex-1">New comment</span>
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="p-3.5">
         <textarea
@@ -104,18 +107,18 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, frameRef, onClose }
         <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between px-4 py-2.5">
-        <div class="flex items-center gap-2">
-          <kbd
-            class="text-[10.5px] text-ml-glass-fg/75 bg-ml-glass-fg/8 border border-ml-glass-fg/15
-                      rounded-md px-1.5 py-0.5 font-mono font-medium leading-none"
-          >
-            Esc
-          </kbd>
-          <span class="text-[11px] text-ml-glass-fg/60 font-medium">cancel</span>
-        </div>
+        {/* A real button, not a hint: it looked clickable, so it has to be. */}
+        <button
+          type="button"
+          onClick={() => commit(false)}
+          class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto gap-1.5 px-2 text-[13px] font-medium')}
+        >
+          Cancel
+          <kbd class={geist.kbd}>Esc</kbd>
+        </button>
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Post ↵
         </button>

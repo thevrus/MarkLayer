@@ -1,4 +1,8 @@
 import { Menu } from '@base-ui/react/menu';
+import { Toggle } from '@base-ui/react/toggle';
+import { ToggleGroup } from '@base-ui/react/toggle-group';
+import { geist } from '@ext/lib/geist';
+import { cn } from '@marklayer/types';
 import { useComputed } from '@preact/signals';
 import { Check, ChevronDown, Headphones, Mic, Video } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
@@ -51,25 +55,22 @@ export function DeviceMenu({ hasPermission }: Props) {
         }
       }}
     >
-      <Menu.Trigger
-        aria-label="Audio and video settings"
-        className="w-5 h-9 rounded-md grid place-items-center cursor-pointer border-none bg-transparent text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.06] transition-[color,background-color] duration-150"
-      >
-        <ChevronDown size={12} aria-hidden="true" />
+      <Menu.Trigger aria-label="Audio and video settings" className={cn(geist.ctl, geist.ctlIdle, 'w-5')}>
+        <ChevronDown size={12} strokeWidth={1.5} aria-hidden="true" />
       </Menu.Trigger>
 
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={6} className="z-2147483647">
-          <Menu.Popup className="min-w-70 p-1.5 rounded-xl bg-(--ml-glass-bg-small) backdrop-blur-[80px] backdrop-saturate-[1.9] border border-(--ml-glass-border) shadow-[0_8px_30px_oklch(0_0_0/0.22)] text-ml-glass-fg text-[13px]">
+          <Menu.Popup className={cn(geist.surface, 'min-w-70 p-1 text-(--ds-gray-1000) text-[13px]')}>
             {!hasPermission && (
-              <div class="mx-1 mb-1 px-2.5 py-2 rounded-md bg-ml-glass-accent/[0.08] text-[12px] text-ml-glass-fg/70 leading-snug">
+              <div class="mx-1 mb-1 px-2.5 py-2 rounded-md bg-(--ds-gray-alpha-100) text-[12px] text-(--ds-gray-900) leading-snug">
                 Grant microphone access to see device names.
               </div>
             )}
 
             <DeviceSection
               title="Microphone"
-              icon={<Mic size={13} strokeWidth={2} />}
+              icon={<Mic size={14} strokeWidth={1.5} />}
               options={mics}
               selectedId={selectedAudioInput.value}
               onSelect={(id) => {
@@ -82,7 +83,7 @@ export function DeviceMenu({ hasPermission }: Props) {
 
             <DeviceSection
               title="Camera"
-              icon={<Video size={13} strokeWidth={2} />}
+              icon={<Video size={14} strokeWidth={1.5} />}
               options={cams}
               selectedId={selectedVideoInput.value}
               onSelect={(id) => {
@@ -96,7 +97,7 @@ export function DeviceMenu({ hasPermission }: Props) {
                 <SectionDivider />
                 <DeviceSection
                   title="Speaker"
-                  icon={<Headphones size={13} strokeWidth={2} />}
+                  icon={<Headphones size={14} strokeWidth={1.5} />}
                   options={speakers}
                   selectedId={selectedAudioOutput.value}
                   onSelect={(id) => {
@@ -109,27 +110,23 @@ export function DeviceMenu({ hasPermission }: Props) {
 
             <SectionDivider />
 
-            <div class="px-2.5 pt-1.5 pb-1 text-[10.5px] uppercase tracking-[0.08em] text-ml-glass-fg/60 font-semibold">
-              Video quality
-            </div>
-            <div class="flex gap-1 p-1 pt-0.5">
-              {QUALITY_OPTIONS.map((q) => {
-                const isSelected = videoQuality.value === q.value;
-                return (
-                  <button
-                    key={q.value}
-                    type="button"
-                    onClick={() => persistQuality(q.value)}
-                    class={`flex-1 py-1.5 rounded-md text-[12px] font-medium cursor-pointer border-none transition-colors ${
-                      isSelected
-                        ? 'bg-ml-glass-accent/[0.22] text-ml-glass-fg shadow-[inset_0_0_0_1px_var(--ml-glass-border)] '
-                        : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]'
-                    }`}
-                  >
+            <div class={cn(geist.sectionLabel, 'px-2.5 pt-1.5 pb-1')}>Video quality</div>
+            <div class="p-1 pt-0.5">
+              <ToggleGroup
+                value={[videoQuality.value]}
+                onValueChange={(next: QualityPreset[]) => {
+                  // One quality is always in force, so an empty selection holds it.
+                  if (next[0]) persistQuality(next[0]);
+                }}
+                aria-label="Video quality"
+                className={cn(geist.track, 'flex w-full')}
+              >
+                {QUALITY_OPTIONS.map((q) => (
+                  <Toggle key={q.value} value={q.value} className={cn(geist.segmentText, 'flex-1 text-[12px]')}>
                     {q.short}
-                  </button>
-                );
-              })}
+                  </Toggle>
+                ))}
+              </ToggleGroup>
             </div>
           </Menu.Popup>
         </Menu.Positioner>
@@ -148,14 +145,14 @@ interface SectionProps {
 }
 
 function SectionDivider() {
-  return <div class="mx-2 my-1 h-px bg-(--ml-glass-divider)" />;
+  return <div class="mx-2 my-1 h-px bg-(--ds-gray-alpha-400)" />;
 }
 
 function DeviceSection({ title, icon, options, selectedId, onSelect }: SectionProps) {
   return (
     <div>
-      <div class="px-2.5 pt-1.5 pb-1 flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.08em] text-ml-glass-fg/60 font-semibold">
-        <span class="opacity-80">{icon}</span>
+      <div class={cn(geist.sectionLabel, 'px-2.5 pt-1.5 pb-1 flex items-center gap-1.5')}>
+        <span>{icon}</span>
         {title}
       </div>
       <Menu.RadioGroup
@@ -164,9 +161,7 @@ function DeviceSection({ title, icon, options, selectedId, onSelect }: SectionPr
         onValueChange={(value: string) => onSelect(value === DEFAULT_DEVICE ? null : value)}
       >
         <DeviceRow label="System default" value={DEFAULT_DEVICE} />
-        {options.length === 0 && (
-          <div class="px-2.5 py-1.5 text-[12px] text-ml-glass-fg/60 italic">No devices detected</div>
-        )}
+        {options.length === 0 && <div class={cn(geist.sectionLabel, 'px-2.5 py-1.5')}>No devices detected</div>}
         {options.map((d) => (
           <DeviceRow key={d.deviceId} label={d.label} value={d.deviceId} />
         ))}
@@ -183,12 +178,12 @@ function DeviceRow({ label, value }: { label: string; value: string }) {
       value={value}
       closeOnClick={false}
       className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-[13px] cursor-pointer border-none transition-colors
-                 bg-transparent text-ml-glass-fg/80 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.1]
-                 data-checked:bg-ml-glass-accent/[0.18] data-checked:text-ml-glass-fg data-checked:font-medium"
+                 bg-transparent text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
+                 data-checked:bg-(--ds-gray-alpha-100) data-checked:text-(--ds-gray-1000) data-checked:font-medium"
     >
       <span class="truncate text-left leading-tight">{label}</span>
-      <Menu.RadioItemIndicator className="shrink-0 inline-flex opacity-90">
-        <Check size={14} strokeWidth={2.5} aria-hidden="true" />
+      <Menu.RadioItemIndicator className="shrink-0 inline-flex text-(--ds-gray-900)">
+        <Check size={14} strokeWidth={1.5} aria-hidden="true" />
       </Menu.RadioItemIndicator>
     </Menu.RadioItem>
   );

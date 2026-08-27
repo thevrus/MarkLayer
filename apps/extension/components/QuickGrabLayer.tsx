@@ -34,9 +34,12 @@ export function QuickGrabLayer() {
     };
 
     // stopPropagation prevents App.tsx's tool shortcuts from also reading "C" as comment.
+    // This is a capture-phase listener on `window`, so it sees every keystroke on the
+    // host page: the scalar modifier test comes first, because `isTypingTarget` walks
+    // the whole composed path and would do it for every key typed anywhere.
     const onKeyDown = (e: KeyboardEvent) => {
-      if (inspectorOwnsInput() || isTypingTarget(e)) return;
       if (!e.altKey || e.metaKey || e.ctrlKey || e.key.toLowerCase() !== 'c') return;
+      if (inspectorOwnsInput() || isTypingTarget(e)) return;
       if (!altHeld.value || !grabHovered()) return;
       e.preventDefault();
       e.stopPropagation();

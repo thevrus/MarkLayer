@@ -1,6 +1,7 @@
 import { cn } from '@marklayer/types';
 import { Check, HelpCircle, Loader2 } from 'lucide-preact';
 import { applyAnchorDelta } from '../lib/anchor';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { type ParsedInspectorComment, parseInspectorComment } from '../lib/selector';
 import {
@@ -34,7 +35,7 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
     <div class="flex flex-col gap-2.5">
       {parsed.task && (
         <p
-          class="text-ml-glass-fg text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0 font-medium"
+          class="text-(--ds-gray-1000) text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0 font-medium"
           style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
         >
           {parsed.task}
@@ -42,19 +43,17 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
       )}
 
       {parsed.fields.length > 0 && (
-        <dl class="grid grid-cols-[64px_1fr] gap-x-3 gap-y-1 items-baseline text-[11.5px] m-0">
+        <dl class="grid grid-cols-[64px_1fr] gap-x-3 gap-y-1 items-baseline text-[12px] m-0">
           {parsed.fields.map(([label, value]) => {
             const isCode = label === 'Selector';
             return (
               <div key={label} class="contents">
-                <dt class="text-[10px] text-ml-glass-fg/60 font-semibold uppercase tracking-[0.06em] tabular-nums">
-                  {label}
-                </dt>
+                <dt class="text-[12px] text-(--ds-gray-900) font-medium tabular-nums">{label}</dt>
                 <dd
                   class={cn(
-                    'text-ml-glass-fg/85 m-0 wrap-break-word',
+                    'text-(--ds-gray-1000) m-0 wrap-break-word',
                     isCode &&
-                      'font-mono text-[11px] bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-md px-1.5 py-0.5',
+                      'font-mono text-[12px] bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) rounded-md px-1.5 py-0.5',
                   )}
                 >
                   {isCode ? unwrapInline(value) : value}
@@ -67,8 +66,8 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
 
       {parsed.markup && (
         <pre
-          class="m-0 text-[10.5px] font-mono leading-snug text-ml-glass-fg/80
-                 bg-(--ml-syntax-bg) border border-ml-glass-fg/10 rounded-lg
+          class="m-0 text-[12px] font-mono leading-snug text-(--ds-gray-1000)
+                 bg-(--ml-syntax-bg) border border-(--ds-gray-alpha-400) rounded-lg
                  px-2 py-1.5 overflow-x-auto max-h-32 whitespace-pre-wrap wrap-break-word"
         >
           {parsed.markup}
@@ -119,22 +118,22 @@ export function CommentPin({ op }: { op: CommentOp }) {
       <div class="relative -translate-x-1/2 -translate-y-1/2">
         {/* Pin dot */}
         <div
-          class="w-7 h-7 rounded-full text-white text-[11px] font-semibold
+          // A marker on someone else's page: flat fill, a surface-coloured ring
+          // to separate it from whatever is behind, and one tight shadow. The
+          // ring thickens on hover instead of the pin growing.
+          class="w-7 h-7 rounded-full text-white text-[12px] font-semibold
                  grid place-items-center
-                 shadow-[0_0_0_2.5px_oklch(0_0_0/0.2),0_2px_10px_oklch(0_0_0/0.35),inset_0_1px_0_oklch(1_0_0/0.2)]
-                 transition-[scale,box-shadow] duration-200 ease-out
-                 group-hover/pin:scale-[1.15] group-hover/pin:shadow-[0_0_0_2.5px_oklch(1_0_0/0.12),0_4px_20px_oklch(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/0.25)]"
-          style={{
-            background: `linear-gradient(to bottom, color-mix(in oklch, ${op.color} 100%, white 20%), ${op.color})`,
-            opacity: styles.pinOpacity,
-          }}
+                 shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
+                 transition-[box-shadow] duration-150 ease-out
+                 group-hover/pin:shadow-[0_0_0_3px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.3)]"
+          style={{ background: op.color, opacity: styles.pinOpacity }}
         >
           {op.num}
           {status !== 'open' && (
             <div
               role="img"
               aria-label={styles.label}
-              class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full text-white grid place-items-center shadow-sm border border-ml-glass-fg/80"
+              class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full text-white grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]"
               style={{ background: styles.bg }}
             >
               {status === 'resolved' && <Check size={9} strokeWidth={2.5} aria-hidden="true" />}
@@ -161,12 +160,12 @@ export function CommentPin({ op }: { op: CommentOp }) {
         >
           <div
             class={cn(
-              glass.surfaceSmall,
+              geist.surfaceSmall,
               inspector ? 'w-[320px]' : 'w-max max-w-[280px] min-w-[160px]',
-              'opacity-0 scale-90',
+              'opacity-0',
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
-              'transition-[opacity,scale,translate] duration-200 ease-out',
-              'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0',
+              'transition-[opacity,translate] duration-150 ease-out',
+              'group-hover/pin:opacity-100 group-hover/pin:translate-x-0',
               triage.cardCls,
               'overflow-hidden',
             )}
@@ -174,19 +173,19 @@ export function CommentPin({ op }: { op: CommentOp }) {
             {/* Header */}
             <div class="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
               <div
-                class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
+                class="w-5 h-5 rounded-full text-white text-[12px] font-medium grid place-items-center shrink-0
                        shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
                 style={{ background: op.color }}
               >
                 {op.num}
               </div>
-              <span class="text-[10.5px] text-ml-glass-fg/65 font-medium tabular-nums tracking-wide">
+              <span class="text-[12px] text-(--ds-gray-900) font-medium tabular-nums tracking-wide">
                 {timeAgo(op.ts)}
               </span>
               {op.priority && <PriorityBadge priority={op.priority} class="ml-auto" />}
             </div>
 
-            <div class={cn(glass.divider, 'mx-3')} />
+            <div class={cn(geist.divider, 'mx-3')} />
 
             {/* Body */}
             <div class="px-3.5 py-3 max-h-[50vh] overflow-y-auto overscroll-contain">
@@ -194,7 +193,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
                 <InspectorCommentBody parsed={inspector} resolved={resolved} />
               ) : (
                 <p
-                  class="text-ml-glass-fg/90 text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0"
+                  class="text-(--ds-gray-1000) text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0"
                   style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
                 >
                   {op.text}
@@ -202,7 +201,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
               )}
             </div>
 
-            <div class={cn(glass.divider, 'mx-3')} />
+            <div class={cn(geist.divider, 'mx-3')} />
 
             <TriageSection
               opId={op.id}
@@ -211,11 +210,11 @@ export function CommentPin({ op }: { op: CommentOp }) {
               onOpenChange={triage.onOpenChange}
             />
 
-            <div class={cn(glass.divider, 'mx-3')} />
+            <div class={cn(geist.divider, 'mx-3')} />
 
             {/* Footer */}
             <div class="px-3.5 py-2 flex items-center gap-1.5">
-              <span class="text-[10.5px] text-ml-glass-fg/60 font-medium">Click to reply</span>
+              <span class="text-[12px] text-(--ds-gray-900) font-medium">Click to reply</span>
             </div>
           </div>
         </div>

@@ -54,7 +54,7 @@ export function PriorityPicker({
       }}
       class={cn(
         `inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] font-medium cursor-pointer
-         bg-transparent border-none transition-colors hover:bg-ml-glass-fg/8`,
+         bg-transparent border-none transition-colors hover:bg-(--ds-gray-alpha-100)`,
         cls,
       )}
       style={meta ? { color: meta.color } : undefined}
@@ -63,9 +63,9 @@ export function PriorityPicker({
       {meta ? (
         <meta.Icon size={14} strokeWidth={2.25} />
       ) : (
-        <SignalHigh size={14} strokeWidth={2.25} class="text-ml-glass-fg/60" />
+        <SignalHigh size={14} strokeWidth={2.25} class="text-(--ds-gray-900)" />
       )}
-      <span class={meta ? '' : 'text-ml-glass-fg/60'}>{meta ? meta.label : 'Set priority'}</span>
+      <span class={meta ? '' : 'text-(--ds-gray-900)'}>{meta ? meta.label : 'Set priority'}</span>
     </button>
   );
 }
@@ -79,7 +79,7 @@ export function PriorityBadge({ priority, class: cls }: { priority: CommentPrior
   return (
     <span
       class={cn(
-        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none whitespace-nowrap',
+        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[12px] font-semibold leading-none whitespace-nowrap',
         cls,
       )}
       style={{ color: m.color, background: `color-mix(in oklch, ${m.color} 16%, transparent)` }}
@@ -100,7 +100,7 @@ export function PriorityPin({ priority }: { priority: CommentPriority }) {
     <div
       role="img"
       aria-label={`${m.label} priority`}
-      class="absolute -top-1 -left-1 w-4 h-4 rounded-full text-white grid place-items-center shadow-sm border border-ml-glass-fg/80"
+      class="absolute -top-1 -left-1 w-4 h-4 rounded-full text-white grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]"
       style={{ background: m.color }}
     >
       <m.Icon size={9} strokeWidth={2.75} aria-hidden="true" />

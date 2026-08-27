@@ -302,33 +302,34 @@ export function HintBadge({ text }: { text?: string } = {}) {
   );
 }
 
-/** Shared rendering for any number of pinned anchors + alt/hover overlay. */
+/**
+ * Shared rendering for any number of pinned anchors + alt/hover overlay. The held
+ * Alt and the tool selection are read straight off the signals rather than passed
+ * in: both hosts render from the same two globals, and a prop only meant the
+ * wiring had to be kept identical in two apps.
+ */
 export function MeasureOverlayContent({
   anchors,
   hover,
-  altPressed,
   viewport,
   getContainerRect,
-  showHint = true,
 }: {
   anchors: MeasureState[];
   hover: MeasureState | null;
-  altPressed: boolean;
   viewport: RectLike;
   /** Returns the rect of `el`'s relevant container in the same coord system as anchor rects. */
   getContainerRect?: (el: Element) => RectLike | null;
-  /** False for the momentary Alt-hover readout, which has no pinning to explain. */
-  showHint?: boolean;
 }) {
   const primary = anchors[anchors.length - 1] ?? null;
-  const showAlt = altPressed && !!primary;
+  const showAlt = altHeld.value && !!primary;
   const altOverlay = showAlt && hover && hover.el !== primary.el ? getDistanceOverlay(primary.rect, hover.rect) : null;
   const containerLines =
     showAlt && !hover ? getContainerLines(primary.rect, getContainerRect?.(primary.el) ?? viewport) : null;
 
   return (
     <>
-      {showHint && !anchors.length && !hover && <HintBadge />}
+      {/* Only the real tool explains pinning; the momentary Alt readout has none. */}
+      {measureToolActive.value && !anchors.length && !hover && <HintBadge />}
       {anchors.map((a) => (
         <Fragment key={a.id}>
           <ElementOutline rect={a.rect} />
@@ -506,8 +507,6 @@ export function MeasureLayer() {
     <MeasureOverlayContent
       anchors={anchors.value}
       hover={hover.value}
-      altPressed={altHeld.value}
-      showHint={measureToolActive.value}
       viewport={{ left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }}
       getContainerRect={(el) => {
         const p = el.parentElement;

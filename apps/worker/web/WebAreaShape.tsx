@@ -1,5 +1,6 @@
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { reprojectBox } from '@ext/lib/anchor';
+import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
 import { copyText, deleteOp, openContextMenu, setOpStatus } from '@ext/lib/state';
@@ -74,31 +75,31 @@ export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
           ])
         }
       >
-        <div class="w-3 h-3 rounded-full ring-2 ring-(--ml-glass-bg)" style={{ background: stroke }} />
+        <div class="w-3 h-3 rounded-full ring-2 ring-(--ds-background-100)" style={{ background: stroke }} />
         <div
           class={cn(
             'absolute left-3 top-0 hidden group-hover/area:block z-10 w-[240px]',
-            glass.surfaceSmall,
+            geist.surfaceSmall,
             glass.font,
             'p-3',
           )}
         >
           <div class="flex items-center justify-between gap-2">
-            <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Area</span>
+            <span class={geist.sectionLabel}>Area</span>
             {op.priority && <PriorityBadge priority={op.priority} />}
           </div>
           {op.comment ? (
             <p
-              class="text-[12.5px] text-ml-glass-fg/85 m-0 mt-1 leading-relaxed whitespace-pre-wrap"
+              class="text-[13px] text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           ) : (
-            <p class="text-[12px] text-ml-glass-fg/60 m-0 mt-1 italic">No comment</p>
+            <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1">No comment</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
+            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
             <div class="flex items-center gap-3">
               <button
                 type="button"
@@ -106,7 +107,7 @@ export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
                   e.stopPropagation();
                   deleteOp(op.id);
                 }}
-                class="text-[10.5px] font-medium text-(--ml-state-red)/70 hover:text-(--ml-state-red) bg-transparent border-none cursor-pointer p-0 transition-colors"
+                class={cn(geist.bareBtn, geist.bareBtnDanger, 'font-medium')}
               >
                 Delete
               </button>
@@ -116,7 +117,7 @@ export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
                   e.stopPropagation();
                   setOpStatus(op.id, resolved ? 'open' : 'resolved');
                 }}
-                class="text-[10.5px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+                class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
               >
                 {resolved ? 'Reopen' : 'Resolve'}
               </button>

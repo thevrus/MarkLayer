@@ -8,13 +8,26 @@
    nowhere in web/ silently gets no rule, and the pre-hydration paint breaks. */
 @source "../index.html";
 
-/* Muted-text floor. Opacity on text is surface-dependent, so a bare number is
-   not a contrast guarantee: `/55` measures 4.6:1 on the light glass panel but
-   only 3.9:1 on the page. `/60` is the lowest step that clears 4.5:1 on both
-   (4.5 page, 5.5 glass, 6.5 dark glass), so it is the floor for any text or
-   icon. Steps above it — /70 secondary, /85 near-primary — are free to use.
-   Nothing below /60 should carry text; the ladder from /20 to /55 that used to
-   run through these files bottomed out at 1.5:1. */
+/* ── Geist's metric-matched fallback ──
+   The app shell loads Geist from the font CDN with `display: swap`, and this
+   stylesheet declared no @font-face of its own — so the first paint used
+   whatever system sans the stack fell through to, and the swap to Geist
+   reflowed the page. That is the load-time layout shift.
+
+   Arial is re-metricked here to Geist's own proportions (the ratio of the two
+   faces' mean A-Z/a-z advance widths, plus Geist's ascent and descent as
+   percentages of its em), so the fallback occupies almost exactly the space the
+   real face will. Values are the ones apps/site/src/styles/global.css already
+   ships; keep the two in step. */
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial");
+  size-adjust: 102.01%;
+  ascent-override: 98.52%;
+  descent-override: 28.92%;
+  line-gap-override: 0%;
+}
+
 @theme {
   /* Page surfaces */
   --color-ml-bg: #fbfaf9;
@@ -26,13 +39,14 @@
   --color-ml-btn-fg: #fff;
   --color-ml-card: oklch(1 0 0 / 0.3);
   --color-ml-card-border: oklch(0.1 0 0 / 0.06);
-  /* Landing surface steps. Depth on the landing page comes from these two
-     background steps and nothing else — no borders, no shadows between
-     co-planar sections. Both are white carrying ~2% of the brand violet, so the
-     board reads as MarkLayer's own paper rather than the stock gray-100 every
-     UI kit ships as its "neutral surface". */
-  --color-ml-board: #f6f5f9;
-  --color-ml-board-deep: #eeecf3;
+  /* Landing surface steps. Plain white, deliberately — not the lavender-tinted
+     white this started on and not the off-white canvas that replaced it. The
+     page is a document, and a document is white; every off-white tried here read
+     as a tint nobody chose. It also means the only colour anywhere on the page
+     comes from the annotation marks, which is the one place colour carries
+     meaning. `-deep` is the single tone step down, used for the footer floor. */
+  --color-ml-board: #fff;
+  --color-ml-board-deep: #f5f5f5;
   --color-ml-input: oklch(1 0 0 / 0.85);
   --color-ml-input-border: oklch(0 0 0 / 0.12);
   /* Glass overlay surfaces (toolbar, panels, popovers) */
@@ -45,6 +59,19 @@
   --color-ml-resolved: oklch(0.55 0 0);
   /* Spring easing for entrance/exit motion. */
   --ease-ml-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── Two type registers ──
+     The product is marks on somebody else's document, and the page is built the
+     same way: whatever is genuinely product chrome — the toolbar, a comment
+     pin, a popover, the URL field — speaks the product's own font, and the
+     page's own voice speaks something else. Keeping one face for both is what
+     made the landing read as a reskin of the site Geist belongs to.
+
+     `--ml-font-ui` is Geist, and it stays Geist: it is the extension's UI font
+     and the toolbar on this page is the real toolbar. `--ml-font-voice` is the
+     page talking. */
+  --ml-font-ui: "Geist", "Geist Fallback", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --ml-font-voice: var(--ml-font-ui);
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -63,16 +90,33 @@
     --ml-glass-bg: oklch(0.96 0.003 280 / 0.97);
     --ml-glass-bg-small: oklch(0.96 0.003 280 / 0.98);
     --ml-glass-border: oklch(0 0 0 / 0.16);
-    --ml-glass-shadow:
-      0 0 0 0.5px oklch(0 0 0 / 0.12), 0 8px 40px oklch(0 0 0 / 0.1),
-      0 24px 60px oklch(0 0 0 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.6),
-      inset 0 -0.5px 0 oklch(0 0 0 / 0.05);
     --ml-glass-shadow-small:
       0 0 0 0.5px oklch(0 0 0 / 0.1), 0 6px 24px oklch(0 0 0 / 0.08), 0 16px 48px oklch(0 0 0 / 0.05),
       inset 0 0.5px 0 oklch(1 0 0 / 0.5);
-    --ml-glass-sep: oklch(0 0 0 / 0.12);
-    --ml-glass-divider: oklch(0 0 0 / 0.09);
-    --ml-glass-grip: oklch(0 0 0 / 0.9);
+
+    /* ── Geist ── the design system's own token values, copied from the
+       stylesheet it ships. The toolbar and its tooltip are built from these;
+       the --ml-glass-* surfaces above still carry the panels. `shadow-menu`
+       drops Geist's outer background-200 ring — the bar floats over someone
+       else's page, where a solid ring of our own background reads as a
+       second border. */
+    --ds-background-100: #fff;
+    --ds-gray-100: #f2f2f2;
+    --ds-gray-700: #8f8f8f;
+    --ds-gray-900: #4d4d4d;
+    --ds-gray-1000: #171717;
+    --ds-gray-alpha-100: #0000000d;
+    --ds-gray-alpha-200: #00000015;
+    --ds-gray-alpha-400: #00000014;
+    --ds-gray-alpha-500: #00000036;
+    --ds-blue-800: #005edc;
+    --ds-amber-700: #ffb200;
+    --ds-red-700: #fc0035;
+    --ds-green-700: #28a948;
+    --ds-focus-color: #0070f7;
+    --ds-shadow-menu: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px -4px #0000000a, 0 16px 24px -8px #0000000f;
+    --ds-shadow-tooltip: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px #0000000a;
+    --ds-shadow-border-small: 0 0 0 1px #00000014, 0 2px 2px #0000000a;
 
     /* Semantic state colors — used for active/success/error/warning UI */
     --ml-state-blue: oklch(0.62 0.18 250);
@@ -114,17 +158,28 @@
       --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
       --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
       --ml-glass-border: oklch(1 0 0 / 0.18);
-      --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
-      --ml-glass-shadow:
-        0 0 0 0.5px oklch(0 0 0 / 0.5), 0 8px 40px oklch(0 0 0 / 0.35),
-        0 24px 60px oklch(0 0 0 / 0.22), inset 0 1px 0 oklch(1 0 0 / 0.28),
-        inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
       --ml-glass-shadow-small:
         0 0 0 0.5px oklch(0 0 0 / 0.4), 0 6px 24px oklch(0 0 0 / 0.3), 0 16px 48px oklch(0 0 0 / 0.18),
         inset 0 0.5px 0 oklch(1 0 0 / 0.22);
-      --ml-glass-sep: oklch(1 0 0 / 0.12);
-      --ml-glass-divider: oklch(1 0 0 / 0.1);
-      --ml-glass-grip: oklch(1 0 0 / 0.9);
+
+      /* Geist tokens — same set as the light block above. */
+      --ds-background-100: #000;
+      --ds-gray-100: #1a1a1a;
+      --ds-gray-700: #8f8f8f;
+      --ds-gray-900: #a0a0a0;
+      --ds-gray-1000: #ededed;
+      --ds-gray-alpha-100: #ffffff0f;
+      --ds-gray-alpha-200: #ffffff17;
+      --ds-gray-alpha-400: #ffffff24;
+      --ds-gray-alpha-500: #ffffff3d;
+      --ds-blue-800: #005fd8;
+      --ds-amber-700: #ffb200;
+      --ds-red-700: #f13242;
+      --ds-green-700: #00ab3e;
+      --ds-focus-color: #50a8ff;
+      --ds-shadow-menu: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px -4px #00000052, 0 16px 24px -8px #00000052;
+      --ds-shadow-tooltip: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px #00000052;
+      --ds-shadow-border-small: 0 0 0 1px #ffffff25, 0 1px 2px #00000029;
 
       --ml-state-blue: oklch(0.72 0.17 250);
       --ml-state-green: oklch(0.78 0.18 145);
@@ -159,17 +214,28 @@
     --ml-glass-bg: oklch(0.14 0.012 280 / 0.92);
     --ml-glass-bg-small: oklch(0.13 0.012 280 / 0.94);
     --ml-glass-border: oklch(1 0 0 / 0.18);
-    --ml-glass-gloss: linear-gradient(to bottom, oklch(1 0 0 / 0.09) 0%, oklch(1 0 0 / 0.03) 40%, transparent 70%);
-    --ml-glass-shadow:
-      0 0 0 0.5px oklch(0 0 0 / 0.5), 0 8px 40px oklch(0 0 0 / 0.35),
-      0 24px 60px oklch(0 0 0 / 0.22), inset 0 1px 0 oklch(1 0 0 / 0.28),
-      inset 0 -0.5px 0 oklch(0 0 0 / 0.15);
     --ml-glass-shadow-small:
       0 0 0 0.5px oklch(0 0 0 / 0.4), 0 6px 24px oklch(0 0 0 / 0.3), 0 16px 48px oklch(0 0 0 / 0.18),
       inset 0 0.5px 0 oklch(1 0 0 / 0.22);
-    --ml-glass-sep: oklch(1 0 0 / 0.12);
-    --ml-glass-divider: oklch(1 0 0 / 0.1);
-    --ml-glass-grip: oklch(1 0 0 / 0.9);
+
+    /* Geist tokens — same set as the light block above. */
+    --ds-background-100: #000;
+    --ds-gray-100: #1a1a1a;
+    --ds-gray-700: #8f8f8f;
+    --ds-gray-900: #a0a0a0;
+    --ds-gray-1000: #ededed;
+    --ds-gray-alpha-100: #ffffff0f;
+    --ds-gray-alpha-200: #ffffff17;
+    --ds-gray-alpha-400: #ffffff24;
+    --ds-gray-alpha-500: #ffffff3d;
+    --ds-blue-800: #005fd8;
+    --ds-amber-700: #ffb200;
+    --ds-red-700: #f13242;
+    --ds-green-700: #00ab3e;
+    --ds-focus-color: #50a8ff;
+    --ds-shadow-menu: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px -4px #00000052, 0 16px 24px -8px #00000052;
+    --ds-shadow-tooltip: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px #00000052;
+    --ds-shadow-border-small: 0 0 0 1px #ffffff25, 0 1px 2px #00000029;
 
     --ml-state-blue: oklch(0.72 0.17 250);
     --ml-state-green: oklch(0.78 0.18 145);
@@ -184,7 +250,7 @@
   }
 
   body {
-    font-family: "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+    font-family: var(--ml-font-ui);
     background: var(--color-ml-bg);
     color: var(--color-ml-fg);
     -webkit-font-smoothing: antialiased;
@@ -203,9 +269,12 @@
   /* Force light theme on landing page regardless of system/manual dark mode */
   .ml-force-light,
   .ml-force-light * {
-    --color-ml-bg: #fbfaf9;
-    --color-ml-fg: #1a1a1a;
-    --color-ml-btn: #1a1a1a;
+    --color-ml-bg: #fff;
+    /* Geist's Text Primary, the ink the --ds-* ladder below is built around.
+       The landing used #1a1a1a, a hair warmer and darker, which put the page's
+       body copy and the toolbar's on two different ink ramps. */
+    --color-ml-fg: #171717;
+    --color-ml-btn: #171717;
     --color-ml-btn-hover: #333;
     --color-ml-btn-fg: #fff;
     --color-ml-card: oklch(1 0 0 / 0.3);
@@ -220,16 +289,28 @@
     --ml-glass-bg: oklch(0.96 0.003 280);
     --ml-glass-bg-small: oklch(0.96 0.003 280);
     --ml-glass-border: oklch(0 0 0 / 0.16);
-    --ml-glass-shadow:
-      0 0 0 0.5px oklch(0 0 0 / 0.12), 0 8px 40px oklch(0 0 0 / 0.1),
-      0 24px 60px oklch(0 0 0 / 0.06), inset 0 1px 0 oklch(1 0 0 / 0.6),
-      inset 0 -0.5px 0 oklch(0 0 0 / 0.05);
     --ml-glass-shadow-small:
       0 0 0 0.5px oklch(0 0 0 / 0.1), 0 6px 24px oklch(0 0 0 / 0.08), 0 16px 48px oklch(0 0 0 / 0.05),
       inset 0 0.5px 0 oklch(1 0 0 / 0.5);
-    --ml-glass-sep: oklch(0 0 0 / 0.12);
-    --ml-glass-divider: oklch(0 0 0 / 0.09);
-    --ml-glass-grip: oklch(0 0 0 / 0.9);
+
+    /* Geist tokens — same set as the light block above. */
+    --ds-background-100: #fff;
+    --ds-gray-100: #f2f2f2;
+    --ds-gray-700: #8f8f8f;
+    --ds-gray-900: #4d4d4d;
+    --ds-gray-1000: #171717;
+    --ds-gray-alpha-100: #0000000d;
+    --ds-gray-alpha-200: #00000015;
+    --ds-gray-alpha-400: #00000014;
+    --ds-gray-alpha-500: #00000036;
+    --ds-blue-800: #005edc;
+    --ds-amber-700: #ffb200;
+    --ds-red-700: #fc0035;
+    --ds-green-700: #28a948;
+    --ds-focus-color: #0070f7;
+    --ds-shadow-menu: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px -4px #0000000a, 0 16px 24px -8px #0000000f;
+    --ds-shadow-tooltip: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px #0000000a;
+    --ds-shadow-border-small: 0 0 0 1px #00000014, 0 2px 2px #0000000a;
   }
 
   /* Redefining the tokens above is not enough on its own. `body` resolves
@@ -459,18 +540,224 @@
   background: var(--color-ml-board);
 }
 
+/* The page's own voice. Applied to the landing wrapper; the product chrome
+   inside it (Toolbar, comment pins, popovers — see geist.ts / glass.ts) sets
+   `--ml-font-ui` for itself and is unaffected. */
+.lp-voice {
+  font-family: var(--ml-font-voice);
+}
+
+/* Display register.
+
+   One class owns every line the page says in its own voice, so the display
+   setting is defined once rather than re-typed on seven headings that then
+   drift apart.
+
+   Geist is variable 400-700 and the display weight is 500. Presence at these
+   sizes comes from scale and fit, not from mass: 600 read as underset only
+   because the type itself was too small, and 700 at 90px reads as heavy rather
+   than confident. Set large and tracked tight, a medium weight is what looks
+   composed — the size does the shouting so the weight does not have to. */
+.lp-display {
+  font-family: var(--ml-font-ui);
+  font-weight: 500;
+  letter-spacing: -0.055em;
+}
+
 /* The primary call to action: one flat black surface. This was a gradient fill
    with two inset highlights, a drop shadow and a white shine sweeping across it
    every 4s — the glowy gradient button, and the loop drew the eye away from the
    page's own content. The hover is a value step; nothing lifts, sweeps or glows. */
 .lp-cta {
-  background: #000;
+  background: var(--ds-gray-1000);
 }
 .lp-cta:hover {
-  background: #282828;
+  background: #383838;
 }
 .lp-cta:active {
-  background: #111;
+  background: #0a0a0a;
+}
+
+/* ── The landing surface system ──
+   One elevation primitive for the whole page. Depth is a hairline *ring* plus a
+   2px contact shadow, not a border and not a bloom: the ring is drawn by the
+   shadow so it never takes layout, never doubles up against a neighbour's
+   border, and never rounds off into the boxy silhouette a blurred duplicate
+   leaves behind. Same token the toolbar and its tooltip already use, so an
+   object on the board and an object in the product are lit identically. */
+.lp-panel {
+  background: #fff;
+  box-shadow: var(--ds-shadow-border-small);
+}
+
+/* ── Focus ──
+
+   The URL field's focus ring lives here rather than on a Tailwind
+   `focus-within:shadow-[…]` utility, because that utility silently never
+   applied. `@import "tailwindcss"` declares the layer order
+   `theme, base, components, utilities`, and every rule in this block is
+   UNLAYERED — unlayered rules outrank every layered one, so `.lp-panel`'s
+   box-shadow beat the focus utility and the page's primary action had no
+   visible keyboard focus indicator at all. Same-layer, higher-specificity is
+   the fix that cannot lose.
+
+   Two rings: a solid 1px on the field edge and a soft 3px halo outside it, so
+   the state is legible against white without the field appearing to grow. */
+.lp-field {
+  transition: box-shadow 150ms ease;
+}
+.lp-field:focus-within {
+  box-shadow:
+    0 0 0 1px var(--ds-focus-color),
+    0 0 0 4px color-mix(in srgb, var(--ds-focus-color) 22%, transparent);
+}
+
+/* Everything else keeps one ring, drawn as an outline so it follows each
+   control's own border-radius. The page had no focus styling of its own and
+   leaned on the UA default, which differs per browser and disappears entirely
+   on the two controls that set `outline-none`. */
+.lp-voice :focus-visible {
+  outline: 2px solid var(--ds-focus-color);
+  outline-offset: 2px;
+}
+.lp-field:focus-within :focus-visible {
+  outline: none;
+}
+
+/* The one hover the page has, and it does not move: a card lifts by tightening
+   its own ring, never by translating up under a shadow bloom. */
+.lp-panel-i {
+  transition: box-shadow 160ms ease;
+}
+.lp-panel-i:hover {
+  box-shadow:
+    0 0 0 1px #00000024,
+    0 2px 2px #0000000a;
+}
+
+/* ── The highlight mark ──
+
+   A real MarkLayer highlight: the highlighter lays colour across the whole word
+   rather than ruling a line under it. The word sits in white on the brand colour
+   at full strength, which is what a marked-up text selection actually looks like
+   — and a selection is one of this product's own tools, so the treatment is
+   borrowed from the product rather than invented for the page.
+
+   White clears the 3:1 large-text floor on every channel: 14.0:1 on Slack's
+   #4A154B, 5.4:1 on Teams, 4.1:1 on WhatsApp's darker green, 3.7:1 on the blue.
+   An earlier version put the word in the channel's own colour on a pale wash of
+   that same hue, which left teal type on a teal band at barely 3:1.
+
+   VERTICAL CENTRING. Not em offsets from the box edges — those were measured
+   wrong and sat 1px above the caps but 8.9px below the baseline, which is
+   exactly the lopsidedness you notice without being able to name. Centring on
+   the slot's box works because the box middle and the cap-to-baseline middle are
+   within 1px of each other in Geist, and unlike hard offsets it survives a
+   change to the headline's line-height. The 0.012em nudge closes that last pixel.
+   Descenders hang below the wash on purpose — that is what a highlighter does. */
+.lp-mark-hl {
+  position: absolute;
+  /* Slight side overshoot, as a real marker stroke has. The slot carries
+     matching side margins (see ChannelCycle) so this eats neither word space. */
+  left: -0.05em;
+  right: -0.05em;
+  top: 50%;
+  height: 0.86em;
+  transform: translateY(calc(-50% - 0.012em));
+  border-radius: 0.06em;
+  background: currentColor;
+  z-index: -1;
+  /* The wash holds its place while the word is mid-swap at zero opacity, so the
+     headline reads as a highlight whose word is changing rather than as a hole. */
+  transition: background-color 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── The footer signature wordmark ──
+
+   Full-bleed, centred, cut at about half its cap height and dissolved into the
+   floor rather than stopped at a line.
+
+   SIZING. "MarkLayer" set in Geist 500 at -0.03em measures 4.7552x its own
+   font-size (measured in the browser, not guessed), so 21vw is the size at which
+   the word's ink spans the viewport. Keep the two in step: change the weight or
+   the tracking and this number is wrong.
+
+   CENTRING. The ink is sized to fit rather than to overshoot, so there is no
+   overflow to centre. That matters: an overshooting nowrap line does not
+   overhang symmetrically — the engine clamps it to the container's left edge, so
+   an earlier version that bled ~2% past both sides actually sat 26px off centre.
+   With the line inside its box, `text-align: center` is exact, measured at 0px
+   error.
+
+   THE CUT. The font-size lives on the clip, so `em` inside it means the
+   wordmark's own em and every offset below is expressed in the type's terms
+   rather than in magic pixels. With `line-height: 1` Geist's baseline sits
+   0.855em from the top of the line box, its cap height is 0.73em and its
+   x-height about 0.52em — so caps run 0.125em to 0.855em and the lowercase tops
+   only begin at 0.335em. Pulling the span up by 0.125em puts the cap top exactly
+   on the container's top edge.
+
+   The height is set against the x-height, not the cap height, and that is the
+   whole trick. Cutting at 55% of the CAPS looked correct on paper and was wrong
+   on screen: it left M, k, L and the y ascender tall while showing barely a
+   third of a, r, e and r, so the word read as a row of disconnected vertical
+   bars rather than as "MarkLayer". At 0.6em the lowercase letters keep about
+   four fifths of their x-height and the word stays a word, while the mask below
+   dissolves the lower half so it still reads as half-there.
+
+   THE FADE. Twelve stops on an ease-out alpha curve, reaching fully transparent
+   at the clip. A short fade, or one still at partial opacity where the box ends,
+   would put a visible band across the glyphs — which is the failure this is
+   built to avoid. */
+.lp-wordmark-clip {
+  font-size: 21vw;
+  height: 0.6em;
+  overflow: hidden;
+  text-align: center;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 44%,
+    rgb(0 0 0 / 95%) 52%,
+    rgb(0 0 0 / 87%) 60%,
+    rgb(0 0 0 / 76%) 67%,
+    rgb(0 0 0 / 63%) 73%,
+    rgb(0 0 0 / 49%) 79%,
+    rgb(0 0 0 / 35%) 85%,
+    rgb(0 0 0 / 22%) 90%,
+    rgb(0 0 0 / 11%) 94%,
+    rgb(0 0 0 / 3%) 97%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 44%,
+    rgb(0 0 0 / 95%) 52%,
+    rgb(0 0 0 / 87%) 60%,
+    rgb(0 0 0 / 76%) 67%,
+    rgb(0 0 0 / 63%) 73%,
+    rgb(0 0 0 / 49%) 79%,
+    rgb(0 0 0 / 35%) 85%,
+    rgb(0 0 0 / 22%) 90%,
+    rgb(0 0 0 / 11%) 94%,
+    rgb(0 0 0 / 3%) 97%,
+    transparent 100%
+  );
+}
+
+.lp-wordmark {
+  display: block;
+  margin-top: -0.125em;
+  font-size: 1em;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-align: center;
+  white-space: nowrap;
+  /* Stronger than the tone it replaced, because the mask takes most of it back;
+     a value tuned to look right unmasked goes invisible once faded. */
+  color: color-mix(in srgb, var(--color-ml-fg) 19%, transparent);
 }
 
 /* Voice activity bars on cursor badges */

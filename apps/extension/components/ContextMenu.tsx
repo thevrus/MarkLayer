@@ -1,5 +1,6 @@
 import { Menu } from '@base-ui/react/menu';
 import { cn } from '@marklayer/types';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { portalContainer } from '../lib/portal';
@@ -34,7 +35,7 @@ export function ContextMenu() {
           className="z-2147483647 outline-none"
         >
           <Menu.Popup
-            className={cn('min-w-50', glass.menuPopup, glass.surfaceSmall, glass.font)}
+            className={cn('min-w-50', glass.menuPopup, geist.surfaceSmall, glass.font)}
             onContextMenu={(e: MouseEvent) => e.preventDefault()}
           >
             {state.items.map((it) => (
@@ -46,10 +47,10 @@ export function ContextMenu() {
                 }}
                 className={cn(
                   'w-full flex items-center gap-2.5 px-3 py-1.5 text-left',
-                  'text-[12.5px] font-medium leading-none',
+                  'text-[13px] font-medium leading-none',
                   glass.menuItem,
                   it.danger
-                    ? 'text-(--ml-state-red) hover:bg-(--ml-state-red)/15 data-highlighted:bg-(--ml-state-red)/15'
+                    ? 'text-(--ds-red-700) hover:bg-(--ds-red-700)/15 data-highlighted:bg-(--ds-red-700)/15'
                     : glass.menuItemHighlight,
                 )}
               >

@@ -1,6 +1,8 @@
 import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
 import { PriorityBadge, PriorityPin } from '@ext/components/PriorityPicker';
 import { applyAnchorDelta } from '@ext/lib/anchor';
+import { submitBtn } from '@ext/lib/buttons';
+import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
   copyText,
@@ -87,22 +89,22 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
       <div class="relative -translate-x-1/2 -translate-y-1/2">
         {/* Pin dot */}
         <div
-          class="w-7 h-7 rounded-full text-white text-[11px] font-semibold
+          // A marker on someone else's page: flat fill, a surface-coloured ring
+          // to separate it from whatever is behind, and one tight shadow. The
+          // ring thickens on hover instead of the pin growing.
+          class="w-7 h-7 rounded-full text-white text-[12px] font-semibold
                  grid place-items-center
-                 shadow-[0_0_0_2.5px_oklch(0_0_0/0.2),0_2px_10px_oklch(0_0_0/0.35),inset_0_1px_0_oklch(1_0_0/0.2)]
-                 transition-[scale,box-shadow] duration-200 ease-out
-                 group-hover/pin:scale-[1.15] group-hover/pin:shadow-[0_0_0_2.5px_oklch(1_0_0/0.12),0_4px_20px_oklch(0_0_0/0.45),inset_0_1px_0_oklch(1_0_0/0.25)]"
-          style={{
-            background: `linear-gradient(to bottom, color-mix(in oklch, ${op.color} 100%, white 20%), ${op.color})`,
-            opacity: styles.pinOpacity,
-          }}
+                 shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
+                 transition-[box-shadow] duration-150 ease-out
+                 group-hover/pin:shadow-[0_0_0_3px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.3)]"
+          style={{ background: op.color, opacity: styles.pinOpacity }}
         >
           {op.num}
           {showBadge && (
             <div
               role="img"
               aria-label={styles.label}
-              class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full text-white grid place-items-center shadow-sm border border-ml-glass-fg/80"
+              class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full text-white grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]"
               style={{ background: styles.bg }}
             >
               {resolved && <Check size={9} strokeWidth={2.5} aria-hidden="true" />}
@@ -111,7 +113,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             </div>
           )}
           {replies.length > 0 && !resolved && !dismissed && (
-            <div class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-white text-[8px] font-bold text-black/70 grid place-items-center shadow-sm">
+            <div class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-(--ds-background-100) text-[10px] font-medium text-(--ds-gray-1000) grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]">
               {replies.length}
             </div>
           )}
@@ -132,14 +134,14 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
         >
           <div
             class={cn(
-              'bg-[var(--ml-glass-bg-small)] border border-[var(--ml-glass-border)]',
+              'bg-[var(--ds-background-100)] border border-[var(--ds-gray-alpha-400)]',
               'shadow-[0_0_0_0.5px_oklch(0_0_0/0.5),0_6px_24px_oklch(0_0_0/0.35),0_16px_48px_oklch(0_0_0/0.25)]',
               'rounded-xl',
               'w-[300px]',
-              'opacity-0 scale-90',
+              'opacity-0',
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
-              'transition-[opacity,scale,translate] duration-200 ease-out',
-              'group-hover/pin:opacity-100 group-hover/pin:scale-100 group-hover/pin:translate-x-0',
+              'transition-[opacity,translate] duration-150 ease-out',
+              'group-hover/pin:opacity-100 group-hover/pin:translate-x-0',
               triage.cardCls,
               'max-h-[400px] overflow-y-auto',
             )}
@@ -148,24 +150,24 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             {/* Root comment */}
             <div class="flex items-center gap-2.5 pt-3 px-3.5 pb-2">
               <div
-                class="w-5 h-5 rounded-full text-white text-[9px] font-bold grid place-items-center shrink-0
+                class="w-5 h-5 rounded-full text-white text-[12px] font-medium grid place-items-center shrink-0
                      shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
                 style={{ background: op.color }}
               >
                 {op.num}
               </div>
-              <span class="text-[11px] text-ml-glass-fg/80 font-semibold tracking-wide flex-1">
+              <span class="text-[12px] text-(--ds-gray-1000) font-semibold tracking-wide flex-1">
                 {op.author || 'Anonymous'}
               </span>
               {op.priority && <PriorityBadge priority={op.priority} />}
-              <span class="text-[10.5px] text-ml-glass-fg/60 font-medium tabular-nums">{timeAgo(op.ts)}</span>
+              <span class="text-[12px] text-(--ds-gray-900) font-medium tabular-nums">{timeAgo(op.ts)}</span>
             </div>
 
             {(op.assignedAgent || dismissed) && (
               <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
                 {op.assignedAgent && (
                   <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium"
                     style={{ background: 'oklch(0.7 0.16 60 / 0.15)', color: styles.color }}
                   >
                     {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
@@ -173,13 +175,13 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                   </span>
                 )}
                 {dismissed && op.dismissReason && (
-                  <span class="text-[10.5px] italic text-ml-glass-fg/65">{op.dismissReason}</span>
+                  <span class="text-[12px] text-(--ds-gray-900)">{op.dismissReason}</span>
                 )}
               </div>
             )}
 
             <div class="pt-1 px-3.5 pb-2.5">
-              <p class="m-0 text-ml-glass-fg/90 text-[13px] leading-[1.55] break-words whitespace-pre-wrap">
+              <p class="m-0 text-(--ds-gray-1000) text-[13px] leading-[1.55] break-words whitespace-pre-wrap">
                 {op.text}
               </p>
             </div>
@@ -187,20 +189,20 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             {/* Replies */}
             {replies.length > 0 && (
               <div>
-                <div class={cn(glass.divider, 'mx-3')} />
+                <div class={cn(geist.divider, 'mx-3')} />
                 {replies.map((reply) => (
-                  <div key={reply.id} class="px-3.5 py-2 border-l-2 border-ml-glass-fg/[0.06] ml-3">
+                  <div key={reply.id} class="px-3.5 py-2 border-l-2 border-(--ds-gray-alpha-400) ml-3">
                     <div class="flex items-center gap-2 mb-1">
                       <div
-                        class="w-4 h-4 rounded-full text-white text-[7px] font-bold grid place-items-center shrink-0"
+                        class="w-4 h-4 rounded-full text-white text-[9px] font-medium grid place-items-center shrink-0"
                         style={{ background: reply.color }}
                       >
                         {(reply.author || '?').charAt(0).toUpperCase()}
                       </div>
-                      <span class="text-[11px] text-ml-glass-fg/75 font-semibold">{reply.author || 'Anonymous'}</span>
-                      <span class="text-[10px] text-ml-glass-fg/60 tabular-nums">{timeAgo(reply.ts)}</span>
+                      <span class="text-[12px] text-(--ds-gray-1000) font-semibold">{reply.author || 'Anonymous'}</span>
+                      <span class="text-[12px] text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
                     </div>
-                    <p class="m-0 text-ml-glass-fg/85 text-[12.5px] leading-[1.55] break-words whitespace-pre-wrap">
+                    <p class="m-0 text-(--ds-gray-1000) text-[13px] leading-[1.55] break-words whitespace-pre-wrap">
                       {reply.text}
                     </p>
                   </div>
@@ -209,7 +211,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             )}
 
             {/* Divider */}
-            <div class={cn(glass.divider, 'mx-3')} />
+            <div class={cn(geist.divider, 'mx-3')} />
 
             <TriageSection
               opId={op.id}
@@ -218,7 +220,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
               onOpenChange={triage.onOpenChange}
             />
 
-            <div class={cn(glass.divider, 'mx-3')} />
+            <div class={cn(geist.divider, 'mx-3')} />
 
             {/* Reply input */}
             {showReply ? (
@@ -229,12 +231,12 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                   placeholder="Reply…"
                   rows={1}
                   class={cn(
-                    'w-full bg-ml-glass-fg/4 border border-ml-glass-fg/12 rounded-lg px-3 py-2',
-                    'text-ml-glass-fg text-[12.5px] leading-relaxed',
+                    'w-full bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) rounded-lg px-3 py-2',
+                    'text-(--ds-gray-1000) text-[13px] leading-relaxed',
                     'resize-none outline-none min-h-8 max-h-[80px]',
                     'caret-ml-accent',
-                    'focus:border-ml-accent/50 focus:bg-ml-glass-fg/6',
-                    'placeholder:text-ml-glass-fg/60',
+                    'focus:border-ml-accent/50 focus:bg-(--ds-gray-alpha-100)',
+                    'placeholder:text-(--ds-gray-900)',
                     glass.font,
                   )}
                   style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
@@ -251,19 +253,11 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                   <button
                     type="button"
                     onClick={() => setShowReply(false)}
-                    class="text-[11px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer px-2 py-1 transition-colors"
+                    class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-[13px] font-medium')}
                   >
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    onClick={submitReply}
-                    class="text-[11px] font-semibold px-3 py-1.5 rounded-md cursor-pointer border-none
-                         bg-linear-to-b from-[oklch(0.68_0.15_300)] to-[oklch(0.58_0.15_300)]
-                         text-white shadow-[inset_0_1px_0_oklch(1_0_0/0.15),0_1px_3px_oklch(0_0_0/0.2)]
-                         hover:from-[oklch(0.72_0.15_300)] hover:to-[oklch(0.62_0.15_300)]
-                         active:scale-[0.96] transition-[box-shadow,transform] duration-150"
-                  >
+                  <button type="button" onClick={submitReply} class={submitBtn}>
                     Reply
                   </button>
                 </div>
@@ -276,9 +270,9 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                     setShowReply(true);
                     setTimeout(() => replyRef.current?.focus(), 50);
                   }}
-                  class="text-[11.5px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
-                       border border-ml-glass-fg/12 bg-ml-glass-fg/4
-                       text-ml-glass-fg/75 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8
+                  class="text-[12px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
+                       border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)
+                       text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
                        transition-[color,background-color,border-color] duration-150"
                 >
                   Reply

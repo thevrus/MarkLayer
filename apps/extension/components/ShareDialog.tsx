@@ -4,6 +4,7 @@ import { useSignalEffect } from '@preact/signals';
 import { AlertTriangle, Bot, Check, Copy, Link2, MonitorOff, X } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useState } from 'preact/hooks';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
 import {
@@ -91,9 +92,9 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       type="button"
       onClick={() => copy(value)}
       aria-label={label}
-      class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer
-             border border-ml-glass-fg/12 bg-ml-glass-fg/5
-             text-ml-glass-fg/80 hover:text-ml-glass-fg hover:bg-ml-glass-fg/10
+      class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[12px] font-semibold cursor-pointer
+             border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)
+             text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
              transition-[color,background-color,border-color] duration-150"
     >
       {copied.value ? <Check size={11} aria-hidden="true" /> : <Copy size={11} aria-hidden="true" />}
@@ -144,38 +145,38 @@ export function ShareDialog() {
     >
       <Dialog.Portal container={portalContainer.value ?? undefined}>
         <Dialog.Backdrop
-          className="fixed inset-0 z-[2147483646] bg-black/40 backdrop-blur-sm
-                     animate-[fadeInDown_0.15s_ease-out]"
+          // A flat scrim, no blur: Geist dims the page behind a dialog, it
+          // does not frost it.
+          className="fixed inset-0 z-[2147483646] bg-black/50 animate-[fadeInDown_0.15s_ease-out]"
         />
         <Dialog.Popup
           className={cn(
-            glass.surfaceSmall,
+            geist.surface,
             glass.font,
             'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[2147483646]',
             'w-[420px] max-w-[calc(100vw-32px)] p-4 flex flex-col gap-3 pointer-events-auto',
           )}
         >
           <div class="flex items-center justify-between">
-            <Dialog.Title className="text-[13px] font-semibold text-ml-glass-fg/90 m-0">Share annotations</Dialog.Title>
-            <Dialog.Close
-              aria-label="Close"
-              className="p-1 rounded-md text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-fg/8 cursor-pointer"
-            >
-              <X size={13} aria-hidden="true" />
+            <Dialog.Title className="text-[13px] font-semibold text-(--ds-gray-1000) m-0">
+              Share annotations
+            </Dialog.Title>
+            <Dialog.Close aria-label="Close" className={cn(geist.ctlSm, geist.ctlIdle, '-mr-1')}>
+              <X size={16} strokeWidth={1.5} aria-hidden="true" />
             </Dialog.Close>
           </div>
 
           {/* Share link — only when the page can actually be proxied through marklayer.app */}
           {shareable ? (
             <div class="flex flex-col gap-1.5">
-              <div class="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-ml-glass-fg/60">
+              <div class="flex items-center gap-1.5 text-[12px] font-medium text-(--ds-gray-900)">
                 <Link2 size={11} aria-hidden="true" />
                 Public link
               </div>
               <div class="flex items-center gap-1.5">
                 <code
-                  class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                         text-[12px] text-ml-glass-fg/85 font-mono truncate"
+                  class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
+                         text-[12px] text-(--ds-gray-1000) font-mono truncate"
                 >
                   {shareUrl}
                 </code>
@@ -184,7 +185,7 @@ export function ShareDialog() {
               {embedHostile && (
                 <div
                   class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-amber-400/10 border border-amber-400/25
-                         text-[11.5px] text-ml-glass-fg/75 leading-snug"
+                         text-[12px] text-(--ds-gray-1000) leading-snug"
                 >
                   <AlertTriangle size={12} class="shrink-0 mt-px text-amber-400/90" aria-hidden="true" />
                   <span>
@@ -196,8 +197,8 @@ export function ShareDialog() {
             </div>
           ) : (
             <div
-              class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                     text-[11.5px] text-ml-glass-fg/70 leading-snug"
+              class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
+                     text-[12px] text-(--ds-gray-900) leading-snug"
             >
               <MonitorOff size={12} class="shrink-0 mt-px" aria-hidden="true" />
               <span>
@@ -209,34 +210,34 @@ export function ShareDialog() {
 
           {/* Connect an AI agent */}
           <div class="flex flex-col gap-1.5">
-            <div class="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wider text-ml-glass-fg/60">
+            <div class="flex items-center gap-1.5 text-[12px] font-medium text-(--ds-gray-900)">
               <Bot size={11} aria-hidden="true" />
               Connect an AI agent
             </div>
-            <p class="text-[11.5px] text-ml-glass-fg/70 leading-snug m-0">
+            <p class="text-[12px] text-(--ds-gray-900) leading-snug m-0">
               Let an agent read and resolve your annotations. Run once in any project:
             </p>
             <div class="flex items-center gap-1.5">
               <code
-                class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                       text-[11.5px] text-ml-glass-fg/85 font-mono truncate"
+                class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
+                       text-[12px] text-(--ds-gray-1000) font-mono truncate"
               >
                 {claudeCommand}
               </code>
               <CopyButton value={claudeCommand} label="Copy Claude Code command" />
             </div>
-            <details class="text-[11px] text-ml-glass-fg/60">
-              <summary class="cursor-pointer select-none hover:text-ml-glass-fg/80">Other agents…</summary>
+            <details class="text-[12px] text-(--ds-gray-900)">
+              <summary class="cursor-pointer select-none hover:text-(--ds-gray-1000)">Other agents…</summary>
               <div class="mt-1.5 flex items-center gap-1.5">
                 <code
-                  class="flex-1 px-2.5 py-1.5 rounded-md bg-ml-glass-fg/5 border border-ml-glass-fg/10
-                         text-[11px] text-ml-glass-fg/85 font-mono truncate"
+                  class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
+                         text-[12px] text-(--ds-gray-1000) font-mono truncate"
                 >
                   {npxCommand}
                 </code>
                 <CopyButton value={npxCommand} label="Copy npx command" />
               </div>
-              <p class="mt-1.5 text-[10.5px] text-ml-glass-fg/60 leading-snug">
+              <p class="mt-1.5 text-[12px] text-(--ds-gray-900) leading-snug">
                 Cursor / Codex / Windsurf: paste the npx command into your MCP config under a "marklayer" entry.
               </p>
             </details>
@@ -246,7 +247,7 @@ export function ShareDialog() {
             href={HOW_IT_WORKS_URL}
             target="_blank"
             rel="noopener"
-            class="text-[11px] text-ml-glass-fg/55 hover:text-ml-glass-fg/80 no-underline hover:underline transition-colors"
+            class="text-[12px] text-(--ds-gray-900) hover:text-(--ds-gray-1000) no-underline hover:underline transition-colors"
           >
             How MarkLayer works
           </a>

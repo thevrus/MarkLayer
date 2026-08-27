@@ -132,12 +132,12 @@ export function ProjectTabs() {
       value={idx}
       onValueChange={(value: number) => switchTo(value)}
       className={cn(
-        'flex items-center gap-1 px-3 h-9 z-40 shrink-0 overflow-x-auto bg-[var(--ml-glass-bg)] backdrop-blur-[80px]',
-        'border-b border-ml-glass-fg/[0.06] shadow-[0_1px_3px_oklch(0_0_0/0.04)]',
+        'flex items-center gap-1 px-3 h-9 z-40 shrink-0 overflow-x-auto bg-(--ds-background-100)',
+        'border-b border-(--ds-gray-alpha-400)',
         glass.font,
       )}
     >
-      <span class="text-[10.5px] uppercase tracking-[0.08em] text-ml-glass-fg/60 font-bold mr-1 shrink-0">Pages</span>
+      <span class="text-[12px] text-(--ds-gray-900) mr-1 shrink-0">Pages</span>
       <Tabs.List className="flex items-center gap-1">
         {pages.map((p, i) => {
           const active = i === idx;
@@ -151,23 +151,23 @@ export function ProjectTabs() {
                 'group relative shrink-0 inline-flex items-center h-7 rounded-lg',
                 'transition-[color,background-color,box-shadow] duration-150',
                 active
-                  ? 'bg-ml-glass-fg/12 text-ml-glass-fg shadow-[inset_0_0.5px_0_oklch(1_0_0/0.08)]'
-                  : 'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-fg/6',
+                  ? 'bg-(--ds-background-100) text-(--ds-gray-1000) [box-shadow:var(--ds-shadow-border-small)]'
+                  : 'bg-transparent text-(--ds-gray-900) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)',
               )}
             >
               <Tabs.Tab
                 value={i}
                 className={cn(
                   'inline-flex items-center gap-1.5 h-7 pl-2.5 rounded-lg text-[12px] font-medium border-none cursor-pointer bg-transparent',
-                  'text-inherit transition-[color,scale] duration-150 active:scale-[0.96]',
+                  'text-inherit transition-colors duration-150',
                   canDelete ? 'pr-1' : 'pr-2.5',
                 )}
                 title={p.url ?? `Page ${i + 1}`}
               >
-                <span class="tabular-nums opacity-70">{i + 1}.</span>
+                <span class="tabular-nums text-(--ds-gray-900)">{i + 1}.</span>
                 <span class="max-w-[180px] truncate">
                   {host}
-                  {path && <span class="opacity-70">{path}</span>}
+                  {path && <span class="text-(--ds-gray-900)">{path}</span>}
                 </span>
               </Tabs.Tab>
               {canDelete && (
@@ -176,7 +176,7 @@ export function ProjectTabs() {
                   onClick={(e) => deletePage(i, e)}
                   class={cn(
                     'h-5 w-5 mr-1 rounded grid place-items-center bg-transparent border-none cursor-pointer',
-                    'text-current opacity-0 group-hover:opacity-50 hover:!opacity-100 hover:bg-ml-glass-fg/[0.08]',
+                    'text-current opacity-0 group-hover:opacity-50 hover:!opacity-100 hover:bg-(--ds-gray-alpha-100)',
                     'transition-[opacity,background-color] duration-100',
                   )}
                   title="Remove this page from the project"
@@ -196,7 +196,7 @@ export function ProjectTabs() {
           onClick={() => setAdding(true)}
           class={cn(
             'shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[12px] font-medium border-none cursor-pointer',
-            'bg-transparent text-ml-glass-fg/65 hover:text-ml-glass-fg hover:bg-ml-glass-fg/6 transition-[color,background-color] duration-150',
+            'bg-transparent text-(--ds-gray-900) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) transition-[color,background-color] duration-150',
           )}
           disabled={loading}
         >
@@ -221,12 +221,12 @@ export function ProjectTabs() {
                 setNewUrl('');
               }
             }}
-            class="h-7 w-[280px] px-2.5 rounded-lg bg-ml-glass-accent/[0.08] border border-ml-glass-fg/[0.1] outline-none text-[11.5px] text-ml-glass-fg/80 placeholder:text-ml-glass-fg/60 focus:border-ml-glass-fg/[0.2]"
+            class="h-7 w-[280px] px-2.5 rounded-lg bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) outline-none text-[12px] text-(--ds-gray-1000) placeholder:text-(--ds-gray-900) focus:border-(--ds-gray-alpha-400)"
           />
           <button
             type="submit"
             disabled={loading || !newUrl.trim()}
-            class="h-7 px-2.5 rounded-lg bg-ml-glass-accent/[0.14] border-none cursor-pointer text-[11px] font-semibold text-ml-glass-fg hover:bg-ml-glass-accent/[0.2] disabled:opacity-40 disabled:cursor-not-allowed transition-[background-color,opacity] duration-150"
+            class="h-7 px-2.5 rounded-lg bg-(--ds-gray-alpha-100) border-none cursor-pointer text-[12px] font-semibold text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) disabled:opacity-40 disabled:cursor-not-allowed transition-[background-color,opacity] duration-150"
           >
             {loading ? 'Adding…' : 'Add'}
           </button>
@@ -236,7 +236,7 @@ export function ProjectTabs() {
               setAdding(false);
               setNewUrl('');
             }}
-            class="h-7 w-7 rounded-lg grid place-items-center bg-transparent border-none cursor-pointer text-ml-glass-fg/60 hover:text-ml-glass-fg hover:bg-ml-glass-accent/[0.08]"
+            class="h-7 w-7 rounded-lg grid place-items-center bg-transparent border-none cursor-pointer text-(--ds-gray-900) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)"
           >
             <X size={12} aria-hidden="true" />
           </button>

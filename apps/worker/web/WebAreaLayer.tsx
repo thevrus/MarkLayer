@@ -2,7 +2,7 @@ import { AreaPopover, type DraftAreaState, type DraftRect, rectFromDraft } from 
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 
-import { activeTool, color, lineWidth, localUser, pushOp } from '@ext/lib/state';
+import { activeTool, color, lineWidth, localUser } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
 import type { CommentPriority } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
@@ -11,7 +11,7 @@ import { createPortal } from 'preact/compat';
 import { useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { frameViewport, isElementNode, pickFrameTarget, useIframeOverlay } from './iframeOverlay';
-import { cssScale, iframeScrollY } from './signals';
+import { cssScale, iframeScrollY, pushDeviceOp } from './signals';
 
 export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const draft = useSignal<DraftAreaState | null>(null);
@@ -176,7 +176,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       target,
       captureViewport: frameViewport(frameRef.current),
     };
-    pushOp(op);
+    pushDeviceOp(op);
     pending.value = null;
   };
 
