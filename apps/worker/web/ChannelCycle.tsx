@@ -126,7 +126,7 @@ export function ChannelCycle() {
        box its rect reports. The travel below is short enough, and fades out far
        enough, that nothing needs to be cut. */
     <span
-      class="inline-flex justify-center align-bottom"
+      class="relative mx-[0.05em] inline-flex justify-center align-bottom isolate"
       style={
         widths === null
           ? undefined
@@ -138,13 +138,21 @@ export function ChannelCycle() {
             }
       }
     >
-      {/* The colour swaps with the text, which happens while the word is at
-          zero opacity, so it is never seen cross-fading between two brands. */}
-      <span
-        ref={wordRef}
-        class="inline-block whitespace-pre will-change-transform"
-        style={{ color: CHANNELS[index].color }}
-      >
+      {/* The highlighter wash. It carries the channel's brand colour and sits on
+          the slot rather than on the word, so it holds its place through the
+          ~300ms the word spends at zero opacity mid-swap — the headline reads as
+          a highlight whose word is changing, never as a hole.
+
+          The colour swaps with the text, which happens while the word is
+          invisible, so it is never seen cross-fading between two brands. */}
+      <span class="lp-mark-hl" style={{ color: CHANNELS[index].color }} aria-hidden="true" />
+      {/* White on the wash — a marked-up text selection. The word carried the
+          brand colour itself at first, which put the hue on a wash of itself and
+          cost most of the contrast; then it carried the headline's ink, which
+          read as flat. White clears the large-text floor on all four channels
+          and lets the brand colour stay the loud part, which is where an
+          annotation's colour belongs. */}
+      <span ref={wordRef} class="inline-block whitespace-pre text-white will-change-transform">
         {CHANNELS[index].name}
       </span>
     </span>

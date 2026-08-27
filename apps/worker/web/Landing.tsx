@@ -1,6 +1,6 @@
 import { InspectorLayer } from '@ext/components/InspectorLayer';
+import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
-import { glass } from '@ext/lib/glass';
 import { hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
 import { HOW_IT_WORKS_PATH } from '@ext/lib/share';
 import {
@@ -18,7 +18,6 @@ import {
   selections,
   showAnnotationPanel,
   showShareDialog,
-  toasts,
   toolForKeyEvent,
   undo,
   undoRedoFlash,
@@ -40,6 +39,7 @@ import {
   isMobileDevice,
   navigateTo,
   pushDeviceOp,
+  seedDeviceOp,
   selectionPopover,
   textInput,
   urlReady,
@@ -70,6 +70,18 @@ const MOMENTS: { title: string; desc: string }[] = [
   },
 ];
 
+/**
+ * The nav's links. The page shipped with a logo, two icon links and no
+ * navigation at all, while the footer carried twenty — so the only way into the
+ * comparison and use-case pages was to scroll past everything first.
+ */
+const NAV_LINKS: { label: string; href: string }[] = [
+  { label: 'How it works', href: HOW_IT_WORKS_PATH },
+  { label: 'Compare', href: '/compare' },
+  { label: 'Use cases', href: '/use-cases' },
+  { label: 'Pricing', href: '/pricing' },
+];
+
 /* Declared at module scope, not in the render body. Landing re-renders on every
    signal read it makes — the active tool, the op list, the toast queue — and a
    component declared inside it is a new type each time, so Preact would unmount
@@ -96,6 +108,21 @@ function ChromeIcon() {
   );
 }
 
+/**
+ * The one seeded annotation on the board.
+ *
+ * A fixed id rather than a nanoid, so a re-mount can never stack a second copy
+ * of it. The landing never calls `restoreDraft`, so every load starts from an
+ * empty op list and this is the only thing on the board until a visitor draws.
+ *
+ * It is a real CommentOp on the real op stream: the pin it renders is
+ * WebCommentPin, clicking it opens the actual thread, and replying, resolving
+ * or deleting it all work exactly as they do on a shared page. The page claims
+ * to be a live board one line above the toolbar; this is the claim being true
+ * rather than asserted.
+ */
+const HERO_PIN_ID = 'ml-hero-pin';
+
 const CTA_CLS =
   'lp-cta inline-flex items-center gap-2 h-12 px-7 rounded-full text-white text-[15px] font-medium no-underline transition-colors select-none';
 
@@ -111,6 +138,7 @@ function ChromeStoreLink({ label, class: cls }: { label: string; class?: string 
 
 export function Landing() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const heroFormRef = useRef<HTMLFormElement>(null);
   const drawingRef = useRef(false);
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
@@ -377,6 +405,74 @@ export function Landing() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  /* Put one real annotation on the board.
+
+     Measured off the URL field rather than hard-coded, so the pin sits on it at
+     every width instead of drifting into the copy on a narrow screen. It waits
+     for `document.fonts.ready` and then a frame: the hero's height depends on
+     Geist's metrics and on ChannelCycle measuring its word slot, and both land
+     after first paint — measuring in a plain mount effect put the pin ~300px
+     high, above the headline instead of on the field. */
+  useEffect(() => {
+    let cancelled = false;
+
+    const place = () => {
+      const form = heroFormRef.current;
+      if (cancelled || !form) return;
+      const r = form.getBoundingClientRect();
+      // A zero-width rect means layout still has not settled; placing the pin
+      // off that would park it against the left edge of the page.
+      if (r.width === 0) return;
+      // Just off the field's right edge, level with its centre.
+      //
+      // It sat on the field's top-right corner until a click test showed it
+      // covering a 16x12px bite out of the submit button — the pin layer
+      // re-enables pointer events for the pin itself, so `elementFromPoint` on
+      // the button's own corner returned the pin and that corner was dead. It
+      // still reads as attached to the field at this distance, and it no longer
+      // sits on top of the page's primary action.
+      const x = r.right + window.scrollX + 30;
+      const y = r.top + r.height / 2 + window.scrollY;
+      const seeded = operations.peek().find((op) => op.id === HERO_PIN_ID);
+      if (seeded) {
+        if (seeded.tool !== 'comment' || (seeded.x === x && seeded.y === y)) return;
+        operations.value = operations.peek().map((op) => (op.id === HERO_PIN_ID ? { ...op, x, y } : op));
+        return;
+      }
+      seedDeviceOp({
+        id: HERO_PIN_ID,
+        tool: 'comment',
+        num: 1,
+        text: 'This pin is real. Open it, reply to it, resolve it, then drop your own anywhere on the page.',
+        x,
+        y,
+        // From the peer-cursor palette, so the mark belongs to the same
+        // vocabulary as the people already on the board.
+        color: '#8b5cf6',
+        lineWidth: lineWidth.peek(),
+        ts: Date.now(),
+        author: 'Yuki',
+      });
+    };
+
+    let timer: ReturnType<typeof setTimeout>;
+    // Only the viewport changing moves the field. Watching the document instead
+    // would re-place the pin every time a FAQ row opened.
+    const onResize = () => {
+      clearTimeout(timer);
+      timer = setTimeout(place, 120);
+    };
+    document.fonts.ready.then(() => {
+      requestAnimationFrame(place);
+    });
+    window.addEventListener('resize', onResize);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
+
   // Cursor broadcast
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -424,37 +520,65 @@ export function Landing() {
 
   return (
     <>
-      {/* Gradient page background */}
-      <div class="ml-force-light relative min-h-screen font-['Geist',system-ui,sans-serif] overflow-x-hidden lp-board">
+      {/* The board.
+
+          The page is not a page *about* an annotation tool; it is a page that
+          has been annotated. Every mark on this first screen is real — the
+          canvas is the product's canvas, the toolbar is the product's toolbar,
+          the strokes are real ops and the highlight under the headline is the
+          highlighter tool's own 40%-alpha swipe. Nothing here is a drawing of
+          the product pretending to be the product. */}
+      <div class="ml-force-light lp-voice relative min-h-screen overflow-x-hidden lp-board">
         {/* No page-wide column. The content column used to be 800px wide on any
             viewport, which read as a narrow tube down the middle of a dead white
             field — packed inside, empty outside. Each section now owns its own
             width, and the live annotation layer gets the outer margins. */}
         <main class="min-h-screen sm:min-h-0">
-          {/* The first screen is composed as one frame: nav, hero and the
-              install line share a 100svh column, so the fold ends where the
-              composition ends instead of letting the next section peek in
-              151px high and unaligned. */}
+          {/* The first screen is composed as one frame: nav, hero and the board
+              line share a 100svh column, so the fold ends where the composition
+              ends instead of letting the next section peek in 151px high and
+              unaligned. */}
           <div class="relative flex flex-col sm:min-h-[100svh]">
             {/* The demo cursors belong to this frame and scroll away with it. */}
             <FakeCursors />
-            {/* Nav */}
-            <nav class="lp-fade-up mx-auto flex w-full max-w-280 items-center justify-between px-6 pt-6 pb-2 sm:px-10">
+
+            {/* Nav. It carries real navigation now — the page previously had a
+                logo, two icons and no links at all, while the footer carried
+                twenty. Contained to the same column the hero sits in, so the
+                wordmark and the headline share one left margin. */}
+            <nav class="lp-fade-up relative z-1 mx-auto flex w-full max-w-280 items-center justify-between gap-6 px-6 pt-6 sm:px-10">
               <a href="/" class="flex items-center gap-2.5 no-underline">
-                <Logo size={28} />
+                <Logo size={34} />
                 {/* Solid ink. A gradient clipped into the wordmark is decoration
-                  the eye reads as a rendering artifact at this size. */}
-                <span class="text-[18px] font-semibold tracking-[-0.02em] text-ml-fg">MarkLayer</span>
+                  the eye reads as a rendering artifact at this size. The
+                  wordmark tracks the mark's size so the lockup keeps its
+                  proportion instead of the glyph outgrowing the name. */}
+                <span class="text-[19px] font-medium tracking-[-0.045em] text-ml-fg">MarkLayer</span>
               </a>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-0.5 sm:gap-1">
+                {/* From 640, not 768. Below that the links existed only in the
+                    footer, which put every comparison and use-case page behind a
+                    full-page scroll on the widths most likely to be a small
+                    laptop. */}
+                <div class="mr-1 hidden items-center sm:flex">
+                  {NAV_LINKS.map(({ label, href }) => (
+                    <a
+                      key={href}
+                      href={href}
+                      class="rounded-full px-3 py-1.5 text-[14px] text-ml-fg/70 no-underline transition-colors hover:bg-ml-fg/[0.05] hover:text-ml-fg"
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </div>
                 <a
                   href="https://www.producthunt.com/posts/marklayer"
                   target="_blank"
                   rel="noopener"
-                  class="inline-flex items-center justify-center size-11 sm:size-9 rounded-lg text-ml-fg/60 hover:text-ml-fg hover:bg-ml-fg/[0.04] transition-colors"
+                  class="inline-flex items-center justify-center size-11 sm:size-9 rounded-full text-ml-fg/60 hover:text-ml-fg hover:bg-ml-fg/[0.05] transition-colors"
                 >
                   <span class="sr-only">Product Hunt</span>
-                  <svg class="size-5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <svg class="size-[18px] fill-current" viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M13.604 8.4h-3.405V12h3.405a1.8 1.8 0 0 0 0-3.6ZM12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0Zm1.604 14.4h-3.405V18H7.801V6h5.804a4.2 4.2 0 0 1 0 8.4Z" />
                   </svg>
                 </a>
@@ -462,21 +586,59 @@ export function Landing() {
               </div>
             </nav>
 
-            {/* Hero */}
-            <section class="mx-auto flex w-full max-w-280 flex-1 flex-col justify-center px-6 pt-14 pb-16 text-center sm:px-10 sm:pt-6 sm:pb-36">
-              {/* The eyebrow badge (Chrome Web Store icon plus five stars in a
-                tinted pill) is gone: a rating chip above the headline is the
-                stock hero decoration, and the stars claimed a rating the store
-                page has to back up. */}
-              <h1
-                class="lp-fade-up mx-auto mb-5 max-w-[21ch] text-[clamp(38px,6vw,62px)] font-semibold leading-[1.04] tracking-[-0.035em] text-balance text-ml-fg"
-                style={{ animationDelay: '0.05s' }}
-              >
-                {copy.headlinePrefix} {copy.headlineJoiner} <ChannelCycle /> {copy.headlineSuffix}
-              </h1>
+            {/* Hero. Left-anchored on the same margin as the wordmark, not
+                centred: seven stacked centre-aligned rows floating in an empty
+                field is the default hero stack, and it left the whole right of
+                the screen reading as dead space rather than as board. The copy
+                holds the left; the board's working area — where the marks and
+                the other people's cursors are — holds the right. */}
+            <section class="relative mx-auto flex w-full max-w-280 flex-1 flex-col justify-center px-6 pb-28 pt-14 sm:px-10 sm:pb-36 sm:pt-8">
+              <div class="max-w-[1080px]">
+                {/* Two lines, never three — the measure is set wide enough that
+                  the longest channel word ("WhatsApp") still lands on line two
+                  rather than starting a third. The display statement spans the
+                  column while the action block below it stays on a reading
+                  measure, so the fold is a wide headline over a left-anchored
+                  column rather than a text block with dead space beside it.
+
+                  The cycling word carries a live highlighter mark (see
+                  ChannelCycle) which holds the slot through the ~300ms the
+                  glyphs spend at zero opacity — before, the headline showed a
+                  hole mid-swap. */}
+                {/* The two lines are explicit, and `text-balance` is
+                  deliberately absent.
+
+                  Left to wrap on its own the headline re-broke every time the
+                  channel word swapped — "WhatsApp" is far wider than "Email", so
+                  the line count changed under it and the entire page below
+                  jumped on a 2.6s loop. Balancing made it worse, because
+                  `text-wrap: balance` recomputes the break points on every width
+                  change rather than holding them.
+
+                  Splitting the lines by hand means only line two contains the
+                  cycling slot, and that line is measured to hold the longest
+                  channel name at the largest step of the clamp, so the block's
+                  height is constant and the only thing that ever moves is
+                  "Thread." sliding sideways — which is the intended effect.
+
+                  Line one still wraps below ~430px, so the phone rendering is
+                  three lines rather than two. That is fine and it is not the
+                  bug this fixes: the wrap there is the same on every tick,
+                  because it depends on the fixed prefix and not on which
+                  channel word happens to be in the slot. */}
+                <h1
+                  class="lp-display lp-fade-up text-[clamp(38px,5.6vw,80px)] leading-[1.0] text-ml-fg"
+                  style={{ animationDelay: '0.05s' }}
+                >
+                  <span class="block">{copy.headlinePrefix}</span>
+                  <span class="block">
+                    {copy.headlineJoiner} <ChannelCycle /> {copy.headlineSuffix}
+                  </span>
+                </h1>
+              </div>
 
               <p
-                class="lp-fade-up text-[17px] text-ml-fg/60 mb-9 max-w-[460px] mx-auto leading-[1.6]"
+                class="lp-fade-up mt-6 max-w-[44ch] text-[17px] leading-[1.55] text-ml-fg/70"
                 style={{ animationDelay: '0.1s' }}
               >
                 Send your client one link. They comment straight on the live page in their own browser, without signing
@@ -485,11 +647,11 @@ export function Landing() {
 
               {isMobileDevice ? (
                 <div
-                  class="lp-fade-up max-w-[400px] mx-auto mb-12 px-6 py-5 rounded-2xl bg-white border border-ml-fg/[0.06] text-center"
+                  class="lp-fade-up lp-panel mt-9 max-w-[400px] rounded-xl px-5 py-5"
                   style={{ animationDelay: '0.3s' }}
                 >
-                  <Monitor size={24} class="text-ml-fg/60 mx-auto mb-3" aria-hidden="true" />
-                  <p class="text-[14px] font-semibold text-ml-fg/70 m-0 mb-1">Desktop only</p>
+                  <Monitor size={22} class="text-ml-fg/60 mb-3" aria-hidden="true" />
+                  <p class="text-[14px] font-semibold text-ml-fg m-0 mb-1">Desktop only</p>
                   <p class="text-[13px] text-ml-fg/60 m-0">Open this page on your computer to get started.</p>
                 </div>
               ) : (
@@ -500,7 +662,8 @@ export function Landing() {
                     nothing to install. Leading with the install asked cold
                     traffic to commit before anything had been demonstrated. */}
                   <form
-                    class="lp-fade-up max-w-[520px] mx-auto mb-3"
+                    ref={heroFormRef}
+                    class="lp-fade-up mt-9 max-w-[520px]"
                     style={{ animationDelay: '0.15s' }}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -513,10 +676,11 @@ export function Landing() {
                       navigateTo(url);
                     }}
                   >
-                    {/* Pill, to match the CTA: every interactive affordance on the
-                      page uses one radius, so the shape language reads as a
-                      system rather than a pile of components. */}
-                    <div class="flex items-center gap-3 pl-5 pr-2 py-3 rounded-full bg-white border border-ml-fg/[0.16] focus-within:border-ml-fg/40 transition-colors">
+                    {/* Pill, on the page's one elevation primitive: a hairline
+                      ring and a 2px contact shadow, the same treatment every
+                      other object on the board gets. The focus state tightens
+                      the ring rather than adding a second one outside it. */}
+                    <div class="lp-panel lp-field flex items-center gap-3 rounded-full py-2 pl-5 pr-2">
                       <Search size={17} class="text-ml-fg/60 shrink-0" aria-hidden="true" />
                       {/* 16px under `sm`: iOS Safari zooms the whole page when a
                         focused field's text is under 16px, and this is the first
@@ -533,7 +697,7 @@ export function Landing() {
                         aria-label="Page URL to annotate"
                         placeholder="Paste any URL to annotate…"
                         autocomplete="url"
-                        class="flex-1 bg-transparent border-none text-ml-fg text-[16px] sm:text-[15px] placeholder:text-ml-fg/60 outline-none"
+                        class="h-10 flex-1 bg-transparent border-none text-ml-fg text-[16px] sm:text-[15px] placeholder:text-ml-fg/60 outline-none"
                         onInput={(e) => {
                           const v = e.currentTarget.value.trim();
                           urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
@@ -543,10 +707,10 @@ export function Landing() {
                         type="submit"
                         aria-label="Go"
                         class={cn(
-                          'shrink-0 w-9 h-9 rounded-full grid place-items-center border-none cursor-pointer transition-colors duration-200',
+                          'shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-full grid place-items-center border-none cursor-pointer transition-colors duration-200',
                           urlReady.value
-                            ? 'text-ml-btn-fg bg-ml-btn shadow-sm'
-                            : 'text-ml-fg/60 bg-ml-fg/[0.04] hover:bg-ml-fg/[0.08]',
+                            ? 'text-ml-btn-fg bg-ml-btn hover:bg-[#383838]'
+                            : 'text-ml-fg/60 bg-ml-fg/[0.05] hover:bg-ml-fg/[0.09]',
                         )}
                       >
                         <ArrowRight size={16} aria-hidden="true" />
@@ -555,7 +719,7 @@ export function Landing() {
                   </form>
 
                   <div
-                    class="lp-fade-up flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[14px] text-ml-fg/60 mb-8"
+                    class="lp-fade-up mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-ml-fg/60"
                     style={{ animationDelay: '0.2s' }}
                   >
                     <span>Or try one:</span>
@@ -568,86 +732,105 @@ export function Landing() {
                         key={name}
                         type="button"
                         onClick={() => navigateTo(url)}
-                        class="text-ml-fg/70 hover:text-ml-fg transition-colors cursor-pointer bg-transparent border-none text-[14px] p-0 underline underline-offset-2 decoration-ml-fg/30"
+                        class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-[14px] text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
                       >
                         {name}
                       </button>
                     ))}
                   </div>
 
-                  {/* The signature, said out loud. The demo cursors, the canvas
-                    and the toolbar were always real and always running here, but
-                    nothing told anyone — so three strangers' cursors drifting
-                    over the copy read as a rendering fault rather than as the
-                    product demonstrating itself. This one line is checkable: the
-                    toolbar it points at is the extension's own, and the strokes
-                    it draws are real ops. */}
-                  <p class="lp-fade-up mb-12 text-[15px] text-ml-fg/60" style={{ animationDelay: '0.22s' }}>
-                    This page is a live MarkLayer board.{' '}
-                    <span class="font-medium text-ml-fg">Pick a tool below and draw on it.</span>
+                  {/* One quiet line, not a second filled button. A filled
+                    primary next to an outlined secondary is a preset, and the
+                    fold already has its one clear action above. The install ask
+                    is real but secondary here; it gets the filled treatment
+                    once, in the closing section. Verifiable claims only — the
+                    licence link goes to the repo. */}
+                  <p
+                    class="lp-fade-up mt-9 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] text-ml-fg/60"
+                    style={{ animationDelay: '0.25s' }}
+                  >
+                    <a
+                      href={CHROME_STORE_URL}
+                      target="_blank"
+                      rel="noopener"
+                      class="inline-flex items-center gap-1.5 text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
+                      <ChromeIcon />
+                      Add to Chrome
+                    </a>
+                    <span aria-hidden="true">·</span>
+                    <span>No account, ever</span>
+                    <span aria-hidden="true">·</span>
+                    <a
+                      href="https://github.com/thevrus/MarkLayer"
+                      target="_blank"
+                      rel="noopener"
+                      class="text-ml-fg/60 hover:text-ml-fg transition-colors underline underline-offset-2 decoration-ml-fg/30"
+                    >
+                      Apache-2.0
+                    </a>
+                    <span aria-hidden="true">·</span>
+                    <span>Self-hostable</span>
                   </p>
-
-                  {/* The bottom edge of the first screen, composed rather than
-                    wherever the stack happened to end: the second ask and the
-                    three checkable claims sit together as the fold's floor. */}
-                  <div class="lp-fade-up flex flex-col items-center gap-3" style={{ animationDelay: '0.25s' }}>
-                    <ChromeStoreLink label="Add to Chrome · It's Free" class="justify-center" />
-                    <p class="m-0 max-w-[52ch] text-[13px] text-ml-fg/60 text-pretty">
-                      Optional. Everything above works without it; the extension adds pages behind a login, and sites
-                      that block embedding.
-                    </p>
-                    {/* Verifiable claims only. The page previously carried a
-                        five-star chip with no source; these three are checkable:
-                        the licence is in the repo and the link goes to it. */}
-                    <p class="m-0 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[13px] text-ml-fg/60">
-                      <span>No account, ever</span>
-                      <span aria-hidden="true">·</span>
-                      <a
-                        href="https://github.com/thevrus/MarkLayer"
-                        target="_blank"
-                        rel="noopener"
-                        class="text-ml-fg/60 hover:text-ml-fg transition-colors underline underline-offset-2 decoration-ml-fg/30"
-                      >
-                        Open source, Apache-2.0
-                      </a>
-                      <span aria-hidden="true">·</span>
-                      <span>Self-hostable</span>
-                    </p>
-                  </div>
                 </>
               )}
             </section>
+
+            {/* The fold's floor, and the one line that makes the whole first
+                screen legible: the toolbar docked below is the extension's own,
+                and the strokes it draws are real ops on this page. Without it,
+                three strangers' cursors drifting over the copy read as a
+                rendering fault instead of as the product demonstrating itself.
+                Sits above the docked toolbar and shares its centre line. */}
+            <div
+              class="lp-fade-up pointer-events-none absolute inset-x-0 bottom-6 hidden justify-center px-6 sm:flex sm:bottom-27"
+              style={{ animationDelay: '0.3s' }}
+            >
+              <p class="m-0 text-[13px] text-ml-fg/60">
+                This page is a live MarkLayer board. <span class="text-ml-fg">Pick a tool below and draw on it.</span>
+              </p>
+            </div>
           </div>
 
-          {/* The signature section: one real session, shown large and centred,
-              with the three claims named underneath it on a shared grid.
+          {/* The proof. One real session, shown large, with the three claims
+              named underneath it on a shared grid.
 
               This replaced an eight-cell grid of icon + label + sentence, each
               cell ringed in a hairline — eight things at identical weight is no
               hierarchy at all — and then a left-spine version whose artifacts
               were small objects parked beside the copy, which was tidy and
               completely inert. The page under review is the point; the copy
-              names what you are already looking at. */}
-          <section class="px-6 py-20 text-center sm:px-10 sm:py-28">
-            <div class="mx-auto max-w-280">
-              <h2 class="mx-auto max-w-[20ch] text-[clamp(28px,4.2vw,44px)] leading-[1.06] font-semibold tracking-[-0.03em] text-balance text-ml-fg">
-                Three things it does that a screenshot in a thread cannot.
-              </h2>
-              <p class="mx-auto mt-5 max-w-[52ch] text-[17px] leading-[1.6] text-ml-fg/60 text-pretty">
-                Somebody else&rsquo;s page, opened from a link and marked up in the browser. No install on either end.
-              </p>
+              names what you are already looking at.
 
-              {/* A real screenshot, not a mock.
+              Opens left, on the same spine as the hero and the wordmark. The
+              sections below it each open differently on purpose: one with a
+              bare sentence, one as a two-column split, one centred. A page
+              where every section starts with a heading in the same place at the
+              same size reads as a template. */}
+          <section class="mx-auto w-full max-w-280 px-6 pt-24 pb-20 sm:px-10 sm:pt-32 sm:pb-28">
+            <h2 class="lp-display max-w-[840px] text-[clamp(32px,4.8vw,56px)] leading-[1.02] text-balance text-ml-fg">
+              Three things it does that a screenshot in a thread cannot.
+            </h2>
+            <p class="mt-5 max-w-[52ch] text-[17px] leading-[1.55] text-ml-fg/70 text-pretty">
+              Somebody else&rsquo;s page, opened from a link and marked up in the browser. No install on either end.
+            </p>
 
-                  This slot has been through two failed versions: three small
-                  objects parked beside three paragraphs (inert), then a
-                  hand-built "page under review" card (a heading, two grey nav
-                  bars and a button on white — which reads as a wireframe,
-                  because with no real imagery a four-element box is a wireframe).
-                  The product is an annotation layer over somebody's live page,
-                  so the only honest way to show it is a capture of exactly that:
-                  MarkLayer open on a real article, with real ops on it. */}
-              <figure class="mx-auto mt-16 mb-0 max-w-[1000px] sm:mt-20">
+            {/* A real screenshot, not a mock.
+
+                This slot has been through two failed versions: three small
+                objects parked beside three paragraphs (inert), then a
+                hand-built "page under review" card (a heading, two grey nav
+                bars and a button on white — which reads as a wireframe,
+                because with no real imagery a four-element box is a wireframe).
+                The product is an annotation layer over somebody's live page,
+                so the only honest way to show it is a capture of exactly that:
+                MarkLayer open on a real article, with real ops on it.
+
+                The frame is the page's one elevation primitive — a hairline
+                ring and a 2px contact shadow — rather than the wide soft bloom
+                it used to float on. */}
+            <figure class="mx-auto mt-14 mb-0 max-w-[1040px] sm:mt-16">
+              <div class="lp-panel overflow-hidden rounded-xl p-1.5">
                 <img
                   src="/product-review-wikipedia.webp"
                   width={1440}
@@ -655,46 +838,53 @@ export function Landing() {
                   alt="MarkLayer open on the Wikipedia article for Web annotation. The opening sentence is highlighted in pink, an arrow is drawn from the text toward the language switcher, and a numbered comment pin sits on the title. The MarkLayer toolbar floats over the page and the share bar shows one other person online."
                   loading="lazy"
                   decoding="async"
-                  class="block w-full rounded-2xl shadow-[0_1px_2px_rgba(26,26,26,0.05),0_18px_36px_-24px_rgba(26,26,26,0.28)]"
+                  class="block w-full rounded-lg"
                 />
-                <figcaption class="mt-4 text-[13px] text-ml-fg/60">
-                  A live Wikipedia article, opened from a share link and marked up in the browser.
-                </figcaption>
-              </figure>
-
-              {/* Equal columns on one grid: every title sits on the same line
-                  and every description starts on the same line, whatever the
-                  copy length, so a longer sentence in one column can never push
-                  its neighbours out of step. */}
-              <div class="mx-auto mt-24 grid max-w-[960px] grid-cols-1 gap-x-12 gap-y-10 sm:mt-28 sm:grid-cols-3 sm:grid-rows-[auto_auto]">
-                {MOMENTS.map((m) => (
-                  <div key={m.title} class="grid gap-y-3 sm:row-span-2 sm:grid-rows-subgrid">
-                    <h3 class="text-[19px] font-semibold tracking-[-0.02em] text-ml-fg">{m.title}</h3>
-                    <p class="m-0 text-[15px] leading-[1.6] text-ml-fg/70 text-pretty">{m.desc}</p>
-                  </div>
-                ))}
               </div>
+              <figcaption class="mt-4 text-[13px] text-ml-fg/60">
+                A live Wikipedia article, opened from a share link and marked up in the browser.
+              </figcaption>
+            </figure>
+
+            {/* Equal columns on one grid: every title sits on the same line
+                and every description starts on the same line, whatever the
+                copy length, so a longer sentence in one column can never push
+                its neighbours out of step. */}
+            <div class="mt-20 grid grid-cols-1 gap-x-12 gap-y-10 sm:mt-24 sm:grid-cols-3 sm:grid-rows-[auto_auto]">
+              {MOMENTS.map((m) => (
+                <div key={m.title} class="grid gap-y-2.5 sm:row-span-2 sm:grid-rows-subgrid">
+                  <h3 class="text-[17px] font-semibold tracking-[-0.02em] text-ml-fg">{m.title}</h3>
+                  <p class="m-0 text-[15px] leading-[1.6] text-ml-fg/70 text-pretty">{m.desc}</p>
+                </div>
+              ))}
             </div>
           </section>
 
-          {/* Switching from another tool */}
-          <section class="mx-auto w-full max-w-280 px-6 py-20 text-center sm:px-10 sm:py-28">
-            {/* No tracked-caps kicker above the heading: the label added no
-                information the heading did not already carry. */}
-            <h2 class="mx-auto mb-5 max-w-[24ch] text-[clamp(26px,4vw,40px)] leading-[1.08] font-semibold tracking-[-0.03em] text-balance text-ml-fg">
+          {/* Switching from another tool. Opens with the sentence itself — no
+              heading above it, no tracked-caps kicker. The claim is the whole
+              section, so wrapping it in a section head would just be a label
+              restating the line underneath it. */}
+          <section class="mx-auto w-full max-w-280 px-6 py-20 sm:px-10 sm:py-28">
+            <h2 class="lp-display max-w-[800px] text-[clamp(30px,4.4vw,50px)] leading-[1.04] text-balance text-ml-fg">
               Free alternative to BugHerd, Marker.io, Pastel, and Markup.io.
             </h2>
             {/* The durability argument, not just the price. The pricing claims
                 live in home-copy.json, shared with HomeContent.astro. */}
-            <p class="mx-auto mb-5 max-w-[62ch] text-[16px] leading-[1.7] text-ml-fg/70 text-pretty">
-              {copy.pricingFacts} MarkLayer is free by licence rather than by current pricing policy, so it cannot be
-              withdrawn from under a client workflow: the code is Apache-2.0 and you can self-host it.{' '}
-              <a href="/guides/free-website-annotation-tools" class="underline underline-offset-2 decoration-ml-fg/30">
-                See the full audit
-              </a>
-              , checked against each vendor's live pricing page.
-            </p>
-            <p class="mx-auto max-w-[62ch] text-[13px] leading-[1.7] text-ml-fg/60">
+            <div class="mt-8 grid max-w-[1000px] gap-x-14 gap-y-5 md:grid-cols-2">
+              <p class="m-0 text-[15px] leading-[1.65] text-ml-fg/70 text-pretty">{copy.pricingFacts}</p>
+              <p class="m-0 text-[15px] leading-[1.65] text-ml-fg/70 text-pretty">
+                MarkLayer is free by licence rather than by current pricing policy, so it cannot be withdrawn from under
+                a client workflow: the code is Apache-2.0 and you can self-host it.{' '}
+                <a
+                  href="/guides/free-website-annotation-tools"
+                  class="underline underline-offset-2 decoration-ml-fg/30"
+                >
+                  See the full audit
+                </a>
+                , checked against each vendor&rsquo;s live pricing page.
+              </p>
+            </div>
+            <p class="mt-8 max-w-[62ch] text-[13px] leading-[1.7] text-ml-fg/60">
               See{' '}
               <a href="/compare" class="text-ml-fg/60 underline hover:text-ml-fg/80">
                 all 10 head-to-head comparisons
@@ -711,69 +901,92 @@ export function Landing() {
             </p>
           </section>
 
-          {/* FAQ */}
+          {/* FAQ. A two-column split — the heading holds the left, the answers
+              the right — so this section opens differently again from the two
+              above it. Rows are separated by a surface step, not by the
+              hairline rule that used to sit on top of each one: a bare
+              unrounded line used to fake structure is the cheapest divider
+              there is, and four of them stacked read as a table. */}
           <section class="mx-auto w-full max-w-280 px-6 pb-20 sm:px-10 sm:pb-28">
-            {/* Rows are separated by a surface step, not by the hairline rule
-                that used to sit on top of each one. A bare unrounded line used
-                to fake structure is the cheapest divider there is, and eight of
-                them stacked read as a table. */}
-            <div class="mx-auto flex max-w-[760px] flex-col gap-2">
-              {[
-                {
-                  q: 'Does the other person need the extension installed?',
-                  a: 'No. Anyone can view your annotations via the share link. No install required.',
-                },
-                { q: 'Is it really free?', a: 'Yes. No account, no paywall, no trial period.' },
-                { q: 'Does it work on any website?', a: 'Yes, MarkLayer works on any webpage.' },
-                {
-                  q: 'Can multiple people annotate at the same time?',
-                  a: 'Yes. Real-time cursors let you collaborate live on any page.',
-                },
-              ].map((item) => (
-                <details key={item.q} class="group rounded-2xl bg-white px-5 py-4 sm:px-6 sm:py-5">
-                  <summary class="flex items-center justify-between cursor-pointer list-none text-[15px] font-semibold text-ml-fg">
-                    {item.q}
-                    <ChevronDown
-                      size={16}
-                      class="text-ml-fg/60 shrink-0 ml-4 transition-transform duration-200 group-open:rotate-180"
-                      aria-hidden="true"
-                    />
-                  </summary>
-                  <p class="text-[14px] text-ml-fg/60 leading-relaxed mt-3 mb-0">{item.a}</p>
-                </details>
-              ))}
+            <div class="grid gap-x-16 gap-y-8 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+              <h2 class="lp-display text-[clamp(26px,3.2vw,38px)] leading-[1.06] text-balance text-ml-fg">
+                Questions people ask first.
+              </h2>
+              <div class="flex flex-col gap-2">
+                {[
+                  {
+                    q: 'Does the other person need the extension installed?',
+                    a: 'No. Anyone can view your annotations via the share link. No install required.',
+                  },
+                  { q: 'Is it really free?', a: 'Yes. No account, no paywall, no trial period.' },
+                  { q: 'Does it work on any website?', a: 'Yes, MarkLayer works on any webpage.' },
+                  {
+                    q: 'Can multiple people annotate at the same time?',
+                    a: 'Yes. Real-time cursors let you collaborate live on any page.',
+                  },
+                ].map((item) => (
+                  <details key={item.q} class="lp-panel lp-panel-i group rounded-xl px-5 py-4">
+                    <summary class="-my-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-2 text-[15px] font-medium text-ml-fg">
+                      {item.q}
+                      <ChevronDown
+                        size={16}
+                        class="shrink-0 text-ml-fg/60 transition-transform duration-200 group-open:rotate-180"
+                        aria-hidden="true"
+                      />
+                    </summary>
+                    <p class="mt-3 mb-0 text-[14px] leading-relaxed text-ml-fg/70">{item.a}</p>
+                  </details>
+                ))}
+              </div>
             </div>
           </section>
 
-          {/* Bottom CTA */}
-          <section class="px-6 pt-24 pb-16 text-center sm:px-10 sm:pt-32">
-            <h2 class="mx-auto mb-6 max-w-[16ch] text-[clamp(30px,5vw,48px)] font-semibold leading-[1.05] tracking-[-0.03em] text-balance text-ml-fg">
+          {/* The close. The one centred moment on the page, and the only place
+              the install ask gets the filled treatment — the fold carries it as
+              a quiet inline link instead, so a filled primary never sits beside
+              an outlined secondary anywhere here. */}
+          <section class="px-6 pt-24 pb-20 text-center sm:px-10 sm:pt-32 sm:pb-24">
+            <h2 class="lp-display mx-auto mb-8 max-w-[720px] text-[clamp(36px,5.8vw,68px)] leading-[1] text-balance text-ml-fg">
               Start annotating any page on the web.
             </h2>
             <ChromeStoreLink label="Add to Chrome" />
-            <p class="text-[12px] text-ml-fg/60 mt-3">Free to use &middot; No sign-up required</p>
+            <p class="mt-4 text-[13px] text-ml-fg/60">Free to use &middot; No sign-up required</p>
           </section>
 
           {/* Footer — the one place a hard surface break is meant: the page
               steps onto its own floor instead of being ruled off with a
               hairline. */}
-          <footer class="bg-ml-board-deep px-6 pt-14 pb-10 sm:px-10">
-            <div class="mx-auto mb-12 grid max-w-[900px] grid-cols-2 gap-x-8 gap-y-10 text-[13px] md:grid-cols-4">
+          {/* The gutter sits inside the capped box here, exactly as it does in
+              every section above. It used to live on the <footer> itself with
+              the cap on the inner div, which centred that cap 40px further out
+              — so at 1440 the page's content spine was at 200px and the
+              footer's at 160px, and the whole block read as slipped. */}
+          <footer class="relative overflow-hidden bg-ml-board-deep pt-16 pb-7">
+            <div class="mx-auto grid w-full max-w-280 grid-cols-2 gap-x-8 gap-y-10 px-6 text-[13px] sm:px-10 md:grid-cols-4">
               <div>
                 <div class="text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em]">Product</div>
-                <ul class="space-y-2">
+                <ul class="-my-1.5 space-y-0.5">
                   <li>
-                    <a href={HOW_IT_WORKS_PATH} class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href={HOW_IT_WORKS_PATH}
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       How it works
                     </a>
                   </li>
                   <li>
-                    <a href="/pricing" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/pricing"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       Pricing
                     </a>
                   </li>
                   <li>
-                    <a href="/privacy" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/privacy"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       Privacy
                     </a>
                   </li>
@@ -782,7 +995,7 @@ export function Landing() {
                       href="https://github.com/thevrus/MarkLayer"
                       target="_blank"
                       rel="noopener"
-                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
                     >
                       GitHub
                     </a>
@@ -790,7 +1003,7 @@ export function Landing() {
                   <li>
                     <a
                       href="mailto:rusinvadym@gmail.com"
-                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
                     >
                       Contact
                     </a>
@@ -804,24 +1017,36 @@ export function Landing() {
                 >
                   Compare
                 </a>
-                <ul class="space-y-2">
+                <ul class="-my-1.5 space-y-0.5">
                   <li>
-                    <a href="/vs/markup-io" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/vs/markup-io"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       MarkLayer vs Markup.io
                     </a>
                   </li>
                   <li>
-                    <a href="/vs/pastel" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/vs/pastel"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       MarkLayer vs Pastel
                     </a>
                   </li>
                   <li>
-                    <a href="/vs/bugherd" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/vs/bugherd"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       MarkLayer vs BugHerd
                     </a>
                   </li>
                   <li>
-                    <a href="/vs/hypothesis" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/vs/hypothesis"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       MarkLayer vs Hypothesis
                     </a>
                   </li>
@@ -834,11 +1059,11 @@ export function Landing() {
                 >
                   Free alternatives
                 </a>
-                <ul class="space-y-2">
+                <ul class="-my-1.5 space-y-0.5">
                   <li>
                     <a
                       href="/alternatives/markup-io"
-                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
                     >
                       Markup.io alternatives
                     </a>
@@ -846,7 +1071,7 @@ export function Landing() {
                   <li>
                     <a
                       href="/alternatives/pastel"
-                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
                     >
                       Pastel alternatives
                     </a>
@@ -854,7 +1079,7 @@ export function Landing() {
                   <li>
                     <a
                       href="/alternatives/bugherd"
-                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
                     >
                       BugHerd alternatives
                     </a>
@@ -868,37 +1093,50 @@ export function Landing() {
                 >
                   Use cases
                 </a>
-                <ul class="space-y-2">
+                <ul class="-my-1.5 space-y-0.5">
                   <li>
-                    <a href="/for/design-review" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/for/design-review"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       Design review
                     </a>
                   </li>
                   <li>
                     <a
                       href="/for/qa-bug-reporting"
-                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
                     >
-                      QA & bug reporting
+                      QA &amp; bug reporting
                     </a>
                   </li>
                   <li>
                     <a
                       href="/for/client-feedback"
-                      class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
                     >
                       Client feedback
                     </a>
                   </li>
                   <li>
-                    <a href="/for/remote-teams" class="hover:text-ml-fg transition-colors no-underline text-ml-fg/70">
+                    <a
+                      href="/for/remote-teams"
+                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                    >
                       Remote teams
                     </a>
                   </li>
                 </ul>
               </div>
             </div>
-            <div class="flex justify-center mb-5">
+
+            {/* Colophon, on the same grid as the columns above rather than
+                flung to the two far rims with a dead gulf between them. */}
+            <div class="mx-auto mt-14 flex w-full max-w-280 flex-wrap items-center justify-between gap-x-8 gap-y-5 px-6 sm:px-10">
+              <span class="flex items-center gap-2 text-[12px] text-ml-fg/60">
+                <Logo size={14} />
+                MarkLayer &copy; {new Date().getFullYear()}
+              </span>
               <a
                 href="https://www.producthunt.com/products/marklayer?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-marklayer"
                 target="_blank"
@@ -907,24 +1145,51 @@ export function Landing() {
                 <img
                   src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1105463&theme=light"
                   alt="MarkLayer - Draw & comment on any webpage. Share one live link | Product Hunt"
-                  width="250"
-                  height="54"
-                  style={{ width: '250px', height: '54px' }}
+                  width="220"
+                  height="48"
+                  style={{ width: '220px', height: '48px' }}
                   loading="lazy"
                   decoding="async"
                 />
               </a>
             </div>
-            <div class="flex items-center justify-center gap-2 text-[12px] text-ml-fg/60">
-              <Logo size={14} />
-              <span>MarkLayer &copy; {new Date().getFullYear()}</span>
+
+            {/* The signature wordmark: full-bleed, cut at roughly half the cap
+                height, dissolving into the floor.
+
+                It sits outside the page's capped container on purpose — this is
+                the one element that is meant to touch both edges, so it takes
+                no gutter and no max-width. Sized so the word spans the viewport
+                exactly at any width (see .lp-wordmark), clipped to a fraction of
+                its own cap height, and faded out with a long multi-stop mask so
+                the cut is never a visible line. Nothing sits beneath it.
+
+                It is lifted a little clear of the page's bottom edge rather
+                than welded to it, which is a deliberate departure from the
+                usual rule for this move — flush with no gap beneath — because
+                the product's own toolbar floats at the bottom of the viewport
+                and swallowed the band entirely when it sat right on the edge.
+
+                `aria-hidden` because the accessible wordmark is the one in the
+                nav; this is texture, not a second heading. */}
+            <div class="lp-wordmark-clip mt-14 select-none" aria-hidden="true">
+              <span class="lp-wordmark">MarkLayer</span>
             </div>
           </footer>
         </main>
 
-        {/* Comment overlay */}
+        {/* Comment overlay.
+
+            Absolute, spanning the document, with `scrollY` held at 0 — the same
+            way the canvas below positions its ops. These layers used to be
+            `fixed` and were handed `window.scrollY` read once during render;
+            nothing re-renders them on scroll, so the subtraction went stale the
+            moment the page moved and every pin sat frozen at a viewport offset,
+            drifting across the sections below it. Document coordinates on a
+            document-height layer need no scroll arithmetic at all, so there is
+            nothing left to go stale. */}
         <div
-          class="fixed inset-0 z-2147483646 overflow-hidden"
+          class="absolute inset-0 z-2147483646 overflow-hidden"
           style={{
             pointerEvents: showCommentCursor ? 'auto' : 'none',
             cursor: showCommentCursor ? 'crosshair' : 'default',
@@ -935,14 +1200,14 @@ export function Landing() {
           }}
         >
           {comments.map((c) => (
-            <WebCommentPin key={c.id} op={c} scale={1} scrollY={window.scrollY || 0} />
+            <WebCommentPin key={c.id} op={c} scale={1} scrollY={0} />
           ))}
           {commentPopover.value && (
             <WebCommentPopover
               x={commentPopover.value.x}
               y={commentPopover.value.y}
               scale={1}
-              scrollY={window.scrollY || 0}
+              scrollY={0}
               onClose={() => {
                 commentPopover.value = null;
               }}
@@ -951,9 +1216,9 @@ export function Landing() {
         </div>
 
         {/* Selection highlights */}
-        <div class="fixed inset-0 z-2147483645 pointer-events-none overflow-hidden">
+        <div class="absolute inset-0 z-2147483645 pointer-events-none overflow-hidden">
           {selections.value.map((op) => (
-            <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={window.scrollY || 0} />
+            <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={0} />
           ))}
         </div>
         {selectionPopover.value && (
@@ -967,7 +1232,7 @@ export function Landing() {
 
         {/* Text tool overlay */}
         <div
-          class="fixed inset-0 z-2147483646"
+          class="absolute inset-0 z-2147483646"
           style={{ pointerEvents: showTextCursor ? 'auto' : 'none', cursor: showTextCursor ? 'text' : 'default' }}
           onClick={(e) => {
             if (tool !== 'text') return;
@@ -979,7 +1244,7 @@ export function Landing() {
             x={textInput.value.x}
             y={textInput.value.y}
             scale={1}
-            scrollY={window.scrollY || 0}
+            scrollY={0}
             onCommit={(text) => {
               if (text && textInput.value) {
                 const op: TextOp = {
@@ -1017,18 +1282,7 @@ export function Landing() {
           <Toolbar />
         </div>
 
-        {toasts.value.length > 0 && (
-          <div class="fixed top-12 left-1/2 -translate-x-1/2 z-2147483647 flex flex-col gap-2 items-center">
-            {toasts.value.map((t) => (
-              <div
-                key={t.id}
-                class={`${glass.surfaceSmall} ${glass.font} px-4 py-2.5 text-xs font-medium animate-[fadeInDown_0.2s_ease-out] ${t.type === 'error' ? 'text-red-500' : t.type === 'success' ? 'text-green-500' : 'text-ml-glass-fg/70'}`}
-              >
-                {t.message}
-              </div>
-            ))}
-          </div>
-        )}
+        <Toasts offset="below-bar" />
       </div>
       <SelfCursor />
     </>
