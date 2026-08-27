@@ -245,7 +245,7 @@ export function attachTarget(op: DrawOp, ctx?: AnchorContext): void {
   if (!anchor) return;
   const win = ctx?.win ?? window;
   const el = pickElementAtPoint(anchor.x - win.scrollX, anchor.y - win.scrollY, ctx?.doc);
-  if (el) op.target = captureTarget(el, anchor);
+  if (el) op.target = captureTarget({ el, anchor });
 }
 
 /** Bind a finished op to the element under its anchor, then commit it. */

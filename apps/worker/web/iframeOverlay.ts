@@ -51,7 +51,7 @@ export function pickFrameTarget({
   const doc = frame?.contentDocument;
   if (!win || !doc) return undefined;
   const el = pickElementAtPoint(x - win.scrollX, y - win.scrollY, doc);
-  return el ? captureTarget(el, anchor ?? { x, y }) : undefined;
+  return el ? captureTarget({ el, anchor: anchor ?? { x, y } }) : undefined;
 }
 
 interface RectLike {

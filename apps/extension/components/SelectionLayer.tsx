@@ -1,9 +1,11 @@
-import { type CommentPriority, cn, type TargetElement } from '@marklayer/types';
+import { type CommentPriority, cn, normalizeSuggestion, type TargetElement } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { reprojectRects } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
+import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { useEdgeClamp } from '../lib/popover';
 import { hexToRgba } from '../lib/renderer';
 import { captureTarget } from '../lib/selector';
 import {
@@ -22,6 +24,7 @@ import {
 } from '../lib/state';
 import type { SelectionOp, SelectionRect } from '../lib/types';
 import { PriorityBadge, PriorityPicker } from './PriorityPicker';
+import { SelectionEdit, SuggestionDiff } from './SelectionEdit';
 
 interface PopoverState {
   x: number;
@@ -91,7 +94,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
         <div
           class={cn(
             'absolute left-3 top-0 hidden group-hover/sel:block z-10 w-[220px]',
-            glass.surfaceSmall,
+            geist.surfaceSmall,
             glass.font,
             'p-3',
           )}
@@ -101,24 +104,28 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
               <PriorityBadge priority={op.priority} />
             </div>
           )}
-          <p class="text-[11.5px] text-ml-glass-fg/65 m-0 mb-1 italic line-clamp-2">"{op.text}"</p>
+          {op.suggestion ? (
+            <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={resolved} class="mb-1" />
+          ) : (
+            <p class="text-[12px] text-(--ds-gray-900) m-0 mb-1 line-clamp-2">{op.text}</p>
+          )}
           {op.comment && (
             <p
-              class="text-[12.5px] text-ml-glass-fg/85 m-0 leading-relaxed whitespace-pre-wrap"
+              class="text-[13px] text-(--ds-gray-1000) m-0 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
+            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpStatus(op.id, resolved ? 'open' : 'resolved');
               }}
-              class="text-[10.5px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+              class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
             >
               {resolved ? 'Reopen' : 'Resolve'}
             </button>
@@ -132,6 +139,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
 function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState & { onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
 
   useEffect(() => {
     taRef.current?.focus();
@@ -146,6 +154,7 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
         text,
         rects,
         comment: comment || undefined,
+        suggestion: normalizeSuggestion({ text, suggestion }),
         priority,
         color: color.value,
         lineWidth: lineWidth.value,
@@ -163,27 +172,24 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
   const vx = x - scrollX;
   const vy = y - scrollY;
   const left = Math.min(vx + 16, innerWidth - 300);
-  const top = vy + 24 > innerHeight - 200 ? Math.max(4, vy - 200) : vy + 16;
+  const { ref: panelRef, top } = useEdgeClamp({ top: vy + 16 });
 
   return (
     <div
       class={cn(
         'fixed z-2147483647 pointer-events-auto',
         'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        glass.surface,
+        geist.surface,
         glass.font,
         'overflow-hidden w-[290px]',
       )}
+      ref={panelRef}
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Selected text preview */}
-      <div class="px-4 pt-3.5 pb-2">
-        <span class="text-[10.5px] text-ml-glass-fg/65 font-bold uppercase tracking-[0.08em]">Selected text</span>
-        <p class="text-[12.5px] text-ml-glass-fg/80 m-0 mt-1 italic line-clamp-3 leading-relaxed">"{text}"</p>
-      </div>
+      <SelectionEdit text={text} suggestion={suggestion} onChange={setSuggestion} onSubmit={() => commit(true)} />
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       {/* Optional comment */}
       <div class="p-3.5">
@@ -206,18 +212,13 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
         <PriorityPicker value={priority} onChange={setPriority} class="mt-1.5 -ml-1.5" />
       </div>
 
-      <div class={cn(glass.divider, 'mx-3.5')} />
+      <div class={cn(geist.divider, 'mx-3.5')} />
 
       {/* Footer */}
       <div class="flex items-center justify-between px-4 py-2.5">
         <div class="flex items-center gap-2">
-          <kbd
-            class="text-[10.5px] text-ml-glass-fg/75 bg-ml-glass-fg/8 border border-ml-glass-fg/15
-                      rounded-md px-1.5 py-0.5 font-mono font-medium leading-none"
-          >
-            Esc
-          </kbd>
-          <span class="text-[11px] text-ml-glass-fg/60 font-medium">skip comment</span>
+          <kbd class={geist.kbd}>Esc</kbd>
+          <span class="text-[12px] text-(--ds-gray-900) font-medium">skip comment</span>
         </div>
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵
@@ -273,7 +274,9 @@ export function SelectionLayer() {
         y: lastRect.y + lastRect.height,
         text,
         rects,
-        target: targetEl ? captureTarget(targetEl, { x: firstRect.x, y: firstRect.y }) : undefined,
+        target: targetEl
+          ? captureTarget({ el: targetEl, anchor: { x: firstRect.x, y: firstRect.y }, selectedText: text })
+          : undefined,
       });
     });
   }, []);

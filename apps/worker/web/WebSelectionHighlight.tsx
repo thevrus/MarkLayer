@@ -1,5 +1,7 @@
 import { PriorityBadge } from '@ext/components/PriorityPicker';
+import { SuggestionDiff } from '@ext/components/SelectionEdit';
 import { reprojectRects } from '@ext/lib/anchor';
+import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { hexToRgba } from '@ext/lib/renderer';
 import { copyText, deleteOp, openContextMenu, setOpStatus } from '@ext/lib/state';
@@ -72,7 +74,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
         <div
           class={cn(
             'absolute left-full top-0 ml-2 hidden group-hover/sel:block z-10 w-[240px]',
-            glass.surfaceSmall,
+            geist.surfaceSmall,
             glass.font,
             'p-3',
           )}
@@ -82,24 +84,28 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
               <PriorityBadge priority={op.priority} />
             </div>
           )}
-          <p class="text-[11.5px] text-ml-glass-fg/65 m-0 mb-1 italic line-clamp-3 leading-relaxed">"{op.text}"</p>
+          {op.suggestion ? (
+            <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={resolved} class="mb-1" />
+          ) : (
+            <p class="text-[12px] text-(--ds-gray-900) m-0 mb-1 line-clamp-3 leading-relaxed">{op.text}</p>
+          )}
           {op.comment && (
             <p
-              class="text-[12.5px] text-ml-glass-fg/85 m-0 mt-1.5 leading-relaxed whitespace-pre-wrap"
+              class="text-[13px] text-(--ds-gray-1000) m-0 mt-1.5 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[10px] text-ml-glass-fg/60 font-medium">{op.author}</span>
+            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpStatus(op.id, resolved ? 'open' : 'resolved');
               }}
-              class="text-[10.5px] font-medium text-ml-glass-fg/60 hover:text-ml-glass-fg bg-transparent border-none cursor-pointer p-0 transition-colors"
+              class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
             >
               {resolved ? 'Reopen' : 'Resolve'}
             </button>
