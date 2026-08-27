@@ -1,4 +1,4 @@
-import { isAnnotationOp, resolveOpStatus } from '@marklayer/types';
+import { isAnnotationOp, resolveOpStatus, translateOp } from '@marklayer/types';
 import { computed, effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { tinykeys } from 'tinykeys';
@@ -57,6 +57,26 @@ export function cycleTheme() {
 }
 
 export const PALETTE = ['#b462f5', '#3b82f6', '#06b6d4', '#22c55e', '#facc15', '#f97316', '#f43f5e'];
+
+const COLOR_NAMES: Record<string, string> = {
+  '#b462f5': 'Purple',
+  '#3b82f6': 'Blue',
+  '#06b6d4': 'Cyan',
+  '#22c55e': 'Green',
+  '#facc15': 'Yellow',
+  '#f97316': 'Orange',
+  '#f43f5e': 'Red',
+};
+
+/**
+ * The readable name of a palette colour, for the swatch label in the toolbar and
+ * the picker — nobody reads a hex as a colour. Keyed by hex rather than by index
+ * so a value restored from storage that is no longer in the palette still labels
+ * itself, falling back to the hex it actually is.
+ */
+export function colorName(hex: string): string {
+  return COLOR_NAMES[hex.toLowerCase()] ?? hex.toUpperCase();
+}
 
 export const color = signal(_ls?.getItem('ml-color') || '#f43f5e');
 
@@ -270,7 +290,7 @@ export function toast(message: string, type: Toast['type'] = 'info', duration = 
 }
 
 /** Copy text to clipboard with success/error toast feedback. */
-export function copyText(text: string, label = 'Copied!') {
+export function copyText(text: string, label = 'Copied') {
   navigator.clipboard.writeText(text).then(
     () => toast(label, 'success'),
     () => toast('Failed to copy', 'error'),
@@ -564,13 +584,11 @@ export function moveTool(from: number, to: number) {
  * Shift+L and the frame to both F and A — and the first entry is the one the
  * toolbar shows.
  */
-export interface ToolShortcut {
+export const TOOL_SHORTCUTS: {
   tool: Tool;
   /** tinykeys pattern, e.g. `KeyR` or `Shift+KeyL`. */
   pattern: string;
-}
-
-export const TOOL_SHORTCUTS: ToolShortcut[] = [
+}[] = [
   { tool: 'navigate', pattern: 'KeyV' },
   { tool: 'pen', pattern: 'KeyP' },
   { tool: 'highlight', pattern: 'Shift+KeyH' },
@@ -597,6 +615,8 @@ const keyLabel = (pattern: string) => pattern.replace('Shift+', '\u21e7').replac
 export const SHORTCUTS: Partial<Record<Tool, string>> = {};
 for (const { tool, pattern } of TOOL_SHORTCUTS) SHORTCUTS[tool] ??= keyLabel(pattern);
 
+const PATTERN_TO_TOOL = new Map(TOOL_SHORTCUTS.map(({ tool, pattern }) => [pattern, tool]));
+
 /**
  * Resolve a raw keydown to a tool, for hosts that hand-roll their key handling
  * instead of going through tinykeys. Any of ⌘/⌃/⌥ held means the key belongs to
@@ -604,8 +624,7 @@ for (const { tool, pattern } of TOOL_SHORTCUTS) SHORTCUTS[tool] ??= keyLabel(pat
  */
 export function toolForKeyEvent(e: KeyboardEvent): Tool | null {
   if (e.metaKey || e.ctrlKey || e.altKey) return null;
-  const pattern = `${e.shiftKey ? 'Shift+' : ''}${e.code}`;
-  return TOOL_SHORTCUTS.find((s) => s.pattern === pattern)?.tool ?? null;
+  return PATTERN_TO_TOOL.get(`${e.shiftKey ? 'Shift+' : ''}${e.code}`) ?? null;
 }
 
 /**
@@ -639,22 +658,84 @@ export function panBy(dx: number, dy: number) {
 /**
  * Alt held on its own. Figma shows measurements whenever you hover with Alt
  * down, from any tool, so the measure overlays read this alongside their own
- * tool check. Each host feeds it via `bindHeldModifierRelease` plus its own
- * keydown binding, which differ in what counts as a typing target.
+ * tool check. Fed by `bindFigmaKeys`.
  */
 export const altHeld = signal(false);
 
+/** Wraps a handler so a host can decide when the key belongs to it at all. */
+type KeyGuard = (fn: (e: KeyboardEvent) => void) => (e: KeyboardEvent) => void;
+
 /**
- * Releases the held modifiers, and keeps them released across a window blur —
- * a blur (⌘Tab, devtools) eats the keyup, which would otherwise leave the pan
- * overlay or the measure readout stuck on. Both hosts bind their own keydown
- * (the guard differs) and share this half.
+ * The Figma-parity half of a host's keymap: the tool letters, ⌘D, ⌘\, and the
+ * held Space/Alt modifiers with their release. Both hosts bound this identically
+ * and differed only in which guard wrapped each key, so the guards are the
+ * parameters and the table lives here — press and release included, since a
+ * keydown bound without its keyup leaves the pan overlay stuck on.
+ *
+ * The blur listener is the other half of that: a blur (⌘Tab, devtools) eats the
+ * keyup outright.
  */
-export function bindHeldModifierRelease(target: Window): () => void {
+export function bindFigmaKeys({
+  target,
+  guard,
+  viewGuard = guard,
+}: {
+  target: Window;
+  /** Wraps the editing keys — a read-only host drops them. */
+  guard: KeyGuard;
+  /** Wraps zoom/pan/measure navigation, which stays live read-only. Defaults to `guard`. */
+  viewGuard?: KeyGuard;
+}): () => void {
+  const pd = (wrap: KeyGuard, fn: () => void) =>
+    wrap((e) => {
+      e.preventDefault();
+      fn();
+    });
+
+  // Space and Alt both auto-repeat while held, and the handlers are built once
+  // here rather than per keypress so a repeat costs nothing to dispatch.
+  const pressSpace = pd(viewGuard, () => {
+    spaceHeld.value = true;
+  });
+  const pressAlt = viewGuard(() => {
+    altHeld.value = true;
+  });
+
+  const bindings: Record<string, (e: KeyboardEvent) => void> = {
+    '$mod+KeyD': pd(guard, duplicateLastOp),
+    // Figma's ⌘\ — hide the chrome, keep the annotations on screen.
+    '$mod+Backslash': pd(viewGuard, toggleToolbarMinimized),
+    KeyH: pd(viewGuard, () => {
+      handTool.value = !handTool.value;
+    }),
+    // preventDefault stops the host page from page-scrolling under the pan. Once
+    // the first press has been accepted the OS repeats carry nothing new, so they
+    // skip the guard rather than walking the composed path ~30 times a second.
+    // Gated on the held signal so a press the guard rejected — Space typed into a
+    // text field — still falls through to it and keeps its default.
+    Space: (e) => {
+      if (e.repeat && spaceHeld.peek()) {
+        e.preventDefault();
+        return;
+      }
+      pressSpace(e);
+    },
+    Alt: (e) => {
+      if (e.repeat && altHeld.peek()) return;
+      pressAlt(e);
+    },
+  };
+  for (const { tool, pattern } of TOOL_SHORTCUTS) {
+    bindings[pattern] = pd(guard, () => {
+      activeTool.value = tool;
+    });
+  }
+
   const release = () => {
     spaceHeld.value = false;
     altHeld.value = false;
   };
+  const unbindDown = tinykeys(target, bindings);
   const unbindUp = tinykeys(
     target,
     {
@@ -669,6 +750,7 @@ export function bindHeldModifierRelease(target: Window): () => void {
   );
   target.addEventListener('blur', release);
   return () => {
+    unbindDown();
     unbindUp();
     target.removeEventListener('blur', release);
   };
@@ -845,50 +927,8 @@ export function deleteOp(id: string) {
   drafts.scheduleSave();
 }
 
+/** Down-right nudge on a duplicate, so the copy reads as a new object, not a redraw. */
 const DUPLICATE_OFFSET = 12;
-
-/**
- * A copy of `op` shifted down-right, or null for ops a copy would be meaningless
- * for: a comment owns a thread, a selection owns a text range, an inspect owns an
- * element handoff, a guide owns an axis, and an eraser stroke is a subtraction.
- * The element anchor is dropped along the way — re-resolving it would snap the
- * copy back onto the original and eat the offset.
- */
-function duplicateOf(op: DrawOp): DrawOp | null {
-  const d = DUPLICATE_OFFSET;
-  const fresh = { id: nanoid(), target: undefined };
-  const shiftBox = (o: { startX: number; startY: number; endX: number; endY: number }) => ({
-    startX: o.startX + d,
-    startY: o.startY + d,
-    endX: o.endX + d,
-    endY: o.endY + d,
-  });
-  switch (op.tool) {
-    case 'pen':
-    case 'highlight':
-      return { ...op, ...fresh, points: op.points.map((pt) => ({ x: pt.x + d, y: pt.y + d })) };
-    case 'rectangle':
-    case 'line':
-      return { ...op, ...fresh, ...shiftBox(op) };
-    case 'circle':
-      return { ...op, ...fresh, centerX: op.centerX + d, centerY: op.centerY + d };
-    case 'text':
-      return { ...op, ...fresh, x: op.x + d, y: op.y + d };
-    // `ts` is required on an area op, so the copy needs its own rather than the original's.
-    case 'area':
-      return { ...op, ...fresh, ...shiftBox(op), ts: Date.now() };
-    case 'eraser':
-    case 'comment':
-    case 'selection':
-    case 'inspect':
-    case 'guide':
-      return null;
-    default: {
-      const _exhaustive: never = op;
-      return _exhaustive;
-    }
-  }
-}
 
 /**
  * Figma's ⌘D. Annotations have no selection model yet, so this duplicates the most
@@ -896,9 +936,18 @@ function duplicateOf(op: DrawOp): DrawOp | null {
  * it. Repeat presses cascade, because each copy becomes the new most-recent op.
  */
 export function duplicateLastOp() {
-  for (const op of [...operations.value].reverse()) {
-    const copy = duplicateOf(op);
-    if (copy) return pushOp(copy);
+  // Walked backwards in place: the hit is almost always the last element, and
+  // `operations` runs to hundreds of ops that a copy-then-reverse would touch twice.
+  const ops = operations.value;
+  for (let i = ops.length - 1; i >= 0; i--) {
+    const op = ops[i];
+    const moved = op && translateOp({ op, dx: DUPLICATE_OFFSET, dy: DUPLICATE_OFFSET });
+    if (!moved) continue;
+    // The element anchor is dropped: re-resolving it would snap the copy back onto
+    // the original and eat the offset.
+    const copy = { ...moved, id: nanoid(), target: undefined };
+    // An area op carries a `ts`, and the copy was made now, not when the original was.
+    return pushOp(copy.tool === 'area' ? { ...copy, ts: Date.now() } : copy);
   }
   toast('Nothing to duplicate', 'info', 1800);
 }
