@@ -21,49 +21,61 @@ interface FakeCursor {
  * over nothing at all. Three strangers' cursors colliding with the text read as
  * a rendering fault, not as a live room.
  *
- * The content column is 1120px centred, so on a wide screen the free space is
- * the outer margin. Every percentage below is hand-tuned to stay outside the
- * column's edge at common widths while still crossing enough distance to look
- * alive; on a narrow screen the whole layer is hidden (see FakeCursors) rather
- * than squeezed. Nothing enforces this — if the column width in Landing.tsx
- * changes, re-check these paths against it.
+ * The hero is left-anchored now, not centred, so the free space is no longer
+ * the symmetric outer margin these paths were originally cut for: the copy
+ * holds the left of the column and the board's working area is the right, plus
+ * the band under the trust line. Marcus in particular used to orbit x 6-13%,
+ * which put his name tag straight through the word "anything." in the subline
+ * the moment the copy moved left.
+ *
+ * Every percentage below is hand-tuned to clear the headline (which runs to
+ * ~81% of the viewport at 1280 and ~72% at 1440), the reading column (left of
+ * ~52% down to the trust line) and the board caption at the fold's floor, while
+ * still crossing enough distance to look alive. On a narrow screen the whole
+ * layer is hidden (see FakeCursors) rather than squeezed. Nothing enforces this
+ * — if the hero's measures in Landing.tsx change, re-check these paths.
  */
 const CURSORS: FakeCursor[] = [
+  // Above the headline's right end, clear of its cap height at both 1280 and
+  // 1440 — the headline's top edge sits at roughly 23% of the fold.
   {
     name: 'Alice',
     color: '#3b82f6',
     path: [
-      [86, 22],
-      [90, 30],
-      [84, 38],
-      [88, 27],
-      [86, 22],
+      [84, 13],
+      [90, 19],
+      [82, 22],
+      [88, 16],
+      [84, 13],
     ],
     duration: 18,
     delay: 1,
   },
+  // The band under the trust line and above the board caption. This is the one
+  // pocket of free space on the left half once the copy is anchored there.
   {
     name: 'Marcus',
     color: '#f43f5e',
     path: [
-      [8, 46],
-      [13, 38],
-      [6, 32],
-      [11, 43],
-      [8, 46],
+      [11, 74],
+      [19, 79],
+      [9, 82],
+      [16, 76],
+      [11, 74],
     ],
     duration: 22,
     delay: 3,
   },
+  // Right of the action column, where the board is genuinely empty.
   {
     name: 'Yuki',
     color: '#8b5cf6',
     path: [
-      [89, 62],
-      [93, 54],
-      [86, 58],
-      [91, 68],
-      [89, 62],
+      [74, 55],
+      [86, 62],
+      [78, 70],
+      [88, 57],
+      [74, 55],
     ],
     duration: 20,
     delay: 2,
