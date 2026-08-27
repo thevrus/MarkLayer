@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { applyOpPatch, type CommentOp, resolveOpStatus } from './index';
+import { applyOpPatch, type CommentOp, type DrawOp, normalizeSuggestion, resolveOpStatus, translateOp } from './index';
 
 const comment: CommentOp = {
   id: 'op1',
@@ -76,5 +76,54 @@ describe('resolveOpStatus', () => {
 
   test('an explicit status wins over the legacy boolean', () => {
     expect(resolveOpStatus({ ...comment, resolved: true, status: 'open' })).toBe('open');
+  });
+});
+
+describe('normalizeSuggestion', () => {
+  test('keeps a real replacement, trimmed', () => {
+    expect(normalizeSuggestion({ text: 'Sign up free', suggestion: '  Start free  ' })).toBe('Start free');
+  });
+
+  // The field opens pre-filled with the original, so "opened it and left it alone"
+  // is the common case and must not reach the op as a diff with identical sides.
+  test('drops a suggestion that matches the text it replaces', () => {
+    expect(normalizeSuggestion({ text: 'Sign up free', suggestion: 'Sign up free' })).toBeUndefined();
+    expect(normalizeSuggestion({ text: ' Sign up free ', suggestion: 'Sign up free' })).toBeUndefined();
+  });
+
+  test('drops an empty, whitespace-only, or absent suggestion', () => {
+    expect(normalizeSuggestion({ text: 'Sign up free', suggestion: '' })).toBeUndefined();
+    expect(normalizeSuggestion({ text: 'Sign up free', suggestion: '   ' })).toBeUndefined();
+    expect(normalizeSuggestion({ text: 'Sign up free', suggestion: null })).toBeUndefined();
+    expect(normalizeSuggestion({ text: 'Sign up free', suggestion: undefined })).toBeUndefined();
+  });
+});
+
+describe('translateOp', () => {
+  const base = { id: 'op1', color: '#ff0000', lineWidth: 2 };
+
+  test('shifts every coordinate a tool carries', () => {
+    const pen: DrawOp = { ...base, tool: 'pen', points: [{ x: 1, y: 2 }], compositeOperation: 'source-over' };
+    expect(translateOp({ op: pen, dx: 5, dy: 7 })).toMatchObject({ points: [{ x: 6, y: 9 }] });
+
+    const rect: DrawOp = { ...base, tool: 'rectangle', startX: 0, startY: 0, endX: 10, endY: 20 };
+    expect(translateOp({ op: rect, dx: 5, dy: 7 })).toMatchObject({ startX: 5, startY: 7, endX: 15, endY: 27 });
+
+    const circle: DrawOp = { ...base, tool: 'circle', centerX: 4, centerY: 6, radius: 1 };
+    expect(translateOp({ op: circle, dx: 5, dy: 7 })).toMatchObject({ centerX: 9, centerY: 13 });
+  });
+
+  // These own a thread, a text range, an element handoff, an axis, or are a
+  // subtraction from the strokes beneath them — a moved copy means nothing.
+  test('refuses the ops a copy would be meaningless for', () => {
+    expect(translateOp({ op: comment, dx: 5, dy: 7 })).toBeNull();
+    const guide: DrawOp = { ...base, tool: 'guide', orientation: 'vertical', position: 100 };
+    expect(translateOp({ op: guide, dx: 5, dy: 7 })).toBeNull();
+  });
+
+  test('leaves the original untouched', () => {
+    const rect: DrawOp = { ...base, tool: 'rectangle', startX: 0, startY: 0, endX: 10, endY: 20 };
+    translateOp({ op: rect, dx: 5, dy: 7 });
+    expect(rect.startX).toBe(0);
   });
 });

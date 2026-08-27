@@ -190,10 +190,34 @@ export const selectionOpSchema = z.object({
   text: z.string(),
   rects: z.array(selectionRectSchema),
   comment: z.optional(z.string()),
+  /**
+   * Proposed replacement for `text` — the annotation is a copy edit rather than a
+   * note about one. Separate from `comment` so consumers can render and export it
+   * as a diff an agent can apply, instead of parsing the intent out of prose.
+   */
+  suggestion: z.optional(z.string()),
   ts: z.number(),
   author: z.optional(z.string()),
 });
 export type SelectionOp = z.infer<typeof selectionOpSchema>;
+
+/**
+ * Reduce a suggestion input to what belongs on the op: `undefined` unless it
+ * actually differs from the text it replaces, so no reader ever has to render a
+ * diff with identical sides. An empty field reads as "no edit proposed" rather
+ * than "replace this with nothing" — deleting copy is what the comment is for.
+ */
+export function normalizeSuggestion({
+  text,
+  suggestion,
+}: {
+  text: string;
+  suggestion: string | null | undefined;
+}): string | undefined {
+  const trimmed = suggestion?.trim();
+  if (!trimmed || trimmed === text.trim()) return undefined;
+  return trimmed;
+}
 
 /** Rectangular region annotation with optional comment — "this whole section feels off." */
 export const areaOpSchema = z.object({
@@ -286,6 +310,50 @@ export function opAnchorPoint(op: DrawOp): Point | null {
     case 'comment':
     case 'selection':
     case 'area':
+    case 'inspect':
+    case 'guide':
+      return null;
+    default: {
+      const _exhaustive: never = op;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * `op` shifted by a viewport delta, or null for the ops that cannot meaningfully
+ * be moved as a copy: a comment owns a thread, a selection owns a text range, an
+ * inspect owns an element handoff, a guide owns an axis, and an eraser stroke is a
+ * subtraction from the strokes beneath it.
+ *
+ * Which fields of an op are coordinates is op-schema knowledge, so it lives here
+ * beside `opAnchorPoint` rather than in a host — the `never` guard then makes a new
+ * tool declare how it translates instead of compiling and silently not moving.
+ * The caller owns identity: it supplies the new `id` and decides what happens to
+ * `target` (a re-resolved element anchor would snap the copy back and eat the delta).
+ */
+export function translateOp({ op, dx, dy }: { op: DrawOp; dx: number; dy: number }): DrawOp | null {
+  const shiftBox = (o: { startX: number; startY: number; endX: number; endY: number }) => ({
+    startX: o.startX + dx,
+    startY: o.startY + dy,
+    endX: o.endX + dx,
+    endY: o.endY + dy,
+  });
+  switch (op.tool) {
+    case 'pen':
+    case 'highlight':
+      return { ...op, points: op.points.map((pt) => ({ x: pt.x + dx, y: pt.y + dy })) };
+    case 'rectangle':
+    case 'line':
+    case 'area':
+      return { ...op, ...shiftBox(op) };
+    case 'circle':
+      return { ...op, centerX: op.centerX + dx, centerY: op.centerY + dy };
+    case 'text':
+      return { ...op, x: op.x + dx, y: op.y + dy };
+    case 'eraser':
+    case 'comment':
+    case 'selection':
     case 'inspect':
     case 'guide':
       return null;
