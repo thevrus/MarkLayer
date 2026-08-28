@@ -34,6 +34,9 @@ const robots = noindex ? 'noindex, follow' : 'max-image-preview:large, max-snipp
 <meta name="robots" content={robots} />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary" />
+{/* Both agent surfaces are declared, not just the index. `llms-full.txt` is in
+    the sitemap, so without a link from somewhere it crawls as an orphan. */}
+<link rel="alternate" type="text/plain" href="/llms-full.txt" title="LLM-readable full text" />
 <slot name="extra-links" />
 <!-- The roman latin face is on the critical path for every page. It is
      same-origin and declared in global.css, so preloading it starts the fetch in
