@@ -1,0 +1,31 @@
+# One deployment target among several — see the README. Nothing in the relay
+# itself is Fly-specific; moving to Oracle, Hetzner or anywhere else is a new
+# host, one Worker secret, and a re-published IP.
+#
+# Deploy from the repo root:
+#   flyctl deploy -c apps/fetcher/deploy/fly.toml --ha=false
+#
+# --ha=false is not optional. Fly's default creates a second machine, and each
+# machine egresses from its own NAT address — measured, two machines gave
+# 204.93.227.93 and 212.11.41.194. Two addresses defeats the one point of this
+# app: a single IP a site owner can allowlist.
+app = "marklayer-fetcher"
+primary_region = "iad"
+
+[build]
+  # Relative to this file, not the working directory fly is run from.
+  dockerfile = "../Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Never scale to zero: a cold start on every proxy fallback would blow the
+  # viewer's 12s render budget, and the whole point of this box is a *stable*
+  # address, which a suspended machine does not reliably keep.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"  # the process is a 3KB bundle; 256MB is already generous
