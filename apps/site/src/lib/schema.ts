@@ -75,22 +75,6 @@ export function howToSchema(p: { name: string; description: string; steps: { nam
   };
 }
 
-export const PRODUCT_SCHEMA = {
-  '@context': 'https://schema.org',
-  '@type': 'Product',
-  name: 'MarkLayer',
-  description:
-    'Free Chrome extension to annotate any webpage with drawings, comments, arrows, and highlights. Share via link with no install required for viewers.',
-  brand: { '@type': 'Brand', name: 'MarkLayer' },
-  offers: {
-    '@type': 'Offer',
-    price: '0',
-    priceCurrency: 'USD',
-    availability: 'https://schema.org/InStock',
-    url: `${ORIGIN}/pricing`,
-  },
-};
-
 // Expanding `sameAs` with verified profile URLs (LinkedIn, X, Bluesky, personal
 // site) strengthens the entity-graph signal Quality Raters look for. A Person
 // with a single sameAs link reads as thinly substantiated.

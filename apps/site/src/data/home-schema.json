@@ -6,7 +6,7 @@
       "name": "MarkLayer",
       "url": "https://marklayer.app",
       "description": "Free webpage annotation and visual collaboration tool. Draw, comment, and mark up any live website, then share a link for instant feedback.",
-      "dateModified": "2026-05-18",
+      "dateModified": "2026-08-28",
       "potentialAction": {
         "@type": "SearchAction",
         "target": "https://marklayer.app/proxy?url={url}",
@@ -21,16 +21,12 @@
       "applicationSubCategory": "Visual Feedback and Annotation",
       "operatingSystem": "Any",
       "browserRequirements": "Any modern browser",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
+      "isAccessibleForFree": true,
       "url": "https://marklayer.app",
       "screenshot": "https://marklayer.app/og.jpg",
       "datePublished": "2026-03-18",
-      "dateModified": "2026-05-18",
-      "softwareVersion": "0.4.0",
+      "dateModified": "2026-08-28",
+      "softwareVersion": "0.5.0",
       "featureList": [
         "Paste any URL on marklayer.app and annotate in your browser. No install required",
         "Optional free Chrome extension for in-place annotation on sites behind a login or with strict embed policies",
@@ -51,11 +47,7 @@
       "applicationSubCategory": "Browser Extension",
       "operatingSystem": "Chrome",
       "browserRequirements": "Requires Chrome or Chromium-based browser",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
+      "isAccessibleForFree": true,
       "url": "https://marklayer.app",
       "downloadUrl": "https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc"
     },

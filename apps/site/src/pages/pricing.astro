@@ -1,10 +1,13 @@
 ---
 import BaseHead from '../components/BaseHead.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Faq from '../components/Faq.astro';
+import Related from '../components/Related.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import { breadcrumbSchema, PRODUCT_SCHEMA } from '../lib/schema';
-import { CHROME_STORE_URL, formatLastUpdated, ORIGIN } from '../lib/site';
+import { getPublishedPrices } from '../lib/collections';
+import { breadcrumbSchema, faqSchema, type QA } from '../lib/schema';
+import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, REPO_URL } from '../lib/site';
 import dates from '../data/page-dates.json';
 
 const { modified } = dates.pricing;
@@ -23,6 +26,41 @@ const rows: [string, string][] = [
   ['Trial period', 'N/A (everything is free, forever)'],
   ['Self-hosting', 'Open source: fork and deploy on your own Cloudflare account'],
 ];
+
+// Derived, never restated: `/pricing` and `/pricing.md` both read the Price row
+// out of the comparison pages, so neither can drift from the pages it links to.
+const priced = await getPublishedPrices();
+
+const qa: QA[] = [
+  {
+    q: 'What is the catch?',
+    a: 'There is none. MarkLayer shows no ads, sells no data, and has no upsell flow. There is no free tier that expires into a paid one, because there is no paid one. The whole product is the free product.',
+  },
+  {
+    q: 'How is MarkLayer paid for?',
+    a: "It runs on Cloudflare's edge platform: Workers, D1, Durable Objects, and R2. An annotation tool of this size sits inside or near the free allowances there, so the running cost is small enough to absorb. It is a side project, not a company with a runway to recover.",
+  },
+  {
+    q: 'Will you add a paid tier later?',
+    a: 'There is no plan to. And the licence is the real guarantee: MarkLayer is Apache-2.0, so if a paid tier ever appeared, the last free version could be forked and kept running by anyone. You are not depending on a promise.',
+  },
+  {
+    q: 'How long are my shared annotations kept?',
+    a: 'A shared annotation is deleted 90 days after it was last opened, and any explicit expiry you set is honoured sooner. Opening the link resets the clock, so a link in active use stays alive. Nothing is kept indefinitely.',
+  },
+  {
+    q: 'Is there an enterprise or self-hosted plan to buy?',
+    a: 'No, and there is nothing to buy. Self-hosting is the fork: deploy the repo to your own Cloudflare account and the annotations never leave your infrastructure. There is no licence fee, no seat count, and no support contract on offer.',
+  },
+  {
+    q: 'Do I need a credit card or an account to start?',
+    a: 'Neither. Paste a URL at marklayer.app and annotate. The Chrome extension is a free install for pages the web app cannot embed, such as sites behind a login. No registration step exists anywhere in the product.',
+  },
+  {
+    q: 'Is the free version limited compared to a paid one?',
+    a: 'There is no comparison to draw. Every drawing tool, comments, real-time cursors, voice chat, share links, the element inspector, and the MCP server for AI coding agents are all in the one version everybody gets.',
+  },
+];
 ---
 
 <html lang="en">
@@ -32,7 +70,7 @@ const rows: [string, string][] = [
       description={description}
       canonical={`${ORIGIN}/pricing`}
       ogType="website"
-      schema={[PRODUCT_SCHEMA, breadcrumbSchema([{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }])]}
+      schema={[faqSchema(qa), breadcrumbSchema([{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }])]}
     >
       <link
         slot="extra-links"
@@ -95,18 +133,90 @@ const rows: [string, string][] = [
       <li>No upsell flow inside the extension.</li>
     </ul>
 
+    <h2>What the rest of the category charges</h2>
+    <p>
+      "Free" only means something next to a number. These are the published prices of the visual feedback tools
+      MarkLayer is most often weighed against, as recorded on each comparison page. Several of them are genuinely worth
+      their bill: a two-way Jira sync or a Kanban board is real work that MarkLayer does not do. The point is narrower:
+      if what you need is to draw on a page and send someone the link, that part costs nothing here.
+    </p>
+    <div class="ml-scroll-x">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col" class="w-[30%]">Tool</th>
+            <th scope="col">Published price</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">MarkLayer</th>
+            <td>Free. No tiers, no seats, no trial</td>
+          </tr>
+          {
+            priced.map((c) => (
+              <tr>
+                <th scope="row">
+                  <a href={`/vs/${c.id}`}>{c.competitor}</a>
+                </th>
+                <td>{c.price}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+    <p class="ml-meta">
+      Prices as published by each vendor, checked August 2026. Follow a tool's name for the full side-by-side, or start
+      from the <a href="/compare">comparison index</a> and the <a href="/alternatives">alternatives directory</a>.
+    </p>
+
     <h2>Why is it free?</h2>
     <p>
       MarkLayer exists to make webpage annotation accessible to everyone. Infrastructure runs on Cloudflare's low-cost
       edge services, and the code is open source, so you can audit, fork, or self-host. There is no business model on
       top of users. There is no plan to add one.
     </p>
+    <p>
+      The reason that holds is structural rather than generous. An annotation is a small JSON payload; a share link is a
+      row in D1 and a WebSocket connection to a Durable Object that exists only while someone is in the room. There is
+      no per-user storage tier to fund, no video transcoding, no seat provisioning, and no sales motion to pay for. The
+      costs that force other tools into per-seat pricing are mostly not costs MarkLayer has.
+    </p>
+    <p>
+      Free also has a cost of its own, and it is stated plainly rather than buried: there is no SLA, no support desk,
+      and no contract. Shared annotations are deleted 90 days after they were last opened. If you need guarantees, the
+      answer is to <a href={REPO_URL}>run it yourself</a> under Apache-2.0, not to buy a plan that does not exist.
+    </p>
+
+    <h2>What "free" does not mean here</h2>
+    <p>
+      Plenty of tools are free because you are the product. MarkLayer is not one of them, and the distinction is
+      checkable rather than promised. There is no account, so there is no profile to sell. There is no email field, so
+      there is no list to rent. Annotations are stored only when you share them, and the
+      <a href="/privacy">privacy policy</a> is short enough to read in full. The source is public, so any claim on this
+      page can be verified against the code rather than taken on trust.
+    </p>
+
+    <Faq qa={qa} />
 
     <h2>Machine-readable pricing</h2>
     <p>
       For AI agents and automated tools: a structured version of this page is available at{' '}
       <a href="/pricing.md">/pricing.md</a>.
     </p>
+
+    <Related
+      title="Where to go next"
+      links={[
+        { href: '/compare', label: 'All MarkLayer comparisons' },
+        { href: '/alternatives', label: 'Alternatives to paid feedback tools' },
+        { href: '/use-cases', label: 'What people use MarkLayer for' },
+        { href: '/guides', label: 'Guides' },
+        { href: '/about', label: 'Who builds MarkLayer' },
+        { href: '/privacy', label: 'Privacy policy' },
+      ]}
+    />
 
     <a class="ml-cta mt-4" href={CHROME_STORE_URL}>
       Add to Chrome

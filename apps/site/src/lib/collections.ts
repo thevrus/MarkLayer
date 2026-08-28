@@ -13,6 +13,18 @@ export const getAlternatives = async () => byOrder(await getCollection('alternat
 export const getUseCases = async () => byOrder(await getCollection('useCases'));
 export const getGuides = async () => byOrder(await getCollection('guides'));
 
+/**
+ * The competitor prices, read out of the `Price` row of each comparison's own
+ * table so no pricing surface restates a figure the comparison pages own. Only
+ * entries quoting a concrete published number qualify — "paid plans per user"
+ * says nothing a reader can weigh — which is what the currency test selects.
+ */
+export const getPublishedPrices = async (): Promise<{ id: string; competitor: string; price: string }[]> =>
+  (await getComparisons()).flatMap((c) => {
+    const price = c.data.rows.find((r) => r.feature === 'Price')?.them;
+    return price && /[$€£]/.test(price) ? [{ id: c.id, competitor: c.data.competitor, price }] : [];
+  });
+
 export type SiteLink = { href: string; label: string };
 
 /**
