@@ -48,7 +48,7 @@ import {
 import type { DeviceMode, FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
 import { cn, RETENTION_DAYS } from '@marklayer/types';
-import { useSignal, useSignalEffect } from '@preact/signals';
+import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import {
   Bot,
   Calendar,
@@ -813,10 +813,54 @@ function ThemeButton() {
   );
 }
 
+/** Why the page never rendered. One list: the signal holds it, telemetry reports it. */
+type RenderFailure = 'timeout' | 'no-marker' | 'iframe-error' | 'firewall' | 'upstream-error';
+
+/**
+ * What the failure panel says. Keyed by cause rather than resolved inline, so a
+ * new cause is one entry instead of another branch threaded through two nested
+ * ternaries that have to stay in the same order.
+ */
+const FAILURE_COPY = {
+  firewall: {
+    title: "This site's firewall blocked us",
+    body: 'The host answered our request with a security challenge instead of the page, so there was nothing to show. The annotations are saved — open them with the MarkLayer extension on the live site, which loads the page in your own browser.',
+  },
+  hostile: {
+    title: 'This site blocks embedding',
+    body: 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.',
+  },
+  'upstream-error': {
+    // Distinct from `firewall` on purpose: telling someone a firewall blocked us
+    // when the site simply 404'd sends them arguing with their host over nothing.
+    title: 'This page returned an error',
+    body: 'The site answered our request with an error rather than the page, so there was nothing to show. The annotations are saved — check the URL is still live, or open them with the extension.',
+  },
+  generic: {
+    title: "We couldn't load this page",
+    body: 'The page took too long, was blocked, or returned an error. The annotations are saved — try the extension on the live page, or share a different URL.',
+  },
+} as const;
+
 export default function Viewer() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const iframeLoaded = useSignal(false);
-  const renderFailed = useSignal<null | 'timeout' | 'no-marker' | 'iframe-error'>(null);
+  const renderFailed = useSignal<RenderFailure | null>(null);
+  // The egress address the host's firewall named in its challenge, when it named
+  // one — the only detail that turns "it broke" into something the owner can act on.
+  const blockedEgressIp = useSignal<string | null>(null);
+  const failureCopy = useComputed(
+    () =>
+      FAILURE_COPY[
+        renderFailed.value === 'firewall'
+          ? 'firewall'
+          : renderFailed.value === 'upstream-error'
+            ? 'upstream-error'
+            : isLikelyEmbedHostile(pageUrl.value)
+              ? 'hostile'
+              : 'generic'
+      ],
+  );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -947,7 +991,7 @@ export default function Viewer() {
   });
 
   const renderStartRef = useRef(0);
-  const captureRenderFailed = (reason: 'timeout' | 'no-marker' | 'iframe-error', extra?: Record<string, unknown>) => {
+  const captureRenderFailed = (reason: RenderFailure, extra?: Record<string, unknown>) => {
     capture('page_render_failed', {
       // Deliberately no `url` and no `annotation_id`: the annotated page can be
       // private and the room ID is an unlisted share credential. `reason` plus
@@ -1131,10 +1175,20 @@ export default function Viewer() {
     };
   }, []);
 
-  // Link interception from proxy
+  // Link interception from proxy, plus the proxy's own "this page never arrived"
+  // signal — a firewall challenge or an upstream error status, which the load
+  // event alone reports as a perfectly successful render of nothing.
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       if (e.data?.type === 'ml-navigate' && typeof e.data.url === 'string') navigateTo(e.data.url);
+      if (e.data?.type === 'ml-blocked') {
+        // The proxy separates "a firewall refused us" from "the origin errored";
+        // only the first is worth showing an allowlisting address for.
+        const failure: RenderFailure = e.data.reason === 'firewall' ? 'firewall' : 'upstream-error';
+        blockedEgressIp.value = failure === 'firewall' && typeof e.data.ip === 'string' ? e.data.ip : null;
+        captureRenderFailed(failure, { block_reason: e.data.reason, status: e.data.status });
+        renderFailed.value = failure;
+      }
     };
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
@@ -1838,16 +1892,19 @@ export default function Viewer() {
                 <div class="absolute inset-0 z-10 overflow-y-auto bg-ml-bg-viewer">
                   <div class="min-h-full flex flex-col items-center justify-center gap-4 px-8 py-10 text-center">
                     <Logo size={48} />
-                    <h2 class="text-base font-semibold text-ml-fg m-0">
-                      {isLikelyEmbedHostile(pageUrl.value)
-                        ? 'This site blocks embedding'
-                        : "We couldn't load this page"}
-                    </h2>
-                    <p class="text-[13px] text-ml-fg/70 max-w-md leading-snug m-0">
-                      {isLikelyEmbedHostile(pageUrl.value)
-                        ? 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.'
-                        : 'The page took too long, was blocked, or returned an error. The annotations are saved — try the extension on the live page, or share a different URL.'}
-                    </p>
+                    <h2 class="text-base font-semibold text-ml-fg m-0">{failureCopy.value.title}</h2>
+                    <p class="text-[13px] text-ml-fg/70 max-w-md leading-snug m-0">{failureCopy.value.body}</p>
+                    {/* Our relay's own address, so the ask is one specific IP rather
+                      than "allow Cloudflare", which is every Worker on the platform. */}
+                    {renderFailed.value === 'firewall' && blockedEgressIp.value && (
+                      <p class="text-[13px] text-ml-fg/70 max-w-md leading-snug m-0">
+                        Own this site? Your host can allow MarkLayer with one address:{' '}
+                        <code class="px-1.5 py-0.5 rounded bg-ml-fg/8 font-mono text-[12px] text-ml-fg">
+                          {blockedEgressIp.value}
+                        </code>
+                        .
+                      </p>
+                    )}
                     {/* One primary action; the escape route is a text link rather than
                       a second outlined button, so the recovery path has a clear rank. */}
                     <div class="flex flex-col items-center gap-3">
