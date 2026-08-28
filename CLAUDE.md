@@ -50,13 +50,18 @@ cd apps/site && bun dev            # astro dev
 cd apps/site && bun run build      # astro build → dist/
 cd apps/site && bun run check      # astro check (this workspace's `check`, not tsc)
 
+# Fetch relay only (see apps/fetcher/README.md for hosting)
+cd apps/fetcher && bun run dev      # Local relay on :8080 (needs FETCHER_TOKEN)
+cd apps/fetcher && bun run build    # → dist/server.js, dependency-free single file
+docker build -f apps/fetcher/Dockerfile -t marklayer-fetcher .   # from the repo root
+
 # MCP server only (published to npm as `marklayer-mcp`)
 cd apps/mcp && bun run build       # Compile TS → dist/cli.js
 cd apps/mcp && bun run dev         # tsc --watch
 cd apps/mcp && node scripts/publish-if-new.mjs --check   # Publish preflight, no side effects
 ```
 
-No test framework is configured — relying on `bun run check` (TypeScript) and `bun run lint` (Biome) is the verification loop.
+`bun run test` runs `bun test` in the workspaces that have specs (`packages/types`, `apps/worker`, `apps/fetcher`); the rest of the monorepo has none, so `bun run check` (TypeScript) and `bun run lint` (Biome) still carry most of the verification loop. Prefer a test where the failure would be silent — a truncated stream, a guard that stops guarding — over one that restates the type signature.
 
 **`apps/site` is pinned to `typescript@^6`, deliberately.** Its `check` is `astro check`, which needs the TS programmatic API that the 7.x native compiler does not ship yet (withastro/roadmap#1321). The rest of the monorepo runs `tsc --noEmit` on 7.x and is unaffected. Do not bump the site to 7 until `astro check` supports it: the alternative, swapping it for `tsc --noEmit`, silently stops type-checking all 37 `.astro` templates.
 
@@ -89,6 +94,11 @@ apps/mcp/           # MCP server (`marklayer-mcp` on npm) — exposes annotation
                     # rooms as tools (watch/acknowledge/resolve/reply) for AI agents.
                     # server.json is the MCP registry manifest (keep its version
                     # in sync with package.json).
+apps/fetcher/       # Fixed-IP relay the worker's proxy falls back to when a host
+                    # blocks Cloudflare's shared egress. One endpoint, bearer-token
+                    # auth, resolve-time SSRF guard. Builds to a dependency-free 3KB
+                    # bundle, so the host is swappable (deploy/ holds a fly.toml and
+                    # a systemd unit). See its README.
 packages/types/     # Shared types & Zod schemas (DrawOp union incl. guide/inspect,
                     # CommentOp + priority/status, Peer, AnchorPoint, target element
                     # metadata) and the `cn` helper. Single source of truth for
@@ -117,7 +127,8 @@ packages/types/     # Shared types & Zod schemas (DrawOp union incl. guide/inspe
 
 - **Real-time sync**: clients connect via WebSocket to a per-room Durable Object (`AnnotationRoom` in `apps/worker/src/annotation-room.ts`). Ops broadcast to peers and persist to D1.
 - **Voice/video**: peer-to-peer WebRTC negotiated through the same DO (`apps/worker/web/useVoiceRoom.ts`); TURN fallback configured.
-- **Iframe proxy**: the worker fetches the target URL and strips frame-blocking headers (`X-Frame-Options`, CSP) so it can be embedded. SSRF guard blocks private/loopback hosts.
+- **Iframe proxy**: the worker fetches the target URL and strips frame-blocking headers (`X-Frame-Options`, CSP) so it can be embedded. SSRF guard blocks private/loopback hosts (`isBlockedHost` in `packages/types`, shared with the relay).
+- **Blocked-host fallback**: some hosts (SiteGround, various WAFs) refuse Cloudflare's shared Worker egress outright — measured from the real edge, every user-agent was challenged by a site that served the full page to an ordinary connection, so no header change helps. `fetchPage` in `proxy.ts` peeks the first 4KB, and on a challenge retries through `apps/fetcher`, a relay on one address we own. `FETCHER_URL` + `FETCHER_TOKEN` unset (the default) means no fallback. The relay identifies itself honestly on purpose: a Chrome UA over a non-Chrome handshake is exactly what a browser-verifying WAF refuses. Staying on Cloudflare cannot solve this — Containers egress from the same pool (measured: `104.28.156.35`, challenged identically), and a dedicated egress IP is Enterprise-only. Losing the relay is not an outage: `FETCHER_ENABLED=false` turns the fallback off, and a host that simply vanishes trips a circuit breaker after three failures, degrading the proxy to its pre-relay behaviour on its own.
 - **Canvas overlay**: a transparent Preact root is injected over the iframe (extension) or the proxied page (web). Each tool is a sibling Layer component (`Canvas`, `CommentLayer`, `AreaLayer`, `GuideLayer`, `InspectorLayer`, `InspectorMarkerLayer`, `MeasureLayer`, `MultiInspectLayer`, `QuickGrabLayer`, `SelectionLayer`, `TextLayer`); web versions live in `apps/worker/web/Web*.tsx`.
 - **Everything is an op**: ruler guides included — they ride the same persisted, peer-synced op stream (`guideOpSchema` in the `DrawOp` union), with `guides` derived as a computed view over `operations` rather than kept in separate state. Comments carry `status` and `priority` on the same op.
 - **Anchoring**: annotations bind to host-page elements via `lib/anchor.ts` + `lib/selector.ts` (CSS selector + text-fingerprint fallback for SPAs). Selectors re-resolve on host-page mutations via a MutationObserver tick signal; DPR-aware scale capture preserves layout across viewport changes.
