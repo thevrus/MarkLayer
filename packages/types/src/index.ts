@@ -3,6 +3,8 @@ import { z } from 'zod/mini';
 // clsx + tailwind-merge in one, ~3.8x faster with byte-identical output.
 // Also supports the tagged-template form: cn`px-2 ${active && 'bg-blue-500'}`.
 export { type ClassValue, cn } from 'cnfast';
+export type { FetchableUrl, UnfetchableReason } from './net';
+export { isBlockedHost, isPrivateAddress, parseFetchableUrl } from './net';
 
 // === Ops: schemas + inferred types (single source of truth) ===
 
