@@ -1,0 +1,37 @@
+# The no-Docker path: any plain VM with a stable IP (Oracle Always Free,
+# Hetzner, a spare box). See the README for the four commands around it.
+#
+#   /etc/systemd/system/marklayer-fetcher.service
+
+[Unit]
+Description=MarkLayer fixed-IP fetch relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=marklayer
+WorkingDirectory=/opt/marklayer-fetcher
+ExecStart=/usr/local/bin/bun /opt/marklayer-fetcher/server.js
+# The token lives in a root-owned 0400 file, never in this unit — anyone who can
+# read it can use the relay.
+EnvironmentFile=/etc/marklayer-fetcher.env
+Restart=always
+RestartSec=2
+
+# It fetches URLs strangers chose, so give it as little of the host as possible.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=false
+
+[Install]
+WantedBy=multi-user.target
