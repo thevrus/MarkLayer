@@ -23,6 +23,25 @@ export type Env = {
     TURN_KEY_TOKEN?: string;
     POSTHOG_KEY?: string;
     POSTHOG_HOST?: string;
+    /**
+     * The fixed-IP relay (apps/fetcher) the proxy falls back to when a host
+     * blocks Cloudflare's shared egress. Both unset — the default — means no
+     * fallback, which is how the proxy behaved before the relay existed.
+     */
+    FETCHER_URL?: string;
+    FETCHER_TOKEN?: string;
+    /**
+     * Off switch. Set to "false" to stop using the relay while leaving its URL
+     * and token in place — the way to turn the fallback off without deleting
+     * config, and the first thing to reach for if the relay host misbehaves.
+     */
+    FETCHER_ENABLED?: string;
+    /**
+     * Fallback for the relay's public address, shown to a user whose host blocks
+     * even that. Only read when the relay never answered — when it did, it
+     * reports its own address on the response, which cannot go stale.
+     */
+    FETCHER_EGRESS_IP?: string;
   };
 };
 
