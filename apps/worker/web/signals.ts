@@ -1,7 +1,7 @@
-import { bumpAnchorGeneration, pushOp, toast as showToast } from '@ext/lib/state';
+import { areas, bumpAnchorGeneration, comments, pushOp, selections, toast as showToast } from '@ext/lib/state';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import type { CaptureViewport, TargetElement } from '@marklayer/types';
-import { effect, signal } from '@preact/signals';
+import { computed, effect, signal } from '@preact/signals';
 import { captureOnce } from './analytics';
 import { fromBase64 } from './encoding';
 import { annotationId, currentPageIdx, originalWidth, pageUrl, projectId } from './projects';
@@ -72,7 +72,21 @@ export const selectionPopover = signal<{
   screenY: number;
   target?: TargetElement;
   captureViewport?: CaptureViewport;
+  /** Opened by the selection alone rather than by arming the selection tool. */
+  auto: boolean;
 } | null>(null);
+/**
+ * How the support card came to be open, or `null` when it is closed.
+ *
+ * One signal rather than an `open` boolean beside a `trigger`, so the two can
+ * never disagree about which ask is on screen. `auto` is the earned, once-ever
+ * offer; `bar` and `menu` are the person asking for it themselves.
+ *
+ * Web-app only by design (see support.ts), so it lives here rather than in the
+ * shared extension state.
+ */
+export type SupportTrigger = 'auto' | 'bar' | 'menu';
+export const showSupportDialog = signal<SupportTrigger | null>(null);
 export const isReadonly = signal(false);
 export const sharing = signal(false);
 export const showInfoPanel = signal(false);
@@ -157,6 +171,16 @@ export function seedDeviceOp(op: DrawOp) {
 export function opMatchesDevice(op: { device?: string }): boolean {
   return (op.device ?? 'desktop') === deviceMode.value;
 }
+
+/**
+ * The device-filtered op views, computed once rather than per render. The stage
+ * re-renders on every scroll frame of the proxied page, and scrolling changes
+ * neither the op list nor `deviceMode` — filtering inline redid the whole pass
+ * each frame.
+ */
+export const deviceSelections = computed(() => selections.value.filter(opMatchesDevice));
+export const deviceAreas = computed(() => areas.value.filter(opMatchesDevice));
+export const deviceComments = computed(() => comments.value.filter(opMatchesDevice));
 
 // Parse URL params (synchronous — called before first render)
 function parseViewParam(): boolean {
