@@ -5,9 +5,9 @@ import { reprojectRects } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
-import { useEdgeClamp } from '../lib/popover';
+import { useEdgeClamp, useSelectionDismiss } from '../lib/popover';
 import { hexToRgba } from '../lib/renderer';
-import { captureTarget } from '../lib/selector';
+import { captureTarget, isExtensionElement } from '../lib/selector';
 import {
   activeTool,
   color,
@@ -19,10 +19,12 @@ import {
   openContextMenu,
   pushOp,
   scrollTick,
+  selectionCaptureArmed,
   selections,
   setOpStatus,
 } from '../lib/state';
 import type { SelectionOp, SelectionRect } from '../lib/types';
+import { CancelButton } from './CancelButton';
 import { PriorityBadge, PriorityPicker } from './PriorityPicker';
 import { SelectionEdit, SuggestionDiff } from './SelectionEdit';
 
@@ -32,6 +34,8 @@ interface PopoverState {
   text: string;
   rects: SelectionRect[];
   target: TargetElement | undefined;
+  /** Opened by the selection alone rather than by arming the selection tool. */
+  auto: boolean;
 }
 
 function SelectionHighlight({ op }: { op: SelectionOp }) {
@@ -107,18 +111,18 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           {op.suggestion ? (
             <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={resolved} class="mb-1" />
           ) : (
-            <p class="text-[12px] text-(--ds-gray-900) m-0 mb-1 line-clamp-2">{op.text}</p>
+            <p class="text-meta text-(--ds-gray-900) m-0 mb-1 line-clamp-2">{op.text}</p>
           )}
           {op.comment && (
             <p
-              class="text-[13px] text-(--ds-gray-1000) m-0 leading-relaxed whitespace-pre-wrap"
+              class="text-ui text-(--ds-gray-1000) m-0 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
+            <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
             <button
               type="button"
               onClick={(e) => {
@@ -136,14 +140,10 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   );
 }
 
-function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState & { onClose: () => void }) {
+function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverState & { onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
   const [suggestion, setSuggestion] = useState<string | null>(null);
-
-  useEffect(() => {
-    taRef.current?.focus();
-  }, []);
 
   const commit = (save: boolean) => {
     const comment = taRef.current?.value.trim();
@@ -169,6 +169,8 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
     onClose();
   };
 
+  const { panelProps } = useSelectionDismiss({ auto, focusRef: taRef, onDismiss: () => commit(false) });
+
   const vx = x - scrollX;
   const vy = y - scrollY;
   const left = Math.min(vx + 16, innerWidth - 300);
@@ -186,6 +188,7 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
       ref={panelRef}
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
+      {...panelProps}
     >
       <SelectionEdit text={text} suggestion={suggestion} onChange={setSuggestion} onSubmit={() => commit(true)} />
 
@@ -216,10 +219,7 @@ function SelectionPopover({ x, y, text, rects, target, onClose }: PopoverState &
 
       {/* Footer */}
       <div class="flex items-center justify-between px-4 py-2.5">
-        <div class="flex items-center gap-2">
-          <kbd class={geist.kbd}>Esc</kbd>
-          <span class="text-[12px] text-(--ds-gray-900) font-medium">skip comment</span>
-        </div>
+        <CancelButton onClick={() => commit(false)} />
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵
         </button>
@@ -234,14 +234,24 @@ export function SelectionLayer() {
   // Highlight repositioning on scroll happens inside SelectionHighlight via
   // the shared `scrollTick` signal — no per-layer forceUpdate needed.
 
-  // Listen for text selection — always attached, check signal inside handler
-  const onMouseUp = useCallback(() => {
-    if (activeTool.value !== 'selection') return;
+  // Listen for text selection — always attached, check signal inside handler.
+  // Every selection tool qualifies, not just `selection`, so highlighting a
+  // sentence offers to annotate it without a trip to the toolbar first.
+  const onMouseUp = useCallback((e: MouseEvent) => {
+    if (!selectionCaptureArmed.value) return;
+    // Retargeted to the shadow host for anything inside our own UI, so this also
+    // covers a mouseup that finished inside this very popover.
+    if (e.target instanceof Element && isExtensionElement(e.target)) return;
+    // The common case is a plain click, so answer it before scheduling a frame:
+    // only a live selection needs the post-layout rects the rAF waits for.
+    if (window.getSelection()?.isCollapsed !== false) return;
+    const auto = activeTool.value !== 'selection';
     requestAnimationFrame(() => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
+      if (!sel || sel.isCollapsed) return;
 
       const text = sel.toString();
+      if (!text.trim()) return;
       const rects: SelectionRect[] = [];
 
       for (let i = 0; i < sel.rangeCount; i++) {
@@ -265,6 +275,9 @@ export function SelectionLayer() {
       const ancestor = range0.commonAncestorContainer;
       const targetEl: Element | null =
         ancestor.nodeType === Node.ELEMENT_NODE ? (ancestor as Element) : ancestor.parentElement;
+      // A selection that lives in our own chrome — an annotation's hover card, the
+      // toolbar — is not page copy, whatever the mouseup landed on.
+      if (isExtensionElement(targetEl)) return;
 
       const firstRect = rects[0];
       const lastRect = rects[rects.length - 1];
@@ -277,6 +290,7 @@ export function SelectionLayer() {
         target: targetEl
           ? captureTarget({ el: targetEl, anchor: { x: firstRect.x, y: firstRect.y }, selectedText: text })
           : undefined,
+        auto,
       });
     });
   }, []);

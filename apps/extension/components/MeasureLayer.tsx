@@ -73,7 +73,7 @@ function Label({
   const tx = anchor === 'start' ? '0%' : anchor === 'end' ? '-100%' : '-50%';
   return (
     <div
-      class="fixed z-2147483647 pointer-events-none font-mono text-[10.5px] tabular-nums whitespace-nowrap"
+      class="fixed z-2147483647 pointer-events-none font-mono text-micro tabular-nums whitespace-nowrap"
       style={{
         left: x,
         top: y,
@@ -288,7 +288,7 @@ export function HintBadge({ text }: { text?: string } = {}) {
   return (
     <div
       class="fixed left-1/2 -translate-x-1/2 z-2147483647 pointer-events-none top-5
-             px-3 py-1.5 text-[11.5px] font-medium tracking-[0.01em] rounded-lg
+             px-3 py-1.5 text-mini font-medium tracking-label rounded-lg
              animate-[fadeInDown_180ms_ease-out] font-mono whitespace-nowrap"
       style={{
         background: PANEL,

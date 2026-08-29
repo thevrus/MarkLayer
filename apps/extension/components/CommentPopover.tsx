@@ -8,6 +8,7 @@ import { glass } from '../lib/glass';
 import { useEdgeClamp } from '../lib/popover';
 import { captureTarget } from '../lib/selector';
 import { color, commentCounter, getCommentMeta, lineWidth, localUser, pushOp } from '../lib/state';
+import { CancelButton } from './CancelButton';
 import { PriorityPicker } from './PriorityPicker';
 
 interface Props {
@@ -71,13 +72,13 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
       {/* Header */}
       <div class="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
         <div
-          class="w-6 h-6 rounded-full text-white text-[12px] font-medium grid place-items-center shrink-0
+          class="w-6 h-6 rounded-full text-white text-meta font-medium grid place-items-center shrink-0
                  shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
           style={{ background: color.value }}
         >
           {num}
         </div>
-        <span class="text-[13px] text-(--ds-gray-1000) font-semibold tracking-[-0.01em]">New comment</span>
+        <span class="text-ui text-(--ds-gray-1000) font-semibold tracking-ui">New comment</span>
       </div>
 
       <div class={cn(geist.divider, 'mx-3.5')} />
@@ -107,15 +108,7 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
 
       {/* Footer */}
       <div class="flex items-center justify-between px-4 py-2.5">
-        {/* A real button, not a hint: it looked clickable, so it has to be. */}
-        <button
-          type="button"
-          onClick={() => commit(false)}
-          class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto gap-1.5 px-2 text-[13px] font-medium')}
-        >
-          Cancel
-          <kbd class={geist.kbd}>Esc</kbd>
-        </button>
+        <CancelButton onClick={() => commit(false)} />
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Post ↵
         </button>

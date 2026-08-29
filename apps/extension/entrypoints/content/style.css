@@ -6,10 +6,32 @@
   --color-ml-glass-muted: oklch(0 0 0 / 0.03);
   /* Brand accent — used for primary submit buttons, focus rings, caret. */
   --color-ml-accent: oklch(0.65 0.15 300);
+  /* Its readable foreground — the count inside an accent-tinted badge. */
+  --color-ml-accent-fg: oklch(0.86 0.08 300);
   /* Resolved/muted neutral — used for done-state chips and de-emphasized swatches. */
   --color-ml-resolved: oklch(0.55 0 0);
   /* Spring easing for entrance/exit motion. */
   --ease-ml-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── The type scale ──
+     Every size in the overlay comes from this ladder, and nothing sets a size
+     outside it. These steps are mirrored verbatim at the top of
+     apps/worker/web/style.css — the same components compile into both the
+     extension and the web app, so a size that exists in one and not the other
+     silently renders at the browser default. Keep the two in step; the steps
+     above 15px are the web app's alone and are not repeated here. */
+  --text-micro: 0.625rem; /* 10 — badge counts, avatar initials, guide readouts */
+  --text-mini: 0.6875rem; /* 11 — measure chips, key hints */
+  --text-meta: 0.75rem; /* 12 — the secondary line in every popover */
+  --text-ui: 0.8125rem; /* 13 — the overlay's default */
+  --text-ui-lg: 0.875rem; /* 14 — controls that have to carry */
+  --text-body: 0.9375rem; /* 15 — prose, in the shared components */
+
+  /* Tracking and leading by role, for the same reason. */
+  --tracking-display: -0.02em;
+  --tracking-ui: -0.01em; /* UI titles and labels */
+  --tracking-label: 0.011em; /* small mono and meta labels, opened up to read */
+  --leading-body: 1.55; /* comment and annotation prose */
 }
 
 @layer base {

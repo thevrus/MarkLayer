@@ -39,7 +39,7 @@ const peerRoster = computed(() => {
 const triggerCls = cn(
   'w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg cursor-pointer select-none',
   'border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)',
-  'text-[12px] font-medium text-(--ds-gray-1000)',
+  'text-meta font-medium text-(--ds-gray-1000)',
   'hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000)',
   'data-popup-open:bg-(--ds-gray-alpha-100) data-popup-open:text-(--ds-gray-1000)',
   'transition-[background-color,color] duration-150',
@@ -47,7 +47,7 @@ const triggerCls = cn(
 
 const itemCls = cn(
   'flex items-center gap-2 px-2.5 py-1.5',
-  'text-[12px] font-medium leading-none',
+  'text-meta font-medium leading-none',
   glass.menuItem,
   glass.menuItemHighlight,
   'data-checked:text-(--ds-gray-1000)',
@@ -135,7 +135,7 @@ function StatusPicker({
 function InitialAvatar({ name, color }: { name: string; color: string }) {
   return (
     <span
-      class="w-4 h-4 rounded-full text-white text-[9px] font-medium grid place-items-center shrink-0
+      class="w-4 h-4 rounded-full text-white text-micro font-medium grid place-items-center shrink-0
              shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
       style={{ background: color }}
     >
@@ -196,7 +196,7 @@ function AssigneePicker({
   );
 }
 
-const triageLabelCls = 'text-[12px] text-(--ds-gray-900) font-medium';
+const triageLabelCls = 'text-meta text-(--ds-gray-900) font-medium';
 
 /**
  * A triage dropdown portals outside the pin, so the pointer leaving for the menu

@@ -60,7 +60,7 @@ const FRAMEWORK_BRAND: Record<FrameworkComponent['framework'], BrandIconName> = 
   Svelte: 'svelte',
 };
 
-const metaLabel = 'text-[12px] text-(--ds-gray-900) font-medium tabular-nums';
+const metaLabel = 'text-meta text-(--ds-gray-900) font-medium tabular-nums';
 
 export function HoverHighlight({ state }: { state: HoverState }) {
   const { rect } = state;
@@ -94,7 +94,7 @@ export function HoverTooltip({ state }: { state: HoverState }) {
   return (
     <div
       class="fixed z-2147483647 pointer-events-none inline-flex items-center gap-2 rounded-[8px]
-             whitespace-nowrap font-mono text-[12px] leading-[1.1] tracking-[0.01em]
+             whitespace-nowrap font-mono text-meta leading-none tracking-label
              animate-[fadeIn_140ms_ease-out]"
       style={{
         left: rect.left,
@@ -291,7 +291,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
           onPointerUp={onDragPointerUp}
           onPointerCancel={onDragPointerUp}
         >
-          <span class="text-[13px] font-semibold tracking-[-0.01em] text-(--ds-gray-1000)">Element inspector</span>
+          <span class="text-ui font-semibold tracking-ui text-(--ds-gray-1000)">Element inspector</span>
           <button
             type="button"
             aria-label="Close inspector"
@@ -372,8 +372,8 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             </button>
           </div>
           <code
-            class="block text-[12px] text-(--ds-gray-1000) bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
-                   rounded-md px-3 py-2 wrap-break-word font-mono leading-[1.55] select-all max-h-17 overflow-y-auto"
+            class="block text-meta text-(--ds-gray-1000) bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
+                   rounded-md px-3 py-2 wrap-break-word font-mono leading-body select-all max-h-17 overflow-y-auto"
           >
             {state.selector}
           </code>
@@ -382,7 +382,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
         <div class={cn(geist.divider, 'mx-3.5')} />
 
         <div class="px-4 pt-3 pb-3">
-          <dl class="grid grid-cols-[58px_1fr] gap-x-3 gap-y-1.5 items-baseline text-[12px]">
+          <dl class="grid grid-cols-[58px_1fr] gap-x-3 gap-y-1.5 items-baseline text-meta">
             <dt class={metaLabel}>Tag</dt>
             <dd class="text-(--ds-gray-1000) font-mono">&lt;{state.tag}&gt;</dd>
 
@@ -440,7 +440,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
             {state.classes && (
               <>
                 <dt class={metaLabel}>Classes</dt>
-                <dd class="text-(--ds-gray-1000) font-mono text-[12px] leading-[1.55] wrap-break-word line-clamp-3">
+                <dd class="text-(--ds-gray-1000) font-mono text-meta leading-body wrap-break-word line-clamp-3">
                   {state.classes}
                 </dd>
               </>
@@ -449,7 +449,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
 
           {state.text && (
             <blockquote
-              class="mt-3 px-3 py-2 rounded-lg text-[12px] leading-snug line-clamp-3
+              class="mt-3 px-3 py-2 rounded-lg text-meta leading-snug line-clamp-3
                      bg-(--ml-syntax-bg) text-(--ml-syntax-quote)
                      border-l-2 border-(--ds-gray-alpha-400)"
             >
@@ -502,7 +502,7 @@ function StylesSection({ styles }: { styles: Record<string, string> }) {
         <div class="overflow-hidden min-h-0">
           <div
             class="mt-2 px-2.5 py-2 rounded-lg bg-(--ml-syntax-bg)
-                   grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[12px] font-mono leading-normal"
+                   grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-meta font-mono leading-normal"
           >
             {Object.entries(styles).map(([k, v]) => (
               <div key={k} class="contents">
@@ -562,12 +562,12 @@ export function InspectorStackPanel() {
                hover:bg-(--ds-gray-alpha-100) transition-colors"
       >
         <span
-          class="inline-flex items-center justify-center min-w-5.5 h-5.5 px-1.5 rounded-full text-[12px] font-medium tabular-nums
-                 bg-ml-accent/22 text-[oklch(0.86_0.08_300)]"
+          class="inline-flex items-center justify-center min-w-5.5 h-5.5 px-1.5 rounded-full text-meta font-medium tabular-nums
+                 bg-ml-accent/22 text-ml-accent-fg"
         >
           {items.length}
         </span>
-        <span class="text-[12px] font-semibold text-(--ds-gray-1000) tracking-[0.01em]">
+        <span class="text-meta font-semibold text-(--ds-gray-1000) tracking-label">
           Element{items.length === 1 ? '' : 's'} stacked
         </span>
         <span class="ml-auto text-(--ds-gray-900)">
@@ -584,12 +584,12 @@ export function InspectorStackPanel() {
                 key={it.id}
                 class="group flex items-start gap-2 px-2 py-1.5 rounded-lg hover:bg-(--ds-gray-alpha-100) transition-colors"
               >
-                <span class="text-[12px] text-(--ds-gray-900) font-mono tabular-nums leading-normal mt-0.5 shrink-0">
+                <span class="text-meta text-(--ds-gray-900) font-mono tabular-nums leading-normal mt-0.5 shrink-0">
                   {i + 1}
                 </span>
                 <div class="min-w-0 flex-1">
-                  <div class="text-[12px] font-mono text-(--ds-gray-900) truncate">{stackItemLabel(it.selector)}</div>
-                  <div class="text-[12px] text-(--ds-gray-1000) leading-snug line-clamp-2">
+                  <div class="text-meta font-mono text-(--ds-gray-900) truncate">{stackItemLabel(it.selector)}</div>
+                  <div class="text-meta text-(--ds-gray-1000) leading-snug line-clamp-2">
                     {it.comment || <span class="text-(--ds-gray-900)">No task description</span>}
                   </div>
                 </div>
@@ -614,7 +614,7 @@ export function InspectorStackPanel() {
         <button
           type="button"
           onClick={clearInspectorStack}
-          class="px-2.5 py-1.5 text-[12px] font-medium rounded-lg cursor-pointer
+          class="px-2.5 py-1.5 text-meta font-medium rounded-lg cursor-pointer
                  bg-transparent text-(--ds-gray-900) border border-transparent
                  transition-[background-color,color] duration-150
                  hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000)"
@@ -625,7 +625,7 @@ export function InspectorStackPanel() {
           type="button"
           onClick={copyInspectorStack}
           title="Copy all to clipboard"
-          class="ml-auto px-2.5 py-1.5 text-[12px] font-medium rounded-lg cursor-pointer
+          class="ml-auto px-2.5 py-1.5 text-meta font-medium rounded-lg cursor-pointer
                  bg-(--ds-gray-alpha-100) text-(--ds-gray-1000) border border-(--ds-gray-alpha-400)
                  transition-[background-color,border-color,color] duration-150
                  hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000) hover:border-(--ds-gray-alpha-400)"

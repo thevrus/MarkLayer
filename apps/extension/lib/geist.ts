@@ -95,7 +95,7 @@ export const geist = {
     relative inline-flex items-center justify-center shrink-0
     h-7 px-2.5 rounded-md appearance-none border-none bg-transparent
     cursor-pointer outline-none whitespace-nowrap
-    text-[13px] font-medium text-(--ds-gray-900)
+    text-ui font-medium text-(--ds-gray-900)
     transition-[background-color,color,box-shadow] duration-150 ease-out
     hover:text-(--ds-gray-1000)
     focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1
@@ -115,13 +115,13 @@ export const geist = {
   /** Input inside a `field` (or bare, for an inline-edit). */
   input: trim(`
     min-w-0 bg-transparent border-none outline-none
-    text-[13px] text-(--ds-gray-1000) placeholder:text-(--ds-gray-700)
+    text-ui text-(--ds-gray-1000) placeholder:text-(--ds-gray-700)
   `),
 
   /** Row of a panel or menu: 36px, full-bleed hover. */
   row: trim(`
     flex items-center justify-between gap-3 w-full h-9 px-4
-    text-[13px] text-(--ds-gray-1000) text-left
+    text-ui text-(--ds-gray-1000) text-left
     appearance-none bg-transparent border-none no-underline
   `),
 
@@ -132,10 +132,10 @@ export const geist = {
    * Section label inside a panel. Sentence case at row scale — the tracked-out
    * caps this replaces was the same costume on every small string in the app.
    */
-  sectionLabel: 'text-[12px] font-medium text-(--ds-gray-900)',
+  sectionLabel: 'text-meta font-medium text-(--ds-gray-900)',
 
   /** Secondary text: a value, a count, a section label. Sentence case, never caps. */
-  meta: 'text-[13px] text-(--ds-gray-900)',
+  meta: 'text-ui text-(--ds-gray-900)',
 
   /** Vertical rule between control groups. */
   sep: 'w-px h-5 mx-1 shrink-0 bg-(--ds-gray-alpha-400)',
@@ -148,7 +148,7 @@ export const geist = {
    * so it pairs with one of the two ramps below; `font-medium` stays at the call
    * site because the panel rows and the popover footers weight it differently.
    */
-  bareBtn: 'text-[12px] bg-transparent border-none cursor-pointer p-0 transition-colors',
+  bareBtn: 'text-meta bg-transparent border-none cursor-pointer p-0 transition-colors',
 
   /** Default ramp for a bare action. */
   bareBtnQuiet: 'text-(--ds-gray-900) hover:text-(--ds-gray-1000)',
@@ -163,7 +163,7 @@ export const geist = {
    */
   kbd: trim(`
     inline-flex items-center gap-[0.15em]
-    text-[11px] leading-none font-medium
+    text-mini leading-none font-medium
     text-(--ds-gray-900) bg-(--ds-gray-alpha-200)
     rounded-sm px-1.5 py-1
   `),
@@ -174,5 +174,5 @@ export const geist = {
    * mark instead of two keys. A size bump matches the letter's optical weight;
    * the chip's gap supplies the air between them.
    */
-  kbdModifier: 'text-[13px] leading-none',
+  kbdModifier: 'text-ui leading-none',
 } as const;

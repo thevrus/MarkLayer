@@ -2,6 +2,7 @@ import { nanoid } from 'nanoid';
 import type { DrawOp } from './types';
 
 const APP_ORIGIN = 'https://marklayer.app';
+
 const API_BASE = `${APP_ORIGIN}/api/`;
 
 /**

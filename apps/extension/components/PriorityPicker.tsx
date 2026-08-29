@@ -53,7 +53,7 @@ export function PriorityPicker({
         onChange(next);
       }}
       class={cn(
-        `inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[12px] font-medium cursor-pointer
+        `inline-flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-meta font-medium cursor-pointer
          bg-transparent border-none transition-colors hover:bg-(--ds-gray-alpha-100)`,
         cls,
       )}
@@ -79,7 +79,7 @@ export function PriorityBadge({ priority, class: cls }: { priority: CommentPrior
   return (
     <span
       class={cn(
-        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[12px] font-semibold leading-none whitespace-nowrap',
+        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-meta font-semibold leading-none whitespace-nowrap',
         cls,
       )}
       style={{ color: m.color, background: `color-mix(in oklch, ${m.color} 16%, transparent)` }}

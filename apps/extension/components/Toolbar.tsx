@@ -385,7 +385,7 @@ function CountBadge({ value }: { value: number }) {
   return (
     <span
       class="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full inline-flex items-center justify-center
-             text-[10px] font-semibold tabular-nums leading-none pointer-events-none"
+             text-micro font-semibold tabular-nums leading-none pointer-events-none"
       style={{
         background: 'var(--ds-blue-800)',
         color: '#fff',

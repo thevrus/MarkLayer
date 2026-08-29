@@ -17,7 +17,7 @@ export const trim = (s: string) => s.replace(/\n\s+/g, ' ').trim();
  */
 export const submitBtn = trim(`
   inline-flex items-center justify-center gap-1.5 h-8 px-3 whitespace-nowrap
-  text-[13px] font-medium rounded-md border-none cursor-pointer outline-none
+  text-ui font-medium rounded-md border-none cursor-pointer outline-none
   bg-(--ds-gray-1000) text-(--ds-background-100)
   transition-[background-color] duration-150 ease-out
   hover:bg-(--ds-gray-1000)/90
@@ -28,7 +28,7 @@ export const submitBtn = trim(`
 /** Secondary action — the same shape, carried by its border instead of a fill. */
 export const secondaryBtn = trim(`
   inline-flex items-center justify-center gap-1.5 h-8 px-3 whitespace-nowrap
-  text-[13px] font-medium rounded-md cursor-pointer outline-none
+  text-ui font-medium rounded-md cursor-pointer outline-none
   bg-(--ds-background-100) text-(--ds-gray-1000) border border-(--ds-gray-alpha-400)
   transition-[background-color,border-color] duration-150 ease-out
   hover:bg-(--ds-gray-alpha-100) hover:border-(--ds-gray-700)
@@ -46,7 +46,7 @@ export const secondaryBtn = trim(`
  */
 export const textareaCls = trim(`
   bg-(--ds-background-100) border border-(--ds-gray-alpha-400) rounded-md px-3 py-2
-  text-(--ds-gray-1000) text-[13px] leading-relaxed
+  text-(--ds-gray-1000) text-ui leading-relaxed
   resize-none outline-none caret-(--ds-gray-1000)
   transition-[border-color] duration-150 ease-out
   focus:border-(--ds-gray-700)

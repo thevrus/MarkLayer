@@ -15,6 +15,7 @@ import {
   isOutputDetail,
   lineWidth,
   markersVisible,
+  onSupport,
   outputDetail,
   PALETTE,
   setColor,
@@ -59,7 +60,7 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   const focusOn = () => hint && setHint(hint);
   return (
     <div class="flex items-center justify-between gap-3 h-9" onMouseEnter={focusOn} onFocusIn={focusOn}>
-      <span class="text-[13px] text-(--ds-gray-1000)">{label}</span>
+      <span class="text-ui text-(--ds-gray-1000)">{label}</span>
       <span class="shrink-0 inline-flex items-center">{children}</span>
     </div>
   );
@@ -108,7 +109,7 @@ const LINE_WIDTHS = [1, 2, 3, 5, 8, 12, 20];
 const fieldSelect = cn(
   geist.field,
   'w-full h-8 pl-2.5 pr-7 appearance-none cursor-pointer outline-none',
-  'text-[13px] tabular-nums text-(--ds-gray-1000)',
+  'text-ui tabular-nums text-(--ds-gray-1000)',
   'hover:border-(--ds-gray-700)',
   'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1',
   'focus-visible:outline-(--ds-focus-color)',
@@ -238,6 +239,33 @@ function ShareRow() {
   );
 }
 
+/**
+ * Only rendered where a card exists to open — see `onSupport`. Sits with Share
+ * and Room ID as one more thing you can do, not as a plea: same row, same
+ * weight, no fill and no colour of its own.
+ */
+function SupportRow({ open }: { open: () => void }) {
+  const setHint = useHintSetter();
+  const hint = 'MarkLayer is free and has no accounts. See what it costs to run, and chip in if you want to.';
+  return (
+    <button
+      type="button"
+      onMouseEnter={() => setHint(hint)}
+      onFocus={() => setHint(hint)}
+      onClick={() => {
+        open();
+        showSettings.value = false;
+      }}
+      class={cn(geist.row, geist.rowHover, 'justify-start gap-2.5')}
+    >
+      <span class="text-(--ds-gray-900)">
+        <Icon name="heart" size={14} strokeWidth={1.5} />
+      </span>
+      Support MarkLayer
+    </button>
+  );
+}
+
 function RoomIdRow() {
   const setHint = useHintSetter();
   const { copied, copy } = useCopyToClipboard();
@@ -259,7 +287,7 @@ function RoomIdRow() {
         Room ID
       </span>
       <span class={cn(geist.meta, 'inline-flex items-center gap-1.5 min-w-0')}>
-        <code class="text-[12px] font-mono truncate max-w-35">{roomId}</code>
+        <code class="text-meta font-mono truncate max-w-35">{roomId}</code>
         <Icon name={copied.value ? 'check' : 'copy'} size={13} strokeWidth={1.5} />
       </span>
     </button>
@@ -269,8 +297,8 @@ function RoomIdRow() {
 function PanelHeader() {
   return (
     <div class="flex items-center justify-between px-4 h-11">
-      <span class="text-[13px] font-semibold tracking-[-0.01em] text-(--ds-gray-1000)">MarkLayer</span>
-      <span class={cn(geist.meta, 'text-[12px] tabular-nums')}>v0.3</span>
+      <span class="text-ui font-semibold tracking-ui text-(--ds-gray-1000)">MarkLayer</span>
+      <span class={cn(geist.meta, 'text-meta tabular-nums')}>v0.3</span>
     </div>
   );
 }
@@ -280,9 +308,7 @@ function PanelFootnote({ text }: { text: string }) {
   // top edge upward and looks like the panel is jumping. It holds 4 wrapped lines
   // at this size on a 264px content width, so every hint has to fit in ~120
   // characters; a longer one gets its tail clipped rather than wrapping.
-  return (
-    <div class="px-4 pt-2.5 pb-3.5 text-[12px] leading-snug text-(--ds-gray-900) h-22 overflow-hidden">{text}</div>
-  );
+  return <div class="px-4 pt-2.5 pb-3.5 text-meta leading-snug text-(--ds-gray-900) h-22 overflow-hidden">{text}</div>;
 }
 
 export function SettingsPanel() {
@@ -411,6 +437,7 @@ export function SettingsPanel() {
             href="https://www.npmjs.com/package/marklayer-mcp"
             hint="Connect Claude Code, Cursor, and other agents to this room. Opens setup docs."
           />
+          {onSupport.value && <SupportRow open={onSupport.value} />}
 
           <PanelFootnote text={hint ?? DEFAULT_HINT} />
         </HintContext>
