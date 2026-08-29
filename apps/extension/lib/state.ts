@@ -273,6 +273,17 @@ export const onCleared = signal<(() => void) | null>(null);
 export const onCursorMove = signal<((x: number, y: number, tool: string) => void) | null>(null);
 export const onProfileChange = signal<((name: string, color: string) => void) | null>(null);
 
+/**
+ * Opens the support card, or null where there is no card to open.
+ *
+ * The settings panel is shared with the web app, but the card is web-only on
+ * purpose (see apps/worker/web/support.ts: in a content script `localStorage`
+ * belongs to whatever page is being annotated, so the "asked once" record would
+ * scatter across every site and never be readable again). The web app sets
+ * this; the extension leaves it null and the row simply is not there.
+ */
+export const onSupport = signal<(() => void) | null>(null);
+
 // Toasts
 export interface Toast {
   id: number;
@@ -438,6 +449,30 @@ export const STATUS_LABELS: Record<CommentStatus, string> = {
 };
 
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
+
+/**
+ * Tools under which a plain text selection means "annotate this passage".
+ *
+ * Listed positively, so a tool added later stays inert until someone decides
+ * otherwise: every other tool owns a drag across the page, and the highlight its
+ * gesture sweeps up is a side effect, not a request. `navigate` is on the list
+ * on purpose — proposing a copy edit is the most common annotation there is, and
+ * asking someone to find the right tool first is the step that stops them making
+ * it.
+ */
+const SELECTION_TOOLS: ReadonlySet<Tool> = new Set<Tool>(['navigate', 'comment', 'text', 'selection', 'inspect']);
+
+export const toolCapturesSelection = (t: Tool) => SELECTION_TOOLS.has(t);
+
+/**
+ * Whether a mouseup on the page should be read for a selection at all. Markers
+ * hidden is review mode: the selection layer renders at opacity 0, so a popover
+ * opened then would be an invisible panel saving an invisible annotation.
+ *
+ * Both surfaces gate on this, so the rule cannot drift between them.
+ */
+export const selectionCaptureArmed = computed(() => toolCapturesSelection(activeTool.value) && markersVisible.value);
+
 /** True while user is actively drawing (mousedown on canvas) */
 export const isDrawingActive = signal(false);
 
@@ -518,6 +553,13 @@ export const FREEHAND = {
 export const SHAPES = {
   has: (t: string): t is ShapeTool => t === 'rectangle' || t === 'circle' || t === 'line' || t === 'arrow',
 };
+
+/**
+ * Whether a tool paints on the drawing canvas, as opposed to placing a DOM-anchored
+ * annotation over it. Listed positively for the same reason `SELECTION_TOOLS` is:
+ * the deny-list form had already drifted between the two surfaces that ask.
+ */
+export const toolPaintsCanvas = (t: Tool) => FREEHAND.has(t) || SHAPES.has(t);
 
 export const TOOLS: Tool[] = [
   'navigate',

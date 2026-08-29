@@ -1,8 +1,48 @@
+import { createCn } from 'cnfast';
 import { z } from 'zod/mini';
 
-// clsx + tailwind-merge in one, ~3.8x faster with byte-identical output.
-// Also supports the tagged-template form: cn`px-2 ${active && 'bg-blue-500'}`.
-export { type ClassValue, cn } from 'cnfast';
+export type { ClassValue } from 'cnfast';
+
+/**
+ * The type scale's names, taught to the class merger.
+ *
+ * `cn` is clsx + tailwind-merge (via cnfast, ~3.8x faster with byte-identical
+ * output). tailwind-merge resolves an unrecognised `text-*` to the *colour*
+ * group, which has a catch-all matcher — so `cn('text-meta', 'text-inherit')`
+ * silently dropped the size and the element fell back to the inherited 16px.
+ * Every size below is a `--text-*` key in the two @theme blocks
+ * (apps/worker/web/style.css, apps/extension/entrypoints/content/style.css);
+ * keep this list in step with them.
+ */
+export const cn = createCn({
+  extend: {
+    classGroups: {
+      'font-size': [
+        {
+          text: [
+            'micro',
+            'mini',
+            'meta',
+            'ui',
+            'ui-lg',
+            'body',
+            'lede',
+            'heading',
+            'title',
+            'fine',
+            'label',
+            'display',
+            'hero',
+            'closing',
+            'statement',
+            'section',
+            'subsection',
+          ],
+        },
+      ],
+    },
+  },
+});
 export type { FetchableUrl, UnfetchableReason } from './net';
 export { isBlockedHost, isPrivateAddress, parseFetchableUrl } from './net';
 
@@ -10,6 +50,37 @@ export { isBlockedHost, isPrivateAddress, parseFetchableUrl } from './net';
 
 export const pointSchema = z.object({ x: z.number(), y: z.number() });
 export type Point = z.infer<typeof pointSchema>;
+
+/**
+ * How far an arrow head reaches back from the tip, at the width the shaft is
+ * stroked at. Also the padding a culling box needs, since the head extends past
+ * the endpoint at any angle.
+ */
+export const arrowHeadLength = (lineWidth: number) => Math.max(10, lineWidth * 4);
+
+/**
+ * The two barbs of an arrow head. Pure geometry, kept here because five surfaces
+ * draw this same arrow — the live canvas preview, the committed render, the
+ * landing demo, the cull-padding estimate and the OG card — and a barb angle
+ * changed in one of them is an arrow that disagrees with itself.
+ */
+export function arrowHeadBarbs({
+  start,
+  end,
+  lineWidth,
+}: {
+  start: Point;
+  end: Point;
+  lineWidth: number;
+}): [Point, Point] {
+  const angle = Math.atan2(end.y - start.y, end.x - start.x);
+  const len = arrowHeadLength(lineWidth);
+  const barb = (offset: number): Point => ({
+    x: end.x - len * Math.cos(angle + offset),
+    y: end.y - len * Math.sin(angle + offset),
+  });
+  return [barb(-Math.PI / 6), barb(Math.PI / 6)];
+}
 
 export const deviceModeSchema = z.enum(['desktop', 'tablet', 'mobile']);
 export type DeviceMode = z.infer<typeof deviceModeSchema>;

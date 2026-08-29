@@ -1,10 +1,29 @@
-import { opAnchorPoint } from '@marklayer/types';
+import { arrowHeadBarbs, arrowHeadLength, opAnchorPoint } from '@marklayer/types';
 import getStroke from 'perfect-freehand';
 import { applyAnchorDelta, captureScale } from './anchor';
 import { FREEHAND } from './state';
 import type { DrawOp, Point, Tool } from './types';
 
 const ANGLE_SNAP_TOOLS = new Set<Tool>(['line', 'arrow', 'pen', 'highlight', 'eraser']);
+
+/**
+ * Paint an arrow head onto a 2D context. Every canvas that draws an arrow — the
+ * live preview, the committed render, the landing demo — goes through here, so
+ * the shape is decided once; the geometry itself lives in `arrowHeadBarbs`.
+ *
+ * Opens its own path and strokes it, so the caller's shaft is already committed.
+ */
+export function strokeArrowHead(
+  c: CanvasRenderingContext2D,
+  { start, end, lineWidth }: { start: Point; end: Point; lineWidth: number },
+) {
+  c.beginPath();
+  for (const barb of arrowHeadBarbs({ start, end, lineWidth })) {
+    c.moveTo(end.x, end.y);
+    c.lineTo(barb.x, barb.y);
+  }
+  c.stroke();
+}
 
 // Figma-style Shift constraint: line/arrow/freehand snap to 45° increments;
 // rectangle locks to a square. Pure — callers gate on the Shift-held state.
@@ -116,8 +135,8 @@ export function opBounds(op: DrawOp) {
     case 'line': {
       // Arrow heads extend past the endpoint at any angle (±π/6); pad on all
       // sides so culling doesn't clip the head when an arrow's tip sits near
-      // a viewport edge. Mirrors `headLen` in renderOp.
-      const headPad = op.arrow ? Math.max(10, (op.lineWidth ?? 2) * 4) : 0;
+      // a viewport edge.
+      const headPad = op.arrow ? arrowHeadLength(op.lineWidth ?? 2) : 0;
       const totalPad = pad + headPad;
       return {
         x: Math.min(op.startX, op.endX) - totalPad,
@@ -239,14 +258,7 @@ export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy
         c.lineTo(bx, by);
         c.stroke();
         if (op.arrow) {
-          const angle = Math.atan2(by - ay, bx - ax);
-          const headLen = Math.max(10, op.lineWidth * 4 * scale);
-          c.beginPath();
-          c.moveTo(bx, by);
-          c.lineTo(bx - headLen * Math.cos(angle - Math.PI / 6), by - headLen * Math.sin(angle - Math.PI / 6));
-          c.moveTo(bx, by);
-          c.lineTo(bx - headLen * Math.cos(angle + Math.PI / 6), by - headLen * Math.sin(angle + Math.PI / 6));
-          c.stroke();
+          strokeArrowHead(c, { start: { x: ax, y: ay }, end: { x: bx, y: by }, lineWidth: op.lineWidth * scale });
         }
         break;
       }
