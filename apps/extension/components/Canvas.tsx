@@ -3,7 +3,15 @@ import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { applyAnchorDelta, commitOp } from '../lib/anchor';
-import { circleHitsRect, constrainEnd, hexToRgba, redrawCanvas, renderOp, simplify } from '../lib/renderer';
+import {
+  circleHitsRect,
+  constrainEnd,
+  hexToRgba,
+  redrawCanvas,
+  renderOp,
+  simplify,
+  strokeArrowHead,
+} from '../lib/renderer';
 import {
   activeTool,
   areas,
@@ -14,12 +22,12 @@ import {
   hostMutationTick,
   inspects,
   isDrawingActive,
-  isDrawingTool,
   lineWidth,
   operations,
   SHAPES,
   scrollTick,
   selections,
+  toolPaintsCanvas,
   undoRedoFlash,
 } from '../lib/state';
 import type { FreehandOp, Point } from '../lib/types';
@@ -225,14 +233,7 @@ export function Canvas() {
         ctx.lineTo(ex, ey);
         ctx.stroke();
         if (tool === 'arrow') {
-          const angle = Math.atan2(ey - vsy, ex - vsx);
-          const headLen = Math.max(10, ctx.lineWidth * 4);
-          ctx.beginPath();
-          ctx.moveTo(ex, ey);
-          ctx.lineTo(ex - headLen * Math.cos(angle - Math.PI / 6), ey - headLen * Math.sin(angle - Math.PI / 6));
-          ctx.moveTo(ex, ey);
-          ctx.lineTo(ex - headLen * Math.cos(angle + Math.PI / 6), ey - headLen * Math.sin(angle + Math.PI / 6));
-          ctx.stroke();
+          strokeArrowHead(ctx, { start: { x: vsx, y: vsy }, end: { x: ex, y: ey }, lineWidth: ctx.lineWidth });
         }
         break;
       }
@@ -439,15 +440,7 @@ export function Canvas() {
   });
 
   const tool = activeTool.value;
-  const showCanvas =
-    isDrawingTool(tool) &&
-    tool !== 'comment' &&
-    tool !== 'selection' &&
-    tool !== 'inspect' &&
-    tool !== 'measure' &&
-    tool !== 'guide' &&
-    tool !== 'text' &&
-    tool !== 'area';
+  const showCanvas = toolPaintsCanvas(tool);
 
   return (
     <>
