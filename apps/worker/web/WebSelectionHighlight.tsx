@@ -87,18 +87,18 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
           {op.suggestion ? (
             <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={resolved} class="mb-1" />
           ) : (
-            <p class="text-[12px] text-(--ds-gray-900) m-0 mb-1 line-clamp-3 leading-relaxed">{op.text}</p>
+            <p class="text-meta text-(--ds-gray-900) m-0 mb-1 line-clamp-3 leading-relaxed">{op.text}</p>
           )}
           {op.comment && (
             <p
-              class="text-[13px] text-(--ds-gray-1000) m-0 mt-1.5 leading-relaxed whitespace-pre-wrap"
+              class="text-ui text-(--ds-gray-1000) m-0 mt-1.5 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
+            <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
             <button
               type="button"
               onClick={(e) => {

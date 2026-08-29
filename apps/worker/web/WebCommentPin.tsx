@@ -92,7 +92,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
           // A marker on someone else's page: flat fill, a surface-coloured ring
           // to separate it from whatever is behind, and one tight shadow. The
           // ring thickens on hover instead of the pin growing.
-          class="w-7 h-7 rounded-full text-white text-[12px] font-semibold
+          class="w-7 h-7 rounded-full text-white text-meta font-semibold
                  grid place-items-center
                  shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
                  transition-[box-shadow] duration-150 ease-out
@@ -113,7 +113,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             </div>
           )}
           {replies.length > 0 && !resolved && !dismissed && (
-            <div class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-(--ds-background-100) text-[10px] font-medium text-(--ds-gray-1000) grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]">
+            <div class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-(--ds-background-100) text-micro font-medium text-(--ds-gray-1000) grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]">
               {replies.length}
             </div>
           )}
@@ -150,24 +150,24 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             {/* Root comment */}
             <div class="flex items-center gap-2.5 pt-3 px-3.5 pb-2">
               <div
-                class="w-5 h-5 rounded-full text-white text-[12px] font-medium grid place-items-center shrink-0
+                class="w-5 h-5 rounded-full text-white text-meta font-medium grid place-items-center shrink-0
                      shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
                 style={{ background: op.color }}
               >
                 {op.num}
               </div>
-              <span class="text-[12px] text-(--ds-gray-1000) font-semibold tracking-wide flex-1">
+              <span class="text-meta text-(--ds-gray-1000) font-semibold tracking-wide flex-1">
                 {op.author || 'Anonymous'}
               </span>
               {op.priority && <PriorityBadge priority={op.priority} />}
-              <span class="text-[12px] text-(--ds-gray-900) font-medium tabular-nums">{timeAgo(op.ts)}</span>
+              <span class="text-meta text-(--ds-gray-900) font-medium tabular-nums">{timeAgo(op.ts)}</span>
             </div>
 
             {(op.assignedAgent || dismissed) && (
               <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
                 {op.assignedAgent && (
                   <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-medium"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-meta font-medium"
                     style={{ background: 'oklch(0.7 0.16 60 / 0.15)', color: styles.color }}
                   >
                     {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
@@ -175,15 +175,13 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                   </span>
                 )}
                 {dismissed && op.dismissReason && (
-                  <span class="text-[12px] text-(--ds-gray-900)">{op.dismissReason}</span>
+                  <span class="text-meta text-(--ds-gray-900)">{op.dismissReason}</span>
                 )}
               </div>
             )}
 
             <div class="pt-1 px-3.5 pb-2.5">
-              <p class="m-0 text-(--ds-gray-1000) text-[13px] leading-[1.55] break-words whitespace-pre-wrap">
-                {op.text}
-              </p>
+              <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">{op.text}</p>
             </div>
 
             {/* Replies */}
@@ -194,15 +192,15 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                   <div key={reply.id} class="px-3.5 py-2 border-l-2 border-(--ds-gray-alpha-400) ml-3">
                     <div class="flex items-center gap-2 mb-1">
                       <div
-                        class="w-4 h-4 rounded-full text-white text-[9px] font-medium grid place-items-center shrink-0"
+                        class="w-4 h-4 rounded-full text-white text-micro font-medium grid place-items-center shrink-0"
                         style={{ background: reply.color }}
                       >
                         {(reply.author || '?').charAt(0).toUpperCase()}
                       </div>
-                      <span class="text-[12px] text-(--ds-gray-1000) font-semibold">{reply.author || 'Anonymous'}</span>
-                      <span class="text-[12px] text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
+                      <span class="text-meta text-(--ds-gray-1000) font-semibold">{reply.author || 'Anonymous'}</span>
+                      <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
                     </div>
-                    <p class="m-0 text-(--ds-gray-1000) text-[13px] leading-[1.55] break-words whitespace-pre-wrap">
+                    <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">
                       {reply.text}
                     </p>
                   </div>
@@ -232,7 +230,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                   rows={1}
                   class={cn(
                     'w-full bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) rounded-lg px-3 py-2',
-                    'text-(--ds-gray-1000) text-[13px] leading-relaxed',
+                    'text-(--ds-gray-1000) text-ui leading-relaxed',
                     'resize-none outline-none min-h-8 max-h-[80px]',
                     'caret-ml-accent',
                     'focus:border-ml-accent/50 focus:bg-(--ds-gray-alpha-100)',
@@ -253,7 +251,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                   <button
                     type="button"
                     onClick={() => setShowReply(false)}
-                    class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-[13px] font-medium')}
+                    class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-ui font-medium')}
                   >
                     Cancel
                   </button>
@@ -270,7 +268,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
                     setShowReply(true);
                     setTimeout(() => replyRef.current?.focus(), 50);
                   }}
-                  class="text-[12px] font-medium px-3 py-1.5 rounded-lg cursor-pointer
+                  class="text-meta font-medium px-3 py-1.5 rounded-lg cursor-pointer
                        border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)
                        text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
                        transition-[color,background-color,border-color] duration-150"

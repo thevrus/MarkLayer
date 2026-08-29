@@ -1,9 +1,10 @@
+import { CancelButton } from '@ext/components/CancelButton';
 import { PriorityPicker } from '@ext/components/PriorityPicker';
 import { SelectionEdit } from '@ext/components/SelectionEdit';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import { useEdgeClamp } from '@ext/lib/popover';
+import { useEdgeClamp, useSelectionDismiss } from '@ext/lib/popover';
 import { color, lineWidth, localUser } from '@ext/lib/state';
 import type { SelectionOp, SelectionRect } from '@ext/lib/types';
 import {
@@ -14,7 +15,7 @@ import {
   type TargetElement,
 } from '@marklayer/types';
 import { nanoid } from 'nanoid';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import { pushDeviceOp } from './signals';
 
 interface Props {
@@ -24,17 +25,27 @@ interface Props {
   screenY: number;
   target?: TargetElement;
   captureViewport?: CaptureViewport;
+  /** Opened by the selection alone rather than by arming the selection tool. */
+  auto: boolean;
+  /** Document holding the watched selection — the proxied page's frame, in the viewer. */
+  frameDoc?: Document | null;
   onClose: () => void;
 }
 
-export function WebSelectionPopover({ text, rects, screenX, screenY, target, captureViewport, onClose }: Props) {
+export function WebSelectionPopover({
+  text,
+  rects,
+  screenX,
+  screenY,
+  target,
+  captureViewport,
+  auto,
+  frameDoc,
+  onClose,
+}: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
   const [suggestion, setSuggestion] = useState<string | null>(null);
-
-  useEffect(() => {
-    taRef.current?.focus();
-  }, []);
 
   const commit = (save: boolean) => {
     const comment = taRef.current?.value.trim();
@@ -60,6 +71,13 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, target, cap
     onClose();
   };
 
+  const { panelProps } = useSelectionDismiss({
+    auto,
+    doc: frameDoc,
+    focusRef: taRef,
+    onDismiss: () => commit(false),
+  });
+
   const left = Math.min(screenX + 16, innerWidth - 300);
   const { ref: panelRef, top } = useEdgeClamp({ top: screenY + 16 });
 
@@ -75,6 +93,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, target, cap
       ref={panelRef}
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
+      {...panelProps}
     >
       <SelectionEdit text={text} suggestion={suggestion} onChange={setSuggestion} onSubmit={() => commit(true)} />
 
@@ -104,10 +123,7 @@ export function WebSelectionPopover({ text, rects, screenX, screenY, target, cap
       <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between px-4 py-2.5">
-        <div class="flex items-center gap-2">
-          <kbd class={geist.kbd}>Esc</kbd>
-          <span class="text-[12px] text-(--ds-gray-900) font-medium">skip comment</span>
-        </div>
+        <CancelButton onClick={() => commit(false)} />
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵
         </button>

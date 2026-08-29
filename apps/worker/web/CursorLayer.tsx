@@ -168,7 +168,7 @@ export function CursorLayer({ scale: s, scrollY }: Props) {
               <CursorArrow color={peer.color} />
             )}
             <div
-              class="absolute left-5 top-6 whitespace-nowrap rounded-full py-1.5 text-[13px] font-semibold text-white leading-none flex items-center gap-1.5 pointer-events-auto cursor-pointer select-none"
+              class="absolute left-5 top-6 whitespace-nowrap rounded-full py-1.5 text-ui font-semibold text-white leading-none flex items-center gap-1.5 pointer-events-auto cursor-pointer select-none"
               style={{
                 paddingLeft: videoStream ? '4px' : isSpeaking ? '8px' : '12px',
                 paddingRight: '12px',

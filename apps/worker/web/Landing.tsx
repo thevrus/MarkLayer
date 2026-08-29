@@ -1,7 +1,7 @@
 import { InspectorLayer } from '@ext/components/InspectorLayer';
 import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
-import { hexToRgba, inView, opBounds, renderOp, simplify } from '@ext/lib/renderer';
+import { hexToRgba, inView, opBounds, renderOp, simplify, strokeArrowHead } from '@ext/lib/renderer';
 import { HOW_IT_WORKS_PATH } from '@ext/lib/share';
 import {
   activeTool,
@@ -26,6 +26,7 @@ import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import copy from '@site/data/home-copy.json';
+import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
 import { ArrowRight, ChevronDown, Monitor, Search } from 'lucide-preact';
 import { nanoid } from 'nanoid';
@@ -124,7 +125,7 @@ function ChromeIcon() {
 const HERO_PIN_ID = 'ml-hero-pin';
 
 const CTA_CLS =
-  'lp-cta inline-flex items-center gap-2 h-12 px-7 rounded-full text-white text-[15px] font-medium no-underline transition-colors select-none';
+  'lp-cta inline-flex items-center gap-2 h-12 px-7 rounded-full text-white text-body font-medium no-underline transition-colors select-none';
 
 /** The one install call to action, used at the fold and again above the footer. */
 function ChromeStoreLink({ label, class: cls }: { label: string; class?: string }) {
@@ -253,20 +254,7 @@ export function Landing() {
             ctx.lineTo(pos.x, pos.y);
             ctx.stroke();
             if (tool === 'arrow') {
-              const angle = Math.atan2(pos.y - sp.y, pos.x - sp.x);
-              const headLen = Math.max(10, ctx.lineWidth * 4);
-              ctx.beginPath();
-              ctx.moveTo(pos.x, pos.y);
-              ctx.lineTo(
-                pos.x - headLen * Math.cos(angle - Math.PI / 6),
-                pos.y - headLen * Math.sin(angle - Math.PI / 6),
-              );
-              ctx.moveTo(pos.x, pos.y);
-              ctx.lineTo(
-                pos.x - headLen * Math.cos(angle + Math.PI / 6),
-                pos.y - headLen * Math.sin(angle + Math.PI / 6),
-              );
-              ctx.stroke();
+              strokeArrowHead(ctx, { start: sp, end: pos, lineWidth: ctx.lineWidth });
             }
             break;
         }
@@ -505,7 +493,7 @@ export function Landing() {
         // to — without a rect there is no place to put it.
         const last = lastCr[lastCr.length - 1];
         if (!last) return;
-        selectionPopover.value = { text, rects, screenX: last.right, screenY: last.bottom };
+        selectionPopover.value = { text, rects, screenX: last.right, screenY: last.bottom, auto: false };
       });
     };
     window.addEventListener('mouseup', onMouseUp);
@@ -553,7 +541,7 @@ export function Landing() {
                   the eye reads as a rendering artifact at this size. The
                   wordmark tracks the mark's size so the lockup keeps its
                   proportion instead of the glyph outgrowing the name. */}
-                <span class="text-[19px] font-medium tracking-[-0.045em] text-ml-fg">MarkLayer</span>
+                <span class="text-heading font-medium tracking-brand text-ml-fg">MarkLayer</span>
               </a>
               <div class="flex items-center gap-0.5 sm:gap-1">
                 {/* From 640, not 768. Below that the links existed only in the
@@ -565,7 +553,7 @@ export function Landing() {
                     <a
                       key={href}
                       href={href}
-                      class="rounded-full px-3 py-1.5 text-[14px] text-ml-fg/70 no-underline transition-colors hover:bg-ml-fg/[0.05] hover:text-ml-fg"
+                      class="rounded-full px-3 py-1.5 text-ui-lg text-ml-fg/70 no-underline transition-colors hover:bg-ml-fg/[0.05] hover:text-ml-fg"
                     >
                       {label}
                     </a>
@@ -626,10 +614,7 @@ export function Landing() {
                   bug this fixes: the wrap there is the same on every tick,
                   because it depends on the fixed prefix and not on which
                   channel word happens to be in the slot. */}
-                <h1
-                  class="lp-display lp-fade-up text-[clamp(38px,5.6vw,80px)] leading-[1.0] text-ml-fg"
-                  style={{ animationDelay: '0.05s' }}
-                >
+                <h1 class="lp-display lp-fade-up text-hero text-ml-fg" style={{ animationDelay: '0.05s' }}>
                   <span class="block">{copy.headlinePrefix}</span>
                   <span class="block">
                     {copy.headlineJoiner} <ChannelCycle /> {copy.headlineSuffix}
@@ -638,7 +623,7 @@ export function Landing() {
               </div>
 
               <p
-                class="lp-fade-up mt-6 max-w-[44ch] text-[17px] leading-[1.55] text-ml-fg/70"
+                class="lp-fade-up mt-6 max-w-[44ch] text-lede leading-body text-ml-fg/70"
                 style={{ animationDelay: '0.1s' }}
               >
                 Send your client one link. They comment straight on the live page in their own browser, without signing
@@ -651,8 +636,8 @@ export function Landing() {
                   style={{ animationDelay: '0.3s' }}
                 >
                   <Monitor size={22} class="text-ml-fg/60 mb-3" aria-hidden="true" />
-                  <p class="text-[14px] font-semibold text-ml-fg m-0 mb-1">Desktop only</p>
-                  <p class="text-[13px] text-ml-fg/60 m-0">Open this page on your computer to get started.</p>
+                  <p class="text-ui-lg font-semibold text-ml-fg m-0 mb-1">Desktop only</p>
+                  <p class="text-ui text-ml-fg/60 m-0">Open this page on your computer to get started.</p>
                 </div>
               ) : (
                 <>
@@ -697,7 +682,7 @@ export function Landing() {
                         aria-label="Page URL to annotate"
                         placeholder="Paste any URL to annotate…"
                         autocomplete="url"
-                        class="h-10 flex-1 bg-transparent border-none text-ml-fg text-[16px] sm:text-[15px] placeholder:text-ml-fg/60 outline-none"
+                        class="h-10 flex-1 bg-transparent border-none text-ml-fg text-base sm:text-body placeholder:text-ml-fg/60 outline-none"
                         onInput={(e) => {
                           const v = e.currentTarget.value.trim();
                           urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
@@ -719,7 +704,7 @@ export function Landing() {
                   </form>
 
                   <div
-                    class="lp-fade-up mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px] text-ml-fg/60"
+                    class="lp-fade-up mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-ui-lg text-ml-fg/60"
                     style={{ animationDelay: '0.2s' }}
                   >
                     <span>Or try one:</span>
@@ -732,7 +717,7 @@ export function Landing() {
                         key={name}
                         type="button"
                         onClick={() => navigateTo(url)}
-                        class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-[14px] text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
+                        class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-ui-lg text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
                       >
                         {name}
                       </button>
@@ -746,7 +731,7 @@ export function Landing() {
                     once, in the closing section. Verifiable claims only — the
                     licence link goes to the repo. */}
                   <p
-                    class="lp-fade-up mt-9 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[13px] text-ml-fg/60"
+                    class="lp-fade-up mt-9 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-ui text-ml-fg/60"
                     style={{ animationDelay: '0.25s' }}
                   >
                     <a
@@ -786,7 +771,7 @@ export function Landing() {
               class="lp-fade-up pointer-events-none absolute inset-x-0 bottom-6 hidden justify-center px-6 sm:flex sm:bottom-27"
               style={{ animationDelay: '0.3s' }}
             >
-              <p class="m-0 text-[13px] text-ml-fg/60">
+              <p class="m-0 text-ui text-ml-fg/60">
                 This page is a live MarkLayer board. <span class="text-ml-fg">Pick a tool below and draw on it.</span>
               </p>
             </div>
@@ -808,10 +793,10 @@ export function Landing() {
               where every section starts with a heading in the same place at the
               same size reads as a template. */}
           <section class="mx-auto w-full max-w-280 px-6 pt-24 pb-20 sm:px-10 sm:pt-32 sm:pb-28">
-            <h2 class="lp-display max-w-[840px] text-[clamp(32px,4.8vw,56px)] leading-[1.02] text-balance text-ml-fg">
+            <h2 class="lp-display max-w-[840px] text-statement text-balance text-ml-fg">
               Three things it does that a screenshot in a thread cannot.
             </h2>
-            <p class="mt-5 max-w-[52ch] text-[17px] leading-[1.55] text-ml-fg/70 text-pretty">
+            <p class="mt-5 max-w-[52ch] text-lede leading-body text-ml-fg/70 text-pretty">
               Somebody else&rsquo;s page, opened from a link and marked up in the browser. No install on either end.
             </p>
 
@@ -841,7 +826,7 @@ export function Landing() {
                   class="block w-full rounded-lg"
                 />
               </div>
-              <figcaption class="mt-4 text-[13px] text-ml-fg/60">
+              <figcaption class="mt-4 text-ui text-ml-fg/60">
                 A live Wikipedia article, opened from a share link and marked up in the browser.
               </figcaption>
             </figure>
@@ -853,8 +838,8 @@ export function Landing() {
             <div class="mt-20 grid grid-cols-1 gap-x-12 gap-y-10 sm:mt-24 sm:grid-cols-3 sm:grid-rows-[auto_auto]">
               {MOMENTS.map((m) => (
                 <div key={m.title} class="grid gap-y-2.5 sm:row-span-2 sm:grid-rows-subgrid">
-                  <h3 class="text-[17px] font-semibold tracking-[-0.02em] text-ml-fg">{m.title}</h3>
-                  <p class="m-0 text-[15px] leading-[1.6] text-ml-fg/70 text-pretty">{m.desc}</p>
+                  <h3 class="text-lede font-semibold tracking-display text-ml-fg">{m.title}</h3>
+                  <p class="m-0 text-body leading-prose text-ml-fg/70 text-pretty">{m.desc}</p>
                 </div>
               ))}
             </div>
@@ -865,14 +850,14 @@ export function Landing() {
               section, so wrapping it in a section head would just be a label
               restating the line underneath it. */}
           <section class="mx-auto w-full max-w-280 px-6 py-20 sm:px-10 sm:py-28">
-            <h2 class="lp-display max-w-[800px] text-[clamp(30px,4.4vw,50px)] leading-[1.04] text-balance text-ml-fg">
+            <h2 class="lp-display max-w-[800px] text-section text-balance text-ml-fg">
               Free alternative to BugHerd, Marker.io, Pastel, and Markup.io.
             </h2>
             {/* The durability argument, not just the price. The pricing claims
                 live in home-copy.json, shared with HomeContent.astro. */}
             <div class="mt-8 grid max-w-[1000px] gap-x-14 gap-y-5 md:grid-cols-2">
-              <p class="m-0 text-[15px] leading-[1.65] text-ml-fg/70 text-pretty">{copy.pricingFacts}</p>
-              <p class="m-0 text-[15px] leading-[1.65] text-ml-fg/70 text-pretty">
+              <p class="m-0 text-body leading-prose text-ml-fg/70 text-pretty">{copy.pricingFacts}</p>
+              <p class="m-0 text-body leading-prose text-ml-fg/70 text-pretty">
                 MarkLayer is free by licence rather than by current pricing policy, so it cannot be withdrawn from under
                 a client workflow: the code is Apache-2.0 and you can self-host it.{' '}
                 <a
@@ -884,7 +869,7 @@ export function Landing() {
                 , checked against each vendor&rsquo;s live pricing page.
               </p>
             </div>
-            <p class="mt-8 max-w-[62ch] text-[13px] leading-[1.7] text-ml-fg/60">
+            <p class="mt-8 max-w-[62ch] text-ui leading-prose text-ml-fg/60">
               See{' '}
               <a href="/compare" class="text-ml-fg/60 underline hover:text-ml-fg/80">
                 all 10 head-to-head comparisons
@@ -909,9 +894,7 @@ export function Landing() {
               there is, and four of them stacked read as a table. */}
           <section class="mx-auto w-full max-w-280 px-6 pb-20 sm:px-10 sm:pb-28">
             <div class="grid gap-x-16 gap-y-8 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-              <h2 class="lp-display text-[clamp(26px,3.2vw,38px)] leading-[1.06] text-balance text-ml-fg">
-                Questions people ask first.
-              </h2>
+              <h2 class="lp-display text-subsection text-balance text-ml-fg">Questions people ask first.</h2>
               <div class="flex flex-col gap-2">
                 {[
                   {
@@ -926,7 +909,7 @@ export function Landing() {
                   },
                 ].map((item) => (
                   <details key={item.q} class="lp-panel lp-panel-i group rounded-xl px-5 py-4">
-                    <summary class="-my-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-2 text-[15px] font-medium text-ml-fg">
+                    <summary class="-my-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-2 text-body font-medium text-ml-fg">
                       {item.q}
                       <ChevronDown
                         size={16}
@@ -934,7 +917,7 @@ export function Landing() {
                         aria-hidden="true"
                       />
                     </summary>
-                    <p class="mt-3 mb-0 text-[14px] leading-relaxed text-ml-fg/70">{item.a}</p>
+                    <p class="mt-3 mb-0 text-ui-lg leading-relaxed text-ml-fg/70">{item.a}</p>
                   </details>
                 ))}
               </div>
@@ -946,212 +929,111 @@ export function Landing() {
               a quiet inline link instead, so a filled primary never sits beside
               an outlined secondary anywhere here. */}
           <section class="px-6 pt-24 pb-20 text-center sm:px-10 sm:pt-32 sm:pb-24">
-            <h2 class="lp-display mx-auto mb-8 max-w-[720px] text-[clamp(36px,5.8vw,68px)] leading-[1] text-balance text-ml-fg">
+            <h2 class="lp-display mx-auto mb-8 max-w-[720px] text-closing text-balance text-ml-fg">
               Start annotating any page on the web.
             </h2>
             <ChromeStoreLink label="Add to Chrome" />
-            <p class="mt-4 text-[13px] text-ml-fg/60">Free to use &middot; No sign-up required</p>
+            <p class="mt-4 text-ui text-ml-fg/60">Free to use &middot; No sign-up required</p>
           </section>
 
-          {/* Footer — the one place a hard surface break is meant: the page
+          {/* The floor.
+
+              The same footer the marketing pages close with
+              (apps/site/src/components/SiteFooter.astro): same columns, same
+              copy, same spacing, all of it read from `@site/lib/footer`. The
+              two renderers differ only in the width of the column they sit in
+              — this page's sections run to 1120px, an article's to 760 — and
+              each footer stays on its own page's spine rather than one of them
+              being flung wider than everything above it.
+
+              It used to carry eleven hand-picked comparison and use-case links
+              and no trademark line, so the footer changed shape the moment you
+              clicked out of `/`. Those pages are one click away through the
+              hubs that replace them, and the prerendered `/`
+              (HomeContent.astro) still links them all inline for the crawlers
+              that never run this bundle.
+
+              This is the one place a hard surface break is meant: the page
               steps onto its own floor instead of being ruled off with a
-              hairline. */}
-          {/* The gutter sits inside the capped box here, exactly as it does in
+              hairline.
+
+              The gutter sits inside the capped box here, exactly as it does in
               every section above. It used to live on the <footer> itself with
               the cap on the inner div, which centred that cap 40px further out
               — so at 1440 the page's content spine was at 200px and the
               footer's at 160px, and the whole block read as slipped. */}
           <footer class="relative overflow-hidden bg-ml-board-deep pt-16 pb-7">
-            <div class="mx-auto grid w-full max-w-280 grid-cols-2 gap-x-8 gap-y-10 px-6 text-[13px] sm:px-10 md:grid-cols-4">
-              <div>
-                <div class="text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em]">Product</div>
-                <ul class="-my-1.5 space-y-0.5">
-                  <li>
-                    <a
-                      href={HOW_IT_WORKS_PATH}
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      How it works
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/pricing"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Pricing
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/privacy"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Privacy
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="https://github.com/thevrus/MarkLayer"
-                      target="_blank"
-                      rel="noopener"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      GitHub
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="mailto:rusinvadym@gmail.com"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Contact
-                    </a>
-                  </li>
-                </ul>
+            <div class="mx-auto w-full max-w-280 px-6 sm:px-10">
+              {/* A grid, not `flex-wrap`: wrapping drops the fourth column onto
+                  its own row as soon as the links grow, leaving three columns
+                  and an orphan off the shared baseline. */}
+              <div class="grid grid-cols-2 gap-x-8 gap-y-9 text-ui sm:grid-cols-4">
+                {FOOTER_COLUMNS.map((col) => (
+                  <div key={col.heading}>
+                    <p class="m-0 mb-3 text-ui font-semibold tracking-label text-ml-fg">{col.heading}</p>
+                    <ul class="m-0 list-none space-y-0.5 p-0">
+                      {col.links.map((l) => (
+                        <li key={l.href} class="m-0 p-0">
+                          <a
+                            href={l.href}
+                            target={l.external ? '_blank' : undefined}
+                            rel={l.external ? 'noopener noreferrer' : undefined}
+                            class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors duration-150 pointer-coarse:min-h-11 hover:text-ml-fg"
+                          >
+                            {l.label}
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </div>
-              <div>
-                <a
-                  href="/compare"
-                  class="block text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em] no-underline hover:text-ml-fg/70 transition-colors"
-                >
-                  Compare
-                </a>
-                <ul class="-my-1.5 space-y-0.5">
-                  <li>
-                    <a
-                      href="/vs/markup-io"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      MarkLayer vs Markup.io
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/vs/pastel"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      MarkLayer vs Pastel
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/vs/bugherd"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      MarkLayer vs BugHerd
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/vs/hypothesis"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      MarkLayer vs Hypothesis
-                    </a>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <a
-                  href="/alternatives"
-                  class="block text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em] no-underline hover:text-ml-fg/70 transition-colors"
-                >
-                  Free alternatives
-                </a>
-                <ul class="-my-1.5 space-y-0.5">
-                  <li>
-                    <a
-                      href="/alternatives/markup-io"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Markup.io alternatives
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/alternatives/pastel"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Pastel alternatives
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/alternatives/bugherd"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      BugHerd alternatives
-                    </a>
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <a
-                  href="/use-cases"
-                  class="block text-ml-fg font-semibold mb-3 text-[13px] tracking-[0.011em] no-underline hover:text-ml-fg/70 transition-colors"
-                >
-                  Use cases
-                </a>
-                <ul class="-my-1.5 space-y-0.5">
-                  <li>
-                    <a
-                      href="/for/design-review"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Design review
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/for/qa-bug-reporting"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      QA &amp; bug reporting
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/for/client-feedback"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Client feedback
-                    </a>
-                  </li>
-                  <li>
-                    <a
-                      href="/for/remote-teams"
-                      class="inline-flex min-h-9 items-center text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                    >
-                      Remote teams
-                    </a>
-                  </li>
-                </ul>
-              </div>
-            </div>
 
-            {/* Colophon, on the same grid as the columns above rather than
-                flung to the two far rims with a dead gulf between them. */}
-            <div class="mx-auto mt-14 flex w-full max-w-280 flex-wrap items-center justify-between gap-x-8 gap-y-5 px-6 sm:px-10">
-              <span class="flex items-center gap-2 text-[12px] text-ml-fg/60">
-                <Logo size={14} />
-                MarkLayer &copy; {new Date().getFullYear()}
-              </span>
-              <a
-                href="https://www.producthunt.com/products/marklayer?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-marklayer"
-                target="_blank"
-                rel="noopener"
-              >
-                <img
-                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1105463&theme=light"
-                  alt="MarkLayer - Draw & comment on any webpage. Share one live link | Product Hunt"
-                  width="220"
-                  height="48"
-                  style={{ width: '220px', height: '48px' }}
-                  loading="lazy"
-                  decoding="async"
-                />
-              </a>
+              {/* The assistant marks, laid out as a fifth column turned on its
+                  side — the label takes the same quiet step as the four
+                  headings above, so it reads as part of the footer rather than
+                  a widget bolted under it. `-mx-2` cancels the first and last
+                  marks' hit-area padding, so the row's optical gaps match the
+                  gap utility instead of running 8px wide at each end. */}
+              <div class="mt-10 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <p class="m-0 text-ui text-ml-fg/65">{ASK_AI_LABEL}</p>
+                <ul class="-mx-2 m-0 flex list-none flex-wrap items-center p-0">
+                  {ASK_AI.map((a) => (
+                    <li key={a.label} class="m-0 p-0">
+                      <a
+                        href={a.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Ask ${a.label} about MarkLayer`}
+                        class="inline-flex items-center justify-center rounded-md p-2 text-ml-fg/60 no-underline transition-colors duration-150 pointer-coarse:size-11 pointer-coarse:p-0 hover:text-ml-fg"
+                      >
+                        {/* An sr-only label rather than `aria-label`, the same
+                            way every other bare mark on the site is named: it
+                            survives translation and a stripped attribute, and
+                            it is what the header's GitHub mark already does. */}
+                        <span class="sr-only">Ask {a.label} about MarkLayer</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                          <path d={a.path} />
+                        </svg>
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* The two closing lines are one tier of fine print: a step
+                  smaller and quieter than the link columns, so the legal
+                  boilerplate is not the heaviest text on the floor. */}
+              <p class="mt-10 mb-0 text-fine text-ml-fg/65">{TRADEMARK_NOTICE}</p>
+              <p class="mt-5 mb-0 flex items-start gap-2 text-fine text-ml-fg/65">
+                {/* Aligned to the FIRST line, not to the block: the line wraps
+                    on a phone, and a centred mark then floats between the two
+                    rows. */}
+                <Logo size={14} class="mt-[3px] shrink-0" />
+                <span>
+                  &copy; {new Date().getFullYear()} MarkLayer &middot; {COLOPHON}
+                </span>
+              </p>
             </div>
 
             {/* The signature wordmark: full-bleed, cut at roughly half the cap
@@ -1172,7 +1054,7 @@ export function Landing() {
 
                 `aria-hidden` because the accessible wordmark is the one in the
                 nav; this is texture, not a second heading. */}
-            <div class="lp-wordmark-clip mt-14 select-none" aria-hidden="true">
+            <div class="lp-wordmark-clip mt-12 select-none" aria-hidden="true">
               <span class="lp-wordmark">MarkLayer</span>
             </div>
           </footer>

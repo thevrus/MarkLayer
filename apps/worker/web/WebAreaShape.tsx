@@ -90,16 +90,16 @@ export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
           </div>
           {op.comment ? (
             <p
-              class="text-[13px] text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
+              class="text-ui text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           ) : (
-            <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1">No comment</p>
+            <p class="text-meta text-(--ds-gray-900) m-0 mt-1">No comment</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
+            <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
             <div class="flex items-center gap-3">
               <button
                 type="button"

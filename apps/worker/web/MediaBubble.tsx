@@ -244,7 +244,7 @@ export function MediaBubble({
 
       {label && (
         <div
-          class="absolute left-1/2 -translate-x-1/2 -bottom-1 text-[10px] font-semibold text-white px-2 py-0.5 rounded-full whitespace-nowrap pointer-events-none"
+          class="absolute left-1/2 -translate-x-1/2 -bottom-1 text-micro font-semibold text-white px-2 py-0.5 rounded-full whitespace-nowrap pointer-events-none"
           style={{ background: ringColor ?? 'rgba(0,0,0,0.55)' }}
         >
           {label}
@@ -255,7 +255,7 @@ export function MediaBubble({
         <button
           type="button"
           aria-label="Close"
-          class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/55 text-white grid place-items-center text-[11px] leading-none hover:bg-black/80 transition-colors"
+          class="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-black/55 text-white grid place-items-center text-mini leading-none hover:bg-black/80 transition-colors"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={onClose}
         >
