@@ -3,6 +3,7 @@ import BaseHead from '../components/BaseHead.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 import Faq from '../components/Faq.astro';
 import Related from '../components/Related.astro';
+import ChromeMark from '../components/ChromeMark.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { getPublishedPrices } from '../lib/collections';
@@ -82,153 +83,148 @@ const qa: QA[] = [
     </BaseHead>
   </head>
   <body>
-    <SiteHeader current="pricing" />
-    <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }]} />
-    <h1>MarkLayer is 100% free.</h1>
-    <p class="ml-meta mt-0 mb-8">
-      By <a href="/about">Vadym Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
-    </p>
-    <p class="ml-lede">
-      There is no pricing. MarkLayer is a free app, full stop. No paid plan, no trial, no per-seat fee, no premium tier,
-      no usage cap, no upsell. This page exists only to confirm that.
-    </p>
+    <div class="ml-shell">
+      <SiteHeader current="pricing" />
+      <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }]} />
+      <h1>MarkLayer is 100% free.</h1>
+      <p class="ml-meta mt-0 mb-8">
+        By <a href="/about">Vadym Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
+      </p>
+      <p class="ml-lede">
+        There is no pricing. MarkLayer is a free app, full stop. No paid plan, no trial, no per-seat fee, no premium tier,
+        no usage cap, no upsell. This page exists only to confirm that.
+      </p>
 
-    <h2>What you get for $0</h2>
-    <div class="ml-scroll-x">
-      <table>
-        <tbody>
-          {
-            rows.map(([label, value]) => (
-              <tr>
-                <th scope="row" class="w-[42%]">
-                  {label}
-                </th>
-                <td>{value}</td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
+      <h2>What you get for $0</h2>
+      <div class="ml-scroll-x">
+        <table>
+          <tbody>
+            {
+              rows.map(([label, value]) => (
+                <tr>
+                  <th scope="row" class="w-[42%]">
+                    {label}
+                  </th>
+                  <td>{value}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Every feature is included</h2>
+      <ul>
+        <li>Drawing tools: freehand, shapes, arrows, and lines</li>
+        <li>Threaded comments pinned to any spot on a page</li>
+        <li>Real-time collaboration with live cursors</li>
+        <li>Shareable links: recipients don't need the extension or an account</li>
+        <li>Works on any website</li>
+        <li>Open source and self-hostable</li>
+      </ul>
+
+      <h2>What does <em>not</em> exist</h2>
+      <ul>
+        <li>No "Pro" tier.</li>
+        <li>No "Team" or "Enterprise" plan.</li>
+        <li>No per-seat pricing.</li>
+        <li>No usage cap or annotation limit.</li>
+        <li>No trial period; everything is already free.</li>
+        <li>No paywall, ever.</li>
+        <li>No "verified" or "premium" account.</li>
+        <li>No upsell flow inside the extension.</li>
+      </ul>
+
+      <h2>What the rest of the category charges</h2>
+      <p>
+        "Free" only means something next to a number. These are the published prices of the visual feedback tools
+        MarkLayer is most often weighed against, as recorded on each comparison page. Several of them are genuinely worth
+        their bill: a two-way Jira sync or a Kanban board is real work that MarkLayer does not do. The point is narrower:
+        if what you need is to draw on a page and send someone the link, that part costs nothing here.
+      </p>
+      <div class="ml-scroll-x">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" class="w-[30%]">Tool</th>
+              <th scope="col">Published price</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">MarkLayer</th>
+              <td>Free. No tiers, no seats, no trial</td>
+            </tr>
+            {
+              priced.map((c) => (
+                <tr>
+                  <th scope="row">
+                    <a href={`/vs/${c.id}`}>{c.competitor}</a>
+                  </th>
+                  <td>{c.price}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="ml-meta">
+        Prices as published by each vendor, checked August 2026. Follow a tool's name for the full side-by-side, or start
+        from the <a href="/compare">comparison index</a> and the <a href="/alternatives">alternatives directory</a>.
+      </p>
+
+      <h2>Why is it free?</h2>
+      <p>
+        MarkLayer exists to make webpage annotation accessible to everyone. Infrastructure runs on Cloudflare's low-cost
+        edge services, and the code is open source, so you can audit, fork, or self-host. There is no business model on
+        top of users. There is no plan to add one.
+      </p>
+      <p>
+        The reason that holds is structural rather than generous. An annotation is a small JSON payload; a share link is a
+        row in D1 and a WebSocket connection to a Durable Object that exists only while someone is in the room. There is
+        no per-user storage tier to fund, no video transcoding, no seat provisioning, and no sales motion to pay for. The
+        costs that force other tools into per-seat pricing are mostly not costs MarkLayer has.
+      </p>
+      <p>
+        Free also has a cost of its own, and it is stated plainly rather than buried: there is no SLA, no support desk,
+        and no contract. Shared annotations are deleted 90 days after they were last opened. If you need guarantees, the
+        answer is to <a href={REPO_URL}>run it yourself</a> under Apache-2.0, not to buy a plan that does not exist.
+      </p>
+
+      <h2>What "free" does not mean here</h2>
+      <p>
+        Plenty of tools are free because you are the product. MarkLayer is not one of them, and the distinction is
+        checkable rather than promised. There is no account, so there is no profile to sell. There is no email field, so
+        there is no list to rent. Annotations are stored only when you share them, and the
+        <a href="/privacy">privacy policy</a> is short enough to read in full. The source is public, so any claim on this
+        page can be verified against the code rather than taken on trust.
+      </p>
+
+      <Faq qa={qa} />
+
+      <h2>Machine-readable pricing</h2>
+      <p>
+        For AI agents and automated tools: a structured version of this page is available at{' '}
+        <a href="/pricing.md">/pricing.md</a>.
+      </p>
+
+      <Related
+        title="Where to go next"
+        links={[
+          { href: '/compare', label: 'All MarkLayer comparisons' },
+          { href: '/alternatives', label: 'Alternatives to paid feedback tools' },
+          { href: '/use-cases', label: 'What people use MarkLayer for' },
+          { href: '/guides', label: 'Guides' },
+          { href: '/about', label: 'Who builds MarkLayer' },
+          { href: '/privacy', label: 'Privacy policy' },
+        ]}
+      />
+
+      <a class="ml-cta mt-4" href={CHROME_STORE_URL}>
+        <ChromeMark />
+        Add to Chrome
+      </a>
     </div>
-
-    <h2>Every feature is included</h2>
-    <ul>
-      <li>Drawing tools: freehand, shapes, arrows, and lines</li>
-      <li>Threaded comments pinned to any spot on a page</li>
-      <li>Real-time collaboration with live cursors</li>
-      <li>Shareable links: recipients don't need the extension or an account</li>
-      <li>Works on any website</li>
-      <li>Open source and self-hostable</li>
-    </ul>
-
-    <h2>What does <em>not</em> exist</h2>
-    <ul>
-      <li>No "Pro" tier.</li>
-      <li>No "Team" or "Enterprise" plan.</li>
-      <li>No per-seat pricing.</li>
-      <li>No usage cap or annotation limit.</li>
-      <li>No trial period; everything is already free.</li>
-      <li>No paywall, ever.</li>
-      <li>No "verified" or "premium" account.</li>
-      <li>No upsell flow inside the extension.</li>
-    </ul>
-
-    <h2>What the rest of the category charges</h2>
-    <p>
-      "Free" only means something next to a number. These are the published prices of the visual feedback tools
-      MarkLayer is most often weighed against, as recorded on each comparison page. Several of them are genuinely worth
-      their bill: a two-way Jira sync or a Kanban board is real work that MarkLayer does not do. The point is narrower:
-      if what you need is to draw on a page and send someone the link, that part costs nothing here.
-    </p>
-    <div class="ml-scroll-x">
-      <table>
-        <thead>
-          <tr>
-            <th scope="col" class="w-[30%]">Tool</th>
-            <th scope="col">Published price</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row">MarkLayer</th>
-            <td>Free. No tiers, no seats, no trial</td>
-          </tr>
-          {
-            priced.map((c) => (
-              <tr>
-                <th scope="row">
-                  <a href={`/vs/${c.id}`}>{c.competitor}</a>
-                </th>
-                <td>{c.price}</td>
-              </tr>
-            ))
-          }
-        </tbody>
-      </table>
-    </div>
-    <p class="ml-meta">
-      Prices as published by each vendor, checked August 2026. Follow a tool's name for the full side-by-side, or start
-      from the <a href="/compare">comparison index</a> and the <a href="/alternatives">alternatives directory</a>.
-    </p>
-
-    <h2>Why is it free?</h2>
-    <p>
-      MarkLayer exists to make webpage annotation accessible to everyone. Infrastructure runs on Cloudflare's low-cost
-      edge services, and the code is open source, so you can audit, fork, or self-host. There is no business model on
-      top of users. There is no plan to add one.
-    </p>
-    <p>
-      The reason that holds is structural rather than generous. An annotation is a small JSON payload; a share link is a
-      row in D1 and a WebSocket connection to a Durable Object that exists only while someone is in the room. There is
-      no per-user storage tier to fund, no video transcoding, no seat provisioning, and no sales motion to pay for. The
-      costs that force other tools into per-seat pricing are mostly not costs MarkLayer has.
-    </p>
-    <p>
-      Free also has a cost of its own, and it is stated plainly rather than buried: there is no SLA, no support desk,
-      and no contract. Shared annotations are deleted 90 days after they were last opened. If you need guarantees, the
-      answer is to <a href={REPO_URL}>run it yourself</a> under Apache-2.0, not to buy a plan that does not exist.
-    </p>
-
-    <h2>What "free" does not mean here</h2>
-    <p>
-      Plenty of tools are free because you are the product. MarkLayer is not one of them, and the distinction is
-      checkable rather than promised. There is no account, so there is no profile to sell. There is no email field, so
-      there is no list to rent. Annotations are stored only when you share them, and the
-      <a href="/privacy">privacy policy</a> is short enough to read in full. The source is public, so any claim on this
-      page can be verified against the code rather than taken on trust.
-    </p>
-
-    <Faq qa={qa} />
-
-    <h2>Machine-readable pricing</h2>
-    <p>
-      For AI agents and automated tools: a structured version of this page is available at{' '}
-      <a href="/pricing.md">/pricing.md</a>.
-    </p>
-
-    <Related
-      title="Where to go next"
-      links={[
-        { href: '/compare', label: 'All MarkLayer comparisons' },
-        { href: '/alternatives', label: 'Alternatives to paid feedback tools' },
-        { href: '/use-cases', label: 'What people use MarkLayer for' },
-        { href: '/guides', label: 'Guides' },
-        { href: '/about', label: 'Who builds MarkLayer' },
-        { href: '/privacy', label: 'Privacy policy' },
-      ]}
-    />
-
-    <a class="ml-cta mt-4" href={CHROME_STORE_URL}>
-      Add to Chrome
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
-        <path
-          d="M2.5 8.5 8.5 2.5M3.9 2.5h4.6v4.6"
-          stroke="currentColor"
-          stroke-width="1.4"
-          stroke-linecap="round"
-          stroke-linejoin="round"></path>
-      </svg>
-    </a>
-    <SiteFooter showPricing={false} />
+    <SiteFooter />
   </body>
 </html>

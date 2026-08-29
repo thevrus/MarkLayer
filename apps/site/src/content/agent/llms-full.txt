@@ -1,10 +1,10 @@
 # MarkLayer · Full Reference
 
-> 100% free and 100% anonymous webpage annotation tool for Chrome. No account, no email, no sign-up, no payment.
+> 100% free and 100% anonymous webpage annotation tool. Free web app and Chrome extension. No account, no email, no sign-up, no payment.
 
 ## What is MarkLayer?
 
-MarkLayer is a free, anonymous, open-source Chrome extension for annotating any webpage. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link. The recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
+MarkLayer is a free, anonymous, open-source tool for annotating any live webpage, available as a web app and a Chrome extension. Paste a URL at https://marklayer.app and annotate in the browser with nothing installed; the extension annotates in place on pages the web app cannot reach, such as anything behind a login. Users can draw, comment, highlight, and add arrows directly on top of any live website. Annotations are shareable via a single link. The recipient does not need to install any extension or create an account to view them. Real-time collaboration is supported with live cursors.
 
 The two defining principles are **free** (no paid plan, no trial, no per-seat pricing, no usage cap) and **anonymous** (no sign-up, no email, no profile, no login, no personal data collection).
 
@@ -46,10 +46,80 @@ There is no registration, no email verification, and no onboarding flow. Users i
 Annotations stay on the user's device until they explicitly choose to share. There is no central feed, no public profile, and no social features.
 
 ### Works on Any Website
-MarkLayer works on any webpage without exceptions. The extension injects a transparent canvas overlay on top of the page content.
+Two routes, so there is no page the pair cannot cover. The web app fetches the target server-side, strips frame-blocking headers, and overlays the annotation canvas, which covers any publicly reachable URL with nothing installed. The extension injects that same transparent canvas directly into the page you are already looking at, which covers everything the web app cannot fetch: pages behind a login, internal tools, localhost. Both routes produce the same share link, and the recipient installs nothing either way.
+
+### Retention
+There is no fixed expiry and no storage cap. A share link is deleted 90 days after its last access, and any view, comment or edit resets that clock, so a review that is still in use never expires. Annotations past an explicit `expires_at` are removed on the same daily cleanup. Most tools in this category publish no retention period at all.
 
 ### Free and Open Source
 MarkLayer is completely free with no paywall, trial period, or premium tier. The source code is available on GitHub under an open-source license.
+
+## How MarkLayer Compares
+
+### Price, accounts and retention
+
+Figures read off each vendor's own pricing page on 29 August 2026. Full 21-tool audit, including the
+section on what MarkLayer does worse: https://marklayer.app/guides/website-feedback-tools
+
+| Tool | Cheapest paid plan | Reviewer needs an account? | Reviewer needs an extension? | How long comments are kept |
+| --- | --- | --- | --- | --- |
+| **MarkLayer** | None. Free, no paid tier | No | No | 90 days after the link was last opened, reset by any access |
+| **AnnotateWeb** | None. Free, no paid tier | No | No (bookmarklet) | Deleted after 2 minutes of inactivity |
+| **Hypothesis** | Quoted by sales; no published figure | **Yes** | Extension, or a bookmarklet | Not published |
+| **Webvizio** | $8/month, 2 users | No | Only for password-protected pages | Not published |
+| **Ybug** | EUR 13/month (EUR 10 billed annually) | No | Optional; widget is the default | Not published |
+| **BugSmash** | $14/month | No | No | Anonymous links deleted at expiry |
+| **Jam** | $14 per creator/month, billed yearly | Not published | Yes, to capture | Auto-deletion is Enterprise-only |
+| **Huddlekit** | $16/month, billed yearly | No | No | While the workspace exists |
+| **Ruttl** | $18 per user/month | No (guest gives a name) | Not published | "As long as we have your consent" |
+| **Superflow** | $24 per seat/month, billed yearly | **Paid tiers only** | Not published | While the account exists |
+| **Pastel** | $29/month annually ($35 monthly) | No | No | At least one year |
+| **Userback** | $29/month annually ($39 monthly) | No | Optional | 7-day window on the free plan |
+| **Volley** | $29/month annually ($49 monthly) | No | No; guests use a link | Not published |
+| **Marker.io** | $39/month annually ($59 monthly) | No | No; widget on your site | Not published |
+| **Feedbucket** | $39/month annually ($49 monthly) | No | No; one line of JavaScript | Not published |
+| **PageProofer** | $39/month, 5 users | Guest feedback is Team and up | Not published | Delete on request, within 30 days |
+| **BugHerd** | $42/month annually ($50 monthly), 5 members | Not published | No, with the JavaScript snippet | Not published |
+| **Usersnap** | $49/month annually ($59 monthly) | No | Optional | Idle free accounts off after 90 days |
+| **Atarim** | $67/month | No | No | Not published |
+| **Markup.io** | $79/month | Not published | Not published | "As long as we have your consent" |
+| **Simple Commenter** | Not published; the pricing page needs JavaScript | No | No | Not published |
+
+Three of the twenty-one cost nothing outright: MarkLayer, AnnotateWeb (which deletes annotations after
+two minutes idle) and Hypothesis (text only, account required). Everything else free in that table is a
+capped tier of a paid product. Per-seat and flat pricing are not comparable at face value: a $24 seat
+costs more than a $50 flat plan once you pass three people.
+
+### What an AI coding agent gets, tool by tool
+
+Five tools in this category ship an MCP server. They differ on whether the agent can only read the
+feedback or can work it. Verified against each vendor's published documentation, August 2026:
+https://marklayer.app/guides/bug-report-mcp-servers
+
+| Tool | Agent can read | Agent can act | Price floor |
+| --- | --- | --- | --- |
+| **MarkLayer** | Annotations with CSS selector, text fingerprint, computed styles, detected React/Vue/Svelte component, thread history | Watch live, acknowledge, resolve, dismiss, reply | Free |
+| **Marker.io** | Reports with screenshots, console logs, network requests, browser/OS | Read and draft only; cannot resolve or reply | $59/mo ($39 annual) |
+| **BugHerd** | Task details with screenshots, CSS selectors, browser/OS, severity | List, create, update tasks (beta) | $50/mo (5 members) |
+| **Jam.dev** | A pasted Jam link: console, network, user actions, video transcript | Nothing; one-way handoff | Free tier |
+| **Usersnap** | Collected feedback via hosted MCP (OAuth) | Query feedback, create opportunities | ~EUR 39/mo |
+
+MarkLayer is the only one with a live two-way loop: the agent is a participant in the room, and human
+oversight happens on the annotations themselves as statuses flip from open to in progress to resolved.
+Marker.io documents that it deliberately stops short of resolving or replying. Jam's model is a link you
+paste, after which the agent works alone.
+
+Marker.io and Jam attach runtime evidence (console errors, network traces). MarkLayer attaches
+code-location evidence: the selector, the computed styles, and the framework component behind the
+annotated element, which is what an agent needs to find the file to edit. If your bugs are mostly "this
+JavaScript is failing", runtime logs win. If they are mostly "this element is wrong", element context wins.
+
+### What MarkLayer does not do
+
+MarkLayer captures no console or network logs, and has no two-way sync into Jira or Linear. That is what
+the $39-79 tier is priced for. If every piece of feedback needs an owner, a status, a priority and a
+ticket in an existing tracker, BugHerd, Marker.io or Usersnap are the honest recommendation. MarkLayer is
+the visual feedback layer, not a project management system.
 
 ## AI Coding Agent Integration (MCP)
 

@@ -1,75 +1,109 @@
 ---
-import { CHROME_STORE_URL, REPO_URL } from '../lib/site';
+import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '../lib/footer';
+import Logo from './Logo.astro';
 
-interface Props {
-  showPricing?: boolean;
-}
-
-const { showPricing = true } = Astro.props;
 const year = new Date().getFullYear();
-
-const columns: { heading: string; links: { href: string; label: string }[] }[] = [
-  {
-    heading: 'Product',
-    links: [
-      { href: '/', label: 'Home' },
-      ...(showPricing ? [{ href: '/pricing', label: 'Pricing' }] : []),
-      { href: CHROME_STORE_URL, label: 'Chrome Web Store' },
-    ],
-  },
-  {
-    heading: 'Compare',
-    links: [
-      { href: '/compare', label: 'Comparisons' },
-      { href: '/alternatives', label: 'Alternatives' },
-      { href: '/use-cases', label: 'Use cases' },
-    ],
-  },
-  {
-    heading: 'Resources',
-    links: [
-      { href: '/guides', label: 'Guides' },
-      { href: REPO_URL, label: 'GitHub' },
-    ],
-  },
-  {
-    heading: 'Company',
-    links: [
-      { href: '/about', label: 'About' },
-      { href: '/privacy', label: 'Privacy' },
-    ],
-  },
-];
 ---
 
-{/* Weight inverted deliberately: the column heading used to be the ink semibold
-    and its links the grey underneath, which made the one thing nobody clicks the
-    loudest thing in the footer. The heading is a quiet label now and the
-    destinations carry the ink. */}
-<footer class="mt-20 mb-16 border-t border-rule pt-10">
-  {/* A grid, not `flex-wrap`. Wrapping put the fourth column on its own row as
-      soon as the links grew to UI size, which left three columns and an orphan
-      sitting off the shared baseline. A grid holds all four on one line and
-      drops them to two columns together. */}
-  <div class="grid grid-cols-2 gap-x-8 gap-y-9 sm:grid-cols-4">
-    {
-      columns.map((col) => (
-        <div>
-          <p class="m-0 mb-2.5 text-label text-meta">{col.heading}</p>
-          <ul class="m-0 list-none space-y-2 p-0">
-            {col.links.map((l) => (
-              <li class="m-0 p-0 text-ui">
-                <a class="text-ink no-underline transition-colors duration-150 hover:text-meta" href={l.href}>
-                  {l.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))
-    }
+{/* The floor. Full width and a tone step down, the same break `/` makes at the
+    bottom of the page — not a hairline rule under white. The columns sit on the
+    article's own 760px spine inside it, so nothing is flung to the rims.
+
+    Structure, copy and spacing are shared with the app shell's own footer in
+    apps/worker/web/Landing.tsx; the links come from lib/footer.ts and the two
+    renderers differ only in the width of the column they sit in. Change one,
+    change the other. */}
+<footer class="ml-floor">
+  <div class="ml-floor-inner">
+    {/* A grid, not `flex-wrap`. Wrapping put the fourth column on its own row as
+        soon as the links grew, which left three columns and an orphan sitting
+        off the shared baseline. A grid holds all four on one line and drops them
+        to two columns together. */}
+    <div class="grid grid-cols-2 gap-x-8 gap-y-9 text-label sm:grid-cols-4">
+      {
+        FOOTER_COLUMNS.map((col) => (
+          <div>
+            <p class="m-0 mb-3 text-label font-semibold tracking-label text-ink">{col.heading}</p>
+            <ul class="m-0 list-none space-y-0.5 p-0">
+              {col.links.map((l) => (
+                <li class="m-0 p-0">
+                  <a
+                    class="ml-floor-link"
+                    href={l.href}
+                    target={l.external ? '_blank' : undefined}
+                    rel={l.external ? 'noopener noreferrer' : undefined}
+                  >
+                    {l.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))
+      }
+    </div>
+
+    {/* Laid out as a fifth column turned on its side — the label takes the same
+        quiet step as the four headings above, so it reads as part of the footer
+        rather than a widget bolted under it. The `-mx-2` cancels the first and
+        last marks' hit-area padding, so the row's optical gaps match the gap
+        utility rather than running 8px wide at each end. */}
+    <div class="mt-10 flex flex-wrap items-center gap-x-4 gap-y-1">
+      <p class="m-0 max-w-none text-label text-meta">{ASK_AI_LABEL}</p>
+      <ul class="-mx-2 m-0 flex list-none flex-wrap items-center p-0">
+        {
+          ASK_AI.map((a) => (
+            <li class="m-0 p-0">
+              <a
+                class="ml-ask-ai"
+                href={a.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Ask ${a.label} about MarkLayer`}
+              >
+                {/* An sr-only label rather than `aria-label`, the same way every
+                    other bare mark on the site is named — it survives
+                    translation and a stripped attribute, and it is what the
+                    header's GitHub mark already does. */}
+                <span class="sr-only">Ask {a.label} about MarkLayer</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d={a.path} />
+                </svg>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    {/* Fine print, and set as fine print: 12px, one step quieter than the link
+        columns and the same size as the colophon it sits with, so the two close
+        the footer as one block. It used to run at the 13px label step, which
+        made three grey lines of legal boilerplate the heaviest text down here.
+
+        `max-w-none` on both: global.css caps every `p` at the 560px prose
+        measure, which is right for reading copy and wrong here — a fine-print
+        line that wraps 152px short of the grid above it reads as ragged, not as
+        a measure. */}
+    <p class="ml-floor-fine mt-10">{TRADEMARK_NOTICE}</p>
+    {/* The colophon carries the lockup, small, the way `/` closes its own
+        footer. */}
+    <p class="ml-floor-fine mt-5 flex items-start gap-2">
+      {/* Aligned to the FIRST line, not to the block: the line wraps on a phone,
+          and a centred mark then floats between the two rows. */}
+      <Logo size={14} class="mt-[3px] shrink-0" />
+      <span>&copy; {year} MarkLayer &middot; {COLOPHON}</span>
+    </p>
   </div>
-  <p class="mt-10 mb-0 text-label text-meta">
-    &copy; {year} MarkLayer &middot; Free, anonymous webpage annotation &middot; Open source, Apache-2.0.
-  </p>
+
+  {/* The signature: the brand word full-bleed across the floor, cut partway down
+      the letterforms and faded out so the cut is never a visible line. It takes
+      no gutter and no max-width on purpose — this is the one element meant to
+      touch both edges — and nothing sits beneath it.
+
+      `aria-hidden` because the accessible wordmark is the one in the header;
+      this is texture, not a second heading. */}
+  <div class="ml-signature-clip" aria-hidden="true">
+    <span class="ml-signature">MarkLayer</span>
+  </div>
 </footer>

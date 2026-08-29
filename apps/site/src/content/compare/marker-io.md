@@ -61,7 +61,7 @@ faq:
   - q: "Can I integrate MarkLayer with Jira like Marker.io?"
     a: "Not natively. MarkLayer is open source, so a webhook-style integration could be built, but there's nothing out of the box. The standard workflow is pasting the share link into a Jira ticket description."
   - q: "Does MarkLayer capture browser metadata for bug reports?"
-    a: "No. For automatic capture of browser version, OS, viewport, and console errors, Marker.io or BugHerd or Jam are better fits."
+    a: "No. MarkLayer records no browser version, no OS, no viewport, no console logs, and no session replay. It captures what you draw and type on the page, nothing about the environment behind it. For automatic capture, Marker.io or BugHerd or Jam are better fits."
   - q: "When does MarkLayer make more sense than Marker.io?"
     a: "When you want zero billing setup, no per-reporter pricing, and you're already happy pasting links into Jira/Linear/GitHub Issues yourself."
   - q: "Do MarkLayer and Marker.io both have MCP servers for AI coding agents?"
@@ -69,3 +69,5 @@ faq:
 ---
 
 MarkLayer and [Marker.io](https://marker.io) both let you annotate webpages and share feedback. Marker.io is a paid B2B platform: install a website widget or browser extension, and bug reports flow into your existing tracker (Jira, GitHub, Trello, Asana). MarkLayer is a free, lightweight Chrome extension. No integrations, no sign-up. That produces shareable links you paste into whatever tracker you already use.
+
+The split is really about who is reporting. Marker.io is built for development teams that need every report to land in the tracker with its metadata attached. MarkLayer is built for client feedback and quick internal review, where the report volume never justifies installing a widget and the person marking up the page should not have to learn a tool first.

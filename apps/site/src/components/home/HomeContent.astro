@@ -1,5 +1,6 @@
 ---
 import copy from '../../data/home-copy.json';
+import { FOOTER_COLUMNS, TRADEMARK_NOTICE } from '../../lib/footer';
 import { CHROME_STORE_URL } from '../../lib/site';
 
 // Prerendered marketing content for `/`.
@@ -342,11 +343,16 @@ import { CHROME_STORE_URL } from '../../lib/site';
   >
 </p>
 
+{/* The same links the rendered footer carries, from the same source
+    (lib/footer.ts). Unstyled on purpose: nobody with JS sees this markup, and
+    the crawlers that do read it want the links and the notice, not a layout. */}
 <footer>
   <nav>
-    <a href="/pricing">Pricing</a>
-    <a href="/privacy">Privacy</a>
-    <a href="https://github.com/thevrus/MarkLayer">GitHub</a>
-    <a href="mailto:rusinvadym@gmail.com">Contact</a>
+    {
+      FOOTER_COLUMNS.flatMap((col) => col.links)
+        .filter((l) => l.href !== '/')
+        .map((l) => <a href={l.href}>{l.label}</a>)
+    }
   </nav>
+  <p><small>{TRADEMARK_NOTICE}</small></p>
 </footer>

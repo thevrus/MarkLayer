@@ -30,13 +30,15 @@ const sections = [
     />
   </head>
   <body>
-    <SiteHeader />
-    <h1>That page doesn't exist.</h1>
-    <p class="ml-lede">The link may be out of date. Everything on the site is one of these:</p>
-    <LinkGrid links={sections} />
-    <p>
-      Or go back to <a href="/">marklayer.app</a> and annotate a page.
-    </p>
+    <div class="ml-shell">
+      <SiteHeader />
+      <h1>That page doesn't exist.</h1>
+      <p class="ml-lede">The link may be out of date. Everything on the site is one of these:</p>
+      <LinkGrid links={sections} />
+      <p>
+        Or go back to <a href="/">marklayer.app</a> and annotate a page.
+      </p>
+    </div>
     <SiteFooter />
   </body>
 </html>

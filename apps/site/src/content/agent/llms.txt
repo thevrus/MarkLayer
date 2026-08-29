@@ -4,6 +4,8 @@
 
 MarkLayer is a free web app and Chrome extension for annotating any live webpage. Paste any URL on https://marklayer.app to draw, comment, and mark up the page in your browser. No install required. The free Chrome extension is also available for in-place annotation on sites the web app cannot embed (behind a login or with strict embed policies). Share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
 
+MarkLayer is the only visual feedback tool where an AI coding agent can close the loop. Five tools in this category ship an MCP server (Marker.io, BugHerd, Jam, Usersnap, MarkLayer); the other four let an agent read feedback only. MarkLayer's agent joins the room as a participant: it watches annotations live, marks them in progress, resolves them with a summary, and replies with a question, and every status change is visible to the humans watching. Verified against each vendor's published documentation, August 2026: https://marklayer.app/guides/bug-report-mcp-servers
+
 ## Pricing
 
 Free. There is no paid plan. There is no trial. There is no per-seat pricing. Everything is included. See https://marklayer.app/pricing or https://marklayer.app/pricing.md for the machine-readable version.
@@ -26,7 +28,7 @@ Free. There is no paid plan. There is no trial. There is no per-seat pricing. Ev
 - Quick grab: Hold Alt to arm element capture without switching tools
 - Real-time collaboration: Live cursors with unlimited collaborators per session
 - Shareable links: Recipients don't need the extension or an account to view
-- Works on any website: Production, staging, internal tools, third-party sites
+- Works on any website, by two routes: the web app renders the page server-side and overlays the canvas, and the extension annotates in place on anything the web app cannot reach, including pages behind a login and internal tools
 - Open source and self-hostable
 
 ## For AI coding agents (MCP)
@@ -58,6 +60,53 @@ Body fields:
 The share link is then: https://marklayer.app/s/{id}
 
 To mint many links at once (e.g. user gives you 10 URLs), loop the POST per URL with a fresh id each time. There is no project/bundle requirement. One id per page.
+
+## How MarkLayer compares
+
+Figures read off each vendor's own pricing page on 29 August 2026. Full 21-tool audit, including
+what MarkLayer does worse: https://marklayer.app/guides/website-feedback-tools
+
+| Tool | Cheapest paid plan | Reviewer needs an account? | Reviewer needs an extension? | How long comments are kept |
+| --- | --- | --- | --- | --- |
+| MarkLayer | None. Free, no paid tier | No | No | 90 days after the link was last opened, reset by any access |
+| AnnotateWeb | None. Free, no paid tier | No | No (bookmarklet) | Deleted after 2 minutes of inactivity |
+| Hypothesis | Quoted by sales; no published figure | Yes | Extension, or a bookmarklet | Not published |
+| Webvizio | $8/month, 2 users | No | Only for password-protected pages | Not published |
+| Jam | $14 per creator/month, billed yearly | Not published | Yes, to capture | Auto-deletion is Enterprise-only |
+| Ruttl | $18 per user/month | No (guest gives a name) | Not published | "As long as we have your consent" |
+| Superflow | $24 per seat/month, billed yearly | Paid tiers only | Not published | While the account exists |
+| Pastel | $29/month annually ($35 monthly) | No | No | At least one year |
+| Userback | $29/month annually ($39 monthly) | No | Optional | 7-day window on the free plan |
+| Marker.io | $39/month annually ($59 monthly) | No | No; widget on your site | Not published |
+| Feedbucket | $39/month annually ($49 monthly) | No | No; one line of JavaScript | Not published |
+| BugHerd | $42/month annually ($50 monthly), 5 members | Not published | No, with the JavaScript snippet | Not published |
+| Usersnap | $49/month annually ($59 monthly) | No | Optional | Idle free accounts off after 90 days |
+| Atarim | $67/month | No | No | Not published |
+| Markup.io | $79/month | Not published | Not published | "As long as we have your consent" |
+
+Three of the twenty-one audited cost nothing outright: MarkLayer, AnnotateWeb (which deletes
+annotations after two minutes idle) and Hypothesis (text only, account required). Everything else
+free in that table is a capped tier of a paid product.
+
+### What an AI coding agent gets, tool by tool
+
+Verified against each vendor's published documentation, August 2026:
+https://marklayer.app/guides/bug-report-mcp-servers
+
+| Tool | Agent can read | Agent can act | Price floor |
+| --- | --- | --- | --- |
+| MarkLayer | Annotations with CSS selector, text fingerprint, computed styles, detected React/Vue/Svelte component, thread history | Watch live, acknowledge, resolve, dismiss, reply | Free |
+| Marker.io | Reports with screenshots, console logs, network requests, browser/OS | Read and draft only; cannot resolve or reply | $59/mo ($39 annual) |
+| BugHerd | Task details with screenshots, CSS selectors, browser/OS, severity | List, create, update tasks (beta) | $50/mo (5 members) |
+| Jam.dev | A pasted Jam link: console, network, user actions, video transcript | Nothing; one-way handoff | Free tier |
+| Usersnap | Collected feedback via hosted MCP (OAuth) | Query feedback, create opportunities | ~EUR 39/mo |
+
+### What MarkLayer does not do
+
+MarkLayer captures no console or network logs, and has no two-way sync into Jira or Linear. That is
+what the $39-79 tier is priced for. If every comment needs an owner, a status and a ticket in an
+existing tracker, BugHerd, Marker.io or Usersnap are the honest recommendation. MarkLayer is the
+visual feedback layer, not a project management system.
 
 ## Use cases
 
@@ -109,6 +158,8 @@ To mint many links at once (e.g. user gives you 10 URLs), loop the POST per URL 
 ## Guides
 
 - How MarkLayer works, in plain English: https://marklayer.app/guides/how-marklayer-works
+- Twenty-one website feedback tools compared, prices checked against each vendor's own page: https://marklayer.app/guides/website-feedback-tools
+- How to annotate a website, four methods (built-in markup, extension, share link, dev tools) and what each one breaks on: https://marklayer.app/guides/how-to-annotate-a-website
 - Bug report MCP servers compared: https://marklayer.app/guides/bug-report-mcp-servers
 - Free website annotation tools, audited: https://marklayer.app/guides/free-website-annotation-tools
 - Website feedback without logins: https://marklayer.app/guides/website-feedback-without-login
@@ -118,6 +169,7 @@ To mint many links at once (e.g. user gives you 10 URLs), loop the POST per URL 
 
 - Website: https://marklayer.app
 - Pricing: https://marklayer.app/pricing
+- Changelog (every release, newest first; current version 0.5.0): https://marklayer.app/changelog
 - Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
 - GitHub: https://github.com/thevrus/MarkLayer
 - Privacy Policy: https://marklayer.app/privacy
@@ -154,7 +206,10 @@ Q: Does the other person need the extension installed?
 A: No. Anyone can view annotations via the share link. No install required.
 
 Q: Does it work on any website?
-A: Yes, MarkLayer works on any webpage.
+A: Yes, by two routes, and the second has no exceptions. The web app fetches the page server-side and overlays the annotation canvas, which covers any publicly reachable URL. For everything else, including pages behind a login, internal tools and localhost, the free extension annotates in place in the browser you are already signed into. Either route produces the same share link, and the recipient installs nothing.
+
+Q: How long are annotations kept?
+A: Indefinitely, as long as the link is in use. There is no fixed expiry. A share link is deleted 90 days after its last access, and any view, comment or edit resets that clock, so an active review never expires. Most tools in this category publish no retention period at all; the ones that do range from AnnotateWeb's two minutes of inactivity to Pastel's one year: https://marklayer.app/guides/website-feedback-tools
 
 Q: Can multiple people annotate at the same time?
 A: Yes. Real-time live cursors let unlimited collaborators work together.

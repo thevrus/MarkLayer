@@ -81,20 +81,25 @@
      whitespace, never from a shadow or a tinted band. */
   --color-canvas: #ffffff;
   --color-surface: #ffffff;
-  --color-sunken: #f4f4f4;
+  /* The footer's floor, and the one tone step on the site. Same value as the
+     app landing page's `--color-ml-board-deep`, because it is the same floor. */
+  --color-sunken: #f5f5f5;
 
   /* A three-step ladder with one job each, and every step clears 4.5:1 on white
      so no token can put text under the AA floor wherever it lands.
 
-     `ink` was #000000. Pure black on pure white is the harshest pairing on the
-     web and it made the one grey step below it look further away than it is;
-     #131313 (18.9:1) keeps the authority and loses the glare.
+     `ink` was #000000, then #131313, then #1a1a1a. It is #171717 now (17.4:1) —
+     Geist's Text Primary, which is what `/` resolves `--color-ml-fg` to inside
+     its `.ml-force-light` block, so `/` and every page linked from it set text
+     in one colour instead of two near-blacks a shade apart. The #1a1a1a step
+     claimed to match the landing and stopped doing so when the landing moved
+     onto the Geist ink ramp its toolbar already used.
 
      The scanning problem this ladder fixes was not contrast, it was ROLE. `meta`
      used to set the lede, the bylines, the nav, the footer and every caption at
      once, so the most important paragraph on each page and its date stamp
      carried identical weight. Now: ink reads, meta annotates, faint marks. */
-  --color-ink: #131313;
+  --color-ink: #171717;
   /* Secondary — bylines, date stamps, breadcrumbs, captions, column labels.
      Genuine metadata only. Never a paragraph someone is meant to read. */
   --color-meta: #6a6a6a;
@@ -102,43 +107,56 @@
      4.54:1 because ordered-list numerals are content, not decoration. */
   --color-faint: #767676;
 
+  /* Hover and press steps on `ink` — the site's one filled control. */
+  --color-ink-hover: #383838;
+  --color-ink-press: #0a0a0a;
+
   --color-rule: #e4e4e4;
 
-  /* The one colour on the page, and it belongs to the mark alone. It is never
-     used for links, buttons, rules or fills — an accent everywhere is what
-     makes a page read as a template. */
+  /* The only colour on the page, and it belongs to the mark alone: these two
+     values ARE the mark's gradient, read by Logo.astro rather than written into
+     the SVG a second time. They are never used for links, buttons, rules or
+     fills — an accent everywhere is what makes a page read as a template.
+     Keep them in step with the app's own lockup (apps/worker/web/shared.tsx). */
   --color-brand: #a855f7;
+  --color-brand-deep: #6d28d9;
 
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
-  /* The type scale. Seven steps, each named for its role, and nothing on the
+  /* The type scale. Eight steps, each named for its role, and nothing on the
      site sets a size outside them — the page previously ran ten hand-picked
      pixel values (42/24/18/17/16/15/14/13.5/13) with no relationship between
      them, which is why the hierarchy read as arbitrary.
 
      Leading is unitless so it tracks the size through the clamps. Tracking
      tightens as size grows, so display type reads carved rather than set. */
-  /* Weight 600 and tighter tracking on the two display steps. With one family
-     carrying every level, size and weight are the only things separating them,
-     so both have to do more work than they did when a serif marked the top two
-     out on its own. Geist needs the negative tracking at these sizes; its
-     default fit is set for text, not for 44px. */
+  /* The two display steps carry the app landing page's own statement voice:
+     weight 500 at -0.055em, which is its `.lp-display` exactly. They used to run
+     600 at half that tracking, and that is the loudest reason a marketing page
+     and `/` read as two products set in the same family — a headline is where a
+     voice is heard, and the two were speaking at different weights. Light and
+     tight is the voice; the sizes below stay an article's sizes. */
   --text-display: clamp(2.125rem, 1.42rem + 3.01vw, 2.75rem);
   --text-display--line-height: 1.06;
-  --text-display--letter-spacing: -0.028em;
-  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.055em;
+  --text-display--font-weight: 500;
 
   --text-title: clamp(1.5rem, 1.29rem + 0.9vw, 1.75rem);
   --text-title--line-height: 1.2;
-  --text-title--letter-spacing: -0.019em;
-  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.055em;
+  --text-title--font-weight: 500;
 
   /* h3 and dt. The step down from title is 28 → 19 at the top of the clamp, a
-     1.47× gap that reads on its own — the old hierarchy failed at 24 → 18. */
+     1.47× gap that reads on its own — the old hierarchy failed at 24 → 18.
+
+     Semibold at -0.02em, which is what `/` sets its own small headings at. The
+     ladder runs both ways on purpose: the display steps go light and tight, the
+     small headings go heavy and open, so size is not the only thing telling
+     them apart. */
   --text-heading: 1.1875rem;
   --text-heading--line-height: 1.42;
-  --text-heading--letter-spacing: -0.006em;
+  --text-heading--letter-spacing: -0.02em;
   --text-heading--font-weight: 600;
 
   --text-lede: 1.1875rem;
@@ -154,6 +172,15 @@
 
   --text-label: 0.8125rem;
   --text-label--line-height: 1.54;
+
+  /* Fine print — the trademark notice and the colophon, one tier under the
+     label step so legal boilerplate stops being the heaviest text on the floor. */
+  --text-fine: 0.75rem;
+  --text-fine--line-height: 1.6;
+
+  /* The one tracking value the scale does not carry on a size step: the footer's
+     column headings, opened up a hair so 13px semibold reads as a label. */
+  --tracking-label: 0.011em;
 }
 
 @layer base {
@@ -187,7 +214,16 @@
     /* Geist ships no `opsz` axis, but the metric-matched Arial fallback may;
        asking for it is free and correct where the axis exists. */
     font-optical-sizing: auto;
-    @apply mx-auto max-w-[760px] bg-canvas px-6 pt-8 pb-0 text-body text-ink antialiased;
+    /* Full width, with the reading column moved to `.ml-shell`. The footer steps
+       onto its own floor edge to edge the way `/` does, and a band cannot reach
+       the viewport's edges from inside a 760px box without negative-margin
+       arithmetic that overshoots by the scrollbar's width on every page that
+       scrolls. So the box wraps the content instead of the document.
+
+       A column, and the shell inside it grows: on a page short enough to leave
+       room — the 404 — the floor still lands at the bottom of the viewport
+       instead of stopping partway down with white underneath it. */
+    @apply m-0 flex min-h-screen flex-col bg-canvas p-0 text-body text-ink antialiased;
   }
 
   /* Measure. The 712px column inside the gutters ran ~94 characters per line
@@ -309,7 +345,10 @@
   }
 
   code {
-    @apply rounded-[4px] bg-sunken px-1.5 py-0.5 font-mono text-[0.85em] text-ink;
+    @apply rounded-sm bg-sunken px-1.5 py-0.5 font-mono text-ink;
+    /* Relative to whatever it sits in — a code span in a heading and one in a
+       paragraph are both a step down from their line, not a step on the scale. */
+    font-size: 0.85em;
   }
 
   small {
@@ -322,6 +361,12 @@
 }
 
 @layer components {
+  /* The reading column. It used to be the <body> itself; it is a wrapper now so
+     the footer can sit outside it and reach both edges of the viewport. */
+  .ml-shell {
+    @apply mx-auto w-full max-w-[760px] grow px-6 pt-6 pb-0;
+  }
+
   /* Wide content must scroll inside itself, never the page. */
   .ml-scroll-x {
     @apply -mx-6 overflow-x-auto px-6;
@@ -345,7 +390,76 @@
      lockup (Landing.tsx), so the name does not change face between `/` and a
      marketing page. */
   .ml-wordmark {
-    @apply inline-flex items-center gap-2.5 text-[1.125rem]/[1.2] font-semibold tracking-[-0.02em] text-ink no-underline;
+    @apply relative inline-flex items-center gap-2.5 font-medium text-ink no-underline;
+    font-size: 1.1875rem;
+    line-height: 1.2;
+    letter-spacing: -0.045em;
+  }
+  /* Optical alignment, measured off the rendered mark rather than assumed.
+     The artwork does not fill its 512 frame — its ink starts 6.7% in from the
+     left and stops 19.4% short of the bottom — so centring the BOX put the mark
+     2.9px above the wordmark's cap-height centre and 2.3px right of the column
+     edge that the h1 and every paragraph below begin on.
+
+     A transform, not a margin: it corrects where the mark is SEEN without
+     moving anything in layout, and it leaves the frame alone — that frame is
+     the app's lockup and the favicon's, and re-cropping it here would make the
+     brand two different shapes. */
+  .ml-wordmark svg {
+    transform: translate(-2.3px, 2.9px);
+  }
+  /* The lockup is 34px tall and must stay 34px tall — padding it out to the
+     touch floor would drop the mark off the nav's centre line. So the TARGET
+     grows and the box does not. The header's own `gap-y-3` is wider than the
+     overhang, so nothing above or below can be caught by it. */
+  @media (pointer: coarse) {
+    .ml-wordmark::after {
+      content: "";
+      position: absolute;
+      inset: -5px 0;
+    }
+  }
+
+  /* Nav. The section links are pills that fill on hover rather than grey text
+     that darkens — the same control the landing page's nav uses, at the same
+     size, so the header does not change behaviour between `/` and here.
+
+     `pointer-coarse`, not a width breakpoint: what decides whether a 35px row is
+     tappable is the input device, not the viewport. A tablet at 900px is a
+     finger and gets the taller pill; a narrow desktop window is a mouse and
+     keeps the compact one. */
+  .ml-nav-link {
+    @apply rounded-full px-3 py-1.5 text-ui text-ink/70 no-underline transition-colors duration-150 pointer-coarse:py-3;
+  }
+  .ml-nav-link:hover {
+    @apply bg-ink/5 text-ink no-underline;
+  }
+  /* A bare mark with a hit area around it, never a tile: nothing is drawn behind
+     the glyph until the pointer is on it. */
+  .ml-nav-icon {
+    @apply inline-flex size-9 items-center justify-center rounded-lg text-ink/60 no-underline transition-colors duration-150 pointer-coarse:size-11;
+  }
+  .ml-nav-icon:hover {
+    @apply bg-ink/[0.04] text-ink no-underline;
+  }
+
+  /* A footer column link. Its own class rather than four repeated utilities per
+     <a>, so the touch floor is set in one place for every one of them. */
+  .ml-floor-link {
+    @apply inline-flex min-h-9 items-center text-ink/70 no-underline transition-colors duration-150 pointer-coarse:min-h-11 pointer-coarse:min-w-11 hover:text-ink;
+  }
+
+  /* The two lines that close the floor: the trademark notice and the colophon.
+     One tier, a step smaller and quieter than the link columns, so three grey
+     lines of legal boilerplate stop being the heaviest text down there — they
+     used to run at the 13px label step, the same size as the "Ask an AI" label
+     and larger than the copyright they sit above.
+
+     `max-w-none` overrides the 560px prose measure. That cap is right for
+     reading copy and wrong here: a fine-print line would wrap 152px short of
+     the grid above it and read as ragged rather than as a measure. */
+  .ml-floor-fine {
+    @apply mb-0 max-w-none text-fine text-meta;
   }
 
   .ml-meta {
@@ -358,20 +472,18 @@
     @apply text-ink decoration-meta;
   }
 
-  /* Primary action: a flat black pill, the one filled control on the site.
-     No gradient, no glow, no shadow and no lift — on hover the surface lightens
-     a step and the diagonal travels. */
+  /* Primary action: a flat black pill, the one filled control on the site, and
+     the same object the landing page installs from — same height, same padding,
+     same 15px medium label, same Chrome mark beside it. No gradient, no glow, no
+     shadow and no lift; hover and press are value steps on the surface. */
   .ml-cta {
-    @apply inline-flex items-center gap-2 rounded-full bg-ink px-4 py-2.5 text-ui font-medium text-surface no-underline transition-colors duration-150;
+    @apply inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-ui font-medium text-surface no-underline transition-colors duration-150;
   }
   .ml-cta:hover {
-    @apply bg-[#333333] text-surface no-underline;
+    @apply bg-ink-hover text-surface no-underline;
   }
-  .ml-cta svg {
-    @apply transition-transform duration-200 ease-out;
-  }
-  .ml-cta:hover svg {
-    transform: translate(2px, -2px);
+  .ml-cta:active {
+    @apply bg-ink-press;
   }
 
   /* Row list, not a card grid: a hairline per row and a diagonal that travels
@@ -398,6 +510,48 @@
     transform: translate(2px, -2px);
   }
 
+  /* The assistant marks in the footer. `faint` is the documented step for a row
+     icon, and it travels to ink on hover like every other link here. Padding is
+     hit area, not a tile — nothing draws behind the mark. */
+  .ml-ask-ai {
+    @apply inline-flex items-center justify-center rounded-md p-2 text-faint no-underline transition-colors duration-150 pointer-coarse:size-11 pointer-coarse:p-0;
+  }
+  .ml-ask-ai:hover {
+    @apply text-ink no-underline;
+  }
+
+  /* A changelog entry. Two columns: a quiet stamp rail carrying the version and
+     the ship date, and the notes beside it. The rail and the title are aligned
+     on their FIRST BASELINES, not on their box tops — a 15px version and a 28px
+     title have different half-leading, so a top-aligned pair sits visibly out of
+     step and no hand-tuned margin fixes it across the title's clamp. Below `sm`
+     the rail becomes the entry's own dateline above the title.
+
+     One hairline per entry and nothing else: no card, no fill, no badge. The
+     hierarchy is the title's size against the rail's silence. */
+  .ml-release {
+    @apply grid items-baseline gap-x-10 gap-y-2 border-t border-rule py-10 first:border-t-0 first:pt-0 sm:grid-cols-[8.5rem_1fr];
+  }
+  .ml-release-version {
+    @apply block text-ui font-medium tabular-nums text-ink;
+  }
+  /* 8.5rem holds the longest date this format can produce — "September 30,
+     2026" measures 124.2px at 13px Geist. A wrapped date would push its own row
+     to two lines and break the rail's alignment with every other row, so the
+     column is sized to the worst case rather than to the dates that happen to
+     be in the collection today. `nowrap` makes that guarantee visible. */
+  .ml-release-date {
+    @apply block whitespace-nowrap text-label text-meta;
+  }
+  /* `mt-0` because the title opens a grid cell: the global h2 rhythm measures
+     the gap to a PREVIOUS section, and there isn't one inside a row. */
+  .ml-release-title {
+    @apply mt-0 mb-3 text-balance text-title text-ink;
+  }
+  .ml-release-body > :last-child {
+    @apply mb-0;
+  }
+
   /* A hub entry: a linked h3 and its blurb, ruled off from the next one. The
      hub pages were sixteen identical heading/paragraph pairs running edge to
      edge with nothing for the eye to land on between them. The rule is
@@ -418,5 +572,68 @@
   }
   .ml-entry > :last-child {
     @apply mb-0;
+  }
+
+  /* ── The footer floor ──
+     The one hard surface break on a page that is otherwise white wall to wall,
+     and the same one `/` makes: the page steps down onto its own floor rather
+     than being ruled off with a hairline. Full width, because it is a floor.
+     The column inside it keeps the article's own 760px spine, so the footer's
+     content sits on the same left edge as every paragraph above it. */
+  .ml-floor {
+    @apply mt-24 bg-sunken pt-16 pb-7;
+  }
+  .ml-floor-inner {
+    @apply mx-auto max-w-[760px] px-6;
+  }
+
+  /* ── The signature wordmark ──
+     Full-bleed, cut partway down the letterforms and dissolved into the floor.
+     Ported value for value from the landing page's own `.lp-wordmark`, because a
+     signature that differs between two pages of one site is not a signature.
+
+     The height is set against the x-height, not the cap height: cutting at the
+     caps leaves M, k, L and the y ascender tall while showing barely a third of
+     a, r, e and r, so the word reads as a row of bars rather than as a word.
+
+     Twelve mask stops on an ease-out alpha curve, fully transparent by the clip.
+     A short fade, or one still at partial opacity where the box ends, puts a
+     visible band across the glyphs — which is the whole failure this avoids. */
+  .ml-signature-clip {
+    font-size: 21vw;
+    height: 0.6em;
+    overflow: hidden;
+    text-align: center;
+    --ml-signature-fade: linear-gradient(
+      to bottom,
+      rgb(0 0 0) 0%,
+      rgb(0 0 0) 44%,
+      rgb(0 0 0 / 95%) 52%,
+      rgb(0 0 0 / 87%) 60%,
+      rgb(0 0 0 / 76%) 67%,
+      rgb(0 0 0 / 63%) 73%,
+      rgb(0 0 0 / 49%) 79%,
+      rgb(0 0 0 / 35%) 85%,
+      rgb(0 0 0 / 22%) 90%,
+      rgb(0 0 0 / 11%) 94%,
+      rgb(0 0 0 / 3%) 97%,
+      transparent 100%
+    );
+    -webkit-mask-image: var(--ml-signature-fade);
+    mask-image: var(--ml-signature-fade);
+    @apply mt-12 select-none;
+  }
+  .ml-signature {
+    display: block;
+    margin-top: -0.125em;
+    font-size: 1em;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+    /* Stronger than the tone it looks like it should be: the mask takes most of
+       it back, and a value tuned to read correctly unmasked goes invisible once
+       faded. */
+    color: color-mix(in srgb, var(--color-ink) 19%, transparent);
   }
 }

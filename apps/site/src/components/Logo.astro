@@ -1,33 +1,36 @@
 ---
 /**
  * The MarkLayer mark: a hand-drawn annotation gesture, used bare with no tile
- * or chip behind it. Its purple is the only colour in the site's chrome —
- * every other surface is a neutral value step, so the mark reads as the one
- * deliberate accent rather than a sprayed-on brand colour.
+ * or chip behind it.
+ *
+ * This is the SAME artwork the app's own lockup draws — the 512 box, the three
+ * paths and the transform are defined once in apps/worker/src/brand.ts, which
+ * this file cannot import (separate build, no dependency on that workspace), so
+ * it is copied here; change one and change the other. The 45° gradient's two stops
+ * are the site's own `--color-brand` / `--color-brand-deep` rather than hexes
+ * written into the SVG a second time.
+ * The site used to run a different cut of the mark (a fourth arrowhead path, a
+ * 26×30 box, one flat purple), so the brand changed shape and colour between `/`
+ * and every page linked from it. One mark, one gradient, both surfaces.
+ *
+ * The gradient lives inside the glyph, which is the only place colour is allowed
+ * to be a gradient here: nothing else on the site is one.
  */
 interface Props {
-  /** Rendered height in px. Width follows the mark's 26:30 ratio. */
-  height?: number;
+  /** Rendered box in px; the artwork is square and self-padded. */
+  size?: number;
   class?: string;
 }
 
-const { height = 22, class: className } = Astro.props;
-const width = Math.round((height * 26) / 30);
+const { size = 34, class: className } = Astro.props;
+
+/* Each instance needs its own gradient id: two lockups (header, footer) render
+   into one document and a repeated id makes the second reference the first. */
+const id = `ml-mark-${Math.random().toString(36).slice(2, 9)}`;
 ---
 
-<svg
-  width={width}
-  height={height}
-  viewBox="0 0 26 30"
-  fill="none"
-  xmlns="http://www.w3.org/2000/svg"
-  aria-hidden="true"
-  class={className}
->
-  <g fill="currentColor">
-    <path
-      d="M21.3521 23.018C21.1903 22.6035 20.7313 22.402 20.3268 22.5678C19.9225 22.7336 19.7258 23.2038 19.8875 23.6183L20.9363 26.3046L17.4639 22.7467C17.1559 22.4311 16.6566 22.4311 16.3485 22.7467C16.0405 23.0622 16.0405 23.574 16.3485 23.8896L21.4513 29.118C22.3003 29.988 23.7033 29.0402 23.2573 27.8978L21.3521 23.018Z"
-    ></path>
+<svg width={size} height={size} viewBox="0 0 512 512" fill="none" aria-hidden="true" class={className}>
+  <g transform="translate(34.15 0) scale(17.07)" fill={`url(#${id})`}>
     <path
       d="M10.7607 6.85221C10.5695 6.45331 10.0831 6.2813 9.67431 6.46791C0.98537 10.436 -0.38288 17.7169 0.0785952 20.988C0.140202 21.4243 0.55241 21.7293 0.999424 21.6692C1.44652 21.6091 1.75904 21.2067 1.69744 20.7704C1.31791 18.0801 2.42519 11.5394 10.3669 7.91253C10.7756 7.72592 10.9519 7.25119 10.7607 6.85221Z"
     ></path>
@@ -38,4 +41,12 @@ const width = Math.round((height * 26) / 30);
       d="M11.8063 0.591001C11.2142 0.137925 10.422 -0.201738 9.58684 0.138077C8.73159 0.486086 8.42335 1.30119 8.35441 2.04703C8.28579 2.78961 8.42405 3.6563 8.64004 4.49923C9.07619 6.20146 9.90442 8.08458 10.5296 9.29818C10.7309 9.68889 11.2055 9.8396 11.5896 9.6349C11.9736 9.43012 12.1218 8.94732 11.9205 8.55668C11.3254 7.40155 10.5544 5.63743 10.1595 4.0963C9.95993 3.3175 9.87459 2.66345 9.91777 2.19655C9.96064 1.73298 10.0995 1.64987 10.17 1.62117C10.2607 1.58427 10.4593 1.55918 10.8622 1.86756C11.2585 2.17084 11.701 2.69136 12.1539 3.36862C13.0523 4.712 13.8584 6.46742 14.3232 7.6771C14.4811 8.08794 14.9364 8.2908 15.3402 8.13027C15.7441 7.96973 15.9436 7.5065 15.7858 7.09566C15.2967 5.82248 14.4405 3.94782 13.4523 2.47016C12.9619 1.73691 12.4049 1.04916 11.8063 0.591001Z"
     ></path>
   </g>
+  <defs>
+    <linearGradient id={id} gradientTransform="rotate(45)" style="transform-origin: center center">
+      {/* `style`, not a `stop-color` attribute: `var()` resolves in a CSS
+          declaration and is ignored in a presentation attribute. */}
+      <stop style="stop-color: var(--color-brand)"></stop>
+      <stop offset="1" style="stop-color: var(--color-brand-deep)"></stop>
+    </linearGradient>
+  </defs>
 </svg>

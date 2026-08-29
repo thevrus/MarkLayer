@@ -1,11 +1,11 @@
 ---
 order: 7
 title: "Free BugHerd Alternative: 4 Picks That Cost $0"
-description: "BugHerd starts at $39 per user per month. MarkLayer is free with live cursors, drawing tools, and link-based sharing. Compare 4 free or freemium alternatives."
+description: "BugHerd has no free plan: Standard is $50/month for 5 members, plus $8 per extra seat. MarkLayer is free with live cursors and drawing tools. Compare 4 alternatives."
 target: "BugHerd"
 homepage: "https://bugherd.com"
 bottomLine: "MarkLayer is the best free BugHerd alternative for the visual-annotation half of bug reporting. Paste the share link into Jira, Linear, or GitHub Issues. Markup.io has a free tier. GitHub Issues + manual screenshots is the lowest-effort fallback if you already live in GitHub."
-hubBlurb: "From $39/user/month. MarkLayer is free for the visual-annotation half of the workflow."
+hubBlurb: "From $50/month for 5 members. MarkLayer is free for the visual-annotation half."
 published: 2026-02-02
 modified: 2026-03-23
 options:
