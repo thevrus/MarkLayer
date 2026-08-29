@@ -1,6 +1,6 @@
 import type { APIRoute } from 'astro';
 import dates from '../data/page-dates.json';
-import { getAlternatives, getComparisons, getGuides, getUseCases } from '../lib/collections';
+import { getAlternatives, getComparisons, getGuides, getReleases, getUseCases } from '../lib/collections';
 import { ORIGIN } from '../lib/site';
 
 type Entry = { path: string; lastmod: string; changefreq: string; priority: string };
@@ -15,11 +15,12 @@ const url = ({ path, lastmod, changefreq, priority }: Entry): string =>
  * appended explicitly.
  */
 export const GET: APIRoute = async () => {
-  const [comparisons, alternatives, useCases, guides] = await Promise.all([
+  const [comparisons, alternatives, useCases, guides, releases] = await Promise.all([
     getComparisons(),
     getAlternatives(),
     getUseCases(),
     getGuides(),
+    getReleases(),
   ]);
 
   const article = (path: string, lastmod: string): Entry => ({
@@ -35,10 +36,20 @@ export const GET: APIRoute = async () => {
     article('/alternatives', dates['hub-alternatives'].modified),
     article('/use-cases', dates['hub-use-cases'].modified),
     article('/guides', dates['hub-guides'].modified),
+    // The changelog gains an entry on every release, so it is re-crawled on the
+    // home page's cadence rather than a hub's monthly one.
+    { path: '/changelog', lastmod: dates['hub-changelog'].modified, changefreq: 'weekly', priority: '0.8' },
     ...comparisons.map((c) => article(`/vs/${c.id}`, c.data.modified)),
     ...alternatives.map((a) => article(`/alternatives/${a.id}`, a.data.modified)),
     ...useCases.map((u) => article(`/for/${u.id}`, u.data.modified)),
     ...guides.map((g) => article(`/guides/${g.id}`, g.data.modified)),
+    // A shipped release never changes again, so `yearly` is the honest signal.
+    ...releases.map((r) => ({
+      path: `/changelog/${r.id}`,
+      lastmod: r.data.date,
+      changefreq: 'yearly',
+      priority: '0.5',
+    })),
     article('/pricing', dates.pricing.modified),
     article('/about', dates.about.modified),
     { path: '/privacy', lastmod: dates.privacy.modified, changefreq: 'monthly', priority: '0.3' },

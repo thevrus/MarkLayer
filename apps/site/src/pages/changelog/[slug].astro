@@ -1,0 +1,101 @@
+---
+import { render } from 'astro:content';
+import LinkGrid from '../../components/LinkGrid.astro';
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import { getReleases, type SiteLink } from '../../lib/collections';
+import { articleSchema, type Crumb, softwareReleaseSchema } from '../../lib/schema';
+import { formatReleaseDate } from '../../lib/site';
+
+export async function getStaticPaths() {
+  const releases = await getReleases();
+
+  return releases.map((entry, i) => ({
+    params: { slug: entry.id },
+    props: {
+      entry,
+      /* The list is newest-first, so the NEWER release sits at i - 1. Guarded
+         rather than reached with `.at(i - 1)`, which at i = 0 wraps around and
+         would link the oldest release as the newest one's successor. */
+      newer: i === 0 ? undefined : releases.at(i - 1),
+      older: releases.at(i + 1),
+    },
+  }));
+}
+
+const { entry, newer, older } = Astro.props;
+const r = entry.data;
+const { Content } = await render(entry);
+
+const GROUPS = [
+  { kind: 'new', heading: 'New' },
+  { kind: 'improved', heading: 'Improved' },
+  { kind: 'fixed', heading: 'Fixed' },
+] as const;
+
+/* An empty group renders nothing rather than an empty heading — a patch release
+   that fixed two things should not carry a bare "New" with no list under it. */
+const groups = GROUPS.map((g) => ({
+  heading: g.heading,
+  items: r.changes.filter((c) => c.kind === g.kind),
+})).filter((g) => g.items.length > 0);
+
+/* Each label leads with the version, because that is what someone lands on a
+   release page holding — a version number from an update prompt or a bug report,
+   not the name we gave the release. */
+const step = (r: typeof entry, direction: string): SiteLink => ({
+  href: `/changelog/${r.id}`,
+  label: `${direction}: ${r.data.version} \u00b7 ${r.data.name}`,
+});
+
+const nav: SiteLink[] = [
+  ...(newer ? [step(newer, 'Newer')] : []),
+  ...(older ? [step(older, 'Older')] : []),
+  { href: '/changelog', label: 'All releases' },
+];
+
+const path = `/changelog/${entry.id}`;
+const breadcrumbs: Crumb[] = [
+  { name: 'MarkLayer', path: '/' },
+  { name: 'Changelog', path: '/changelog' },
+  { name: r.version },
+];
+---
+
+<ArticleLayout
+  title={r.title}
+  description={r.description}
+  path={path}
+  h1={r.name}
+  breadcrumbs={breadcrumbs}
+  modified={r.date}
+  schema={[
+    articleSchema({ h1: r.name, description: r.description, path, published: r.date, modified: r.date }),
+    softwareReleaseSchema({ version: r.version, name: r.name, summary: r.summary, path, date: r.date }),
+  ]}
+>
+  <Fragment slot="byline">
+    Version {r.version} &middot; Released <time datetime={r.date}>{formatReleaseDate(r.date)}</time>
+  </Fragment>
+
+  <Fragment slot="intro">{r.summary}</Fragment>
+
+  <Content />
+
+  {
+    groups.map((g) => (
+      <>
+        <h2>{g.heading}</h2>
+        <ul>
+          {g.items.map((c) => (
+            <li>
+              <strong>{c.title}.</strong> {c.text}
+            </li>
+          ))}
+        </ul>
+      </>
+    ))
+  }
+
+  <h2>More releases</h2>
+  <LinkGrid links={nav} />
+</ArticleLayout>

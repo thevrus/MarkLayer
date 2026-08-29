@@ -95,3 +95,37 @@ export const PERSON_SCHEMA = {
   ],
   worksFor: { '@type': 'Organization', name: 'MarkLayer', url: ORIGIN },
 };
+
+/**
+ * A release page describes a version of the product, not just an article about
+ * one. `SoftwareApplication` with `softwareVersion` and `releaseNotes` is the
+ * type search engines and assistants read to answer "what's new in MarkLayer" —
+ * the Article schema alongside it carries the authorship and the dates.
+ *
+ * `offers` is a real zero-price offer, not a formality: MarkLayer has no paid
+ * plan, and stating the price as 0 is what keeps a "free" claim substantiated.
+ */
+export function softwareReleaseSchema(p: {
+  version: string;
+  name: string;
+  summary: string;
+  path: string;
+  date: string;
+}): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: `MarkLayer ${p.version}`,
+    alternateName: p.name,
+    applicationCategory: 'BrowserApplication',
+    operatingSystem: 'Chrome, Firefox, Edge, Brave',
+    softwareVersion: p.version,
+    releaseNotes: `${ORIGIN}${p.path}`,
+    datePublished: p.date,
+    description: p.summary,
+    url: ORIGIN,
+    image: OG_IMAGE,
+    author: AUTHOR,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  };
+}
