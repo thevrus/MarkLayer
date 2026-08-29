@@ -61,9 +61,9 @@ export function DeviceMenu({ hasPermission }: Props) {
 
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={6} className="z-2147483647">
-          <Menu.Popup className={cn(geist.surface, 'min-w-70 p-1 text-(--ds-gray-1000) text-[13px]')}>
+          <Menu.Popup className={cn(geist.surface, 'min-w-70 p-1 text-(--ds-gray-1000) text-ui')}>
             {!hasPermission && (
-              <div class="mx-1 mb-1 px-2.5 py-2 rounded-md bg-(--ds-gray-alpha-100) text-[12px] text-(--ds-gray-900) leading-snug">
+              <div class="mx-1 mb-1 px-2.5 py-2 rounded-md bg-(--ds-gray-alpha-100) text-meta text-(--ds-gray-900) leading-snug">
                 Grant microphone access to see device names.
               </div>
             )}
@@ -122,7 +122,7 @@ export function DeviceMenu({ hasPermission }: Props) {
                 className={cn(geist.track, 'flex w-full')}
               >
                 {QUALITY_OPTIONS.map((q) => (
-                  <Toggle key={q.value} value={q.value} className={cn(geist.segmentText, 'flex-1 text-[12px]')}>
+                  <Toggle key={q.value} value={q.value} className={cn(geist.segmentText, 'flex-1 text-meta')}>
                     {q.short}
                   </Toggle>
                 ))}
@@ -177,7 +177,7 @@ function DeviceRow({ label, value }: { label: string; value: string }) {
     <Menu.RadioItem
       value={value}
       closeOnClick={false}
-      className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-[13px] cursor-pointer border-none transition-colors
+      className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-ui cursor-pointer border-none transition-colors
                  bg-transparent text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
                  data-checked:bg-(--ds-gray-alpha-100) data-checked:text-(--ds-gray-1000) data-checked:font-medium"
     >

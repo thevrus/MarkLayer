@@ -2,7 +2,7 @@
 export function CursorLabel({ name, color }: { name: string; color: string }) {
   return (
     <div
-      class="whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold text-white leading-none"
+      class="whitespace-nowrap rounded-full px-3 py-1.5 text-ui font-semibold text-white leading-none"
       style={{
         background: `linear-gradient(180deg, color-mix(in srgb, ${color} 80%, white 20%) 0%, ${color} 100%)`,
         borderTop: '0.5px solid rgba(255,255,255,0.25)',

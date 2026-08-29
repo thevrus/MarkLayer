@@ -29,9 +29,16 @@ import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { DEVICE_ICONS } from './shared';
 
+/** What an export writes: the live page's ops, plus every other page when this is a project. */
+export interface ExportData {
+  ops: DrawOp[];
+  url?: string;
+  pages?: { url: string | null; ops: DrawOp[] }[];
+}
+
 interface BodyProps {
   onScrollTo: (x: number, y: number) => void;
-  getExportData?: () => { ops: DrawOp[]; url?: string; pages?: { url: string | null; ops: DrawOp[] }[] };
+  getExportData?: () => ExportData;
 }
 
 type AnnotationItem =
@@ -56,7 +63,7 @@ const STATUS_ACTIONS: Record<CommentStatus, string> = {
 function StatusBadge({ status }: { status: CommentStatus }) {
   return (
     <span
-      class="text-[12px] font-medium px-1.5 py-0.5 rounded-md"
+      class="text-meta font-medium px-1.5 py-0.5 rounded-md"
       style={{
         color: STATUS_COLORS[status],
         background: `color-mix(in oklch, ${STATUS_COLORS[status]} 14%, transparent)`,
@@ -73,7 +80,7 @@ function DeviceBadge({ device }: { device?: DeviceMode }) {
   if (!device || device === 'desktop') return null;
   const Icon = DEVICE_ICONS[device];
   return (
-    <span class="inline-flex items-center gap-0.5 text-[12px] text-(--ds-gray-900) font-medium">
+    <span class="inline-flex items-center gap-0.5 text-meta text-(--ds-gray-900) font-medium">
       <Icon size={9} aria-hidden="true" />
       {DEVICE_LABELS[device]}
     </span>
@@ -87,7 +94,7 @@ function MetaInfo({ op }: { op: CommentOp }) {
   if (op.meta.os) parts.push(op.meta.os);
   if (op.meta.viewport) parts.push(`${op.meta.viewport.width}×${op.meta.viewport.height}`);
   if (!parts.length) return null;
-  return <span class="text-[12px] text-(--ds-gray-900) mt-1 block">{parts.join(' · ')}</span>;
+  return <span class="text-meta text-(--ds-gray-900) mt-1 block">{parts.join(' · ')}</span>;
 }
 
 function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: number, y: number) => void }) {
@@ -124,21 +131,19 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
       >
         <div class="flex items-center gap-2 mb-1.5">
           <div
-            class="w-5 h-5 rounded-full text-white text-[11px] font-medium tabular-nums grid place-items-center shrink-0"
+            class="w-5 h-5 rounded-full text-white text-mini font-medium tabular-nums grid place-items-center shrink-0"
             style={{ background: status === 'resolved' ? 'var(--ds-gray-700)' : op.color }}
           >
             {status === 'resolved' ? <Check size={11} strokeWidth={2} aria-hidden="true" /> : op.num}
           </div>
-          <span class="text-[12px] text-(--ds-gray-1000) font-semibold flex-1 truncate">
-            {op.author || 'Anonymous'}
-          </span>
+          <span class="text-meta text-(--ds-gray-1000) font-semibold flex-1 truncate">{op.author || 'Anonymous'}</span>
           {op.priority && <PriorityBadge priority={op.priority} />}
           <DeviceBadge device={op.device} />
           <StatusBadge status={status} />
-          <span class="text-[12px] text-(--ds-gray-900) tabular-nums">{timeAgo(op.ts)}</span>
+          <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(op.ts)}</span>
         </div>
         <p
-          class={cn('text-[13px] text-(--ds-gray-1000) leading-relaxed m-0', !expanded && 'line-clamp-2')}
+          class={cn('text-ui text-(--ds-gray-1000) leading-relaxed m-0', !expanded && 'line-clamp-2')}
           style={{
             textDecoration: status === 'resolved' ? 'line-through' : 'none',
             opacity: status === 'resolved' ? 0.5 : 1,
@@ -149,7 +154,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
         {expanded && <MetaInfo op={op} />}
         <div class="flex items-center gap-3 mt-2">
           {replies.length > 0 && (
-            <span class="text-[12px] text-(--ds-gray-900) flex items-center gap-1 font-medium">
+            <span class="text-meta text-(--ds-gray-900) flex items-center gap-1 font-medium">
               <MessageSquare size={11} aria-hidden="true" />
               {replies.length}
             </span>
@@ -179,13 +184,13 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                   <Avatar name={reply.author || '?'} color={reply.color} size="sm" style={{ marginTop: 2 }} />
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2">
-                      <span class="text-[12px] text-(--ds-gray-1000) font-semibold truncate">
+                      <span class="text-meta text-(--ds-gray-1000) font-semibold truncate">
                         {reply.author || 'Anonymous'}
                       </span>
-                      <span class="text-[12px] text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
+                      <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
                     </div>
                     <p
-                      class="text-[13px] text-(--ds-gray-1000) leading-relaxed m-0 mt-0.5"
+                      class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 mt-0.5"
                       style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                     >
                       {reply.text}
@@ -222,7 +227,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                     <button
                       type="button"
                       onClick={() => setReplying(false)}
-                      class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-[13px] font-medium')}
+                      class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-ui font-medium')}
                     >
                       Cancel
                     </button>
@@ -243,7 +248,7 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
                 }}
                 class={cn(
                   geist.field,
-                  'w-full flex items-center px-3 text-left text-[13px] text-(--ds-gray-700) cursor-text',
+                  'w-full flex items-center px-3 text-left text-ui text-(--ds-gray-700) cursor-text',
                   'hover:border-(--ds-gray-700)',
                 )}
               >
@@ -313,8 +318,8 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
       <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400) shrink-0">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-[15px] font-semibold text-(--ds-gray-1000) m-0 tracking-[-0.01em]">Comments</h2>
-            <span class="text-[12px] text-(--ds-gray-900)">
+            <h2 class="text-body font-semibold text-(--ds-gray-1000) m-0 tracking-ui">Comments</h2>
+            <span class="text-meta text-(--ds-gray-900)">
               {rootComments.value.length} thread{rootComments.value.length !== 1 ? 's' : ''}
               {statusCounts.resolved > 0 && ` · ${statusCounts.resolved} resolved`}
               {textCount > 0 && ` · ${textCount} text`}
@@ -377,8 +382,8 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
         {items.length === 0 && (
           <div class="flex flex-col items-center justify-center h-44 gap-2 px-6 text-center">
             <MessageSquare size={24} strokeWidth={1.5} class="text-(--ds-gray-700)" aria-hidden="true" />
-            <span class="text-[13px] font-medium text-(--ds-gray-1000)">No comments yet</span>
-            <span class="text-[12px] text-(--ds-gray-900) leading-snug">Use the comment tool (C) to add one</span>
+            <span class="text-ui font-medium text-(--ds-gray-1000)">No comments yet</span>
+            <span class="text-meta text-(--ds-gray-900) leading-snug">Use the comment tool (C) to add one</span>
           </div>
         )}
 
@@ -404,14 +409,19 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   onClick={() => onScrollTo(minX, minY)}
                 >
                   <div class="flex items-center gap-2 mb-1">
-                    <BoxSelect size={12} color={areaResolved ? 'var(--ds-gray-700)' : op.color} aria-hidden="true" />
-                    <span class="text-[12px] text-(--ds-gray-900) font-medium flex-1">Area</span>
+                    <BoxSelect
+                      size={12}
+                      strokeWidth={1.5}
+                      color={areaResolved ? 'var(--ds-gray-700)' : op.color}
+                      aria-hidden="true"
+                    />
+                    <span class="text-meta text-(--ds-gray-900) font-medium flex-1">Area</span>
                     <DeviceBadge device={op.device} />
                     {areaResolved && <StatusBadge status="resolved" />}
                   </div>
                   {op.comment ? (
                     <p
-                      class="text-[12px] text-(--ds-gray-1000) m-0 line-clamp-2 leading-relaxed"
+                      class="text-meta text-(--ds-gray-1000) m-0 line-clamp-2 leading-relaxed"
                       style={{
                         textDecoration: areaResolved ? 'line-through' : 'none',
                         opacity: areaResolved ? 0.5 : 1,
@@ -420,9 +430,9 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                       {op.comment}
                     </p>
                   ) : (
-                    <p class="text-[12px] text-(--ds-gray-900) m-0">No comment</p>
+                    <p class="text-meta text-(--ds-gray-900) m-0">No comment</p>
                   )}
-                  <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1 tabular-nums">
+                  <p class="text-meta text-(--ds-gray-900) m-0 mt-1 tabular-nums">
                     {Math.round(w)} × {Math.round(h)} px
                   </p>
                 </button>
@@ -461,8 +471,13 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
                 >
                   <div class="flex items-center gap-2 mb-1">
-                    <SelIcon size={12} color={selResolved ? 'var(--ds-gray-700)' : op.color} aria-hidden="true" />
-                    <span class="text-[12px] text-(--ds-gray-900) font-medium flex-1">
+                    <SelIcon
+                      size={12}
+                      strokeWidth={1.5}
+                      color={selResolved ? 'var(--ds-gray-700)' : op.color}
+                      aria-hidden="true"
+                    />
+                    <span class="text-meta text-(--ds-gray-900) font-medium flex-1">
                       {op.suggestion ? 'Text edit' : 'Selection'}
                     </span>
                     <DeviceBadge device={op.device} />
@@ -472,7 +487,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                     <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={selResolved} />
                   ) : (
                     <p
-                      class="text-[12px] text-(--ds-gray-900) m-0 line-clamp-2 leading-relaxed"
+                      class="text-meta text-(--ds-gray-900) m-0 line-clamp-2 leading-relaxed"
                       style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
                     >
                       "{op.text}"
@@ -480,7 +495,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   )}
                   {op.comment && (
                     <p
-                      class="text-[12px] text-(--ds-gray-900) m-0 mt-1 line-clamp-1"
+                      class="text-meta text-(--ds-gray-900) m-0 mt-1 line-clamp-1"
                       style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
                     >
                       {op.comment}
@@ -518,11 +533,11 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               onClick={() => onScrollTo(op.x, op.y)}
             >
               <div class="flex items-center gap-2 mb-1">
-                <Type size={12} color={op.color} aria-hidden="true" />
-                <span class="text-[12px] text-(--ds-gray-900) font-medium flex-1">Text</span>
+                <Type size={12} strokeWidth={1.5} color={op.color} aria-hidden="true" />
+                <span class="text-meta text-(--ds-gray-900) font-medium flex-1">Text</span>
                 <DeviceBadge device={op.device} />
               </div>
-              <p class="text-[12px] m-0 line-clamp-2 leading-relaxed" style={{ color: op.color }}>
+              <p class="text-meta m-0 line-clamp-2 leading-relaxed" style={{ color: op.color }}>
                 {op.text}
               </p>
             </button>

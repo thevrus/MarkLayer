@@ -1,3 +1,4 @@
+import { CancelButton } from '@ext/components/CancelButton';
 import { PriorityPicker } from '@ext/components/PriorityPicker';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
@@ -75,13 +76,13 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, frameRef, onClose }
     >
       <div class="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
         <div
-          class="w-6 h-6 rounded-full text-white text-[12px] font-medium grid place-items-center shrink-0
+          class="w-6 h-6 rounded-full text-white text-meta font-medium grid place-items-center shrink-0
                  shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
           style={{ background: color.value }}
         >
           {num}
         </div>
-        <span class="text-[13px] text-(--ds-gray-1000) font-semibold tracking-[-0.01em] flex-1">New comment</span>
+        <span class="text-ui text-(--ds-gray-1000) font-semibold tracking-ui flex-1">New comment</span>
       </div>
 
       <div class={cn(geist.divider, 'mx-3.5')} />
@@ -110,15 +111,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, frameRef, onClose }
       <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between px-4 py-2.5">
-        {/* A real button, not a hint: it looked clickable, so it has to be. */}
-        <button
-          type="button"
-          onClick={() => commit(false)}
-          class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto gap-1.5 px-2 text-[13px] font-medium')}
-        >
-          Cancel
-          <kbd class={geist.kbd}>Esc</kbd>
-        </button>
+        <CancelButton onClick={() => commit(false)} />
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Post ↵
         </button>

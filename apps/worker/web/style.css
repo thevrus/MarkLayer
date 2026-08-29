@@ -55,6 +55,9 @@
   --color-ml-glass-muted: oklch(0 0 0 / 0.03);
   /* Brand accent — used for primary submit buttons, focus rings, caret. */
   --color-ml-accent: oklch(0.65 0.15 300);
+  /* Its readable foreground — the count inside an accent-tinted badge. Fixed in
+     both themes on purpose: the badge sits on the accent tint, not the page. */
+  --color-ml-accent-fg: oklch(0.86 0.08 300);
   /* Resolved/muted neutral — used for done-state chips and de-emphasized swatches. */
   --color-ml-resolved: oklch(0.55 0 0);
   /* Spring easing for entrance/exit motion. */
@@ -72,6 +75,55 @@
      page talking. */
   --ml-font-ui: "Geist", "Geist Fallback", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
   --ml-font-voice: var(--ml-font-ui);
+
+  /* ── The type scale ──
+     Every size in the product's own UI comes from this ladder, and nothing
+     sets a size outside it. It used to be fourteen hand-picked pixel values
+     (9/10/10.5/11/11.5/12/13/14/15/16/17/19/22/24) with no relationship
+     between them, which is how two copies of the same "Desktop only" screen
+     ended up shipping at 24/15 and at 22/16 without anyone noticing.
+
+     The first five steps are product chrome — toolbar, pins, popovers, panels
+     — and are mirrored verbatim in apps/extension/entrypoints/content/style.css
+     because the same components compile into both. Keep the two in step.
+     Tailwind's own `text-base` (16px) stays the step for a text input: below
+     16px, iOS Safari zooms the page on focus. */
+  --text-micro: 0.625rem; /* 10 — badge counts, avatar initials, guide readouts */
+  --text-mini: 0.6875rem; /* 11 — measure chips, key hints */
+  --text-meta: 0.75rem; /* 12 — the secondary line in every popover */
+  /* The same 12px at reading leading, for the fine print on the floor — the
+     trademark notice and the colophon. Mirrors `--text-fine` in apps/site, because
+     that footer and this one are one design rendered twice. */
+  --text-fine: 0.75rem;
+  --text-fine--line-height: 1.6;
+  --text-ui: 0.8125rem; /* 13 — the product's default */
+  --text-ui-lg: 0.875rem; /* 14 — controls that have to carry */
+  --text-body: 0.9375rem; /* 15 — prose in the web app */
+  --text-lede: 1.0625rem; /* 17 */
+  --text-heading: 1.1875rem; /* 19 */
+  --text-title: 1.5rem; /* 24 */
+
+  /* The landing page's display steps. Each carries its own leading: a
+     headline's line-height belongs to its size, not to the markup. */
+  --text-hero: clamp(38px, 5.6vw, 80px);
+  --text-hero--line-height: 1;
+  --text-closing: clamp(36px, 5.8vw, 68px);
+  --text-closing--line-height: 1;
+  --text-statement: clamp(32px, 4.8vw, 56px);
+  --text-statement--line-height: 1.02;
+  --text-section: clamp(30px, 4.4vw, 50px);
+  --text-section--line-height: 1.04;
+  --text-subsection: clamp(26px, 3.2vw, 38px);
+  --text-subsection--line-height: 1.06;
+
+  /* Tracking and leading by role, for the same reason: a value repeated in
+     twelve class strings is a decision nobody can change in one place. */
+  --tracking-brand: -0.045em; /* the wordmark, and only the wordmark */
+  --tracking-display: -0.02em; /* headings */
+  --tracking-ui: -0.01em; /* UI titles and labels */
+  --tracking-label: 0.011em; /* small mono and meta labels, opened up to read */
+  --leading-body: 1.55; /* comment and annotation prose */
+  --leading-prose: 1.65; /* the landing page's paragraphs */
 }
 
 @custom-variant dark (&:where(.dark, .dark *));

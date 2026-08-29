@@ -137,7 +137,7 @@ export function ProjectTabs() {
         glass.font,
       )}
     >
-      <span class="text-[12px] text-(--ds-gray-900) mr-1 shrink-0">Pages</span>
+      <span class="text-meta text-(--ds-gray-900) mr-1 shrink-0">Pages</span>
       <Tabs.List className="flex items-center gap-1">
         {pages.map((p, i) => {
           const active = i === idx;
@@ -158,7 +158,7 @@ export function ProjectTabs() {
               <Tabs.Tab
                 value={i}
                 className={cn(
-                  'inline-flex items-center gap-1.5 h-7 pl-2.5 rounded-lg text-[12px] font-medium border-none cursor-pointer bg-transparent',
+                  'inline-flex items-center gap-1.5 h-7 pl-2.5 rounded-lg text-meta font-medium border-none cursor-pointer bg-transparent',
                   'text-inherit transition-colors duration-150',
                   canDelete ? 'pr-1' : 'pr-2.5',
                 )}
@@ -195,7 +195,7 @@ export function ProjectTabs() {
           type="button"
           onClick={() => setAdding(true)}
           class={cn(
-            'shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[12px] font-medium border-none cursor-pointer',
+            'shrink-0 inline-flex items-center gap-1 h-7 px-2 rounded-lg text-meta font-medium border-none cursor-pointer',
             'bg-transparent text-(--ds-gray-900) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) transition-[color,background-color] duration-150',
           )}
           disabled={loading}
@@ -221,12 +221,12 @@ export function ProjectTabs() {
                 setNewUrl('');
               }
             }}
-            class="h-7 w-[280px] px-2.5 rounded-lg bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) outline-none text-[12px] text-(--ds-gray-1000) placeholder:text-(--ds-gray-900) focus:border-(--ds-gray-alpha-400)"
+            class="h-7 w-[280px] px-2.5 rounded-lg bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) outline-none text-meta text-(--ds-gray-1000) placeholder:text-(--ds-gray-900) focus:border-(--ds-gray-alpha-400)"
           />
           <button
             type="submit"
             disabled={loading || !newUrl.trim()}
-            class="h-7 px-2.5 rounded-lg bg-(--ds-gray-alpha-100) border-none cursor-pointer text-[12px] font-semibold text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) disabled:opacity-40 disabled:cursor-not-allowed transition-[background-color,opacity] duration-150"
+            class="h-7 px-2.5 rounded-lg bg-(--ds-gray-alpha-100) border-none cursor-pointer text-meta font-semibold text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) disabled:opacity-40 disabled:cursor-not-allowed transition-[background-color,opacity] duration-150"
           >
             {loading ? 'Adding…' : 'Add'}
           </button>
