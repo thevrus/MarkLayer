@@ -68,11 +68,6 @@ app.use('*', async (c, next) => {
   }
 });
 
-type OgOp = { tool: string; parentId?: string };
-function isOgOp(o: unknown): o is OgOp {
-  return !!o && typeof o === 'object' && 'tool' in o && typeof o.tool === 'string';
-}
-
 app.route('/api', api);
 
 // Shared annotation page — injects dynamic OG tags then serves the SPA
@@ -166,8 +161,7 @@ app.get('/og/:key', async (c) => {
     const firstPageId = (await projectStore(c.env.DB).get(id))?.pageIds[0];
     if (firstPageId) stored = await annotations.getOps(firstPageId);
   }
-  const ops: OgOp[] = (stored ?? []).filter(isOgOp);
-  const png = await generateOgImage({ domain, ops });
+  const png = await generateOgImage({ domain, ops: stored ?? [] });
 
   c.executionCtx.waitUntil(c.env.OG_BUCKET.put(key, png, { httpMetadata: { contentType: 'image/png' } }));
 
