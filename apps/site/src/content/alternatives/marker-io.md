@@ -33,4 +33,4 @@ faq:
     a: "Yes. Some teams use Marker.io for end-user bug reports and MarkLayer for internal team feedback on staging or competitor pages where the widget isn't installed."
 ---
 
-Looking for a free [Marker.io](https://marker.io) alternative? Marker.io is paid only and built around tracker integrations (Jira, GitHub, Trello, Asana, ClickUp). Below are the strongest free options for the annotation half of the workflow. None of them replicate the integrations.
+Looking for a free [Marker.io](https://marker.io) alternative? Marker.io is paid only and built around tracker integrations (Jira, GitHub, Trello, Asana, ClickUp). Below are the strongest free options for the annotation half of the workflow. None of them replicate the integrations, and none capture a screenshot with console logs or session replay attached the way Marker.io does. What they do cover is the part most client feedback actually needs: mark up the page, send the link, move on. Development teams that depend on automatic metadata in every ticket should read the paid options as the honest answer.

@@ -1,5 +1,5 @@
 ---
-order: 4
+order: 5
 title: "Markup.io Pricing in 2026: The $29 to $79 Change"
 description: "Markup.io discontinued its free plan in early 2025 and moved Pro from $29 to $79/month. What the plans include now, and what former free-tier users can do."
 h1: "Markup.io pricing in 2026: what changed and what it costs now"

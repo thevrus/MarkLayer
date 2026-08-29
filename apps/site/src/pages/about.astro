@@ -24,63 +24,65 @@ const description =
     />
   </head>
   <body>
-    <SiteHeader />
-    <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'About' }]} />
-    <h1>About the author</h1>
-    <p class="ml-meta mt-0 mb-8">Last reviewed: {formatLastUpdated(modified)}</p>
-    <p class="ml-lede">
-      MarkLayer is built and maintained by Vadym Rusin, a software engineer who works on browser extensions, real-time
-      collaboration, and Cloudflare's edge platform. This page exists so you know who is behind the comparisons,
-      alternatives, and use-case guides on this site, and how the editorial work is done.
-    </p>
+    <div class="ml-shell">
+      <SiteHeader />
+      <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'About' }]} />
+      <h1>About the author</h1>
+      <p class="ml-meta mt-0 mb-8">Last reviewed: {formatLastUpdated(modified)}</p>
+      <p class="ml-lede">
+        MarkLayer is built and maintained by Vadym Rusin, a software engineer who works on browser extensions, real-time
+        collaboration, and Cloudflare's edge platform. This page exists so you know who is behind the comparisons,
+        alternatives, and use-case guides on this site, and how the editorial work is done.
+      </p>
 
-    <h2>Vadym Rusin</h2>
-    <p>
-      I'm a software engineer focused on browser extensions, real-time collaboration, and Cloudflare's edge platform
-      (Workers, Durable Objects, D1, R2). I read and write Preact, TypeScript, Hono, and Cloudflare's Workers runtime
-      daily. MarkLayer started as a tool I wanted for design review and visual feedback on live pages and turned into
-      the public free + anonymous version you're looking at now.
-    </p>
-    <p>
-      The full source is on <a href={REPO_URL}>GitHub</a>. Anyone can read it, file issues, or self-host their own
-      instance on Cloudflare. Reach me at <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a> or via{' '}
-      <a href={`${REPO_URL}/issues`}>GitHub Issues</a>.
-    </p>
+      <h2>Vadym Rusin</h2>
+      <p>
+        I'm a software engineer focused on browser extensions, real-time collaboration, and Cloudflare's edge platform
+        (Workers, Durable Objects, D1, R2). I read and write Preact, TypeScript, Hono, and Cloudflare's Workers runtime
+        daily. MarkLayer started as a tool I wanted for design review and visual feedback on live pages and turned into
+        the public free + anonymous version you're looking at now.
+      </p>
+      <p>
+        The full source is on <a href={REPO_URL}>GitHub</a>. Anyone can read it, file issues, or self-host their own
+        instance on Cloudflare. Reach me at <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a> or via{' '}
+        <a href={`${REPO_URL}/issues`}>GitHub Issues</a>.
+      </p>
 
-    <h2>What MarkLayer is built on</h2>
-    <p>
-      MarkLayer's stack is public. The Chrome extension is built with WXT and Preact + Preact Signals. The backend is
-      Cloudflare Workers (Hono framework), with a Durable Object per share session for real-time WebSocket fan-out, D1
-      (SQLite at the edge) for annotation persistence, and R2 for OG image storage. The choice of stack is itself an
-      editorial position: free, open-source software that runs on a low-cost edge platform is what makes the "no paid
-      plan, ever" promise structurally credible.
-    </p>
+      <h2>What MarkLayer is built on</h2>
+      <p>
+        MarkLayer's stack is public. The Chrome extension is built with WXT and Preact + Preact Signals. The backend is
+        Cloudflare Workers (Hono framework), with a Durable Object per share session for real-time WebSocket fan-out, D1
+        (SQLite at the edge) for annotation persistence, and R2 for OG image storage. The choice of stack is itself an
+        editorial position: free, open-source software that runs on a low-cost edge platform is what makes the "no paid
+        plan, ever" promise structurally credible.
+      </p>
 
-    <h2>Editorial approach</h2>
-    <p>
-      Comparison and alternatives pages on this site are written from hands-on use, public documentation, and competitor
-      pricing pages at the time of last review. When MarkLayer is genuinely the wrong fit for a workflow, the relevant
-      page says so and points to a better tool. Every comparison page has a date stamp at the top showing when its
-      pricing and feature claims were last checked.
-    </p>
-    <p>
-      I don't accept payment, sponsorship, or affiliate fees from any tool listed in a comparison or alternatives page.
-      There are no affiliate links on this site.
-    </p>
+      <h2>Editorial approach</h2>
+      <p>
+        Comparison and alternatives pages on this site are written from hands-on use, public documentation, and competitor
+        pricing pages at the time of last review. When MarkLayer is genuinely the wrong fit for a workflow, the relevant
+        page says so and points to a better tool. Every comparison page has a date stamp at the top showing when its
+        pricing and feature claims were last checked.
+      </p>
+      <p>
+        I don't accept payment, sponsorship, or affiliate fees from any tool listed in a comparison or alternatives page.
+        There are no affiliate links on this site.
+      </p>
 
-    <h2>Corrections policy</h2>
-    <p>
-      If anything stated about another product is wrong, outdated, or unfair, I want to fix it. The fastest path is
-      opening a GitHub issue at <a href={`${REPO_URL}/issues`}>github.com/thevrus/MarkLayer/issues</a> with the URL and
-      the specific claim that needs updating. Corrections typically ship within a few days. If a competitor has changed
-      pricing or shipped a feature that closes a gap I called out, that's the kind of update I want to see and apply.
-    </p>
+      <h2>Corrections policy</h2>
+      <p>
+        If anything stated about another product is wrong, outdated, or unfair, I want to fix it. The fastest path is
+        opening a GitHub issue at <a href={`${REPO_URL}/issues`}>github.com/thevrus/MarkLayer/issues</a> with the URL and
+        the specific claim that needs updating. Corrections typically ship within a few days. If a competitor has changed
+        pricing or shipped a feature that closes a gap I called out, that's the kind of update I want to see and apply.
+      </p>
 
-    <h2>Contact</h2>
-    <p>
-      GitHub Issues for product feedback or comparison-page corrections. Email at{' '}
-      <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a> for everything else.
-    </p>
+      <h2>Contact</h2>
+      <p>
+        GitHub Issues for product feedback or comparison-page corrections. Email at{' '}
+        <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a> for everything else.
+      </p>
+    </div>
     <SiteFooter />
   </body>
 </html>

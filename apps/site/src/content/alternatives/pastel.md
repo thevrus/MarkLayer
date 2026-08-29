@@ -1,7 +1,7 @@
 ---
 order: 1
 title: "Free Pastel Alternative: Open-Source MarkLayer + 3 More"
-description: "Pastel's free plan caps at 1 user and 1 canvas, then bills per seat. MarkLayer is the open-source replacement for the visual-feedback core. Compare 4 alternatives."
+description: "Looking for a free Pastel alternative? Pastel caps its free plan at 1 user and 1 canvas, then bills per seat. Compare 4 Pastel alternatives, led by open-source MarkLayer."
 target: "Pastel"
 bottomLine: "MarkLayer is the only fully free, open-source Pastel alternative. Chrome extension, real-time live cursors, link-based sharing, no account. Markup.io covers similar ground but has no free plan ($79/month). PageProofer and BugHerd are paid alternatives."
 hubBlurb: "Free plan caps at one canvas, then per-seat billing. MarkLayer is the open-source replacement."

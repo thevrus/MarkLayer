@@ -23,17 +23,26 @@ export const WORKER_DEV = 'http://localhost:5173';
  */
 export const FONTS_HREF = 'https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,400..700;1,400..700&display=swap';
 
-/** The nav sections. A page in one of these suppresses its own nav link. */
-export type Section = 'compare' | 'alternatives' | 'use-cases' | 'guides' | 'pricing';
+/**
+ * The nav sections, in the order the header renders them. One entry per section:
+ * the label, the hub it links to, and every path prefix that counts as being
+ * inside it — `/vs/pastel` is a comparison, `/for/qa` is a use case. A page in a
+ * section suppresses its own nav link.
+ */
+export const SECTIONS = [
+  { key: 'compare', label: 'Compare', href: '/compare', prefixes: ['/compare', '/vs/'] },
+  { key: 'alternatives', label: 'Alternatives', href: '/alternatives', prefixes: ['/alternatives'] },
+  { key: 'use-cases', label: 'Use cases', href: '/use-cases', prefixes: ['/use-cases', '/for/'] },
+  { key: 'guides', label: 'Guides', href: '/guides', prefixes: ['/guides'] },
+  { key: 'changelog', label: 'Changelog', href: '/changelog', prefixes: ['/changelog'] },
+  { key: 'pricing', label: 'Pricing', href: '/pricing', prefixes: ['/pricing'] },
+] as const;
+
+export type Section = (typeof SECTIONS)[number]['key'];
 
 /** `/vs/pastel` → `compare`, `/for/qa` → `use-cases`. Undefined outside the nav. */
 export function sectionFor(path: string): Section | undefined {
-  if (path.startsWith('/compare') || path.startsWith('/vs/')) return 'compare';
-  if (path.startsWith('/alternatives')) return 'alternatives';
-  if (path.startsWith('/use-cases') || path.startsWith('/for/')) return 'use-cases';
-  if (path.startsWith('/guides')) return 'guides';
-  if (path.startsWith('/pricing')) return 'pricing';
-  return undefined;
+  return SECTIONS.find((s) => s.prefixes.some((prefix) => path.startsWith(prefix)))?.key;
 }
 
 const LAST_UPDATED_FORMAT = new Intl.DateTimeFormat('en-US', {
@@ -45,4 +54,19 @@ const LAST_UPDATED_FORMAT = new Intl.DateTimeFormat('en-US', {
 /** "2026-04-12" → "April 2026". Matches the byline format the Worker shipped. */
 export function formatLastUpdated(iso: string): string {
   return LAST_UPDATED_FORMAT.format(new Date(`${iso}T00:00:00Z`));
+}
+
+const RELEASE_DATE_FORMAT = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+/**
+ * "2026-08-28" → "August 28, 2026". A release happened on a day, not in a month,
+ * so the changelog states the day the month-level byline elsewhere would round off.
+ */
+export function formatReleaseDate(iso: string): string {
+  return RELEASE_DATE_FORMAT.format(new Date(`${iso}T00:00:00Z`));
 }

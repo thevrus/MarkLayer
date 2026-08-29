@@ -12,7 +12,7 @@ modified: 2026-03-22
 rows:
   - feature: "Price"
     ml: "Free"
-    them: "Paid (subscription per user)"
+    them: "No free plan. Standard $50/month (5 members); extra seats $8 each"
   - feature: "Sign-up required"
     ml: "No"
     them: "Yes"
