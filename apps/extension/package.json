@@ -19,7 +19,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
+    "vite": "^8.2.2",
     "web-ext": "^10.6.0",
     "wxt": "^0.21.4"
   },
@@ -28,11 +28,11 @@
     "@marklayer/types": "workspace:*",
     "@preact/signals": "^2.11.1",
     "idb-keyval": "^6.3.0",
-    "lucide-preact": "^1.31.0",
+    "lucide-preact": "^1.37.0",
     "nanoid": "^6.0.0",
     "perfect-freehand": "^1.2.3",
     "preact": "^10.29.8",
-    "simple-icons": "^16.28.0",
+    "simple-icons": "^16.29.0",
     "tinykeys": "^4.0.0"
   }
 }

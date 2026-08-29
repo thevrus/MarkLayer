@@ -11,33 +11,33 @@
     "deploy": "wrangler deploy",
     "check": "tsc --noEmit",
     "sync:shell": "node scripts/sync-shell.mjs",
-    "test": "bun test src"
+    "test": "bun test src web"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
-    "@cloudflare/vite-plugin": "^1.52.1",
-    "@hono/zod-openapi": "^1.5.1",
+    "@cloudflare/vite-plugin": "^1.54.2",
+    "@hono/zod-openapi": "^1.6.1",
+    "@marklayer/site": "workspace:*",
     "@marklayer/types": "workspace:*",
-    "@posthog/react": "^1.10.3",
+    "@posthog/react": "^1.10.5",
     "@preact/signals": "^2.11.1",
     "@resvg/resvg-wasm": "^2.6.2",
-    "hono": "^4.13.2",
-    "lucide-preact": "^1.31.0",
+    "hono": "^4.13.5",
+    "lucide-preact": "^1.37.0",
     "modern-screenshot": "^4.7.0",
     "nanoid": "^6.0.0",
-    "posthog-js": "^1.417.1",
+    "posthog-js": "^1.422.5",
     "preact": "^10.29.8",
     "tinykeys": "^4.0.0",
-    "zod": "^4.4.3",
-    "@marklayer/site": "workspace:*"
+    "zod": "^4.5.2"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260815.1",
+    "@cloudflare/workers-types": "^5.20260829.1",
     "@tailwindcss/vite": "^4.3.3",
-    "@types/bun": "^1.3.14",
+    "@types/bun": "^1.4.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
-    "vite": "^8.2.1",
-    "wrangler": "^4.123.0"
+    "vite": "^8.2.2",
+    "wrangler": "^4.127.1"
   }
 }
