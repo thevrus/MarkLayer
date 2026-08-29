@@ -9,21 +9,39 @@ const byOrder = <T extends { data: { order: number } }>(entries: T[]): T[] =>
   [...entries].sort((a, b) => a.data.order - b.data.order);
 
 export const getComparisons = async () => byOrder(await getCollection('compare'));
+type Comparison = Awaited<ReturnType<typeof getComparisons>>[number];
 export const getAlternatives = async () => byOrder(await getCollection('alternatives'));
 export const getUseCases = async () => byOrder(await getCollection('useCases'));
 export const getGuides = async () => byOrder(await getCollection('guides'));
 
 /**
- * The competitor prices, read out of the `Price` row of each comparison's own
- * table so no pricing surface restates a figure the comparison pages own. Only
- * entries quoting a concrete published number qualify — "paid plans per user"
- * says nothing a reader can weigh — which is what the currency test selects.
+ * Releases, newest first. Sorted on the version rather than on `date`, because
+ * two versions can share a day — and numerically, because a plain string compare
+ * puts 0.10.0 before 0.9.0.
  */
-export const getPublishedPrices = async (): Promise<{ id: string; competitor: string; price: string }[]> =>
-  (await getComparisons()).flatMap((c) => {
+export const getReleases = async () =>
+  [...(await getCollection('releases'))].sort((a, b) =>
+    b.data.version.localeCompare(a.data.version, undefined, { numeric: true }),
+  );
+
+/**
+ * Every competitor price, read out of the `Price` row of each comparison's own
+ * table so no other surface restates a figure the comparison pages own. The
+ * `Price` row label lives here and nowhere else.
+ */
+export const getCompetitorPrices = (comparisons: Comparison[]): { id: string; competitor: string; price: string }[] =>
+  comparisons.flatMap((c) => {
     const price = c.data.rows.find((r) => r.feature === 'Price')?.them;
-    return price && /[$€£]/.test(price) ? [{ id: c.id, competitor: c.data.competitor, price }] : [];
+    return price ? [{ id: c.id, competitor: c.data.competitor, price }] : [];
   });
+
+/**
+ * The subset `/pricing` can quote: only entries carrying a concrete published
+ * number — "paid plans per user" says nothing a reader can weigh — which is what
+ * the currency test selects.
+ */
+export const getPublishedPrices = async () =>
+  getCompetitorPrices(await getComparisons()).filter((p) => /[$€£]/.test(p.price));
 
 export type SiteLink = { href: string; label: string };
 
