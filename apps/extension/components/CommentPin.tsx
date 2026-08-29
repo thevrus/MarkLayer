@@ -35,7 +35,7 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
     <div class="flex flex-col gap-2.5">
       {parsed.task && (
         <p
-          class="text-(--ds-gray-1000) text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0 font-medium"
+          class="text-(--ds-gray-1000) text-ui leading-body wrap-break-word whitespace-pre-wrap m-0 font-medium"
           style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
         >
           {parsed.task}
@@ -43,17 +43,17 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
       )}
 
       {parsed.fields.length > 0 && (
-        <dl class="grid grid-cols-[64px_1fr] gap-x-3 gap-y-1 items-baseline text-[12px] m-0">
+        <dl class="grid grid-cols-[64px_1fr] gap-x-3 gap-y-1 items-baseline text-meta m-0">
           {parsed.fields.map(([label, value]) => {
             const isCode = label === 'Selector';
             return (
               <div key={label} class="contents">
-                <dt class="text-[12px] text-(--ds-gray-900) font-medium tabular-nums">{label}</dt>
+                <dt class="text-meta text-(--ds-gray-900) font-medium tabular-nums">{label}</dt>
                 <dd
                   class={cn(
                     'text-(--ds-gray-1000) m-0 wrap-break-word',
                     isCode &&
-                      'font-mono text-[12px] bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) rounded-md px-1.5 py-0.5',
+                      'font-mono text-meta bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) rounded-md px-1.5 py-0.5',
                   )}
                 >
                   {isCode ? unwrapInline(value) : value}
@@ -66,7 +66,7 @@ function InspectorCommentBody({ parsed, resolved }: { parsed: ParsedInspectorCom
 
       {parsed.markup && (
         <pre
-          class="m-0 text-[12px] font-mono leading-snug text-(--ds-gray-1000)
+          class="m-0 text-meta font-mono leading-snug text-(--ds-gray-1000)
                  bg-(--ml-syntax-bg) border border-(--ds-gray-alpha-400) rounded-lg
                  px-2 py-1.5 overflow-x-auto max-h-32 whitespace-pre-wrap wrap-break-word"
         >
@@ -121,7 +121,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
           // A marker on someone else's page: flat fill, a surface-coloured ring
           // to separate it from whatever is behind, and one tight shadow. The
           // ring thickens on hover instead of the pin growing.
-          class="w-7 h-7 rounded-full text-white text-[12px] font-semibold
+          class="w-7 h-7 rounded-full text-white text-meta font-semibold
                  grid place-items-center
                  shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
                  transition-[box-shadow] duration-150 ease-out
@@ -173,13 +173,13 @@ export function CommentPin({ op }: { op: CommentOp }) {
             {/* Header */}
             <div class="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
               <div
-                class="w-5 h-5 rounded-full text-white text-[12px] font-medium grid place-items-center shrink-0
+                class="w-5 h-5 rounded-full text-white text-meta font-medium grid place-items-center shrink-0
                        shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
                 style={{ background: op.color }}
               >
                 {op.num}
               </div>
-              <span class="text-[12px] text-(--ds-gray-900) font-medium tabular-nums tracking-wide">
+              <span class="text-meta text-(--ds-gray-900) font-medium tabular-nums tracking-wide">
                 {timeAgo(op.ts)}
               </span>
               {op.priority && <PriorityBadge priority={op.priority} class="ml-auto" />}
@@ -193,7 +193,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
                 <InspectorCommentBody parsed={inspector} resolved={resolved} />
               ) : (
                 <p
-                  class="text-(--ds-gray-1000) text-[13px] leading-[1.55] wrap-break-word whitespace-pre-wrap m-0"
+                  class="text-(--ds-gray-1000) text-ui leading-body wrap-break-word whitespace-pre-wrap m-0"
                   style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
                 >
                   {op.text}
@@ -214,7 +214,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
 
             {/* Footer */}
             <div class="px-3.5 py-2 flex items-center gap-1.5">
-              <span class="text-[12px] text-(--ds-gray-900) font-medium">Click to reply</span>
+              <span class="text-meta text-(--ds-gray-900) font-medium">Click to reply</span>
             </div>
           </div>
         </div>

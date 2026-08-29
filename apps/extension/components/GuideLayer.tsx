@@ -86,7 +86,7 @@ export function GuidePreview({
 export function GuidePositionTag({ x, y, text }: { x: number; y: number; text: string }) {
   return (
     <div
-      class="fixed z-2147483647 pointer-events-none font-mono text-[10.5px] tabular-nums"
+      class="fixed z-2147483647 pointer-events-none font-mono text-micro tabular-nums"
       style={{
         left: x,
         top: y,
@@ -135,7 +135,7 @@ export function GuidePill({
   return (
     <div
       data-marklayer-overlay="true"
-      class="fixed z-2147483647 inline-flex items-center font-mono text-[10.5px] tabular-nums rounded-md overflow-hidden"
+      class="fixed z-2147483647 inline-flex items-center font-mono text-micro tabular-nums rounded-md overflow-hidden"
       style={{
         ...style,
         background: GUIDE_PANEL,
@@ -182,7 +182,7 @@ export function GuideHint({ bounds }: { bounds?: RectLike }) {
   return (
     <div
       class="fixed z-2147483647 pointer-events-none
-             px-3 py-1.5 text-[11.5px] font-medium tracking-[0.01em] rounded-lg
+             px-3 py-1.5 text-mini font-medium tracking-label rounded-lg
              animate-[fadeInDown_180ms_ease-out] font-mono whitespace-nowrap"
       style={{
         ...containerStyle,

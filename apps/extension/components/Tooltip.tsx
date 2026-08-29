@@ -118,7 +118,7 @@ export function Tooltip({
                 wrap ? 'w-44 leading-snug' : 'whitespace-nowrap',
               )}
             >
-              <span class="text-[12px] text-(--ds-gray-1000) font-medium tracking-[-0.01em]">{text}</span>
+              <span class="text-meta text-(--ds-gray-1000) font-medium tracking-ui">{text}</span>
               {shortcut && <ShortcutChip shortcut={shortcut} />}
             </BaseTooltip.Popup>
           </BaseTooltip.Positioner>

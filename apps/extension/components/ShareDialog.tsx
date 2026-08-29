@@ -31,6 +31,7 @@ import {
 } from '../lib/state';
 import type { CommentOp } from '../lib/types';
 import { useCopyToClipboard } from '../lib/useCopy';
+import { PanelSection } from './PanelSection';
 
 /**
  * Convert any pending inspector-stack items into CommentOps so they sync to the
@@ -92,7 +93,7 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       type="button"
       onClick={() => copy(value)}
       aria-label={label}
-      class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[12px] font-semibold cursor-pointer
+      class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-meta font-semibold cursor-pointer
              border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)
              text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
              transition-[color,background-color,border-color] duration-150"
@@ -158,9 +159,7 @@ export function ShareDialog() {
           )}
         >
           <div class="flex items-center justify-between">
-            <Dialog.Title className="text-[13px] font-semibold text-(--ds-gray-1000) m-0">
-              Share annotations
-            </Dialog.Title>
+            <Dialog.Title className="text-ui font-semibold text-(--ds-gray-1000) m-0">Share annotations</Dialog.Title>
             <Dialog.Close aria-label="Close" className={cn(geist.ctlSm, geist.ctlIdle, '-mr-1')}>
               <X size={16} strokeWidth={1.5} aria-hidden="true" />
             </Dialog.Close>
@@ -169,14 +168,14 @@ export function ShareDialog() {
           {/* Share link — only when the page can actually be proxied through marklayer.app */}
           {shareable ? (
             <div class="flex flex-col gap-1.5">
-              <div class="flex items-center gap-1.5 text-[12px] font-medium text-(--ds-gray-900)">
+              <div class="flex items-center gap-1.5 text-meta font-medium text-(--ds-gray-900)">
                 <Link2 size={11} aria-hidden="true" />
                 Public link
               </div>
               <div class="flex items-center gap-1.5">
                 <code
                   class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
-                         text-[12px] text-(--ds-gray-1000) font-mono truncate"
+                         text-meta text-(--ds-gray-1000) font-mono truncate"
                 >
                   {shareUrl}
                 </code>
@@ -185,7 +184,7 @@ export function ShareDialog() {
               {embedHostile && (
                 <div
                   class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-amber-400/10 border border-amber-400/25
-                         text-[12px] text-(--ds-gray-1000) leading-snug"
+                         text-meta text-(--ds-gray-1000) leading-snug"
                 >
                   <AlertTriangle size={12} class="shrink-0 mt-px text-amber-400/90" aria-hidden="true" />
                   <span>
@@ -198,7 +197,7 @@ export function ShareDialog() {
           ) : (
             <div
               class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
-                     text-[12px] text-(--ds-gray-900) leading-snug"
+                     text-meta text-(--ds-gray-900) leading-snug"
             >
               <MonitorOff size={12} class="shrink-0 mt-px" aria-hidden="true" />
               <span>
@@ -210,44 +209,43 @@ export function ShareDialog() {
 
           {/* Connect an AI agent */}
           <div class="flex flex-col gap-1.5">
-            <div class="flex items-center gap-1.5 text-[12px] font-medium text-(--ds-gray-900)">
+            <div class="flex items-center gap-1.5 text-meta font-medium text-(--ds-gray-900)">
               <Bot size={11} aria-hidden="true" />
               Connect an AI agent
             </div>
-            <p class="text-[12px] text-(--ds-gray-900) leading-snug m-0">
+            <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
               Let an agent read and resolve your annotations. Run once in any project:
             </p>
             <div class="flex items-center gap-1.5">
               <code
                 class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
-                       text-[12px] text-(--ds-gray-1000) font-mono truncate"
+                       text-meta text-(--ds-gray-1000) font-mono truncate"
               >
                 {claudeCommand}
               </code>
               <CopyButton value={claudeCommand} label="Copy Claude Code command" />
             </div>
-            <details class="text-[12px] text-(--ds-gray-900)">
-              <summary class="cursor-pointer select-none hover:text-(--ds-gray-1000)">Other agents…</summary>
-              <div class="mt-1.5 flex items-center gap-1.5">
+            <PanelSection label="Cursor, Codex, Windsurf…">
+              <div class="flex items-center gap-1.5">
                 <code
                   class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
-                         text-[12px] text-(--ds-gray-1000) font-mono truncate"
+                         text-meta text-(--ds-gray-1000) font-mono truncate"
                 >
                   {npxCommand}
                 </code>
                 <CopyButton value={npxCommand} label="Copy npx command" />
               </div>
-              <p class="mt-1.5 text-[12px] text-(--ds-gray-900) leading-snug">
-                Cursor / Codex / Windsurf: paste the npx command into your MCP config under a "marklayer" entry.
+              <p class="mt-1.5 text-meta text-(--ds-gray-900) leading-snug m-0">
+                Paste the npx command into your MCP config under a "marklayer" entry.
               </p>
-            </details>
+            </PanelSection>
           </div>
 
           <a
             href={HOW_IT_WORKS_URL}
             target="_blank"
             rel="noopener"
-            class="text-[12px] text-(--ds-gray-900) hover:text-(--ds-gray-1000) no-underline hover:underline transition-colors"
+            class="text-meta text-(--ds-gray-900) hover:text-(--ds-gray-1000) no-underline hover:underline transition-colors"
           >
             How MarkLayer works
           </a>

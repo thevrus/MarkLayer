@@ -47,7 +47,7 @@ export function ContextMenu() {
                 }}
                 className={cn(
                   'w-full flex items-center gap-2.5 px-3 py-1.5 text-left',
-                  'text-[13px] font-medium leading-none',
+                  'text-ui font-medium leading-none',
                   glass.menuItem,
                   it.danger
                     ? 'text-(--ds-red-700) hover:bg-(--ds-red-700)/15 data-highlighted:bg-(--ds-red-700)/15'

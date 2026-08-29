@@ -25,6 +25,7 @@ import {
   setOpStatus,
 } from '../lib/state';
 import type { AreaOp } from '../lib/types';
+import { CancelButton } from './CancelButton';
 import { PriorityBadge, PriorityPicker } from './PriorityPicker';
 
 export interface DraftRect {
@@ -135,16 +136,16 @@ function AreaShape({ op }: { op: AreaOp }) {
           </div>
           {op.comment ? (
             <p
-              class="text-[13px] text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
+              class="text-ui text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
               {op.comment}
             </p>
           ) : (
-            <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1">No comment</p>
+            <p class="text-meta text-(--ds-gray-900) m-0 mt-1">No comment</p>
           )}
           <div class="flex items-center justify-between mt-2">
-            <span class="text-[12px] text-(--ds-gray-900) font-medium">{op.author}</span>
+            <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
             <div class="flex items-center gap-3">
               <button
                 type="button"
@@ -212,7 +213,7 @@ export function AreaPopover({
     >
       <div class="px-4 pt-3.5 pb-2">
         <span class={geist.sectionLabel}>Area annotation</span>
-        <p class="text-[12px] text-(--ds-gray-900) m-0 mt-1 tabular-nums">
+        <p class="text-meta text-(--ds-gray-900) m-0 mt-1 tabular-nums">
           {Math.round(rect.w)} × {Math.round(rect.h)} px
         </p>
       </div>
@@ -242,10 +243,7 @@ export function AreaPopover({
       <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="flex items-center justify-between px-4 py-2.5">
-        <div class="flex items-center gap-2">
-          <kbd class={geist.kbd}>Esc</kbd>
-          <span class="text-[12px] text-(--ds-gray-900) font-medium">cancel</span>
-        </div>
+        <CancelButton onClick={onCancel} />
         <button
           type="button"
           onClick={() => onCommit(taRef.current?.value.trim() || '', priority.value)}

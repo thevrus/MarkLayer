@@ -5,7 +5,7 @@ import { textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 
-const quote = 'text-[13px] m-0 mt-1 line-clamp-3 leading-relaxed';
+const quote = 'text-ui m-0 mt-1 line-clamp-3 leading-relaxed';
 
 interface Props {
   /** The text that was selected — the "before" side, and what a suggestion replaces. */
@@ -51,7 +51,7 @@ export function SelectionEdit({ text, suggestion, onChange, onSubmit }: Props) {
             onClick={() => onChange(text)}
             title="Propose replacement text for this selection"
             class="inline-flex items-center gap-1.5 mt-2 -ml-1.5 rounded-lg px-1.5 py-1
-                   text-[12px] font-medium text-(--ds-gray-900) bg-transparent border-none cursor-pointer
+                   text-meta font-medium text-(--ds-gray-900) bg-transparent border-none cursor-pointer
                    transition-colors hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000)"
           >
             <Replace size={14} strokeWidth={2.25} />
@@ -67,7 +67,7 @@ export function SelectionEdit({ text, suggestion, onChange, onSubmit }: Props) {
             <button
               type="button"
               onClick={() => onChange(null)}
-              class="text-[12px] font-medium text-(--ds-gray-900) hover:text-(--ds-gray-1000)
+              class="text-meta font-medium text-(--ds-gray-900) hover:text-(--ds-gray-1000)
                      bg-transparent border-none cursor-pointer p-0 transition-colors"
             >
               Remove

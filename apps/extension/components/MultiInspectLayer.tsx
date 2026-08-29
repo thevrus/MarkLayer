@@ -2,11 +2,12 @@ import { cn } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useRef } from 'preact/hooks';
-import { secondaryBtn, submitBtn, textareaCls } from '../lib/buttons';
+import { submitBtn, textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { getSelector, isExtensionElement, pickElementAtPoint, snapshotElement } from '../lib/selector';
 import { activeTool, addToInspectorStack, inspectorStack, outputDetail, toast } from '../lib/state';
+import { CancelButton } from './CancelButton';
 
 interface DragState {
   startX: number;
@@ -152,14 +153,8 @@ export function MultiSelectPopover({
 
       <div class={cn(geist.divider, 'mx-3.5')} />
 
-      <div class="flex items-center justify-between gap-2 px-3 py-2.5">
-        <button
-          type="button"
-          onClick={onCancel}
-          class={cn(secondaryBtn, 'border-transparent hover:border-transparent')}
-        >
-          Cancel
-        </button>
+      <div class="flex items-center justify-between gap-2 px-4 py-2.5">
+        <CancelButton onClick={onCancel} />
         <button type="button" onClick={() => onCommit(taRef.current?.value.trim() ?? '')} class={submitBtn}>
           Add ↵
         </button>

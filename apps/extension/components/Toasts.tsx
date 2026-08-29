@@ -37,7 +37,7 @@ export function Toasts({ offset = 'top' }: { offset?: Offset }) {
               geist.surfaceSmall,
               glass.font,
               'flex items-center gap-2 h-9 px-3 rounded-lg',
-              'text-[13px] font-medium text-(--ds-gray-1000) whitespace-nowrap',
+              'text-ui font-medium text-(--ds-gray-1000) whitespace-nowrap',
               'animate-[fadeInDown_0.2s_ease-out]',
             )}
           >
