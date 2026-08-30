@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'preact/hooks';
 import { pickElementAtPoint } from '../lib/selector';
-import { activeTool, comments } from '../lib/state';
+import { activeTool, rootComments } from '../lib/state';
 import { CommentPin } from './CommentPin';
 import { CommentPopover } from './CommentPopover';
 
@@ -31,7 +31,7 @@ export function CommentLayer() {
       }}
     >
       {/* Placed pins */}
-      {comments.value.map((c) => (
+      {rootComments.value.map((c) => (
         <CommentPin key={c.id} op={c} />
       ))}
 

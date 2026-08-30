@@ -60,7 +60,9 @@ function TriageMenu({
 }: {
   trigger: ComponentChildren;
   children: ComponentChildren;
-  onOpenChange: (open: boolean) => void;
+  /** Only a pin needs this — it holds its hover card open while the menu is out.
+   *  The annotation panel has nothing to latch, so it passes nothing. */
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <Menu.Root onOpenChange={onOpenChange}>
@@ -101,7 +103,7 @@ function StatusPicker({
 }: {
   opId: string;
   status: CommentStatus;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <TriageMenu
@@ -152,7 +154,7 @@ function AssigneePicker({
 }: {
   opId: string;
   assignee: string | null;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const options = new Map<string, string>([[localUser.name, localUser.color]]);
   for (const [name, c] of peerRoster.value) if (!options.has(name)) options.set(name, c);
@@ -223,14 +225,17 @@ export function TriageSection({
   status,
   assignee,
   onOpenChange,
+  class: cls,
 }: {
   opId: string;
   status: CommentStatus;
   assignee: string | null;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
+  /** The pins keep the grid tight inside a hover card; the panel gives it room. */
+  class?: string;
 }) {
   return (
-    <div class="px-3.5 py-2.5 grid grid-cols-2 gap-2">
+    <div class={cn('px-3.5 py-2.5 grid grid-cols-2 gap-2', cls)}>
       <div class="flex flex-col gap-1">
         <span class={triageLabelCls}>Status</span>
         <StatusPicker opId={opId} status={status} onOpenChange={onOpenChange} />
