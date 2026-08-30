@@ -8,6 +8,7 @@ import { Hono } from 'hono/tiny';
 import { api } from './api';
 import { dayCached, once } from './http';
 import { generateOgImage } from './og';
+import { collectMarks } from './og-marks';
 import { proxy } from './proxy';
 import { annotationStore, nowInSeconds, projectStore } from './store';
 
@@ -68,6 +69,23 @@ app.use('*', async (c, next) => {
   }
 });
 
+/**
+ * What a share link says when it unfurls. The site's own blurb pitches the
+ * product; this says what is actually on the page someone was sent.
+ */
+function shareDescription({ domain, ops }: { domain: string; ops: unknown[] }): string {
+  const { tally } = collectMarks(ops);
+  const counts = [
+    { n: tally.comments, word: 'comment' },
+    { n: tally.drawings, word: 'drawing' },
+    { n: tally.notes, word: 'note' },
+  ]
+    .filter((p) => p.n > 0)
+    .map((p) => `${p.n} ${p.word}${p.n > 1 ? 's' : ''}`);
+  const what = counts.length > 0 ? counts.join(', ') : 'Shared annotations';
+  return `${what} on ${domain}. Open it in any browser. No extension, no account, no sign-up.`;
+}
+
 app.route('/api', api);
 
 // Shared annotation page — injects dynamic OG tags then serves the SPA
@@ -75,7 +93,8 @@ app.get('/s/:id', async (c) => {
   const annotationId = c.req.param('id');
   const reqUrl = new URL(c.req.url);
   let domain = 'a webpage';
-  const pageUrl = await annotationStore(c.env.DB).getUrl(annotationId);
+  const annotations = annotationStore(c.env.DB);
+  const [pageUrl, ops] = await Promise.all([annotations.getUrl(annotationId), annotations.getOps(annotationId)]);
   if (pageUrl) {
     try {
       domain = new URL(pageUrl).hostname;
@@ -94,10 +113,13 @@ app.get('/s/:id', async (c) => {
   let html = await res.text();
   const ogImage = `${reqUrl.origin}/og/${annotationId}.png?domain=${encodeURIComponent(domain)}`;
   const title = `MarkLayer \u00b7 Annotations on ${domain}`;
+  const description = shareDescription({ domain, ops: ops ?? [] });
   html = html
     .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${reqUrl.href}">`)
     .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}">`)
     .replace(/<meta property="og:image"[^>]*>/, `<meta property="og:image" content="${ogImage}">`)
+    .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${description}">`)
+    .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${description}">`)
     .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}">`)
     .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`)
     .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${reqUrl.href}" />`);
@@ -117,8 +139,11 @@ app.get('/p/:id', async (c) => {
   const project = await projectStore(c.env.DB).get(projectId);
   const firstPageId = project?.pageIds[0];
   pageCount = project?.pageIds.length ?? 0;
+  let firstPageOps: unknown[] | null = null;
   if (firstPageId) {
-    const firstUrl = await annotationStore(c.env.DB).getUrl(firstPageId);
+    const pages = annotationStore(c.env.DB);
+    const [firstUrl, ops] = await Promise.all([pages.getUrl(firstPageId), pages.getOps(firstPageId)]);
+    firstPageOps = ops;
     if (firstUrl) {
       try {
         domain = new URL(firstUrl).hostname;
@@ -130,10 +155,13 @@ app.get('/p/:id', async (c) => {
   const ogImage = `${reqUrl.origin}/og/${projectId}.png?domain=${encodeURIComponent(domain)}`;
   const pagesLabel = pageCount > 0 ? ` (${pageCount} pages)` : '';
   const title = `MarkLayer · Annotations on ${domain}${pagesLabel}`;
+  const description = shareDescription({ domain, ops: firstPageOps ?? [] });
   html = html
     .replace(/<meta property="og:url"[^>]*>/, `<meta property="og:url" content="${reqUrl.href}">`)
     .replace(/<meta property="og:title"[^>]*>/, `<meta property="og:title" content="${title}">`)
     .replace(/<meta property="og:image"[^>]*>/, `<meta property="og:image" content="${ogImage}">`)
+    .replace(/<meta property="og:description"[^>]*>/, `<meta property="og:description" content="${description}">`)
+    .replace(/<meta name="twitter:description"[^>]*>/, `<meta name="twitter:description" content="${description}">`)
     .replace(/<meta name="twitter:title"[^>]*>/, `<meta name="twitter:title" content="${title}">`)
     .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`)
     .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${reqUrl.href}" />`);

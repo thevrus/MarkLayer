@@ -36,14 +36,6 @@ function mark({ x, top, height, fill }: { x: number; top: number; height: number
   </g>`;
 }
 
-function markLockup({ x, top, height }: { x: number; top: number; height: number }): string {
-  // Cap height of Geist is ~0.72em, so half of it below the mark's mid-line puts
-  // the wordmark's caps optically centered on the mark rather than sitting low.
-  const baseline = top + height / 2 + 20 * 0.36;
-  return `${mark({ x, top, height, fill: '#ffffff' })}
-  <text x="${TEXT_AXIS}" y="${baseline.toFixed(1)}" font-family="Geist" font-size="20" font-weight="500" fill="#ffffff" letter-spacing="-0.4">MarkLayer</text>`;
-}
-
 /**
  * What stands in for the page when a share carries no annotations at all: the
  * mark at signature scale, running off the right edge and whole on every other,
@@ -147,17 +139,13 @@ ${
   artwork
     ? `
   <g clip-path="url(#panelClip)">
-    <rect x="${PANEL.x}" y="${PANEL.y}" width="${PANEL.drawnWidth}" height="${PANEL.height}" rx="14" fill="#0a0a0a"/>
-    <g opacity="0.94">
-      ${artwork}
-    </g>
-  </g>
-  <rect x="${PANEL.x + 0.5}" y="${PANEL.y + 0.5}" width="${PANEL.drawnWidth}" height="${PANEL.height - 1}" rx="13.5" fill="none" stroke="#232326"/>
-  <path d="M${PANEL.x + 14} ${PANEL.y + 1.5}H${PANEL.x + PANEL.drawnWidth}" stroke="#ffffff" stroke-opacity="0.07" stroke-linecap="round"/>`
+    <rect x="${PANEL.x}" y="${PANEL.y}" width="${PANEL.drawnWidth}" height="${PANEL.height}" rx="14" fill="#0c0c0c"/>
+    ${artwork}
+  </g>`
     : watermark()
 }
 
-  ${markLockup({ x: MARK_AXIS, top: 58, height: 34 })}
+  ${mark({ x: MARK_AXIS, top: 54, height: 54, fill: '#ffffff' })}
 
   ${faviconUri ? `<image x="${MARK_AXIS}" y="${iconY.toFixed(1)}" width="${icon}" height="${icon}" href="${faviconUri}"/>` : ''}
 
