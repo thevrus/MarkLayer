@@ -211,7 +211,9 @@ export type CommentMeta = z.infer<typeof commentMetaSchema>;
 /** Triage state carried by every annotation that owns a comment thread. */
 const triageable = {
   status: z.optional(commentStatusSchema),
-  priority: z.optional(commentPrioritySchema),
+  /** Nullable for the same reason as `assignee`: a cleared priority has to reach
+   * peers as an explicit null, since a dropped key reads as "unchanged". */
+  priority: z.optional(z.nullable(commentPrioritySchema)),
   /** Display name of the person the thread is assigned to. Nullable (not just
    * optional) so an unassign survives JSON serialization on the wire. */
   assignee: z.optional(z.nullable(z.string())),
