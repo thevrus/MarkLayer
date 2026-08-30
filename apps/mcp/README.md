@@ -46,6 +46,17 @@ The agent will call `marklayer_watch_annotations` in a loop and process incoming
 
 Equivalent env vars: `MARKLAYER_ROOM`, `MARKLAYER_API_BASE`, `MARKLAYER_AGENT`.
 
+## Troubleshooting
+
+**"Connection closed" on first start.** `npx -y` downloads the package on the
+first run, and a cold download can outlast the MCP client's startup timeout.
+Prime the cache once (`npx -y marklayer-mcp --help`) and reconnect, or install
+it up front with `npm i -g marklayer-mcp` and point the client at the binary.
+
+**Tools return "room is not connected".** The WebSocket dropped — rooms are held
+open by a Durable Object and a long-idle agent can be disconnected. Call
+`marklayer_connect_room` with the same URL to reattach.
+
 ## Creating rooms programmatically
 
 This server *consumes* an existing share link. To *mint* one (or many) from code — e.g. seed a room per page in a batch of URLs before pointing the agent at it — POST directly to the public HTTP API:

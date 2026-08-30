@@ -26,10 +26,10 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "bun build src/cli.ts --target=node --format=esm --outfile dist/cli.js --external @modelcontextprotocol/sdk --external ws --external nanoid --external zod",
     "check": "tsc --noEmit",
     "deploy": "node scripts/publish-if-new.mjs",
-    "dev": "tsc -p tsconfig.build.json --watch",
+    "dev": "bun build src/cli.ts --target=node --format=esm --outfile dist/cli.js --external @modelcontextprotocol/sdk --external ws --external nanoid --external zod --watch",
     "test": "bun test"
   },
   "dependencies": {

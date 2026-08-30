@@ -6,6 +6,7 @@ import {
   type DrawOp,
   drawOpSchema,
   isAnnotationOp,
+  opAnchor,
   opsArraySchema,
   resolveOpStatus,
 } from '@marklayer/types';
@@ -43,7 +44,9 @@ export class RoomClient {
   private ops: DrawOp[] = [];
   private meta: RoomMeta = { url: null, width: null, createdAt: null, expiresAt: null };
   private initResolve: (() => void) | null = null;
+  private initReject: ((err: Error) => void) | null = null;
   private initPromise: Promise<void>;
+  private closedReason: string | null = null;
   private pending: PendingNew | null = null;
   private peerId = `mcp-${nanoid()}`;
 
@@ -52,13 +55,22 @@ export class RoomClient {
     public readonly roomId: string,
     private readonly agentId: string,
   ) {
-    this.initPromise = new Promise((resolve) => {
+    this.initPromise = new Promise((resolve, reject) => {
       this.initResolve = resolve;
+      this.initReject = reject;
     });
+    // Nothing awaits initPromise until connect(), so an early rejection would be
+    // an unhandled rejection that kills the process before the tool can report it.
+    this.initPromise.catch(() => {});
   }
 
-  /** Connect and resolve once the room init payload is received. */
-  async connect(): Promise<void> {
+  /**
+   * Connect and resolve once the room init payload is received. Every failure
+   * path has to reject rather than hang: this runs before the MCP transport is
+   * wired up, so a stuck connect means the client never sees a response to
+   * `initialize` and reports the server as closed.
+   */
+  async connect({ initTimeoutMs = 15_000 }: { initTimeoutMs?: number } = {}): Promise<void> {
     const wsUrl = this.toWebSocketUrl();
     this.ws = new WebSocket(wsUrl);
 
@@ -71,7 +83,15 @@ export class RoomClient {
     });
 
     this.ws.on('error', (err) => {
+      this.markClosed(err.message);
+      this.initReject?.(err);
       if (this.pending) this.pending.reject(err);
+    });
+
+    this.ws.on('close', (code) => {
+      this.markClosed(`socket closed (code ${code})`);
+      this.initReject?.(new Error(`room ${this.roomId}: socket closed before init (code ${code})`));
+      if (this.pending) this.pending.reject(new Error(`room ${this.roomId}: socket closed (code ${code})`));
     });
 
     await new Promise<void>((resolve, reject) => {
@@ -87,13 +107,32 @@ export class RoomClient {
       this.ws?.once('error', onError);
     });
 
-    await this.initPromise;
+    const timer = setTimeout(() => {
+      this.initReject?.(new Error(`room ${this.roomId}: no init payload within ${initTimeoutMs}ms`));
+    }, initTimeoutMs);
+    try {
+      await this.initPromise;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Latch the first reason the socket died, so tool errors can say what happened. */
+  private markClosed(reason: string): void {
+    this.closedReason ??= reason;
+  }
+
+  /** Null while the socket is usable, otherwise why it is not. */
+  disconnectedReason(): string | null {
+    if (this.ws?.readyState === WebSocket.OPEN) return null;
+    return this.closedReason ?? 'not connected';
   }
 
   close(): void {
     if (this.pending?.timer) clearTimeout(this.pending.timer);
     if (this.pending?.flushTimer) clearTimeout(this.pending.flushTimer);
     this.pending = null;
+    this.markClosed('client disconnected');
     this.ws?.close();
     this.ws = null;
   }
@@ -117,8 +156,7 @@ export class RoomClient {
   getAnnotation(id: string): { op: AnnotationOp; replies: CommentOp[] } | null {
     const op = this.ops.find((o): o is AnnotationOp => isWatchable(o) && o.id === id);
     if (!op) return null;
-    const replies =
-      op.tool === 'comment' ? this.ops.filter((o): o is CommentOp => o.tool === 'comment' && o.parentId === id) : [];
+    const replies = this.ops.filter((o): o is CommentOp => o.tool === 'comment' && o.parentId === id);
     return { op, replies };
   }
 
@@ -150,8 +188,8 @@ export class RoomClient {
         },
         timer: setTimeout(() => {
           if (!this.pending) return;
-          const buffer = this.pending.buffer;
-          this.pending.resolve(buffer);
+          if (this.pending.flushTimer) clearTimeout(this.pending.flushTimer);
+          this.pending.resolve(this.pending.buffer);
         }, timeoutSeconds * 1000),
         flushTimer: null,
         buffer: [],
@@ -205,20 +243,28 @@ export class RoomClient {
     if (idx === -1) return false;
     const merged = applyOpPatch({ op: this.ops[idx], patch });
     if (!merged) return false;
+    // Send first: a local mutation the peers never saw would make every later
+    // read lie about what the human is looking at.
+    if (!this.send({ type: 'update_op', opId, patch })) return false;
     this.ops[idx] = merged;
-    return this.send({ type: 'update_op', opId, patch });
+    return true;
   }
 
+  /**
+   * Post a reply into an annotation's thread. Every annotation kind owns a thread
+   * — the app indexes replies by `parentId` regardless of what the parent is — so
+   * restricting this to comments silently dropped resolve summaries on the
+   * selection, area and inspect annotations that make up most rooms.
+   */
   private appendReply(parentId: string, text: string): boolean {
-    const parent = this.ops.find((o): o is CommentOp => o.tool === 'comment' && o.id === parentId && !o.parentId);
+    const parent = this.ops.find((o): o is AnnotationOp => isWatchable(o) && o.id === parentId);
     if (!parent) return false;
     const op: CommentOp = {
       id: nanoid(),
       tool: 'comment',
-      num: this.countComments() + 1,
+      num: this.countRootComments() + 1,
       text,
-      x: parent.x,
-      y: parent.y,
+      ...opAnchor(parent),
       color: AGENT_COLOR,
       lineWidth: parent.lineWidth,
       ts: Date.now(),
@@ -226,13 +272,16 @@ export class RoomClient {
       author: AGENT_NAME,
       assignedAgent: this.agentId,
     };
+    if (!this.send({ type: 'op', op })) return false;
     this.ops.push(op);
-    return this.send({ type: 'op', op });
+    return true;
   }
 
-  private countComments(): number {
+  /** Replies are numbered off the root threads only; counting them too would
+   *  hand a reply the same `num` a real comment already shows. */
+  private countRootComments(): number {
     let n = 0;
-    for (const o of this.ops) if (o.tool === 'comment') n += 1;
+    for (const o of this.ops) if (o.tool === 'comment' && !o.parentId) n += 1;
     return n;
   }
 
@@ -249,6 +298,7 @@ export class RoomClient {
         };
         this.initResolve?.();
         this.initResolve = null;
+        this.initReject = null;
         return;
       }
       case 'op': {

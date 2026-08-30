@@ -284,6 +284,16 @@ export async function startServer(opts: ServerOptions): Promise<void> {
     return room;
   };
 
+  /**
+   * A write on a dead socket used to come back as `annotation not found`, which
+   * sends the agent hunting for an id that is fine. Say what actually happened.
+   */
+  const ensureLive = (r: RoomClient): ToolContent | null => {
+    const why = r.disconnectedReason();
+    if (!why) return null;
+    return err(`room ${r.roomId} is not connected (${why}) — call marklayer_connect_room to reconnect`);
+  };
+
   if (opts.initialRoom) {
     try {
       room = new RoomClient(opts.apiBase, parseRoomRef(opts.initialRoom), opts.agentId);
@@ -360,6 +370,8 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const parsed = IdInput.safeParse(rawArgs);
           if (!parsed.success) return fail(parsed.error);
           const r = ensureRoom();
+          const dead = ensureLive(r);
+          if (dead) return dead;
           if (!r.acknowledge(parsed.data.id)) return err(`annotation not found: ${parsed.data.id}`);
           return ok({ id: parsed.data.id, status: 'in_progress', assignedAgent: opts.agentId });
         }
@@ -368,6 +380,8 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const parsed = ResolveInput.safeParse(rawArgs);
           if (!parsed.success) return fail(parsed.error);
           const r = ensureRoom();
+          const dead = ensureLive(r);
+          if (dead) return dead;
           if (!r.resolve(parsed.data.id, parsed.data.summary)) return err(`annotation not found: ${parsed.data.id}`);
           return ok({ id: parsed.data.id, status: 'resolved' });
         }
@@ -376,6 +390,8 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const parsed = DismissInput.safeParse(rawArgs);
           if (!parsed.success) return fail(parsed.error);
           const r = ensureRoom();
+          const dead = ensureLive(r);
+          if (dead) return dead;
           if (!r.dismiss(parsed.data.id, parsed.data.reason)) return err(`annotation not found: ${parsed.data.id}`);
           return ok({ id: parsed.data.id, status: 'dismissed', reason: parsed.data.reason });
         }
@@ -384,6 +400,8 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const parsed = ReplyInput.safeParse(rawArgs);
           if (!parsed.success) return fail(parsed.error);
           const r = ensureRoom();
+          const dead = ensureLive(r);
+          if (dead) return dead;
           if (!r.reply(parsed.data.id, parsed.data.text)) return err(`annotation not found: ${parsed.data.id}`);
           return ok({ id: parsed.data.id, replied: true });
         }
