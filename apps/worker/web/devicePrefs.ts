@@ -72,9 +72,13 @@ async function doRefresh(): Promise<DeviceInfo[]> {
         (d): d is MediaDeviceInfo & { kind: DeviceKind } =>
           d.kind === 'audioinput' || d.kind === 'videoinput' || d.kind === 'audiooutput',
       )
+      // Chrome enumerates the OS default twice: once under its real id and again
+      // as a `default`/`communications` alias. We offer "System default" as our own
+      // row, so the aliases would show up as a duplicate, second-checked entry.
+      .filter((d) => d.deviceId !== 'default' && d.deviceId !== 'communications')
       .map((d) => ({
         deviceId: d.deviceId,
-        label: d.label || defaultLabel(d.kind, d.deviceId),
+        label: d.label || defaultLabel(d.kind),
         kind: d.kind,
       }));
     availableDevices.value = list;
@@ -85,9 +89,7 @@ async function doRefresh(): Promise<DeviceInfo[]> {
   }
 }
 
-function defaultLabel(kind: DeviceKind, id: string): string {
-  if (id === 'default') return 'System default';
-  if (id === 'communications') return 'Communications default';
+function defaultLabel(kind: DeviceKind): string {
   return kind === 'audioinput' ? 'Microphone' : kind === 'videoinput' ? 'Camera' : 'Speaker';
 }
 
