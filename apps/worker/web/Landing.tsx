@@ -1,3 +1,4 @@
+import { CommentPopover } from '@ext/components/CommentPopover';
 import { InspectorLayer } from '@ext/components/InspectorLayer';
 import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
@@ -34,6 +35,7 @@ import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
 import { FakeCursors } from './FakeCursors';
+import { frameViewport } from './iframeOverlay';
 import { SelfCursor } from './SelfCursor';
 import { GithubLink, Logo, TextInputOverlay } from './shared';
 import {
@@ -47,7 +49,6 @@ import {
   urlReady,
 } from './signals';
 import { WebCommentPin } from './WebCommentPin';
-import { WebCommentPopover } from './WebCommentPopover';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
 
@@ -1102,11 +1103,11 @@ export function Landing() {
             <WebCommentPin key={c.id} op={c} scale={1} scrollY={0} />
           ))}
           {commentPopover.value && (
-            <WebCommentPopover
-              x={commentPopover.value.x}
-              y={commentPopover.value.y}
-              scale={1}
-              scrollY={0}
+            <CommentPopover
+              at={{ x: commentPopover.value.x, y: commentPopover.value.y }}
+              anchorAt={{ x: commentPopover.value.x, y: commentPopover.value.y }}
+              capture={() => ({ captureViewport: frameViewport(null) })}
+              push={pushDeviceOp}
               onClose={() => {
                 commentPopover.value = null;
               }}

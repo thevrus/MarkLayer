@@ -1,4 +1,4 @@
-import { type CommentPriority, cn } from '@marklayer/types';
+import { type CaptureViewport, type CommentPriority, cn, type TargetElement } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
@@ -6,19 +6,25 @@ import { submitBtn, textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { useEdgeClamp } from '../lib/popover';
-import { captureTarget } from '../lib/selector';
-import { color, commentCounter, getCommentMeta, lineWidth, pushOp, signedBy } from '../lib/state';
+import { color, commentCounter, getCommentMeta, lineWidth, signedBy } from '../lib/state';
+import type { CommentOp } from '../lib/types';
 import { CancelButton } from './CancelButton';
 import { PriorityPicker } from './PriorityPicker';
 
 interface Props {
-  x: number;
-  y: number;
-  el: Element | null;
+  /** Point the comment is pinned to, in the annotated page's document space. */
+  at: { x: number; y: number };
+  /** The same point in host-viewport pixels — the extension and the web viewer
+   *  reach it through different transforms (page scroll vs. iframe scroll and
+   *  CSS scale), so the conversion is the caller's, and only the conversion. */
+  anchorAt: { x: number; y: number };
+  /** Bind the point to the element under it so the pin survives a reflow. */
+  capture: () => { target?: TargetElement; captureViewport: CaptureViewport };
+  push: (op: CommentOp) => void;
   onClose: () => void;
 }
 
-export function CommentPopover({ x, y, el, onClose }: Props) {
+export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const num = commentCounter.value + 1;
   const priority = useSignal<CommentPriority | undefined>(undefined);
@@ -30,13 +36,13 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
   const commit = (save: boolean) => {
     const txt = taRef.current?.value.trim();
     if (save && txt) {
-      pushOp({
+      push({
         id: nanoid(),
         tool: 'comment' as const,
         num,
         text: txt,
-        x,
-        y,
+        x: at.x,
+        y: at.y,
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
@@ -44,17 +50,14 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
         status: 'open',
         priority: priority.value,
         meta: getCommentMeta(),
-        target: el ? captureTarget({ el, anchor: { x, y } }) : undefined,
-        captureViewport: { width: window.innerWidth, height: window.innerHeight },
+        ...capture(),
       });
     }
     onClose();
   };
 
-  const vx = x - scrollX;
-  const vy = y - scrollY;
-  const left = Math.min(vx + 16, innerWidth - 300);
-  const { ref: panelRef, top } = useEdgeClamp({ top: vy + 16 });
+  const left = Math.min(anchorAt.x + 16, innerWidth - 300);
+  const { ref: panelRef, top } = useEdgeClamp({ top: anchorAt.y + 16 });
 
   return (
     <div
@@ -69,7 +72,6 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
       style={{ left: Math.max(4, left), top }}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Header */}
       <div class="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
         <div
           class="w-6 h-6 rounded-full text-white text-meta font-medium grid place-items-center shrink-0
@@ -78,14 +80,14 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
         >
           {num}
         </div>
-        <span class="text-ui text-(--ds-gray-1000) font-semibold tracking-ui">New comment</span>
+        <span class="text-ui text-(--ds-gray-1000) font-semibold tracking-ui flex-1">New comment</span>
       </div>
 
       <div class={cn(geist.divider, 'mx-3.5')} />
 
-      {/* Input area */}
       <div class="p-3.5">
         <textarea
+          name="comment"
           ref={taRef}
           placeholder="Leave a comment…"
           rows={1}
@@ -106,7 +108,6 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
 
       <div class={cn(geist.divider, 'mx-3.5')} />
 
-      {/* Footer */}
       <div class="flex items-center justify-between px-4 py-2.5">
         <CancelButton onClick={() => commit(false)} />
         <button type="button" onClick={() => commit(true)} class={submitBtn}>

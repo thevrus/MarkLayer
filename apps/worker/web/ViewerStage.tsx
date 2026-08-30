@@ -1,5 +1,6 @@
+import { CommentPopover } from '@ext/components/CommentPopover';
 import { PanLayer } from '@ext/components/PanLayer';
-import { activeTool, color, lineWidth, toolPaintsCanvas } from '@ext/lib/state';
+import { activeTool, color, lineWidth, panScrollBy, toolPaintsCanvas } from '@ext/lib/state';
 import type { TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import { Loader2 } from 'lucide-preact';
@@ -30,13 +31,63 @@ import { useViewerFrame } from './viewerFrame';
 import { WebAreaLayer } from './WebAreaLayer';
 import { WebAreaShape } from './WebAreaShape';
 import { WebCommentPin } from './WebCommentPin';
-import { WebCommentPopover } from './WebCommentPopover';
 import { WebGuideLayer } from './WebGuideLayer';
 import { WebInspectorLayer } from './WebInspectorLayer';
 import { WebMeasureLayer } from './WebMeasureLayer';
 import { WebMultiInspectLayer } from './WebMultiInspectLayer';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
+
+/**
+ * The page scrolls inside the iframe, but a live tool overlay sits on top of it in
+ * *this* document — so a wheel over the overlay reaches no scroller at all and the
+ * page sits frozen under the pen. Forward it to the frame instead, at the same
+ * scale-corrected rate the hand tool uses.
+ *
+ * Two things are deliberately left alone: a sideways gesture, which belongs to the
+ * device strip this frame sits in, and a wheel that already found a scroller of its
+ * own on the way up (a comment thread's hover card), which would otherwise have its
+ * scroll stolen by the page behind it.
+ */
+/**
+ * The ancestor walk above is a `getComputedStyle` (style recalc) and a
+ * `scrollHeight` read (layout) per hop, and a trackpad fires 60-120 wheel events
+ * a second into a document the forwarded scroll is already dirtying — so running
+ * it per tick forces a style+layout flush per tick. Within one gesture the target
+ * never changes, so the verdict is cached against it; a pause longer than a
+ * gesture's own event gap drops the cache, in case the element became scrollable.
+ */
+const GESTURE_GAP_MS = 300;
+let wheelCache: { target: Element; blocked: boolean; at: number } | null = null;
+
+function wheelHitsOwnScroller({ target, root }: { target: Element; root: Element }): boolean {
+  const now = performance.now();
+  if (wheelCache && wheelCache.target === target && now - wheelCache.at < GESTURE_GAP_MS) {
+    wheelCache.at = now;
+    return wheelCache.blocked;
+  }
+  let blocked = false;
+  for (let el: Element | null = target; el && el !== root; el = el.parentElement) {
+    const { overflowY } = getComputedStyle(el);
+    if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+      blocked = true;
+      break;
+    }
+  }
+  wheelCache = { target, blocked, at: now };
+  return blocked;
+}
+
+function forwardWheel(e: WheelEvent) {
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  const { currentTarget, target } = e;
+  if (!(currentTarget instanceof Element) || !(target instanceof Element)) return;
+  if (wheelHitsOwnScroller({ target, root: currentTarget })) return;
+  // Firefox reports lines, and a page gesture reports pages; both need real pixels.
+  const step = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
+  e.preventDefault();
+  panScrollBy.value?.(0, e.deltaY * step);
+}
 
 /**
  * Which pointer surface is live. Derived here rather than passed down: every
@@ -254,6 +305,7 @@ function PageSurface() {
   return (
     <div
       ref={innerRef}
+      onWheel={forwardWheel}
       class="absolute top-0 left-0 will-change-transform"
       style={{
         width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
@@ -295,6 +347,27 @@ function PageSurface() {
   );
 }
 
+/** The comment being written, if any. Its own component so the placement point
+ *  narrows once for both the panel position and the element it binds to. */
+function PendingComment({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
+  const at = commentPopover.value;
+  if (!at) return null;
+  return (
+    <CommentPopover
+      at={at}
+      anchorAt={{ x: at.x * cssScale.value, y: (at.y - iframeScrollY.value) * cssScale.value }}
+      capture={() => ({
+        target: pickFrameTarget({ frame: frameRef.current, x: at.x, y: at.y }),
+        captureViewport: frameViewport(frameRef.current),
+      })}
+      push={pushDeviceOp}
+      onClose={() => {
+        commentPopover.value = null;
+      }}
+    />
+  );
+}
+
 const FRAME_SHADOW = 'shadow-[0_0_0_1px_rgba(0,0,0,0.08),0_8px_40px_rgba(0,0,0,0.12)]';
 
 /** The sized viewport the page is previewed in, plus the popovers pinned to it. */
@@ -329,18 +402,7 @@ function DeviceFrame() {
     >
       <PageSurface />
 
-      {commentPopover.value && (
-        <WebCommentPopover
-          x={commentPopover.value.x}
-          y={commentPopover.value.y}
-          scale={cssScale.value}
-          scrollY={iframeScrollY.value}
-          frameRef={frameRef}
-          onClose={() => {
-            commentPopover.value = null;
-          }}
-        />
-      )}
+      <PendingComment frameRef={frameRef} />
 
       {selectionPopover.value && (
         <WebSelectionPopover

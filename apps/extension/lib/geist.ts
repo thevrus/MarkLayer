@@ -157,6 +157,33 @@ export const geist = {
   bareBtnDanger: 'text-(--ds-red-700)/70 hover:text-(--ds-red-700)',
 
   /**
+   * The same action when it sits inside a row of content rather than alone in a
+   * popover footer — "Resolve", "Remove". `bareBtn` is 12px of text with no box,
+   * which under a comment reads as a caption and offers a 14px tap target; this
+   * keeps the chrome-free rest state and adds a real 24px target and a fill to
+   * answer the pointer. The negative margin holds the label on the same left
+   * edge as the content above it, so the fill grows outward, not the text inward.
+   * Geometry only — pair it with `ctlIdle` for the neutral ramp, which is the
+   * one this app already uses for every other tonal-fill control.
+   */
+  actionBtn: trim(`
+    inline-flex items-center h-6 px-1.5 -mx-1.5 rounded-md
+    text-meta font-medium appearance-none border-none bg-transparent cursor-pointer
+    outline-none transition-[background-color,color] duration-150 ease-out
+    focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1
+    focus-visible:outline-(--ds-focus-color)
+    disabled:pointer-events-none disabled:opacity-50
+  `),
+
+  /**
+   * Destructive ramp for an `actionBtn`. Neutral at rest, red on hover and focus:
+   * the word "Remove" is the warning, and a red that is always on makes the one
+   * thing nobody should click twice the most saturated object on the panel.
+   */
+  actionBtnDanger:
+    'text-(--ds-gray-900) hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-red-700) focus-visible:text-(--ds-red-700)',
+
+  /**
    * Shortcut chip inside a tooltip. `inline-flex` so a modifier glyph and its
    * letter sit centred on one axis rather than on the text baseline, which is
    * what let the two halves of `⇧H` drift apart optically.
