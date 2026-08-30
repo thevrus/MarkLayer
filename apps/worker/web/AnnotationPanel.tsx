@@ -1,5 +1,7 @@
+import { Menu } from '@base-ui/react/menu';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
+import { StatusDot } from '@ext/components/StatusDot';
 import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from '@ext/lib/export-text';
 import { geist } from '@ext/lib/geist';
 import {
@@ -24,6 +26,7 @@ import {
   BoxSelect,
   Check,
   CheckCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardCopy,
@@ -56,13 +59,6 @@ interface BodyProps {
   getExportData?: () => ExportData;
 }
 
-const STATUS_COLORS: Record<CommentStatus, string> = {
-  open: 'var(--ds-blue-800)',
-  in_progress: 'var(--ds-amber-700)',
-  resolved: 'var(--ds-green-700)',
-  approved: 'var(--ds-green-900)',
-  dismissed: 'var(--ds-gray-700)',
-};
 /** The row offers one action, not a menu; this is where it goes next. */
 const STATUS_CYCLE: Record<CommentStatus, CommentStatus> = {
   open: 'in_progress',
@@ -79,15 +75,17 @@ const STATUS_ACTIONS: Record<CommentStatus, string> = {
   dismissed: 'Reopen',
 };
 
+/**
+ * Status as metadata, not as a highlight. The tinted capsule this replaces put
+ * the loudest object in the row on the one field nobody reads first — and its
+ * ink was the status hue itself, which is 1.8:1 amber-on-white in light theme.
+ * The dot carries the hue, the label carries the meaning at the same weight as
+ * the timestamp beside it, and neither depends on the other to be understood.
+ */
 function StatusBadge({ status }: { status: CommentStatus }) {
   return (
-    <span
-      class="text-meta font-medium px-1.5 py-0.5 rounded-md"
-      style={{
-        color: STATUS_COLORS[status],
-        background: `color-mix(in oklch, ${STATUS_COLORS[status]} 14%, transparent)`,
-      }}
-    >
+    <span class="inline-flex items-center gap-1.5 text-meta font-medium text-(--ds-gray-900) whitespace-nowrap">
+      <StatusDot status={status} />
       {STATUS_LABELS[status]}
     </span>
   );
@@ -159,7 +157,7 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
         <button
           type="button"
           onClick={() => setOpStatus(op.id, STATUS_CYCLE[status])}
-          class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
+          class={cn(geist.actionBtn, geist.ctlIdle)}
         >
           {STATUS_ACTIONS[status]}
         </button>
@@ -169,10 +167,111 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
 }
 
 const STATUS_VALUES = ['open', 'in_progress', 'resolved', 'approved'] as const satisfies readonly CommentStatus[];
-const FILTER_OPTIONS: { value: CommentStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  ...STATUS_VALUES.map((value) => ({ value, label: STATUS_LABELS[value] })),
-];
+
+/**
+ * Only the statuses the room actually has: four of the five lead to an empty
+ * list in a room where every thread is open. The current filter is kept even at
+ * zero, so a selection never disappears from under the person who made it.
+ */
+function filterOptions({
+  counts,
+  active,
+  total,
+}: {
+  counts: Record<CommentStatus, number>;
+  active: CommentStatus | 'all';
+  total: number;
+}): { value: CommentStatus | 'all'; label: string; count: number }[] {
+  return [
+    // `total`, not a sum over STATUS_VALUES: the `all` list includes dismissed
+    // threads, which STATUS_VALUES leaves out, so summing it undercounts the
+    // rows it is labelling.
+    { value: 'all' as const, label: 'All', count: total },
+    ...STATUS_VALUES.filter((v) => counts[v] > 0 || v === active).map((value) => ({
+      value,
+      label: STATUS_LABELS[value],
+      count: counts[value],
+    })),
+  ];
+}
+
+/**
+ * The status filter, as one control rather than a row of tabs. Five statuses of
+ * "In progress" length cannot sit side by side in a 340px panel: the row either
+ * scrolled — hiding the choice it exists to offer — or shaved its last tab flat
+ * against the edge. A menu costs one click and always shows every status, its
+ * count, and which one is in force.
+ */
+function StatusFilterMenu({
+  filters,
+  active,
+}: {
+  filters: { value: CommentStatus | 'all'; label: string; count: number }[];
+  active: CommentStatus | 'all';
+}) {
+  const current = filters.find((f) => f.value === active) ?? filters[0];
+
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        aria-label={`Filter by status: ${current.label}`}
+        className={cn(
+          'inline-flex items-center gap-2 h-7 pl-2 pr-1.5 rounded-md cursor-pointer appearance-none',
+          'border border-(--ds-gray-alpha-400) bg-(--ds-background-100)',
+          'text-ui font-medium text-(--ds-gray-1000) whitespace-nowrap outline-none',
+          'transition-[background-color,border-color] duration-150 ease-out',
+          'hover:bg-(--ds-gray-alpha-100) data-popup-open:bg-(--ds-gray-alpha-100)',
+          'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1',
+          'focus-visible:outline-(--ds-focus-color)',
+        )}
+      >
+        {active !== 'all' && <StatusDot status={active} />}
+        {current.label}
+        <span class="tabular-nums text-(--ds-gray-900)">{current.count}</span>
+        <ChevronDown size={13} strokeWidth={1.5} class="text-(--ds-gray-900)" aria-hidden="true" />
+      </Menu.Trigger>
+
+      <Menu.Portal>
+        <Menu.Positioner side="bottom" align="start" sideOffset={6} className="z-2147483647">
+          <Menu.Popup className={cn(geist.surface, 'min-w-52 p-1')}>
+            <Menu.RadioGroup
+              className="flex flex-col gap-px"
+              value={active}
+              onValueChange={(value: string) => {
+                // Narrowed by lookup rather than asserted: the options are the
+                // only values this group can emit.
+                const picked = filters.find((f) => f.value === value);
+                if (picked) commentFilter.value = picked.value;
+              }}
+            >
+              {filters.map((f) => (
+                <Menu.RadioItem
+                  key={f.value}
+                  value={f.value}
+                  className={cn(
+                    'flex items-center gap-2 h-8 px-2 rounded-md cursor-pointer border-none bg-transparent',
+                    'text-ui text-(--ds-gray-1000) transition-colors duration-150',
+                    'data-highlighted:bg-(--ds-gray-alpha-100) data-checked:font-medium',
+                  )}
+                >
+                  <StatusDot status={f.value === 'all' ? undefined : f.value} />
+                  <span class="truncate">{f.label}</span>
+                  <span class="ml-auto tabular-nums text-meta text-(--ds-gray-900)">{f.count}</span>
+                  {/* A held slot, so the counts stay on one right edge whichever row is checked. */}
+                  <span class="w-3.5 shrink-0 inline-flex justify-end text-(--ds-gray-900)">
+                    <Menu.RadioItemIndicator className="inline-flex">
+                      <Check size={14} strokeWidth={1.75} aria-hidden="true" />
+                    </Menu.RadioItemIndicator>
+                  </span>
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
+  );
+}
 
 function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   const buildExport = () => {
@@ -312,23 +411,27 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
     );
   }
 
+  const threadCount = rootComments.value.length;
+  const filters = filterOptions({ counts: statusCounts, active: filter, total: threadCount });
+
   return (
     <>
       {/* Header */}
       <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400) shrink-0">
-        <div class="flex items-center justify-between">
-          <div>
+        <div class="flex items-center justify-between gap-2">
+          {/* One line, always. The per-status tallies that used to run on here are
+              the filter tabs below now; keeping both wrapped the summary onto a
+              second line that ran under the icon row and shoved the tabs down. */}
+          <div class="min-w-0">
             <h2 class="text-body font-semibold text-(--ds-gray-1000) m-0 tracking-ui">Comments</h2>
-            <span class="text-meta text-(--ds-gray-900)">
-              {rootComments.value.length} thread{rootComments.value.length !== 1 ? 's' : ''}
-              {statusCounts.resolved > 0 && ` · ${statusCounts.resolved} resolved`}
-              {statusCounts.approved > 0 && ` · ${statusCounts.approved} approved`}
+            <span class="block truncate text-meta text-(--ds-gray-900)">
+              {threadCount} thread{threadCount !== 1 ? 's' : ''}
               {textCount > 0 && ` · ${textCount} text`}
               {selectionCount > 0 && ` · ${selectionCount} selection`}
               {areaList.length > 0 && ` · ${areaList.length} area`}
             </span>
           </div>
-          <div class="flex items-center gap-0.5">
+          <div class="flex shrink-0 items-center gap-0.5">
             <button
               type="button"
               onClick={() => {
@@ -337,7 +440,8 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                 showAnnotationPanel.value = false;
                 showBoard.value = true;
               }}
-              title="Open the board"
+              title="Open the board (⌘B)"
+              aria-label="Open the board"
               class={cn(geist.ctl, geist.ctlIdle)}
             >
               <Columns3 size={16} strokeWidth={1.5} aria-hidden="true" />
@@ -346,6 +450,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               type="button"
               onClick={handleCopy}
               title="Copy comments + selections as Markdown"
+              aria-label="Copy comments and selections as Markdown"
               class={cn(geist.ctl, geist.ctlIdle)}
             >
               <ClipboardCopy size={16} strokeWidth={1.5} aria-hidden="true" />
@@ -354,6 +459,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               type="button"
               onClick={handleDownload}
               title="Download Markdown (.md)"
+              aria-label="Download Markdown"
               class={cn(geist.ctl, geist.ctlIdle)}
             >
               <Download size={16} strokeWidth={1.5} aria-hidden="true" />
@@ -362,47 +468,49 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               type="button"
               onClick={() => (showAnnotationPanel.value = false)}
               title="Close panel"
+              aria-label="Close panel"
               class={cn(geist.ctl, geist.ctlIdle)}
             >
               <X size={16} strokeWidth={1.5} aria-hidden="true" />
             </button>
           </div>
         </div>
-        {/* Filter tabs. Five of them overrun a 340px panel, so the row scrolls
-            rather than clipping the last one against the panel edge. The negative
-            margin lets it bleed to both edges while the padding keeps the end
-            chips clear of them. */}
-        <div class="mt-3 -mx-4 px-4 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div class={geist.track} role="tablist">
-            {FILTER_OPTIONS.map((f) => {
-              const count = f.value === 'all' ? rootComments.value.length : statusCounts[f.value];
-              const on = filter === f.value;
-              return (
-                <button
-                  key={f.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={on}
-                  data-pressed={on ? '' : undefined}
-                  onClick={() => (commentFilter.value = f.value)}
-                  class={geist.segmentText}
-                >
-                  {f.label}
-                  {count > 0 ? ` (${count})` : ''}
-                </button>
-              );
-            })}
+        {/* One filter is no filter: with a single status in the room "All" and
+            that status are two views of one list, so the control only earns its
+            place from two statuses up. */}
+        {filters.length > 2 && (
+          <div class="mt-3">
+            <StatusFilterMenu filters={filters} active={filter} />
           </div>
-        </div>
+        )}
       </div>
 
       {/* List */}
       <div class="flex-1 overflow-y-auto">
+        {/* A filtered-out list is not an empty room. Saying "no comments yet" over
+            a room that has them, with no way back, is the panel lying to itself. */}
         {items.length === 0 && (
           <div class="flex flex-col items-center justify-center h-44 gap-2 px-6 text-center">
             <MessageSquare size={24} strokeWidth={1.5} class="text-(--ds-gray-700)" aria-hidden="true" />
-            <span class="text-ui font-medium text-(--ds-gray-1000)">No comments yet</span>
-            <span class="text-meta text-(--ds-gray-900) leading-snug">Use the comment tool (C) to add one</span>
+            {filter === 'all' ? (
+              <>
+                <span class="text-ui font-medium text-(--ds-gray-1000)">No comments yet</span>
+                <span class="text-meta text-(--ds-gray-900) leading-snug">Use the comment tool (C) to add one</span>
+              </>
+            ) : (
+              <>
+                <span class="text-ui font-medium text-(--ds-gray-1000)">
+                  Nothing {STATUS_LABELS[filter].toLowerCase()}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => (commentFilter.value = 'all')}
+                  class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium underline underline-offset-2')}
+                >
+                  Show all {threadCount} threads
+                </button>
+              </>
+            )}
           </div>
         )}
 
@@ -457,7 +565,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   <button
                     type="button"
                     onClick={() => setOpStatus(op.id, areaResolved ? 'open' : 'resolved')}
-                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
+                    class={cn(geist.actionBtn, geist.ctlIdle)}
                   >
                     {areaResolved ? 'Reopen' : 'Resolve'}
                   </button>
@@ -525,7 +633,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   <button
                     type="button"
                     onClick={() => setOpStatus(op.id, STATUS_CYCLE[selStatus])}
-                    class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
+                    class={cn(geist.actionBtn, geist.ctlIdle)}
                   >
                     {STATUS_ACTIONS[selStatus]}
                   </button>

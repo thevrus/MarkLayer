@@ -1,4 +1,5 @@
 import { PriorityBadge } from '@ext/components/PriorityPicker';
+import { StatusDot } from '@ext/components/StatusDot';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -97,27 +98,29 @@ function Card({ card, onOpen, onDragStart }: { card: BoardCard; onOpen: () => vo
       }}
       aria-label={`${card.label}: ${card.body || 'no text'}. ${STATUS_LABELS[card.status]}. Arrow keys to move between columns.`}
       class={cn(
-        'group w-full cursor-grab appearance-none border-none bg-transparent p-0 text-left select-none active:cursor-grabbing',
-        'rounded-lg border border-(--ds-gray-alpha-400) bg-(--ds-background-100) p-3',
-        'transition-colors duration-100 hover:border-(--ds-gray-600)',
+        'group w-full cursor-grab appearance-none border-none p-0 text-left select-none active:cursor-grabbing',
+        // The hairline is the shadow's first layer, Geist-style, so hover can
+        // firm the edge up without the box ever changing size or lifting.
+        'rounded-lg bg-(--ds-background-100) p-3 [box-shadow:var(--ds-shadow-border-small)]',
+        'transition-shadow duration-150 ease-out hover:[box-shadow:0_0_0_1px_var(--ds-gray-alpha-500)]',
         'focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--ds-focus-color)',
       )}
     >
-      <div class="flex items-center gap-2 mb-1.5">
-        <span class="w-2 h-2 rounded-full shrink-0" style={{ background: card.op.color }} aria-hidden="true" />
-        <span class="text-meta font-semibold text-(--ds-gray-1000) truncate">{card.label}</span>
-        {card.op.priority && <PriorityBadge priority={card.op.priority} />}
+      <div class="flex items-center gap-2">
+        <span class="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: card.op.color }} aria-hidden="true" />
+        <span class="min-w-0 truncate text-meta font-medium text-(--ds-gray-900)">{card.label}</span>
+        {card.op.priority && <PriorityBadge priority={card.op.priority} class="ml-auto shrink-0" />}
       </div>
-      {card.body && <p class="m-0 text-ui text-(--ds-gray-1000) leading-relaxed line-clamp-3">{card.body}</p>}
+      {card.body && <p class="m-0 mt-1.5 text-ui text-(--ds-gray-1000) leading-body line-clamp-3">{card.body}</p>}
       {(card.replies > 0 || card.op.assignee) && (
         <div class="mt-2 flex items-center gap-3 text-meta text-(--ds-gray-900)">
           {card.replies > 0 && (
-            <span class="flex items-center gap-1 font-medium">
-              <MessageSquare size={11} aria-hidden="true" />
+            <span class="flex items-center gap-1 tabular-nums">
+              <MessageSquare size={11} strokeWidth={1.75} aria-hidden="true" />
               {card.replies}
             </span>
           )}
-          {card.op.assignee && <span class="truncate font-medium">{card.op.assignee}</span>}
+          {card.op.assignee && <span class="min-w-0 truncate">{card.op.assignee}</span>}
         </div>
       )}
     </button>
@@ -160,21 +163,32 @@ function Column({
         onDrop();
       }}
       class={cn(
-        'flex min-w-0 flex-1 flex-col rounded-xl border p-2 transition-colors duration-100',
-        over
-          ? 'border-(--color-ml-accent) bg-(--ds-gray-alpha-100)'
-          : 'border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)/40',
+        // A recessed track the cards sit in, not a second bordered box around
+        // them: the column reads by its surface, the card by its own hairline.
+        'flex min-w-60 flex-1 basis-0 flex-col rounded-xl bg-(--ds-gray-alpha-100)',
+        'transition-shadow duration-150 ease-out',
+        over && '[box-shadow:inset_0_0_0_1px_var(--ds-blue-800)]',
       )}
     >
-      <header class="flex items-center justify-between gap-2 px-1.5 pb-2 pt-1">
-        <h3 class="m-0 text-meta font-semibold text-(--ds-gray-1000)">{STATUS_LABELS[status]}</h3>
-        <span class="text-meta tabular-nums text-(--ds-gray-900)">{cards.length}</span>
+      {/* px-5, not the track's own px-2: the header's dot and label then sit on
+          the same two axes as every card's, since a card adds 12px of its own. */}
+      <header class="flex shrink-0 items-center gap-2 h-9 px-5">
+        <StatusDot status={status} />
+        <h3 class="m-0 min-w-0 truncate text-meta font-medium tracking-ui text-(--ds-gray-1000)">
+          {STATUS_LABELS[status]}
+        </h3>
+        <span class="ml-auto text-meta tabular-nums text-(--ds-gray-900)">{cards.length}</span>
       </header>
-      <div class="flex flex-col gap-2 overflow-y-auto">
+      {/* The empty column says nothing — its own surface is the drop target, and
+          five copies of "Nothing here." is five times the same non-information.
+          The floor keeps a short column a target you can actually hit. */}
+      {/* `pt-0.5` clears the cut: a card's hairline is an outset box-shadow, and
+          with no top padding `overflow-y-auto` sliced the first card's top edge
+          flat while the other three sides kept their radius. */}
+      <div class="flex min-h-24 flex-col gap-2 overflow-y-auto px-2 pt-0.5 pb-2">
         {cards.map((card) => (
           <Card key={card.op.id} card={card} onOpen={() => onOpen(card)} onDragStart={() => onDragStart(card)} />
         ))}
-        {cards.length === 0 && <p class="m-0 px-1.5 py-3 text-meta text-(--ds-gray-900)">Nothing here.</p>}
       </div>
     </section>
   );
@@ -233,13 +247,24 @@ export function AnnotationBoard() {
       aria-modal="true"
       aria-label="Annotation board"
     >
-      <header class="flex shrink-0 items-center justify-between gap-4 border-b border-(--ds-gray-alpha-400) px-5 py-3">
-        <div class="flex items-baseline gap-3">
+      <header class={cn(geist.bar, 'flex h-14 shrink-0 items-center gap-3 px-5')}>
+        {/* Baselines, not centres: the count is a subtitle to the title, and the
+            controls to their right are boxes that centre on the bar instead. */}
+        <div class="flex items-baseline gap-2.5">
           <h2 class="m-0 text-body font-semibold tracking-ui text-(--ds-gray-1000)">Board</h2>
-          <span class="text-meta text-(--ds-gray-900)">
-            {cards.length} annotation{cards.length === 1 ? '' : 's'} · drag a card, or focus one and use the arrow keys
+          <span class="text-meta tabular-nums text-(--ds-gray-900)">
+            {cards.length} annotation{cards.length === 1 ? '' : 's'}
           </span>
         </div>
+        {/* The hint the header used to spell out in a sentence. Drag is the
+            card's own affordance; the keys are the part nobody would guess. */}
+        {cards.length > 0 && (
+          <span class="ml-auto hidden items-center gap-1.5 text-meta text-(--ds-gray-900) md:inline-flex">
+            <kbd class={geist.kbd}>←</kbd>
+            <kbd class={geist.kbd}>→</kbd>
+            move a focused card
+          </span>
+        )}
         <button
           ref={closeRef}
           type="button"
@@ -247,26 +272,36 @@ export function AnnotationBoard() {
             showBoard.value = false;
           }}
           aria-label="Close board"
-          class={cn(geist.ctl, geist.ctlIdle)}
+          class={cn(geist.ctl, geist.ctlIdle, cards.length > 0 ? 'ml-1' : 'ml-auto')}
         >
           <X size={16} strokeWidth={1.5} aria-hidden="true" />
         </button>
       </header>
 
-      <div class="flex min-h-0 flex-1 gap-3 overflow-x-auto p-4">
-        {COLUMNS.map((status) => (
-          <Column
-            key={status}
-            status={status}
-            cards={cards.filter((c) => c.status === status)}
-            onDrop={() => dropOn(status)}
-            onOpen={open}
-            onDragStart={(card) => {
-              draggingId.current = card.op.id;
-            }}
-          />
-        ))}
-      </div>
+      {cards.length === 0 ? (
+        // Five empty columns is a board asking to be filled by a page that has
+        // nothing on it yet. One line, on the way back to the page.
+        <div class="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+          <MessageSquare size={24} strokeWidth={1.5} class="text-(--ds-gray-700)" aria-hidden="true" />
+          <span class="text-ui font-medium text-(--ds-gray-1000)">Nothing to triage yet</span>
+          <span class="text-meta text-(--ds-gray-900)">Comments, areas and selections land here as you make them</span>
+        </div>
+      ) : (
+        <div class="flex min-h-0 flex-1 gap-3 overflow-x-auto px-5 py-4">
+          {COLUMNS.map((status) => (
+            <Column
+              key={status}
+              status={status}
+              cards={cards.filter((c) => c.status === status)}
+              onDrop={() => dropOn(status)}
+              onOpen={open}
+              onDragStart={(card) => {
+                draggingId.current = card.op.id;
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

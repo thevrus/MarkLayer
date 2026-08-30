@@ -50,12 +50,19 @@ export function SupportDialog() {
       }}
     >
       <Dialog.Portal container={portalContainer.value ?? undefined}>
-        <Dialog.Backdrop className="fixed inset-0 z-[2147483646] bg-black/50 animate-[fadeInDown_0.15s_ease-out]" />
+        {/* The top layer, not one below it. The sidebars sit at 2147483647
+            (PANEL_SIDEBAR, so a panel covers the toolbar), and at 2147483646 the
+            scrim dimmed the page while leaving both panels at full brightness —
+            a modal with two undimmed holes in it. 2147483647 is INT32_MAX, so
+            there is no step above the panels to take: this matches them and wins
+            on paint order instead, which is sound because the dialog portals to
+            document.body and so is always the later element. */}
+        <Dialog.Backdrop className="fixed inset-0 z-2147483647 bg-black/50 animate-[fadeInDown_0.15s_ease-out]" />
         <Dialog.Popup
           className={cn(
             geist.surface,
             glass.font,
-            'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[2147483646]',
+            'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-2147483647',
             // No padding on the shell: the image runs to its edges and takes the
             // shell's own 12px radius from `overflow-hidden`. The copy carries
             // its own gutter instead.

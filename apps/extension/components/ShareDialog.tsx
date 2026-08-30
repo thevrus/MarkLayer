@@ -147,14 +147,18 @@ export function ShareDialog() {
       <Dialog.Portal container={portalContainer.value ?? undefined}>
         <Dialog.Backdrop
           // A flat scrim, no blur: Geist dims the page behind a dialog, it
-          // does not frost it.
-          className="fixed inset-0 z-[2147483646] bg-black/50 animate-[fadeInDown_0.15s_ease-out]"
+          // does not frost it. Top layer, not one below: the web app's sidebars
+          // sit at 2147483647, and a step below that dimmed the page while
+          // leaving the panels at full brightness. INT32_MAX has no step above
+          // it, so this matches them and wins on paint order — sound because the
+          // dialog is portalled, and so is always the later element.
+          className="fixed inset-0 z-2147483647 bg-black/50 animate-[fadeInDown_0.15s_ease-out]"
         />
         <Dialog.Popup
           className={cn(
             geist.surface,
             glass.font,
-            'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[2147483646]',
+            'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-2147483647',
             'w-[420px] max-w-[calc(100vw-32px)] p-4 flex flex-col gap-3 pointer-events-auto',
           )}
         >
