@@ -109,6 +109,7 @@ For the Chrome extension in development:
 | <code>bun run lint</code> | Lint and format-check with Biome |
 | <code>bun run lint:fix</code> | Apply lint and formatting fixes |
 | <code>cd apps/worker && bun run deploy</code> | Deploy the Worker to Cloudflare |
+| <code>cd apps/site && bun run indexnow:submit</code> | Ping IndexNow (Bing and friends) after a deploy that changed pages |
 
 ## Contributing
 

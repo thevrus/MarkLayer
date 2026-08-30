@@ -124,6 +124,15 @@
   --tracking-label: 0.011em; /* small mono and meta labels, opened up to read */
   --leading-body: 1.55; /* comment and annotation prose */
   --leading-prose: 1.65; /* the landing page's paragraphs */
+
+  /* ── The page container ──
+     One width for the whole product, shared with apps/site (its
+     `--container-page` is the same value). `/` sat on 1120 while every
+     marketing page sat on 760, so the header, the footer floor and the
+     signature wordmark all changed width when a visitor crossed between them.
+     The per-section inner widths below this one are content measures, not the
+     container, and stay as they are. */
+  --container-page: 90rem; /* 1440 */
 }
 
 @custom-variant dark (&:where(.dark, .dark *));

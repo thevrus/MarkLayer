@@ -181,6 +181,24 @@
   /* The one tracking value the scale does not carry on a size step: the footer's
      column headings, opened up a hair so 13px semibold reads as a label. */
   --tracking-label: 0.011em;
+
+  /* ── The page container ──
+     One width for the whole product. `/` and every marketing page used to sit on
+     different containers (1120 on the landing, 760 here), so the header, the
+     footer floor and the wordmark all changed width when a visitor crossed
+     between them — on one site, with one footer, that reads as two sites.
+     Mirrored in apps/worker/web/style.css, which is the other half of the same
+     page set; keep the two in step.
+
+     `page` is the container. `column` is what the container used to be — the
+     712px content width inside the old 760px box — and it still bounds every
+     block that has no measure of its own: headings, rules, the verdict block.
+     Prose is untouched; it caps at 560px two rules down and always did. Only the
+     genuinely wide objects — the comparison table, the header, the footer — take
+     the extra room, because a heading or a hairline drawn 1392px wide is not
+     wider information, it is just a longer line. */
+  --container-page: 90rem; /* 1440 */
+  --container-column: 44.5rem; /* 712 — the old container's content width */
 }
 
 @layer base {
@@ -231,7 +249,7 @@
      eye can track back to. Prose caps at ~70; headings, tables, nav and footer
      keep the full width, so the page structure is unchanged.
      Not `ch`: Geist's zero is 0.663em, so `65ch` would resolve to 690px. */
-  :where(p, li, dd, blockquote, .ml-lede) {
+  :where(p, li, dt, dd, blockquote, .ml-lede) {
     max-width: 560px;
   }
 
@@ -364,12 +382,37 @@
   /* The reading column. It used to be the <body> itself; it is a wrapper now so
      the footer can sit outside it and reach both edges of the viewport. */
   .ml-shell {
-    @apply mx-auto w-full max-w-[760px] grow px-6 pt-6 pb-0;
+    @apply mx-auto w-full max-w-page grow px-6 pt-6 pb-0;
   }
 
-  /* Wide content must scroll inside itself, never the page. */
+  /* Blocks with no measure of their own. Paragraphs, list items and the lede
+     are capped at 560px by the prose rule in the base layer and are deliberately
+     not repeated here — naming them again would override that cap and widen
+     every line on the site. */
+  .ml-shell > :is(h1, h2, h3, h4, hr, .ml-bottom-line) {
+    max-width: var(--container-column);
+  }
+
+  /* The verdict block above the fold on every comparison and alternatives page.
+     A component rather than four utilities in the layout, so the measure rule
+     above has something to name. */
+  .ml-bottom-line {
+    @apply my-10 border-t border-rule pt-5;
+  }
+
+  /* Wide content must scroll inside itself, never the page. The cap is the
+     content column plus the two gutters this negative margin reaches into: a
+     table is `w-full`, so without it a two-column table stretches to 1392px and
+     puts "Price" at one rim and "$0/month" at the other. */
   .ml-scroll-x {
     @apply -mx-6 overflow-x-auto px-6;
+    max-width: calc(var(--container-column) + 2 * calc(var(--spacing) * 6));
+  }
+
+  /* The opt-out, for the comparison tables: three columns of sentences, which
+     is the one thing on these pages that reads better across the full width. */
+  .ml-scroll-x.ml-scroll-wide {
+    max-width: none;
   }
 
   /* The lede. It was set in the grey metadata step, which put the one paragraph
@@ -488,8 +531,11 @@
 
   /* Row list, not a card grid: a hairline per row and a diagonal that travels
      on hover. Nothing lifts and nothing glows. */
+  /* Two columns once the page container has the room for them. One column of
+     ruled rows across 1392px puts the label at one rim and its arrow at the
+     other, with a metre of nothing between. */
   .ml-rows {
-    @apply my-7 border-t border-rule;
+    @apply my-7 border-t border-rule lg:grid lg:grid-cols-2 lg:gap-x-12;
   }
   .ml-row {
     @apply flex items-baseline justify-between gap-4 border-b border-rule py-3.5 text-ui font-medium text-ink no-underline transition-colors duration-150;
@@ -578,13 +624,14 @@
      The one hard surface break on a page that is otherwise white wall to wall,
      and the same one `/` makes: the page steps down onto its own floor rather
      than being ruled off with a hairline. Full width, because it is a floor.
-     The column inside it keeps the article's own 760px spine, so the footer's
-     content sits on the same left edge as every paragraph above it. */
+     The column inside it is the same `--container-page` box as `.ml-shell`, so
+     the footer's content sits on the same left edge as every paragraph above
+     it. */
   .ml-floor {
     @apply mt-24 bg-sunken pt-16 pb-7;
   }
   .ml-floor-inner {
-    @apply mx-auto max-w-[760px] px-6;
+    @apply mx-auto max-w-page px-6;
   }
 
   /* ── The signature wordmark ──

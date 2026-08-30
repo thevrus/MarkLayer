@@ -8,6 +8,7 @@
     "build": "astro build && node scripts/verify-build.mjs",
     "preview": "astro preview",
     "check": "astro check",
+    "indexnow:submit": "node scripts/indexnow-submit.mjs",
     "deploy:pages": "wrangler pages deploy",
     "deploy:pages:preview": "wrangler pages deploy --branch=preview"
   },
