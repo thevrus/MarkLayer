@@ -19,13 +19,14 @@ import {
   selections,
   showAnnotationPanel,
   showShareDialog,
+  toast,
   toolForKeyEvent,
   undo,
   undoRedoFlash,
 } from '@ext/lib/state';
 import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
-import { cn } from '@marklayer/types';
-import { useSignalEffect } from '@preact/signals';
+import { cn, MAX_UPLOAD_BYTES } from '@marklayer/types';
+import { useSignal, useSignalEffect } from '@preact/signals';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
@@ -36,6 +37,7 @@ import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
 import { FakeCursors } from './FakeCursors';
 import { frameViewport } from './iframeOverlay';
+import { stringField } from './integrations';
 import { SelfCursor } from './SelfCursor';
 import { GithubLink, Logo, TextInputOverlay } from './shared';
 import {
@@ -148,6 +150,44 @@ function ChromeStoreLink({ label, class: cls, at }: { label: string; class?: str
 export function Landing() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const heroFormRef = useRef<HTMLFormElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const dropping = useSignal(false);
+  const uploading = useSignal(false);
+
+  // A file dropped anywhere but the field would otherwise navigate the tab to
+  // it, silently throwing away whatever the person was doing.
+  useEffect(() => {
+    const swallow = (e: DragEvent) => e.preventDefault();
+    window.addEventListener('dragover', swallow);
+    window.addEventListener('drop', swallow);
+    return () => {
+      window.removeEventListener('dragover', swallow);
+      window.removeEventListener('drop', swallow);
+    };
+  }, []);
+
+  // A local PDF has no url to proxy, so it is stored first and annotated at the
+  // path it comes back as. Only "too big" gets its own message — it is the one
+  // failure a person can act on; the rest throw into the shared catch.
+  const uploadPdf = useCallback(async (file: File) => {
+    if (uploading.value) return;
+    uploading.value = true;
+    try {
+      const res = await fetch('/f', { method: 'POST', body: file });
+      if (res.status === 413) {
+        toast(`That PDF is larger than ${MAX_UPLOAD_BYTES / 1024 / 1024}MB`, 'error');
+        return;
+      }
+      if (!res.ok) throw new Error(String(res.status));
+      const url = stringField(await res.json(), 'url');
+      if (!url) throw new Error('no url');
+      navigateTo({ url, source: 'hero_upload' });
+    } catch {
+      toast('Could not upload that PDF', 'error');
+    } finally {
+      uploading.value = false;
+    }
+  }, []);
   const drawingRef = useRef(false);
   const startPtRef = useRef<Point>({ x: 0, y: 0 });
   const currentPathRef = useRef<FreehandOp | null>(null);
@@ -658,6 +698,23 @@ export function Landing() {
                     ref={heroFormRef}
                     class="lp-fade-up mt-9 max-w-[520px]"
                     style={{ animationDelay: '0.15s' }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      dropping.value = true;
+                    }}
+                    onDragLeave={(e) => {
+                      // Fires when crossing into a child too; ignore those or the
+                      // ring flickers as the pointer moves across the field.
+                      const to = e.relatedTarget;
+                      if (to instanceof Node && e.currentTarget.contains(to)) return;
+                      dropping.value = false;
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      dropping.value = false;
+                      const file = e.dataTransfer?.files?.[0];
+                      if (file) void uploadPdf(file);
+                    }}
                     onSubmit={(e) => {
                       e.preventDefault();
                       const el = e.currentTarget.elements.namedItem('url');
@@ -673,7 +730,10 @@ export function Landing() {
                       ring and a 2px contact shadow, the same treatment every
                       other object on the board gets. The focus state tightens
                       the ring rather than adding a second one outside it. */}
-                    <div class="lp-panel lp-field flex items-center gap-3 rounded-full py-2 pl-5 pr-2">
+                    <div
+                      class="lp-panel lp-field flex items-center gap-3 rounded-full py-2 pl-5 pr-2"
+                      data-dropping={dropping.value ? 'true' : undefined}
+                    >
                       <Search size={17} class="text-ml-fg/60 shrink-0" aria-hidden="true" />
                       {/* 16px under `sm`: iOS Safari zooms the whole page when a
                         focused field's text is under 16px, and this is the first
@@ -732,6 +792,29 @@ export function Landing() {
                         {name}
                       </button>
                     ))}
+                    <span>or</span>
+                    {/* Same underlined-text treatment as the suggestions beside
+                      it: a local file is another way in, not a second action
+                      worth its own filled button. */}
+                    <button
+                      type="button"
+                      onClick={() => pdfInputRef.current?.click()}
+                      class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-ui-lg text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
+                    >
+                      {uploading.value ? 'Uploading…' : 'open a PDF'}
+                    </button>
+                    <input
+                      ref={pdfInputRef}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      hidden
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0];
+                        // Cleared so picking the same file twice still fires.
+                        e.currentTarget.value = '';
+                        if (file) void uploadPdf(file);
+                      }}
+                    />
                   </div>
 
                   {/* One quiet line, not a second filled button. A filled

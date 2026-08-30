@@ -1,5 +1,5 @@
 /**
- * Every read and write of the `annotations` and `projects` tables.
+ * Every read and write of the `annotations`, `projects` and `uploads` tables.
  *
  * Routes, the Durable Object and the cron used to each carry their own SQL plus
  * their own copy of the JSON-parsing and expiry rules, which is how the four
@@ -219,6 +219,30 @@ export function projectStore(db: D1Database) {
       const deleted = await db
         .prepare(
           'DELETE FROM projects WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
+        )
+        .bind(unusedSince, nowInSeconds())
+        .all<{ id: string }>();
+      return deleted.results.map((r) => r.id);
+    },
+  };
+}
+
+export function uploadStore(db: D1Database) {
+  return {
+    /** Row before object: the cron sweeps R2 by what it finds here, so an object
+     *  written without one would never be collected. */
+    async put({ id, size }: { id: string; size: number }): Promise<void> {
+      await db.prepare('INSERT INTO uploads (id, size) VALUES (?, ?)').bind(id, size).run();
+    },
+
+    touch(id: string): Promise<unknown> {
+      return db.prepare('UPDATE uploads SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run();
+    },
+
+    async deleteExpired({ unusedSince }: { unusedSince: number }): Promise<string[]> {
+      const deleted = await db
+        .prepare(
+          'DELETE FROM uploads WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
         )
         .bind(unusedSince, nowInSeconds())
         .all<{ id: string }>();

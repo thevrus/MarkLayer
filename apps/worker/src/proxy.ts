@@ -330,6 +330,20 @@ proxy.get('/proxy', async (c) => {
 
     // For non-HTML resources, pass through as-is
     if (!resp.contentType.includes('text/html')) {
+      // pdf.js fetches the raw bytes itself via ?raw=1; that request must always
+      // fall through to the plain pass-through below, whatever the content type is.
+      if (reqUrl.searchParams.get('raw') !== '1' && resp.contentType.includes('application/pdf')) {
+        // The viewer page fetches the bytes itself; this body is never read, so
+        // release the upstream connection instead of leaving it open.
+        void resp.stream?.cancel();
+        // Redirect rather than inline a shell, so Vite owns the viewer's script tag
+        // and its content hash. `/pdf`, not `/pdf.html`: the asset layer redirects
+        // the extension away anyway, and this skips that second hop. It carries the
+        // target url, not the ?raw=1 proxy url, so the page can only ever be
+        // pointed at this origin's own proxy.
+        return c.redirect(`/pdf?url=${encodeURIComponent(url)}`, 302);
+      }
+
       const headers = new Headers();
       headers.set('Content-Type', resp.contentType);
       headers.set('Access-Control-Allow-Origin', '*');

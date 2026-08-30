@@ -1,7 +1,9 @@
+import { type AnchorDelta, applyAnchorDelta } from '@ext/lib/anchor';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
-import type { CaptureViewport, Point, TargetElement } from '@marklayer/types';
+import type { CaptureViewport, PdfAnchor, Point, TargetElement } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
+import { capturePdfAnchor, isPdfDocument, resolvePdfAnchor } from './pdfAnchor';
 import { cssScale, iframeScrollY } from './signals';
 
 // Cross-realm: iframe DOM nodes are instances of the iframe's Element, not the host's,
@@ -31,27 +33,62 @@ export function frameViewport(frame: HTMLIFrameElement | null): CaptureViewport 
 }
 
 /**
- * Bind a point in the framed page's document space to the element under it, so
- * the op re-anchors on reflow. `anchor` defaults to the same point; pass it when
- * the op's anchor differs from the point worth hit-testing (an area rect is
- * picked at its centre but anchored to its top-left).
+ * A point in the framed page's document space. `anchor` defaults to that same
+ * point; pass it when the op's anchor differs from the point worth hit-testing
+ * (an area rect is picked at its centre but anchored to its top-left).
  */
-export function pickFrameTarget({
-  frame,
-  x,
-  y,
-  anchor,
-}: {
+interface FramePoint {
   frame: HTMLIFrameElement | null;
   x: number;
   y: number;
   anchor?: Point;
-}): TargetElement | undefined {
+}
+
+/** Bind the point to the element under it, so the op re-anchors on reflow. */
+function pickFrameTarget({ frame, x, y, anchor }: FramePoint): TargetElement | undefined {
   const win = frame?.contentWindow;
   const doc = frame?.contentDocument;
   if (!win || !doc) return undefined;
   const el = pickElementAtPoint(x - win.scrollX, y - win.scrollY, doc);
   return el ? captureTarget({ el, anchor: anchor ?? { x, y } }) : undefined;
+}
+
+/**
+ * Both anchor kinds for one point. A PDF has no element worth binding to and an
+ * ordinary page has no page number, so exactly one of these is ever present —
+ * spread it into the op and a tool never has to know which kind of document it
+ * is drawing on.
+ */
+export function captureAnchors({ frame, x, y, anchor }: FramePoint): { target?: TargetElement; pdf?: PdfAnchor } {
+  if (isPdfDocument(frame?.contentDocument)) {
+    return { pdf: capturePdfAnchor({ frame, ...(anchor ?? { x, y }) }) };
+  }
+  return { target: pickFrameTarget({ frame, x, y, anchor }) };
+}
+
+/**
+ * Mirror of `captureAnchors` for the render side. A PDF page's box is the whole
+ * anchor, so there is no drift to measure against the stored point the way the
+ * element strategies do — a page either exists at this number or it does not.
+ */
+export function resolveAnchors({
+  target,
+  pdf,
+  docX,
+  docY,
+  doc,
+}: {
+  target?: TargetElement;
+  pdf?: PdfAnchor;
+  docX: number;
+  docY: number;
+  doc: Document;
+}): Pick<AnchorDelta, 'x' | 'y' | 'strategy'> {
+  if (pdf) {
+    const p = resolvePdfAnchor({ doc, anchor: pdf });
+    if (p) return { x: p.x, y: p.y, strategy: 'pdf' };
+  }
+  return applyAnchorDelta(target, { docX, docY }, { doc, win: doc.defaultView ?? undefined });
 }
 
 interface RectLike {

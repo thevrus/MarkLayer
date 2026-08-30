@@ -1,16 +1,17 @@
-import { RETENTION_DAYS } from '@marklayer/types';
+import { isUploadId, MAX_UPLOAD_BYTES, RETENTION_DAYS, uploadPath } from '@marklayer/types';
 import LLMS_TXT from '@site/content/agent/llms.txt?raw';
 import LLMS_FULL_TXT from '@site/content/agent/llms-full.txt?raw';
 import ROBOTS_TXT from '@site/content/agent/robots.txt?raw';
 import SKILL_MD from '@site/content/agent/SKILL.md?raw';
 import { API_CATALOG, MCP_SERVER_CARD, SKILL_PATH, skillIndex } from '@site/lib/agent';
 import { Hono } from 'hono/tiny';
+import { nanoid } from 'nanoid';
 import { api } from './api';
 import { dayCached, once } from './http';
 import { generateOgImage } from './og';
 import { collectMarks } from './og-marks';
 import { proxy } from './proxy';
-import { annotationStore, nowInSeconds, projectStore } from './store';
+import { annotationStore, nowInSeconds, projectStore, uploadStore } from './store';
 
 export { AnnotationRoom } from './annotation-room';
 
@@ -20,6 +21,7 @@ export type Env = {
     ASSETS: Fetcher;
     ANNOTATION_ROOM: DurableObjectNamespace;
     OG_BUCKET: R2Bucket;
+    FILE_BUCKET: R2Bucket;
     TURN_KEY_ID?: string;
     TURN_KEY_TOKEN?: string;
     POSTHOG_KEY?: string;
@@ -207,6 +209,72 @@ app.get('/ws/:id', async (c) => {
   return room.fetch(new Request(url.toString(), c.req.raw));
 });
 
+// Anonymous PDF upload, so a share can annotate a local file and not just a
+// public URL. The id itself is the access token, same as an annotation's.
+app.post('/f', async (c) => {
+  const reader = c.req.raw.body?.getReader();
+  if (!reader) return c.text('Empty body', 400);
+
+  // Read as a stream and count bytes as they arrive — a Content-Length header
+  // is only a claim from the client, so the cap has to hold against the bytes
+  // actually received, and stop pulling once it's blown rather than buffering
+  // an oversized body just to reject it after the fact.
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_UPLOAD_BYTES) {
+      await reader.cancel();
+      return c.text('File too large', 413);
+    }
+    chunks.push(value);
+  }
+
+  const body = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  // Sniff the real bytes, never the client's declared Content-Type.
+  if (new TextDecoder().decode(body.subarray(0, 5)) !== '%PDF-') return c.text('Not a PDF', 415);
+
+  const id = nanoid();
+  // Row first: the cleanup cron sweeps R2 by what it finds in D1, so an object
+  // written without one would never be collected. The reverse order only risks a
+  // row pointing at nothing, which reads as a 404 and expires on its own.
+  await uploadStore(c.env.DB).put({ id, size });
+  await c.env.FILE_BUCKET.put(id, body, { httpMetadata: { contentType: 'application/pdf' } });
+  return c.json({ id, url: uploadPath(id) });
+});
+
+app.get('/f/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!isUploadId(id)) return c.notFound();
+
+  const object = await c.env.FILE_BUCKET.get(id);
+  if (!object) return c.notFound();
+
+  // Push the retention clock back without delaying the response the browser is
+  // waiting on to render the PDF.
+  c.executionCtx.waitUntil(uploadStore(c.env.DB).touch(id));
+
+  return new Response(object.body, {
+    headers: {
+      'Content-Type': 'application/pdf',
+      // Load-bearing: without this, a sniffing browser could treat the bytes at
+      // this URL as something other than a PDF and execute them as the app's
+      // own origin.
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Disposition': 'inline; filename="document.pdf"',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+});
+
 // The agent-facing text surface. apps/site owns the source (it also prerenders
 // these paths for its standalone deploy), but `run_worker_first` claims them
 // here, so the Worker is what actually answers in production — reading the same
@@ -300,18 +368,26 @@ const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_even
   const staleBefore = nowInSeconds() - RETENTION_DAYS * 24 * 60 * 60;
 
   // R2 caps a batch delete at 1000 keys.
-  const dropOgCards = async (ids: string[]) => {
-    const keys = ids.map((id) => `${id}.png`);
+  const dropKeys = async ({ bucket, keys }: { bucket: R2Bucket; keys: string[] }) => {
     const batches: Promise<void>[] = [];
     for (let i = 0; i < keys.length; i += 1000) {
-      batches.push(env.OG_BUCKET.delete(keys.slice(i, i + 1000)));
+      batches.push(bucket.delete(keys.slice(i, i + 1000)));
     }
     await Promise.all(batches);
   };
+  const dropOgCards = (ids: string[]) => dropKeys({ bucket: env.OG_BUCKET, keys: ids.map((id) => `${id}.png`) });
 
   // Same retention policy for single annotations and project bundles.
   await dropOgCards(await annotationStore(env.DB).deleteExpired({ unusedSince: staleBefore }));
   await dropOgCards(await projectStore(env.DB).deleteExpired({ unusedSince: staleBefore }));
+
+  // Uploaded PDFs get the same window, keyed off their own last_accessed_at —
+  // an upload that never makes it into a shared annotation must still be
+  // collected, not just the annotations that reference one.
+  await dropKeys({
+    bucket: env.FILE_BUCKET,
+    keys: await uploadStore(env.DB).deleteExpired({ unusedSince: staleBefore }),
+  });
 };
 
 export default { ...app, scheduled };

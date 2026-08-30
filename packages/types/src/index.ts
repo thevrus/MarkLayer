@@ -46,6 +46,22 @@ export const cn = createCn({
 export type { FetchableUrl, UnfetchableReason } from './net';
 export { isBlockedHost, isPrivateAddress, parseFetchableUrl } from './net';
 
+/**
+ * An anonymous upload's id and the path it is served at. Shared because the
+ * Worker mints and validates ids while the viewer has to recognise one in a
+ * stored `url`; the length tracks `nanoid()`'s default. Deliberately the only
+ * same-origin path the viewer accepts as a document — the id charset excludes
+ * `/`, `.` and `?`, so a crafted `url` can never walk out of `/f/`.
+ */
+const UPLOAD_ID = /^[A-Za-z0-9_-]{21}$/;
+
+/** The cap on an anonymous upload. Enforced server-side; shown client-side. */
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+export const isUploadId = (id: string): boolean => UPLOAD_ID.test(id);
+export const uploadPath = (id: string): string => `/f/${id}`;
+export const isUploadPath = (url: string): boolean => url.startsWith('/f/') && isUploadId(url.slice(3));
+
 // === Ops: schemas + inferred types (single source of truth) ===
 
 export const pointSchema = z.object({ x: z.number(), y: z.number() });
@@ -141,11 +157,29 @@ export const targetElementSchema = z.object({
 export type TargetElement = z.infer<typeof targetElementSchema>;
 
 /**
+ * Anchor for an annotation drawn on a PDF, as a fraction of its page box.
+ * A PDF has no stable element to bind to: pdf.js tears down offscreen pages
+ * and rebuilds the text layer's spans at every zoom level, so both halves of
+ * `targetElement` — the selector and the element-local offset — go stale. The
+ * page number plus a 0..1 fraction survives all of it, and reprojects with a
+ * multiply. Absent on ops drawn over ordinary web pages.
+ */
+export const pdfAnchorSchema = z.object({
+  /** 1-based, matching how PDF pages are numbered everywhere a user sees them. */
+  page: z.number(),
+  x: z.number(),
+  y: z.number(),
+});
+
+export type PdfAnchor = z.infer<typeof pdfAnchorSchema>;
+
+/**
  * Mixed into every op that can be bound to a page element, so adding an
  * anchorable tool is one spread rather than a remembered line. Optional for
- * backwards compat with ops recorded before anchoring existed.
+ * backwards compat with ops recorded before anchoring existed. `pdf` is the
+ * same idea for PDFs, and the two are mutually exclusive in practice.
  */
-const anchorable = { target: z.optional(targetElementSchema) };
+const anchorable = { target: z.optional(targetElementSchema), pdf: z.optional(pdfAnchorSchema) };
 
 export const freehandOpSchema = z.object({
   ...baseOp,

@@ -1,0 +1,115 @@
+<!doctype html>
+<!-- The host reads this the instant the iframe fires `load` (ViewerStage.tsx),
+     which is long before pdf.js has fetched and painted anything. It marks who
+     served the page, not that rendering finished, so it has to be in the markup
+     — set from script it always loses the race and every PDF reads as a failed
+     render. Failures surface as .pdf-error inside the frame instead. -->
+<html lang="en" data-marklayer="1" data-pdf="1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF · MarkLayer</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #525659;
+      }
+
+      #pdf-root {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .pdf-page {
+        position: relative;
+        margin: 12px 0;
+        background: #fff;
+        box-sizing: border-box;
+      }
+
+      .pdf-page canvas {
+        display: block;
+      }
+
+      .pdf-error {
+        margin: 24px;
+        color: #eee;
+        font-family: monospace;
+        white-space: pre-wrap;
+      }
+
+      /* The text-layer contract, taken from pdfjs-dist/web/pdf_viewer.css. Not
+         imported wholesale: that file is 160KB of viewer chrome this page has
+         none of, and pulls in 39 SVG assets. TextLayer.render() positions each
+         span with an inline left/top percentage and sets --font-height,
+         --scale-x and --rotate on it — the font-size and transform below are
+         what consume them, and without them every span renders at the inherited
+         size and text selection lands in the wrong place. */
+      .textLayer {
+        position: absolute;
+        inset: 0;
+        overflow: clip;
+        line-height: 1;
+        letter-spacing: normal;
+        word-spacing: normal;
+        text-align: initial;
+        text-size-adjust: none;
+        forced-color-adjust: none;
+        transform-origin: 0 0;
+        caret-color: CanvasText;
+        z-index: 1;
+
+        --min-font-size: 1;
+        --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+        --min-font-size-inv: calc(1 / var(--min-font-size));
+      }
+
+      .textLayer :is(span, br) {
+        color: transparent;
+        position: absolute;
+        white-space: pre;
+        cursor: text;
+        transform-origin: 0% 0%;
+        user-select: text;
+      }
+
+      .textLayer > :not(.markedContent),
+      .textLayer .markedContent span:not(.markedContent) {
+        --font-height: 0;
+        --scale-x: 1;
+        --rotate: 0deg;
+        font-size: calc(var(--text-scale-factor) * var(--font-height));
+        transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+      }
+
+      .textLayer .markedContent {
+        display: contents;
+      }
+
+      /* TextLayer.render() appends this sentinel; left unstyled it is a
+         selectable block sitting on top of the page. */
+      .textLayer .endOfContent {
+        display: block;
+        position: absolute;
+        inset: 100% 0 0;
+        cursor: default;
+        user-select: none;
+      }
+
+      .textLayer.selecting .endOfContent {
+        top: 0;
+      }
+
+      .textLayer ::selection {
+        background: rgba(0, 100, 255, 0.3);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="pdf-root"></div>
+    <script type="module" src="/web/pdf-viewer.ts"></script>
+  </body>
+</html>

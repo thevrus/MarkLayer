@@ -6,7 +6,15 @@ import { IdentityCard } from '@ext/components/IdentityCard';
 import { Tooltip } from '@ext/components/Tooltip';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import { copyText, cycleTheme, peerCount, peers, showAnnotationPanel, theme } from '@ext/lib/state';
+import {
+  copyText,
+  cycleTheme,
+  elementToolsUnavailable,
+  peerCount,
+  peers,
+  showAnnotationPanel,
+  theme,
+} from '@ext/lib/state';
 import type { DeviceMode } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import {
@@ -29,6 +37,7 @@ import {
 import type { ComponentChildren } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
 import { useRef, useState } from 'preact/hooks';
+import { isUploadPath } from './pdfSource';
 import { DEVICE_ICONS, Logo } from './shared';
 import {
   deviceMode,
@@ -120,21 +129,29 @@ function BrandLink() {
   );
 }
 
-/** The page being annotated: editable, Enter to navigate, click the icon to copy. */
+/** The page being annotated: editable, Enter to navigate, click the icon to copy.
+ *  An uploaded file has no url worth either — the path describes nothing to a
+ *  reader, and copying it yields a relative fragment rather than a link (the
+ *  shareable one comes from the share button). So the field keeps only its
+ *  second job there: somewhere to type the next page. */
 function UrlField() {
+  const uploaded = isUploadPath(pageUrl.value);
   return (
     <div class={cn(geist.field, 'flex-1 min-w-0 flex items-center gap-2 px-2.5')}>
-      <Link
-        size={14}
-        strokeWidth={1.5}
-        class="text-(--ds-gray-900) shrink-0 cursor-pointer hover:text-(--ds-gray-1000) transition-colors duration-150"
-        aria-label="Copy URL"
-        onClick={() => copyText(pageUrl.value, 'URL copied')}
-      />
+      {!uploaded && (
+        <Link
+          size={14}
+          strokeWidth={1.5}
+          class="text-(--ds-gray-900) shrink-0 cursor-pointer hover:text-(--ds-gray-1000) transition-colors duration-150"
+          aria-label="Copy URL"
+          onClick={() => copyText(pageUrl.value, 'URL copied')}
+        />
+      )}
       <input
         name="pageUrl"
         type="text"
-        defaultValue={pageUrl.value}
+        placeholder={uploaded ? 'Paste a URL to annotate…' : undefined}
+        defaultValue={uploaded ? '' : pageUrl.value}
         class={cn(geist.input, 'flex-1 truncate cursor-text')}
         title="Edit URL and press Enter to navigate"
         onKeyDown={(e) => {
@@ -166,6 +183,9 @@ function ViewportToggle({ mode }: { mode: DeviceMode }) {
 
 /** Mutually exclusive views, so the selection reads as a panel raised off a track. */
 function ViewportSwitcher() {
+  // A PDF is laid out to the frame's width, not by media queries — switching to a
+  // phone viewport would only make the same page narrower, so it isn't offered.
+  if (elementToolsUnavailable.value) return null;
   return (
     <ToggleGroup
       value={[deviceMode.value]}

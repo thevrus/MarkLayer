@@ -1,7 +1,6 @@
 import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
 import { PriorityPin } from '@ext/components/PriorityPicker';
 import { ReplyComposer, ThreadHeader, ThreadReplies, threadCard } from '@ext/components/ThreadCard';
-import { applyAnchorDelta } from '@ext/lib/anchor';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -17,6 +16,7 @@ import {
 import type { CommentOp } from '@ext/lib/types';
 import { cn, isSettled } from '@marklayer/types';
 import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
+import { resolveAnchors } from './iframeOverlay';
 import { cssScale, iframeMutationTick } from './signals';
 
 interface Props {
@@ -36,7 +36,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
     y: docY,
     strategy,
   } = frameDoc
-    ? applyAnchorDelta(op.target, { docX: op.x, docY: op.y }, { doc: frameDoc, win: frameDoc.defaultView ?? undefined })
+    ? resolveAnchors({ target: op.target, pdf: op.pdf, docX: op.x, docY: op.y, doc: frameDoc })
     : { x: op.x, y: op.y, strategy: null };
   const left = docX * s;
   const top = docY * s - scrollY;
