@@ -17,7 +17,7 @@ import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 import { capture } from './analytics';
-import { followingPeer, onFollowScroll } from './signals';
+import { followingPeer, onFollowScroll, onPresentChange, presenting } from './signals';
 
 export const connected = signal(false);
 /** Unix timestamp (seconds) when the annotation was first created */
@@ -345,6 +345,19 @@ export function useRealtimeSync(annotationId: string) {
               }
               break;
             }
+            case 'flock': {
+              const peer = peers.value.get(msg.peerId);
+              const who = peer?.name || msg.name || 'Someone';
+              if (msg.on) {
+                followingPeer.value = msg.peerId;
+                // Say why the page just moved, or being pulled reads as a bug.
+                toast(`${who} is presenting — scroll to break away`, 'info', 4000);
+              } else if (followingPeer.value === msg.peerId) {
+                followingPeer.value = null;
+                toast(`${who} stopped presenting`, 'info', 2500);
+              }
+              break;
+            }
             case 'peer_leave': {
               const leaving = peers.value.get(msg.peerId);
               if (followingPeer.value === msg.peerId) followingPeer.value = null;
@@ -434,6 +447,7 @@ export function useRealtimeSync(annotationId: string) {
     onUndone.value = (opId: string) => sendMsg({ type: 'undo', opId });
     onCleared.value = () => sendMsg({ type: 'clear' });
     onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });
+    onPresentChange.value = (on: boolean) => sendMsg({ type: 'flock', on });
     wsSend.value = sendMsg;
 
     // Throttled cursor sending (50 ms = 20 Hz). Visual smoothness comes from
@@ -468,6 +482,10 @@ export function useRealtimeSync(annotationId: string) {
       onUndone.value = null;
       onCleared.value = null;
       onCursorMove.value = null;
+      // Presenting cannot outlive the socket that carries it. Followers are
+      // released by the peer_leave this disconnect triggers on their side.
+      onPresentChange.value = null;
+      presenting.value = false;
       onProfileChange.value = null;
       emitRipple.value = null;
       activeRipples.value = [];

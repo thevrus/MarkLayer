@@ -28,6 +28,8 @@ import {
   showAnnotationPanel,
   showShareDialog,
   toast,
+  toggleUiHidden,
+  uiHidden,
   undo,
   undoRedoFlash,
 } from '@ext/lib/state';
@@ -62,6 +64,7 @@ import {
   opMatchesDevice,
   originalWidth,
   pageUrl,
+  presenting,
   projectId,
   projectLoading,
   projectPages,
@@ -93,6 +96,9 @@ import { videoActive, voiceActive } from './voiceSignals';
 
 // WebRTC engine lives in its own chunk — only fetched when a user joins voice/video.
 const VoiceEngine = lazy(() => import('./VoiceEngine'));
+
+// A whole second screen most sessions never open, so it loads on first use.
+const AnnotationBoard = lazy(() => import('./AnnotationBoard').then((m) => ({ default: m.AnnotationBoard })));
 
 /** Narrowest space auto-fit will size a device frame into before letting it overflow and scroll. */
 const MIN_DEVICE_FIT_WIDTH = 320;
@@ -148,6 +154,7 @@ export default function Viewer() {
   const lastPosRef = useRef<Point | null>(null);
 
   const readonly = isReadonly.value;
+  const chromeHidden = uiHidden.value;
 
   const scrollToAnnotation = useCallback((_x: number, y: number) => {
     try {
@@ -371,6 +378,10 @@ export default function Viewer() {
 
   // Iframe setup
   const programmaticScroll = useRef(false);
+  /** Clears `programmaticScroll` once scrolling has actually stopped, not on a fixed timer. */
+  const scrollSettle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** Last cursor X inside the frame, so a presenter's scroll-only update keeps a sane X. */
+  const lastCursorX = useRef(0);
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
@@ -386,9 +397,26 @@ export default function Viewer() {
         detachMutationObserver = attachIframeMutationObserver(win.document);
         win.addEventListener('scroll', () => {
           iframeScrollY.value = win.scrollY || 0;
-          // Break follow mode on user-initiated scroll
-          if (followingPeer.value && !programmaticScroll.current) {
+          // Break follow mode on user-initiated scroll. The programmatic flag is
+          // held open until scrolling actually stops rather than for a fixed
+          // window: a smooth scroll across a long page outlives any timer started
+          // when it began, and the late events would read as the user taking over
+          // and break the follow that caused them.
+          if (programmaticScroll.current) {
+            if (scrollSettle.current) clearTimeout(scrollSettle.current);
+            scrollSettle.current = setTimeout(() => {
+              programmaticScroll.current = false;
+              scrollSettle.current = null;
+            }, 150);
+          } else if (followingPeer.value) {
             followingPeer.value = null;
+          }
+          // Followers ride the presenter's cursor Y, and the cursor only emits on
+          // mousemove — so a presenter who scrolls without moving the mouse would
+          // move nobody. Emit the viewport centre instead, which is where
+          // `onFollowScroll` lands them, so the two viewports show the same content.
+          if (presenting.value) {
+            onCursorMove.value?.(lastCursorX.current, (win.scrollY || 0) + win.innerHeight / 2, activeTool.value);
           }
         });
         // Break follow mode on user interaction in iframe + ripple on click
@@ -420,6 +448,7 @@ export default function Viewer() {
         win.addEventListener('keyup', forwardKey('keyup'));
         // Forward cursor position from iframe so peers see it even when navigate tool is active
         win.addEventListener('mousemove', (e) => {
+          lastCursorX.current = e.clientX;
           onCursorMove.value?.(e.clientX, e.clientY + (win.scrollY || 0), activeTool.value);
         });
         // Hand tool: the framed page is its own scroller, and it sits behind a CSS
@@ -431,11 +460,10 @@ export default function Viewer() {
         // Follow mode: scroll iframe to followed peer's Y
         onFollowScroll.value = (y: number) => {
           programmaticScroll.current = true;
+          if (scrollSettle.current) clearTimeout(scrollSettle.current);
           win.scrollTo({ top: Math.max(0, y - win.innerHeight / 2), behavior: 'smooth' });
-          // Reset flag after scroll settles
-          setTimeout(() => {
-            programmaticScroll.current = false;
-          }, 300);
+          // The flag is cleared by the scroll handler once the events stop, so a
+          // scroll of any length stays recognised as ours for its whole duration.
         };
       } catch {
         /* cross-origin */
@@ -448,6 +476,7 @@ export default function Viewer() {
       detachMutationObserver?.();
       onFollowScroll.value = null;
       panScrollBy.value = null;
+      if (scrollSettle.current) clearTimeout(scrollSettle.current);
     };
   }, []);
 
@@ -523,11 +552,19 @@ export default function Viewer() {
         viewerZoom.value = 'auto';
       }),
       Escape: (e) => {
-        if (isReadonly.value) return;
         if (isEditable(e.target) && e.target instanceof HTMLElement) {
           e.target.blur();
           return;
         }
+        // Above the read-only bail: ⌘/ is a navigation key a guest gets too, so
+        // the key that undoes it has to reach them as well. Nothing else is on
+        // screen to escape from either, which is why it unwinds first.
+        if (uiHidden.value) {
+          toggleUiHidden();
+          e.preventDefault();
+          return;
+        }
+        if (isReadonly.value) return;
         if (showShareDialog.value) {
           showShareDialog.value = false;
           e.preventDefault();
@@ -1098,19 +1135,29 @@ export default function Viewer() {
         )}
         <NarrowViewportGate />
 
-        <ViewerTopBar />
+        {/* Figma's hide-UI (⌘/): every bar and panel off, the annotations and
+            the page they sit on left alone. The top bar collapses out of the
+            column, so the stage takes the height it gives up. */}
+        {!chromeHidden && <ViewerTopBar />}
         {/* Only renders anything when the URL is /p/:id */}
-        <ProjectTabs />
+        {!chromeHidden && <ProjectTabs />}
         <ViewerStage />
 
         <ContextMenu />
-        {readonly ? <ViewOnlyBadge /> : <AuthoringChrome />}
+        {!chromeHidden && (readonly ? <ViewOnlyBadge /> : <AuthoringChrome />)}
 
+        {/* Call controls stay: losing the mute button behind a shortcut with no
+            visible way back is a different kind of problem than a busy screen. */}
         {voiceActive.value && <VoicePill />}
         <VideoBubbles />
         <AudioUnblockPrompt />
         <FollowIndicator />
-        <Toasts offset="below-bar" />
+        {/* Above the toasts in the tree so a status change made on the board still
+            announces itself over it. */}
+        <Suspense fallback={null}>
+          <AnnotationBoard />
+        </Suspense>
+        <Toasts offset={chromeHidden ? 'top' : 'below-bar'} />
       </div>
     </ViewerFrameProvider>
   );
