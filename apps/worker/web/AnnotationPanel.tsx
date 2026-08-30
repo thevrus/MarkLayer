@@ -1,20 +1,15 @@
-import { Avatar } from '@ext/components/Avatar';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
-import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from '@ext/lib/export-text';
 import { geist } from '@ext/lib/geist';
-import { glass } from '@ext/lib/glass';
 import {
   areas,
-  color,
   commentFilter,
   copyText,
+  focusedAnnotationId,
   getCommentStatus,
   getReplies,
-  localUser,
   operations,
-  pushReply,
   rootComments,
   STATUS_LABELS,
   setOpStatus,
@@ -22,12 +17,28 @@ import {
   toast,
 } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
-import type { AreaOp, CommentOp, CommentStatus, DeviceMode, DrawOp, SelectionOp, TextOp } from '@ext/lib/types';
+import type { CommentOp, CommentStatus, DeviceMode, DrawOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
-import { BoxSelect, Check, ClipboardCopy, Download, MessageSquare, Replace, TextSelect, Type, X } from 'lucide-preact';
+import {
+  BoxSelect,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCopy,
+  Download,
+  MessageSquare,
+  Replace,
+  TextSelect,
+  Type,
+  X,
+} from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
-import { useRef, useState } from 'preact/hooks';
-import { DEVICE_ICONS } from './shared';
+import { useEffect, useRef } from 'preact/hooks';
+import { tinykeys } from 'tinykeys';
+import { AnnotationDetail } from './AnnotationDetail';
+import { capture } from './analytics';
+import { type AnnotationItem, itemAnchor, itemLabel } from './annotationItems';
+import { DEVICE_ICONS, DEVICE_LABELS } from './shared';
 
 /** What an export writes: the live page's ops, plus every other page when this is a project. */
 export interface ExportData {
@@ -41,17 +52,18 @@ interface BodyProps {
   getExportData?: () => ExportData;
 }
 
-type AnnotationItem =
-  | { kind: 'comment'; op: CommentOp; replyCount: number }
-  | { kind: 'text'; op: TextOp }
-  | { kind: 'selection'; op: SelectionOp }
-  | { kind: 'area'; op: AreaOp };
-
 const STATUS_COLORS: Record<CommentStatus, string> = {
   open: 'var(--ds-blue-800)',
   in_progress: 'var(--ds-amber-700)',
   resolved: 'var(--ds-green-700)',
   dismissed: 'var(--ds-gray-700)',
+};
+/** The row offers one action, not a menu; this is where it goes next. */
+const STATUS_CYCLE: Record<CommentStatus, CommentStatus> = {
+  open: 'in_progress',
+  in_progress: 'resolved',
+  resolved: 'open',
+  dismissed: 'open',
 };
 const STATUS_ACTIONS: Record<CommentStatus, string> = {
   open: 'Mark in progress',
@@ -74,8 +86,6 @@ function StatusBadge({ status }: { status: CommentStatus }) {
   );
 }
 
-const DEVICE_LABELS: Record<DeviceMode, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' };
-
 function DeviceBadge({ device }: { device?: DeviceMode }) {
   if (!device || device === 'desktop') return null;
   const Icon = DEVICE_ICONS[device];
@@ -87,54 +97,30 @@ function DeviceBadge({ device }: { device?: DeviceMode }) {
   );
 }
 
-function MetaInfo({ op }: { op: CommentOp }) {
-  if (!op.meta) return null;
-  const parts: string[] = [];
-  if (op.meta.browser) parts.push(op.meta.browser);
-  if (op.meta.os) parts.push(op.meta.os);
-  if (op.meta.viewport) parts.push(`${op.meta.viewport.width}×${op.meta.viewport.height}`);
-  if (!parts.length) return null;
-  return <span class="text-meta text-(--ds-gray-900) mt-1 block">{parts.join(' · ')}</span>;
-}
-
-function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: number, y: number) => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const [replying, setReplying] = useState(false);
-  const replyRef = useRef<HTMLTextAreaElement>(null);
-  const replies = getReplies(op.id);
+/**
+ * A comment in the list: identity, triage at a glance, and the first two lines.
+ * Everything else — replies, assignee, context, the reply box — lives one click
+ * away in the detail view, so the list stays scannable at 340px.
+ */
+function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
   const status = getCommentStatus(op);
-
-  const submitReply = () => {
-    const txt = replyRef.current?.value.trim();
-    if (!txt) return;
-    pushReply(op, txt);
-    if (replyRef.current) replyRef.current.value = '';
-    setReplying(false);
-  };
-
-  const cycleStatus = (e: Event) => {
-    e.stopPropagation();
-    const order: CommentStatus[] = ['open', 'in_progress', 'resolved'];
-    const next = order[(order.indexOf(status) + 1) % order.length];
-    setOpStatus(op.id, next);
-  };
+  const replies = getReplies(op.id);
+  const resolved = status === 'resolved';
 
   return (
     <div class="border-b border-(--ds-gray-alpha-400)">
-      {/* Root comment header — click to expand */}
-      <div
-        class={cn(
-          'px-4 py-3 cursor-pointer transition-colors duration-100 hover:bg-(--ds-gray-alpha-100)',
-          expanded && 'bg-(--ds-gray-alpha-100)',
-        )}
-        onClick={() => setExpanded(!expanded)}
+      <button
+        type="button"
+        onClick={onOpen}
+        class="w-full text-left px-4 pt-3 pb-2 bg-transparent border-none cursor-pointer
+               transition-colors duration-100 hover:bg-(--ds-gray-alpha-100)"
       >
         <div class="flex items-center gap-2 mb-1.5">
           <div
             class="w-5 h-5 rounded-full text-white text-mini font-medium tabular-nums grid place-items-center shrink-0"
-            style={{ background: status === 'resolved' ? 'var(--ds-gray-700)' : op.color }}
+            style={{ background: resolved ? 'var(--ds-gray-700)' : op.color }}
           >
-            {status === 'resolved' ? <Check size={11} strokeWidth={2} aria-hidden="true" /> : op.num}
+            {resolved ? <Check size={11} strokeWidth={2} aria-hidden="true" /> : op.num}
           </div>
           <span class="text-meta text-(--ds-gray-1000) font-semibold flex-1 truncate">{op.author || 'Anonymous'}</span>
           {op.priority && <PriorityBadge priority={op.priority} />}
@@ -143,121 +129,27 @@ function CommentThread({ op, onScrollTo }: { op: CommentOp; onScrollTo: (x: numb
           <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(op.ts)}</span>
         </div>
         <p
-          class={cn('text-ui text-(--ds-gray-1000) leading-relaxed m-0', !expanded && 'line-clamp-2')}
-          style={{
-            textDecoration: status === 'resolved' ? 'line-through' : 'none',
-            opacity: status === 'resolved' ? 0.5 : 1,
-          }}
+          class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 line-clamp-2"
+          style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
         >
           {op.text}
         </p>
-        {expanded && <MetaInfo op={op} />}
-        <div class="flex items-center gap-3 mt-2">
-          {replies.length > 0 && (
-            <span class="text-meta text-(--ds-gray-900) flex items-center gap-1 font-medium">
-              <MessageSquare size={11} aria-hidden="true" />
-              {replies.length}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onScrollTo(op.x, op.y);
-            }}
-            class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
-          >
-            Go to
-          </button>
-          <button type="button" onClick={cycleStatus} class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}>
-            {STATUS_ACTIONS[status]}
-          </button>
-        </div>
+      </button>
+      <div class="flex items-center gap-3 px-4 pb-2.5">
+        {replies.length > 0 && (
+          <span class="text-meta text-(--ds-gray-900) flex items-center gap-1 font-medium">
+            <MessageSquare size={11} aria-hidden="true" />
+            {replies.length}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpStatus(op.id, STATUS_CYCLE[status])}
+          class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
+        >
+          {STATUS_ACTIONS[status]}
+        </button>
       </div>
-
-      {expanded && (
-        <div class="bg-(--ds-gray-alpha-100)">
-          {replies.length > 0 && (
-            <div class="px-4 pb-1">
-              {replies.map((reply) => (
-                <div key={reply.id} class="flex gap-2 py-2 border-t border-(--ds-gray-alpha-400) first:border-t-0">
-                  <Avatar name={reply.author || '?'} color={reply.color} size="sm" style={{ marginTop: 2 }} />
-                  <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2">
-                      <span class="text-meta text-(--ds-gray-1000) font-semibold truncate">
-                        {reply.author || 'Anonymous'}
-                      </span>
-                      <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
-                    </div>
-                    <p
-                      class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 mt-0.5"
-                      style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                    >
-                      {reply.text}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Reply input */}
-          {replying ? (
-            <div class="px-4 pb-3 pt-1">
-              <div class="flex gap-2">
-                <Avatar name={localUser.name} color={color.value} size="sm" style={{ marginTop: 6 }} />
-                <div class="flex-1">
-                  <textarea
-                    name="reply"
-                    ref={replyRef}
-                    placeholder="Write a reply…"
-                    rows={1}
-                    class={cn(textareaCls, glass.font, 'w-full min-h-8 max-h-[100px]')}
-                    style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        submitReply();
-                      } else if (e.key === 'Escape') {
-                        setReplying(false);
-                      }
-                    }}
-                  />
-                  <div class="flex items-center justify-end gap-2 mt-1.5">
-                    <button
-                      type="button"
-                      onClick={() => setReplying(false)}
-                      class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-ui font-medium')}
-                    >
-                      Cancel
-                    </button>
-                    <button type="button" onClick={submitReply} class={submitBtn}>
-                      Reply
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div class="px-4 pb-3 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setReplying(true);
-                  setTimeout(() => replyRef.current?.focus(), 50);
-                }}
-                class={cn(
-                  geist.field,
-                  'w-full flex items-center px-3 text-left text-ui text-(--ds-gray-700) cursor-text',
-                  'hover:border-(--ds-gray-700)',
-                )}
-              >
-                Reply…
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -273,11 +165,14 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
     const data = getExportData?.() ?? { ops: operations.value };
     return buildMarkdownExport(data.ops, { url: data.url, pages: data.pages });
   };
+  // No capture here: `copyText` counts every clipboard hand-off, success and failure alike.
   const handleCopy = () => copyText(buildExport(), 'Markdown copied');
+
   const handleDownload = () => {
     const md = buildExport();
     const data = getExportData?.() ?? { ops: operations.value };
     downloadMarkdown(md, defaultExportFilename(data.url));
+    capture('export_completed', { format: 'markdown', ops: operations.value.length });
     toast('Markdown exported', 'success');
   };
 
@@ -305,12 +200,97 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   }
   const areaList = areas.value;
   for (const op of areaList) items.push({ kind: 'area', op });
-  const itemY = (item: AnnotationItem) => {
-    if (item.kind === 'selection') return item.op.rects[0]?.y ?? 0;
-    if (item.kind === 'area') return Math.min(item.op.startY, item.op.endY);
-    return item.op.y;
+  items.sort((a, b) => itemAnchor(a).y - itemAnchor(b).y);
+
+  // A focused annotation that was deleted, or filtered out from under the view,
+  // drops back to the list rather than leaving the panel on a dead detail.
+  const focusIndex = items.findIndex((item) => item.op.id === focusedAnnotationId.value);
+  const focused = focusIndex === -1 ? null : items[focusIndex];
+
+  const step = (delta: number) => {
+    if (focusIndex === -1 || items.length < 2) return;
+    const next = items[(focusIndex + delta + items.length) % items.length];
+    focusedAnnotationId.value = next.op.id;
+    const { x, y } = itemAnchor(next);
+    onScrollTo(x, y);
   };
-  items.sort((a, b) => itemY(a) - itemY(b));
+
+  const open = (item: AnnotationItem) => {
+    focusedAnnotationId.value = item.op.id;
+    const { x, y } = itemAnchor(item);
+    onScrollTo(x, y);
+    capture('annotation_focused', { kind: item.kind });
+  };
+
+  // tinykeys isn't signal-aware, so the binding lives in an effect. The ref keeps
+  // it pointed at the current list instead of rebinding on every render.
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  useEffect(() => {
+    const editable = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+    const move = (delta: number) => (e: KeyboardEvent) => {
+      // Bare j/k would shadow a tool shortcut at rest, so they only bind while a
+      // detail is actually open — which is also the only time stepping means anything.
+      if (!focusedAnnotationId.peek() || editable(e.target)) return;
+      e.preventDefault();
+      stepRef.current(delta);
+    };
+    return tinykeys(window, {
+      ArrowDown: move(1),
+      KeyJ: move(1),
+      ArrowUp: move(-1),
+      KeyK: move(-1),
+    });
+  }, []);
+
+  if (focused) {
+    return (
+      <>
+        <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400) shrink-0 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => (focusedAnnotationId.value = null)}
+            title="Back to all annotations"
+            aria-label="Back to all annotations"
+            class={cn(geist.ctlSm, geist.ctlIdle, '-ml-1.5')}
+          >
+            <ChevronLeft size={16} strokeWidth={1.75} aria-hidden="true" />
+          </button>
+          <h2 class="text-ui font-semibold text-(--ds-gray-1000) m-0 tracking-ui truncate flex-1">
+            {itemLabel(focused)}
+          </h2>
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              disabled={items.length < 2}
+              title="Previous annotation (K)"
+              aria-label="Previous annotation"
+              class={cn(geist.ctlSm, geist.ctlIdle, 'disabled:opacity-40 disabled:cursor-default')}
+            >
+              <ChevronLeft size={15} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+            <span class="text-meta text-(--ds-gray-900) tabular-nums whitespace-nowrap">
+              {focusIndex + 1} of {items.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              disabled={items.length < 2}
+              title="Next annotation (J)"
+              aria-label="Next annotation"
+              class={cn(geist.ctlSm, geist.ctlIdle, 'disabled:opacity-40 disabled:cursor-default')}
+            >
+              <ChevronRight size={15} strokeWidth={1.75} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+        <AnnotationDetail key={focused.op.id} item={focused} onScrollTo={onScrollTo} />
+      </>
+    );
+  }
 
   return (
     <>
@@ -389,13 +369,11 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
 
         {items.map((item) => {
           if (item.kind === 'comment') {
-            return <CommentThread key={item.op.id} op={item.op} onScrollTo={onScrollTo} />;
+            return <CommentRow key={item.op.id} op={item.op} onOpen={() => open(item)} />;
           }
 
           if (item.kind === 'area') {
             const { op } = item;
-            const minX = Math.min(op.startX, op.endX);
-            const minY = Math.min(op.startY, op.endY);
             const w = Math.abs(op.endX - op.startX);
             const h = Math.abs(op.endY - op.startY);
             const areaResolved = op.status === 'resolved';
@@ -406,7 +384,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   class="w-full text-left px-4 py-3
                          bg-transparent cursor-pointer transition-colors duration-100
                          hover:bg-(--ds-gray-alpha-100)"
-                  onClick={() => onScrollTo(minX, minY)}
+                  onClick={() => open(item)}
                 >
                   <div class="flex items-center gap-2 mb-1">
                     <BoxSelect
@@ -439,13 +417,6 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                 <div class="flex items-center gap-3 px-4 pb-2.5">
                   <button
                     type="button"
-                    onClick={() => onScrollTo(minX, minY)}
-                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
-                  >
-                    Go to
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setOpStatus(op.id, areaResolved ? 'open' : 'resolved')}
                     class={cn(geist.bareBtn, geist.bareBtnQuiet)}
                   >
@@ -458,30 +429,33 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
 
           if (item.kind === 'selection') {
             const { op } = item;
-            const firstRect = op.rects[0];
-            const selResolved = op.status === 'resolved';
+            const selStatus = getCommentStatus(op);
+            const selResolved = selStatus === 'resolved' || selStatus === 'dismissed';
+            const selReplies = getReplies(op.id);
             const SelIcon = op.suggestion ? Replace : TextSelect;
             return (
               <div key={op.id} class="border-b border-(--ds-gray-alpha-400)">
                 <button
                   type="button"
-                  class="w-full text-left px-4 py-3
-                         bg-transparent cursor-pointer transition-colors duration-100
+                  class="w-full text-left px-4 pt-3 pb-2
+                         bg-transparent border-none cursor-pointer transition-colors duration-100
                          hover:bg-(--ds-gray-alpha-100)"
-                  onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
+                  onClick={() => open(item)}
                 >
-                  <div class="flex items-center gap-2 mb-1">
+                  <div class="flex items-center gap-2 mb-1.5">
                     <SelIcon
                       size={12}
                       strokeWidth={1.5}
                       color={selResolved ? 'var(--ds-gray-700)' : op.color}
                       aria-hidden="true"
                     />
-                    <span class="text-meta text-(--ds-gray-900) font-medium flex-1">
-                      {op.suggestion ? 'Text edit' : 'Selection'}
+                    <span class="text-meta text-(--ds-gray-1000) font-semibold flex-1 truncate">
+                      {op.author || 'Anonymous'}
                     </span>
+                    {op.priority && <PriorityBadge priority={op.priority} />}
                     <DeviceBadge device={op.device} />
-                    {selResolved && <StatusBadge status="resolved" />}
+                    <StatusBadge status={selStatus} />
+                    <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(op.ts)}</span>
                   </div>
                   {op.suggestion ? (
                     <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={selResolved} />
@@ -495,7 +469,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   )}
                   {op.comment && (
                     <p
-                      class="text-meta text-(--ds-gray-900) m-0 mt-1 line-clamp-1"
+                      class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 mt-1 line-clamp-2"
                       style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
                     >
                       {op.comment}
@@ -503,19 +477,18 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                   )}
                 </button>
                 <div class="flex items-center gap-3 px-4 pb-2.5">
+                  {selReplies.length > 0 && (
+                    <span class="text-meta text-(--ds-gray-900) flex items-center gap-1 font-medium">
+                      <MessageSquare size={11} aria-hidden="true" />
+                      {selReplies.length}
+                    </span>
+                  )}
                   <button
                     type="button"
-                    onClick={() => firstRect && onScrollTo(firstRect.x, firstRect.y)}
-                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
+                    onClick={() => setOpStatus(op.id, STATUS_CYCLE[selStatus])}
+                    class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
                   >
-                    Go to
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOpStatus(op.id, selResolved ? 'open' : 'resolved')}
-                    class={cn(geist.bareBtn, geist.bareBtnQuiet)}
-                  >
-                    {selResolved ? 'Reopen' : 'Resolve'}
+                    {STATUS_ACTIONS[selStatus]}
                   </button>
                 </div>
               </div>
@@ -530,7 +503,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               class="w-full text-left px-4 py-3 border-b border-(--ds-gray-alpha-400)
                      bg-transparent cursor-pointer transition-colors duration-100
                      hover:bg-(--ds-gray-alpha-100)"
-              onClick={() => onScrollTo(op.x, op.y)}
+              onClick={() => open(item)}
             >
               <div class="flex items-center gap-2 mb-1">
                 <Type size={12} strokeWidth={1.5} color={op.color} aria-hidden="true" />

@@ -1,10 +1,12 @@
 import { color, lineWidth } from '@ext/lib/state';
+import type { DeviceMode } from '@ext/lib/types';
 import { Loader2, Monitor, Smartphone, Tablet } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { MARK_PATHS, MARK_TRANSFORM } from '../src/brand';
 
 /** One glyph per viewport, so the switcher and the op badge can never disagree. */
 export const DEVICE_ICONS = { desktop: Monitor, tablet: Tablet, mobile: Smartphone } as const;
+export const DEVICE_LABELS: Record<DeviceMode, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' };
 
 export function Spinner() {
   return <Loader2 size={16} class="animate-spin" aria-hidden="true" />;

@@ -13,11 +13,14 @@ import {
   color,
   copyText,
   deleteOp,
+  getCommentStatus,
+  getReplies,
   hostMutationTick,
   lineWidth,
   localUser,
   openContextMenu,
   pushOp,
+  STATUS_STYLES,
   scrollTick,
   selectionCaptureArmed,
   selections,
@@ -25,8 +28,10 @@ import {
 } from '../lib/state';
 import type { SelectionOp, SelectionRect } from '../lib/types';
 import { CancelButton } from './CancelButton';
-import { PriorityBadge, PriorityPicker } from './PriorityPicker';
+import { TriageSection, useTriageHold } from './CommentTriage';
+import { PriorityPicker } from './PriorityPicker';
 import { SelectionEdit, SuggestionDiff } from './SelectionEdit';
+import { ReplyComposer, ThreadHeader, ThreadReplies } from './ThreadCard';
 
 interface PopoverState {
   x: number;
@@ -41,8 +46,9 @@ interface PopoverState {
 function SelectionHighlight({ op }: { op: SelectionOp }) {
   scrollTick.value; // subscribe so highlights track host-page scroll
   hostMutationTick.value; // re-resolve anchor on SPA route / DOM reflow
-  const resolved = op.status === 'resolved';
-  const highlightAlpha = resolved ? 0.1 : 0.25;
+  const status = getCommentStatus(op);
+  const resolved = status === 'resolved' || status === 'dismissed';
+  const triage = useTriageHold();
   // Re-anchor against the captured element's CURRENT top-left when possible.
   // The offset was recorded relative to the first rect at capture time, so
   // shifting every rect by the same delta — and scaling each rect's offset
@@ -52,6 +58,17 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   const anchored = reprojectRects({ target: op.target, rects: op.rects });
   if (!anchored) return null;
   const { x: anchorX, y: anchorY, rects, strategy } = anchored;
+
+  // Parked in the margin beside the first line, not on the corner of it: a disc
+  // centred on the anchor sits on the selection's own first letter, which is the
+  // one character the quote can least afford to lose.
+  const firstRect = rects[0];
+  const markerX = Math.max(2, anchorX - scrollX - 22);
+  const markerY = anchorY - scrollY + (firstRect ? firstRect.height / 2 - 8 : -8);
+  const flipH = markerX + 340 > window.innerWidth;
+  const flipV = markerY > window.innerHeight / 2;
+  // Replies hang off the selection's stored anchor, not the reprojected one.
+  const replyAnchor = op.rects[0];
 
   return (
     <>
@@ -66,20 +83,18 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
             height: r.height,
             background: resolved
               ? 'color-mix(in oklch, var(--color-ml-resolved) 10%, transparent)'
-              : hexToRgba(op.color, highlightAlpha),
+              : hexToRgba(op.color, 0.25),
             borderRadius: 2,
             mixBlendMode: 'multiply',
           }}
         />
       ))}
+      {/* The marker is the only interactive part: the highlight itself stays
+          pointer-transparent so an annotated paragraph on someone else's page
+          keeps its own links and text selection. */}
       <div
-        class="absolute pointer-events-auto group/sel"
-        style={{
-          left: anchorX - scrollX - 4,
-          top: anchorY - scrollY - 4,
-          width: 8,
-          height: 8,
-        }}
+        class={cn('absolute pointer-events-auto group/sel', triage.rootCls)}
+        style={{ left: markerX, top: markerY }}
         data-anchor-drift={strategy === 'text' ? 'text' : undefined}
         onContextMenu={(e) =>
           openContextMenu(e, [
@@ -93,46 +108,87 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           ])
         }
       >
-        <div class="w-2 h-2 rounded-full" style={{ background: resolved ? 'var(--color-ml-resolved)' : op.color }} />
-        {/* Hover card */}
+        <div
+          // Same treatment as a comment pin, at the size a word can carry: one
+          // flat fill, a surface ring to lift it off whatever is behind, and a
+          // ring that thickens on hover rather than a dot that grows.
+          class="w-4 h-4 rounded-full cursor-pointer
+                 shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
+                 transition-[box-shadow] duration-150 ease-out
+                 group-hover/sel:shadow-[0_0_0_3px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.3)]"
+          style={{
+            background: status === 'open' ? op.color : STATUS_STYLES[status].bg,
+            opacity: STATUS_STYLES[status].pinOpacity,
+          }}
+          role="img"
+          aria-label={`Selection by ${op.author || 'Anonymous'}`}
+        />
+
+        {/* The marker-to-card gap is padding on this wrapper, not an offset — as
+            dead space it drops :hover mid-crossing and the card goes before the
+            pointer reaches the reply box. */}
         <div
           class={cn(
-            'absolute left-3 top-0 hidden group-hover/sel:block z-10 w-[220px]',
-            geist.surfaceSmall,
-            glass.font,
-            'p-3',
+            'absolute',
+            flipV ? 'bottom-0' : 'top-0',
+            flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
+            'pointer-events-none group-hover/sel:pointer-events-auto',
+            triage.wrapCls,
           )}
         >
-          {op.priority && (
-            <div class="mb-1.5">
-              <PriorityBadge priority={op.priority} />
+          <div
+            class={cn(
+              geist.surfaceSmall,
+              glass.font,
+              'w-[300px] max-h-[50vh] overflow-y-auto overscroll-contain',
+              'opacity-0',
+              flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
+              'transition-[opacity,translate] duration-150 ease-out',
+              'group-hover/sel:opacity-100 group-hover/sel:translate-x-0',
+              triage.cardCls,
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ThreadHeader
+              label={(op.author || '?').charAt(0).toUpperCase()}
+              color={op.color}
+              author={op.author}
+              ts={op.ts}
+              priority={op.priority}
+            />
+
+            <div class={cn(geist.divider, 'mx-3')} />
+
+            <div class="px-3.5 py-3">
+              {op.suggestion ? (
+                <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={resolved} />
+              ) : (
+                <p class="text-meta text-(--ds-gray-900) m-0 line-clamp-3 leading-relaxed">"{op.text}"</p>
+              )}
+              {op.comment && (
+                <p
+                  class="text-ui text-(--ds-gray-1000) m-0 mt-2 leading-body wrap-break-word whitespace-pre-wrap"
+                  style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
+                >
+                  {op.comment}
+                </p>
+              )}
             </div>
-          )}
-          {op.suggestion ? (
-            <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={resolved} class="mb-1" />
-          ) : (
-            <p class="text-meta text-(--ds-gray-900) m-0 mb-1 line-clamp-2">{op.text}</p>
-          )}
-          {op.comment && (
-            <p
-              class="text-ui text-(--ds-gray-1000) m-0 leading-relaxed whitespace-pre-wrap"
-              style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
-            >
-              {op.comment}
-            </p>
-          )}
-          <div class="flex items-center justify-between mt-2">
-            <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpStatus(op.id, resolved ? 'open' : 'resolved');
-              }}
-              class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
-            >
-              {resolved ? 'Reopen' : 'Resolve'}
-            </button>
+
+            <ThreadReplies replies={getReplies(op.id)} />
+
+            <div class={cn(geist.divider, 'mx-3')} />
+
+            <TriageSection
+              opId={op.id}
+              status={status}
+              assignee={op.assignee ?? null}
+              onOpenChange={triage.onOpenChange}
+            />
+
+            <div class={cn(geist.divider, 'mx-3')} />
+
+            {replyAnchor && <ReplyComposer parent={{ id: op.id, x: replyAnchor.x, y: replyAnchor.y }} />}
           </div>
         </div>
       </div>

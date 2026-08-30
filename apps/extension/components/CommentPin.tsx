@@ -8,16 +8,17 @@ import {
   copyText,
   deleteOp,
   getCommentStatus,
+  getReplies,
   hostMutationTick,
   openContextMenu,
   STATUS_STYLES,
   scrollTick,
   setOpStatus,
 } from '../lib/state';
-import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
 import { TriageSection, useTriageHold } from './CommentTriage';
-import { PriorityBadge, PriorityPin } from './PriorityPicker';
+import { PriorityPin } from './PriorityPicker';
+import { ReplyComposer, ThreadHeader, ThreadReplies } from './ThreadCard';
 
 /**
  * Strip the leading `tag:` segment from an inspector field value when it's
@@ -90,6 +91,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
   const styles = STATUS_STYLES[status];
   const inspector = parseInspectorComment(op.text);
   const resolved = status === 'resolved' || status === 'dismissed';
+  const replies = getReplies(op.id);
   const triage = useTriageHold();
 
   const onContextMenu = (e: MouseEvent) =>
@@ -161,34 +163,28 @@ export function CommentPin({ op }: { op: CommentOp }) {
           <div
             class={cn(
               geist.surfaceSmall,
-              inspector ? 'w-[320px]' : 'w-max max-w-[280px] min-w-[160px]',
+              inspector ? 'w-[320px]' : 'w-[300px]',
+              'max-h-[70vh] overflow-y-auto overscroll-contain',
               'opacity-0',
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
               'transition-[opacity,translate] duration-150 ease-out',
               'group-hover/pin:opacity-100 group-hover/pin:translate-x-0',
               triage.cardCls,
-              'overflow-hidden',
             )}
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div class="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
-              <div
-                class="w-5 h-5 rounded-full text-white text-meta font-medium grid place-items-center shrink-0
-                       shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
-                style={{ background: op.color }}
-              >
-                {op.num}
-              </div>
-              <span class="text-meta text-(--ds-gray-900) font-medium tabular-nums tracking-wide">
-                {timeAgo(op.ts)}
-              </span>
-              {op.priority && <PriorityBadge priority={op.priority} class="ml-auto" />}
-            </div>
+            <ThreadHeader
+              label={String(op.num)}
+              color={op.color}
+              author={op.author}
+              ts={op.ts}
+              priority={op.priority}
+            />
 
             <div class={cn(geist.divider, 'mx-3')} />
 
             {/* Body */}
-            <div class="px-3.5 py-3 max-h-[50vh] overflow-y-auto overscroll-contain">
+            <div class="px-3.5 py-3">
               {inspector ? (
                 <InspectorCommentBody parsed={inspector} resolved={resolved} />
               ) : (
@@ -201,6 +197,8 @@ export function CommentPin({ op }: { op: CommentOp }) {
               )}
             </div>
 
+            <ThreadReplies replies={replies} />
+
             <div class={cn(geist.divider, 'mx-3')} />
 
             <TriageSection
@@ -212,10 +210,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
 
             <div class={cn(geist.divider, 'mx-3')} />
 
-            {/* Footer */}
-            <div class="px-3.5 py-2 flex items-center gap-1.5">
-              <span class="text-meta text-(--ds-gray-900) font-medium">Click to reply</span>
-            </div>
+            <ReplyComposer parent={op} />
           </div>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
-import { PriorityBadge, PriorityPin } from '@ext/components/PriorityPicker';
+import { PriorityPin } from '@ext/components/PriorityPicker';
+import { ReplyComposer, ThreadHeader, ThreadReplies, threadCard } from '@ext/components/ThreadCard';
 import { applyAnchorDelta } from '@ext/lib/anchor';
-import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -10,15 +10,12 @@ import {
   getCommentStatus,
   getReplies,
   openContextMenu,
-  pushReply,
   STATUS_STYLES,
   setOpStatus,
 } from '@ext/lib/state';
-import { timeAgo } from '@ext/lib/time';
 import type { CommentOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import { Check, HelpCircle, Loader2 } from 'lucide-preact';
-import { useRef, useState } from 'preact/hooks';
 import { cssScale, iframeMutationTick } from './signals';
 
 interface Props {
@@ -52,20 +49,11 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
   const styles = STATUS_STYLES[status];
   const showBadge = status !== 'open';
   const replies = getReplies(op.id);
-  const [showReply, setShowReply] = useState(false);
   const triage = useTriageHold();
-  const replyRef = useRef<HTMLTextAreaElement>(null);
 
   if (op.parentId)
     // Don't render reply comments as pins — they're shown inside the parent's card
     return null;
-
-  const submitReply = () => {
-    const txt = replyRef.current?.value.trim();
-    if (!txt) return;
-    pushReply(op, txt);
-    setShowReply(false);
-  };
 
   const onContextMenu = (e: MouseEvent) => {
     openContextMenu(e, [
@@ -134,9 +122,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
         >
           <div
             class={cn(
-              'bg-[var(--ds-background-100)] border border-[var(--ds-gray-alpha-400)]',
-              'shadow-[0_0_0_0.5px_oklch(0_0_0/0.5),0_6px_24px_oklch(0_0_0/0.35),0_16px_48px_oklch(0_0_0/0.25)]',
-              'rounded-xl',
+              threadCard,
               'w-[300px]',
               'opacity-0',
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
@@ -147,21 +133,13 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             )}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Root comment */}
-            <div class="flex items-center gap-2.5 pt-3 px-3.5 pb-2">
-              <div
-                class="w-5 h-5 rounded-full text-white text-meta font-medium grid place-items-center shrink-0
-                     shadow-[inset_0_1px_0_oklch(1_0_0/0.15)]"
-                style={{ background: op.color }}
-              >
-                {op.num}
-              </div>
-              <span class="text-meta text-(--ds-gray-1000) font-semibold tracking-wide flex-1">
-                {op.author || 'Anonymous'}
-              </span>
-              {op.priority && <PriorityBadge priority={op.priority} />}
-              <span class="text-meta text-(--ds-gray-900) font-medium tabular-nums">{timeAgo(op.ts)}</span>
-            </div>
+            <ThreadHeader
+              label={String(op.num)}
+              color={op.color}
+              author={op.author}
+              ts={op.ts}
+              priority={op.priority}
+            />
 
             {(op.assignedAgent || dismissed) && (
               <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
@@ -184,29 +162,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
               <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">{op.text}</p>
             </div>
 
-            {/* Replies */}
-            {replies.length > 0 && (
-              <div>
-                <div class={cn(geist.divider, 'mx-3')} />
-                {replies.map((reply) => (
-                  <div key={reply.id} class="px-3.5 py-2 border-l-2 border-(--ds-gray-alpha-400) ml-3">
-                    <div class="flex items-center gap-2 mb-1">
-                      <div
-                        class="w-4 h-4 rounded-full text-white text-micro font-medium grid place-items-center shrink-0"
-                        style={{ background: reply.color }}
-                      >
-                        {(reply.author || '?').charAt(0).toUpperCase()}
-                      </div>
-                      <span class="text-meta text-(--ds-gray-1000) font-semibold">{reply.author || 'Anonymous'}</span>
-                      <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
-                    </div>
-                    <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">
-                      {reply.text}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <ThreadReplies replies={replies} />
 
             {/* Divider */}
             <div class={cn(geist.divider, 'mx-3')} />
@@ -220,63 +176,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
 
             <div class={cn(geist.divider, 'mx-3')} />
 
-            {/* Reply input */}
-            {showReply ? (
-              <div class="pt-2 px-3 pb-2.5">
-                <textarea
-                  name="reply"
-                  ref={replyRef}
-                  placeholder="Reply…"
-                  rows={1}
-                  class={cn(
-                    'w-full bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400) rounded-lg px-3 py-2',
-                    'text-(--ds-gray-1000) text-ui leading-relaxed',
-                    'resize-none outline-none min-h-8 max-h-[80px]',
-                    'caret-ml-accent',
-                    'focus:border-ml-accent/50 focus:bg-(--ds-gray-alpha-100)',
-                    'placeholder:text-(--ds-gray-900)',
-                    glass.font,
-                  )}
-                  style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      submitReply();
-                    } else if (e.key === 'Escape') {
-                      setShowReply(false);
-                    }
-                  }}
-                />
-                <div class="flex items-center justify-end gap-2 mt-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowReply(false)}
-                    class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-ui font-medium')}
-                  >
-                    Cancel
-                  </button>
-                  <button type="button" onClick={submitReply} class={submitBtn}>
-                    Reply
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div class="flex items-center gap-2 pt-2 px-3.5 pb-2.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowReply(true);
-                    setTimeout(() => replyRef.current?.focus(), 50);
-                  }}
-                  class="text-meta font-medium px-3 py-1.5 rounded-lg cursor-pointer
-                       border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)
-                       text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
-                       transition-[color,background-color,border-color] duration-150"
-                >
-                  Reply
-                </button>
-              </div>
-            )}
+            <ReplyComposer parent={op} />
           </div>
         </div>
       </div>
