@@ -56,6 +56,17 @@ describe('applyOpPatch', () => {
     expect(applyOpPatch({ op: comment, patch: { assignee: 42 } })).toBeNull();
   });
 
+  // Same reason as the assignee above: `{ priority: undefined }` serializes to
+  // `{}`, which every peer reads as "unchanged", so clearing has to send null.
+  test('accepts a priority, and null to clear it', () => {
+    const raised = applyOpPatch({ op: comment, patch: { priority: 'urgent' } });
+    if (raised?.tool === 'comment') expect(raised.priority).toBe('urgent');
+    const cleared = applyOpPatch({ op: raised, patch: { priority: null } });
+    expect(cleared).not.toBeNull();
+    if (cleared?.tool === 'comment') expect(cleared.priority).toBeNull();
+    expect(applyOpPatch({ op: comment, patch: { priority: 'catastrophic' } })).toBeNull();
+  });
+
   test('rejects a patch that would change the op into another tool', () => {
     expect(applyOpPatch({ op: comment, patch: { tool: 'guide' } })).toBeNull();
   });
