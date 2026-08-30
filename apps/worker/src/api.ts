@@ -1,8 +1,10 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { opsArraySchema } from '@marklayer/types';
+import { MAX_INTEGRATIONS_PER_ROOM, opsArraySchema } from '@marklayer/types';
 import { cors } from 'hono/cors';
 import { dayCached, once } from './http';
 import type { Env } from './index';
+import { parseIntegrations, validateIntegration } from './integrations/deliver';
+import { providerList } from './integrations/providers';
 import { captureServer } from './posthog';
 import { annotationStore, isExpired, projectStore } from './store';
 
@@ -59,6 +61,50 @@ const IdParam = z.object({
     .string()
     .openapi({ description: 'Unguessable share id (nanoid/uuid) — it is the access token', example: 'aB3xY7kZ' }),
 });
+
+// A static path under the same router as `/{id}`, so it is registered above the
+// annotation routes for the same reason `/health` is: hono/tiny matches in
+// registration order and would otherwise read "providers" as an annotation id.
+const ProviderInfo = z
+  .object({
+    id: z.string(),
+    label: z.string(),
+    blurb: z.string(),
+    fields: z.array(
+      z.object({
+        name: z.string(),
+        label: z.string(),
+        type: z.string(),
+        placeholder: z.string().optional(),
+        help: z.string().optional(),
+        helpUrl: z.string().optional(),
+      }),
+    ),
+  })
+  .openapi('Provider');
+
+const listProviders = createRoute({
+  method: 'get',
+  path: '/providers',
+  summary: 'Destinations a room can post to',
+  description:
+    'The provider catalogue, as data. Clients render a generic form from the field descriptors rather than shipping a component per provider.',
+  responses: { 200: jsonRes(z.object({ providers: z.array(ProviderInfo) }), 'Provider catalogue') },
+});
+
+api.openapi(listProviders, (c) =>
+  c.json(
+    {
+      providers: providerList.map((p) => ({
+        id: p.id,
+        label: p.label,
+        blurb: p.blurb,
+        fields: p.fields,
+      })),
+    },
+    200,
+  ),
+);
 
 // ---------- Annotations ----------
 
@@ -191,6 +237,125 @@ api.openapi(getAnnotation, async (c) => {
 
   c.executionCtx.waitUntil(store.touch(id));
   return c.json({ ops: row.ops, url: row.url, width: row.width }, 200);
+});
+
+// ---------- Integrations ----------
+
+/** What a client may see: which destinations exist, never their configuration. */
+const IntegrationSummary = z
+  .object({ provider: z.string(), hint: z.string().nullable() })
+  .openapi('IntegrationSummary');
+
+const IntegrationsResponse = z.object({ integrations: z.array(IntegrationSummary) }).openapi('Integrations');
+
+/**
+ * The last few characters of whatever identifies a destination, so two hooks in
+ * the same channel can be told apart. Never enough to rebuild the credential.
+ */
+function summarizeIntegration(i: { provider: string; config: Record<string, unknown> }) {
+  const url = typeof i.config.url === 'string' ? i.config.url : '';
+  const tail = url.split(/[/?#]/).filter(Boolean).pop() ?? '';
+  return { provider: i.provider, hint: tail ? `…${tail.slice(-4)}` : null };
+}
+
+const getIntegrations = createRoute({
+  method: 'get',
+  path: '/{id}/integrations',
+  summary: "A room's destinations",
+  description:
+    'Reports which destinations are configured, never their configuration: the room id is its own access token, so returning a webhook URL would hand out a credential.',
+  request: { params: IdParam },
+  responses: {
+    200: jsonRes(IntegrationsResponse, 'Configured destinations'),
+    404: jsonRes(ErrorResponse, 'Not found'),
+  },
+});
+
+api.openapi(getIntegrations, async (c) => {
+  const { id } = c.req.valid('param');
+  const row = await annotationStore(c.env.DB).getIntegrations(id);
+  if (!row) return c.json({ error: 'not found' }, 404);
+  return c.json({ integrations: parseIntegrations(row.integrations).map(summarizeIntegration) }, 200);
+});
+
+/**
+ * The request shape, declared with the OpenAPI `z` rather than the zod/mini
+ * `integrationSchema` in packages/types: the two are different builders and only
+ * this one carries `.openapi()`. An unknown provider is caught a line later by
+ * `validateIntegration`, so the loose string here costs nothing.
+ */
+const AddIntegrationBody = z
+  .object({ provider: z.string(), config: z.record(z.string(), z.unknown()) })
+  .openapi('AddIntegration');
+
+/**
+ * Add or replace one destination.
+ *
+ * Additive rather than a whole-list PUT on purpose: a client is never sent a
+ * stored config, so it cannot send one back, and a replace-the-list API would
+ * mean either round-tripping credentials or blanking the ones it did not know.
+ * One destination per provider, which is also what the panel shows.
+ */
+const addIntegration = createRoute({
+  method: 'post',
+  path: '/{id}/integrations',
+  summary: 'Add a destination to a room',
+  request: {
+    params: IdParam,
+    body: {
+      required: true,
+      content: { 'application/json': { schema: AddIntegrationBody } },
+    },
+  },
+  responses: {
+    200: jsonRes(IntegrationsResponse, 'Stored'),
+    400: jsonRes(ErrorResponse, 'Destination rejected'),
+    404: jsonRes(ErrorResponse, 'Not found'),
+  },
+});
+
+api.openapi(addIntegration, async (c) => {
+  const { id } = c.req.valid('param');
+  const incoming = c.req.valid('json');
+
+  // Refuse where somebody can see it, rather than silently never delivering.
+  // This is also where the host guard runs, so a bad URL never reaches storage.
+  const verdict = validateIntegration(incoming);
+  if (!verdict.ok) return c.json({ error: `${incoming.provider}: ${verdict.reason}` }, 400);
+
+  const store = annotationStore(c.env.DB);
+  const row = await store.getIntegrations(id);
+  if (!row) return c.json({ error: 'not found' }, 404);
+
+  const existing = parseIntegrations(row.integrations).filter((i) => i.provider !== incoming.provider);
+  if (existing.length + 1 > MAX_INTEGRATIONS_PER_ROOM) {
+    return c.json({ error: `at most ${MAX_INTEGRATIONS_PER_ROOM} destinations per room` }, 400);
+  }
+  const next = [...existing, incoming];
+  await store.setIntegrations({ id, json: JSON.stringify(next) });
+  return c.json({ integrations: next.map(summarizeIntegration) }, 200);
+});
+
+const removeIntegration = createRoute({
+  method: 'delete',
+  path: '/{id}/integrations/{provider}',
+  summary: 'Remove a destination from a room',
+  request: { params: IdParam.extend({ provider: z.string() }) },
+  responses: {
+    200: jsonRes(IntegrationsResponse, 'Removed'),
+    404: jsonRes(ErrorResponse, 'Not found'),
+  },
+});
+
+api.openapi(removeIntegration, async (c) => {
+  const { id, provider } = c.req.valid('param');
+  const store = annotationStore(c.env.DB);
+  const row = await store.getIntegrations(id);
+  if (!row) return c.json({ error: 'not found' }, 404);
+
+  const next = parseIntegrations(row.integrations).filter((i) => i.provider !== provider);
+  await store.setIntegrations({ id, json: next.length > 0 ? JSON.stringify(next) : null });
+  return c.json({ integrations: next.map(summarizeIntegration) }, 200);
 });
 
 // ---------- Projects (multi-page bundles) ----------

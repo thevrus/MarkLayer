@@ -524,8 +524,42 @@ export const clientMsgSchema = z.discriminatedUnion('type', [
     name: z.optional(z.string()),
     color: z.optional(z.string()),
   }),
+  /**
+   * "Everyone follow me." Follow mode already lets one person opt into another's
+   * scroll; this is the presenter pulling the room instead of asking each person
+   * to click. It only sets what a follower could have set themselves, and any
+   * scroll or click releases them, so it grants no control they cannot take back.
+   */
+  z.object({ type: z.literal('flock'), on: z.boolean() }),
 ]);
 export type ClientMsg = z.infer<typeof clientMsgSchema>;
+
+// === Outbound integrations ===
+
+/**
+ * Destinations a room can post to. Each one is rendered by a pure provider module
+ * in apps/worker/src/integrations, which describes a request but never makes one
+ * — see docs/adr/0003-outbound-integrations.md.
+ */
+export const integrationProviderSchema = z.enum(['slack', 'teams', 'discord', 'webhook']);
+export type IntegrationProvider = z.infer<typeof integrationProviderSchema>;
+
+/**
+ * One configured destination. `config` stays unknown here on purpose: its shape
+ * belongs to the provider, which parses it with its own schema at the delivery
+ * boundary, so adding a provider needs no change to this file.
+ */
+export const integrationSchema = z.object({
+  provider: integrationProviderSchema,
+  config: z.record(z.string(), z.unknown()),
+});
+export type Integration = z.infer<typeof integrationSchema>;
+
+/** Everything a room posts to. Stored as one JSON column, so a new provider needs no migration. */
+export const roomIntegrationsSchema = z.array(integrationSchema);
+
+/** Ceiling on destinations per room — enough for a team, low enough to bound a flush. */
+export const MAX_INTEGRATIONS_PER_ROOM = 5;
 
 /**
  * Days of inactivity before a share link and its OG card are deleted. The
