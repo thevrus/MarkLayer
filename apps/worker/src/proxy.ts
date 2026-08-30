@@ -303,14 +303,18 @@ proxy.get('/proxy', async (c) => {
   try {
     const resp = await fetchPage({ url, env: c.env });
 
-    if (resp.status >= 400) {
-      captureServer(c.env, c.executionCtx, 'proxy_render_failed', {
-        reason: 'upstream-not-ok',
-        status: resp.status,
-        via: resp.via,
-        duration_ms: Date.now() - fetchStart,
-      });
-    }
+    // Every fetch outcome in one event: the denominator the failure rates never
+    // had, the relay's rescue rate (`via: 'relay'` means the direct fetch was
+    // challenged and the relay answered), and the upstream error rate — which
+    // used to be a second event carrying the same four properties.
+    captureServer(c.env, c.executionCtx, 'proxy_page_fetched', {
+      via: resp.via,
+      challenged: resp.challenged,
+      status: resp.status,
+      html: resp.contentType.includes('text/html'),
+      relay_configured: Boolean(relayConfig(c.env)),
+      duration_ms: Date.now() - fetchStart,
+    });
 
     // For non-HTML resources, pass through as-is
     if (!resp.contentType.includes('text/html')) {

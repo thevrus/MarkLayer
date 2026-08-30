@@ -16,6 +16,7 @@ import { applyOpPatch } from '@marklayer/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
+import { capture } from './analytics';
 import { followingPeer, onFollowScroll } from './signals';
 
 export const connected = signal(false);
@@ -207,6 +208,9 @@ export function useRealtimeSync(annotationId: string) {
       ws.onopen = () => {
         connected.value = true;
         connectionStatus.value = 'connected';
+        // Silent reconnects are invisible from the room's own logs — the DO sees
+        // only a peer leaving and a peer joining.
+        capture('realtime_connected', { attempt: retryRef.current });
         retryRef.current = 0;
         const pending = pendingRef.current;
         pendingRef.current = [];
@@ -396,6 +400,10 @@ export function useRealtimeSync(annotationId: string) {
           connectionStatus.value = 'connecting';
           const delay = Math.min(1000 * 2 ** retryRef.current, 10000);
           retryRef.current++;
+          // Only the first attempt of an outage: the backoff caps at 10s and never
+          // gives up, so an event per retry is unbounded — and `realtime_connected`
+          // already carries the attempt count for outages that recover.
+          if (retryRef.current === 1) capture('realtime_reconnecting');
           setTimeout(connect, delay);
         } else {
           connectionStatus.value = 'disconnected';

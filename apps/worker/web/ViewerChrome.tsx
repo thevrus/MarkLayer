@@ -148,7 +148,7 @@ function UrlField() {
           let url = e.currentTarget.value.trim();
           if (!url) return;
           if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-          navigateTo(url);
+          navigateTo({ url, source: 'url_bar' });
         }}
         onFocus={(e) => e.currentTarget.select()}
       />

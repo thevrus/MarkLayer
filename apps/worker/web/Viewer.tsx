@@ -12,6 +12,7 @@ import {
   bindFigmaKeys,
   color,
   FREEHAND,
+  focusedAnnotationId,
   handTool,
   isDrawingActive,
   lineWidth,
@@ -236,10 +237,15 @@ export default function Viewer() {
     pageUrl.value;
     iframeLoaded.value = false;
     renderFailed.value = null;
+    renderReportedRef.current = false;
   });
 
   const renderStartRef = useRef(0);
+  /** One outcome per page, first report wins — see `reportRenderSuccess`. */
+  const renderReportedRef = useRef(false);
   const reportRenderFailure = useCallback((reason: RenderFailure, extra?: Record<string, unknown>) => {
+    if (renderReportedRef.current) return;
+    renderReportedRef.current = true;
     capture('page_render_failed', {
       // Deliberately no `url` and no `annotation_id`: the annotated page can be
       // private and the room ID is an unlisted share credential. `reason` plus
@@ -248,6 +254,21 @@ export default function Viewer() {
       duration_ms: Math.round(performance.now() - renderStartRef.current),
       ...extra,
     });
+  }, []);
+  /**
+   * The success half, and the reason it waits: a firewall challenge is served
+   * with the proxy's marker on it, so `load` fires and looks like a clean render
+   * until the page's own `ml-blocked` message arrives a task later. Reporting
+   * immediately would have counted every blocked page as a success too, which is
+   * exactly the number this event exists to be the denominator of.
+   */
+  const reportRenderSuccess = useCallback(() => {
+    const at = performance.now();
+    window.setTimeout(() => {
+      if (renderReportedRef.current || renderFailed.peek()) return;
+      renderReportedRef.current = true;
+      capture('page_rendered', { duration_ms: Math.round(at - renderStartRef.current) });
+    }, 500);
   }, []);
 
   useSignalEffect(() => {
@@ -279,12 +300,17 @@ export default function Viewer() {
         a.click();
         URL.revokeObjectURL(url);
       };
+      // `mode` is the one thing worth knowing here: a run of `canvas` exports
+      // means the DOM capture is failing on real pages and nobody is reporting it.
       const fallbackToCanvas = () => {
-        if (!canvas) return;
+        if (!canvas) return capture('export_failed', { format: 'png', reason: 'no-canvas' });
         canvas.toBlob((b) => {
           if (b) {
             downloadBlob(b);
+            capture('export_completed', { format: 'png', mode: 'canvas', ops: operations.value.length });
             toast('PNG exported (drawings only)', 'success');
+          } else {
+            capture('export_failed', { format: 'png', reason: 'blob-null' });
           }
         });
       };
@@ -297,6 +323,7 @@ export default function Viewer() {
         });
         if (blob) {
           downloadBlob(blob);
+          capture('export_completed', { format: 'png', mode: 'dom', ops: operations.value.length });
           toast('PNG exported', 'success');
         } else {
           fallbackToCanvas();
@@ -435,7 +462,8 @@ export default function Viewer() {
   // event alone reports as a perfectly successful render of nothing.
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      if (e.data?.type === 'ml-navigate' && typeof e.data.url === 'string') navigateTo(e.data.url);
+      if (e.data?.type === 'ml-navigate' && typeof e.data.url === 'string')
+        navigateTo({ url: e.data.url, source: 'page_link' });
       if (e.data?.type === 'ml-blocked') {
         // The proxy separates "a firewall refused us" from "the origin errored";
         // only the first is worth showing an allowlisting address for.
@@ -502,6 +530,13 @@ export default function Viewer() {
         }
         if (showShareDialog.value) {
           showShareDialog.value = false;
+          e.preventDefault();
+          return;
+        }
+        // Steps out of a focused annotation before closing the panel that holds it,
+        // so Escape unwinds one level at a time rather than dropping the whole panel.
+        if (focusedAnnotationId.value) {
+          focusedAnnotationId.value = null;
           e.preventDefault();
           return;
         }
@@ -572,13 +607,20 @@ export default function Viewer() {
         body: JSON.stringify(payload),
       });
       if (!res.ok) throw new Error();
-      capture('share_created', { readonly: Boolean(opts?.readonly), ops: operations.value.length });
+      capture('share_created', {
+        readonly: Boolean(opts?.readonly),
+        ops: operations.value.length,
+        expires: Boolean(opts?.expiresIn),
+      });
       // Only a link that actually saved counts as the tool having worked.
       noteSupportSignal('shared');
       // A beat after the toast, so the card arrives at a pause rather than on
       // top of the thing that just succeeded.
       window.setTimeout(maybeOfferSupport, 1200);
     } catch {
+      // A copied link that never saved is the worst failure the product has: the
+      // person walks away believing they shared something.
+      capture('share_failed', { ops: operations.value.length });
       toast('Failed to save — link may not work', 'error');
     } finally {
       sharing.value = false;
@@ -1037,6 +1079,7 @@ export default function Viewer() {
         scrollToAnnotation,
         buildExportData,
         reportRenderFailure,
+        reportRenderSuccess,
       },
       meta: { frameRef, canvasRef, innerRef, viewerRef },
     }),

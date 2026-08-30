@@ -10,7 +10,9 @@
 // leaves the browser. We also skip person profiles entirely — these are
 // aggregate counters, not visitors — and honour Do Not Track.
 
-type Props = Record<string, unknown>;
+import { type AnalyticsProps, type Surface, setAnalytics } from '@ext/lib/analytics';
+
+type Props = AnalyticsProps;
 type Posthog = {
   init: (key: string, opts: Record<string, unknown>) => void;
   capture: (event: string, props?: Props) => void;
@@ -18,6 +20,19 @@ type Posthog = {
 
 const queue: Array<[string, Props | undefined]> = [];
 let posthog: Posthog | null = null;
+/** Set once analytics can never load — opted out, no key, or the import failed. */
+let dropping = false;
+let surface: Surface = 'viewer';
+
+/**
+ * One page load reports an event at most this many times, and buffers at most
+ * this many before posthog-js arrives. Both are runaway guards, not budgets: a
+ * viewer left open on a dead network retries its websocket forever, and without
+ * a ceiling that is one event every ten seconds until the tab closes.
+ */
+const MAX_PER_EVENT = 500;
+const MAX_QUEUED = 200;
+const counts = new Map<string, number>();
 
 /** Opt-out escape hatch for self-hosters and anyone who wants it off locally. */
 const OPT_OUT_KEY = 'marklayer:no-analytics';
@@ -57,11 +72,19 @@ function sanitize(props: Props): Props {
 }
 
 export function capture(event: string, props?: Props): void {
+  if (dropping) return;
+  const seen = counts.get(event) ?? 0;
+  if (seen >= MAX_PER_EVENT) return;
+  counts.set(event, seen + 1);
+  // Landing and viewer are different products sharing a bundle; nothing here is
+  // readable without knowing which one it came from.
+  const tagged = { surface, ...props };
   if (posthog) {
-    posthog.capture(event, props);
+    posthog.capture(event, tagged);
     return;
   }
-  queue.push([event, props]);
+  if (queue.length >= MAX_QUEUED) queue.shift();
+  queue.push([event, tagged]);
 }
 
 const firedOnce = new Set<string>();
@@ -77,8 +100,18 @@ export function captureOnce(event: string, props?: Props): void {
   capture(event, props);
 }
 
-export function initAnalytics(key: string, host: string | undefined): void {
-  if (hasOptedOut()) return;
+export function initAnalytics({ key, host, surface: from }: { key?: string; host?: string; surface: Surface }): void {
+  surface = from;
+  // Nothing will ever drain the buffer without a key (dev, and any self-host
+  // that leaves telemetry off), so say so rather than queueing for the page's life.
+  if (!key || hasOptedOut()) {
+    dropping = true;
+    queue.length = 0;
+    return;
+  }
+  // The shared extension components ship with no transport of their own; this is
+  // what makes their events countable on the web. See @ext/lib/analytics.
+  setAnalytics({ sink: capture, surface: from });
 
   const load = async () => {
     const mod = await import('posthog-js');
@@ -108,7 +141,15 @@ export function initAnalytics(key: string, host: string | undefined): void {
     queue.length = 0;
   };
 
+  // An ad blocker or an offline load rejects the import; without this the buffer
+  // fills for the life of the page and the rejection goes unhandled.
+  const start = () => {
+    load().catch(() => {
+      dropping = true;
+      queue.length = 0;
+    });
+  };
   const idle = (globalThis as { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback;
-  if (typeof idle === 'function') idle(load);
-  else setTimeout(load, 0);
+  if (typeof idle === 'function') idle(start);
+  else setTimeout(start, 0);
 }

@@ -2,6 +2,7 @@ import { operations, toast as showToast } from '@ext/lib/state';
 import type { DrawOp } from '@ext/lib/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
+import { capture } from './analytics';
 
 export interface ProjectPage {
   id: string;
@@ -82,14 +83,19 @@ export async function createAnnotationFor(url: string): Promise<string | null> {
  * - In single-share mode (`/s/:id`): convert to a project bundling the current + new page, redirect to `/p/:projectId`.
  * - On landing (no context): create a fresh `/s/:id` share for the new URL.
  */
-export async function navigateTo(url: string) {
+export async function navigateTo({ url, source = 'viewer' }: { url: string; source?: string }) {
   const pid = projectId.value;
+  // Which of the three shapes a session takes — a first page, a second page that
+  // promotes a share into a project, another page on an existing project — and
+  // what asked for it. Counted here because this is where every entry point lands.
+  capture('page_opened', { mode: pid ? 'project_page' : annotationId.value ? 'promoted' : 'new', source });
   if (pid) {
     if (projectLoading.value) return;
     projectLoading.value = true;
     const newPageId = await createAnnotationFor(url);
     if (!newPageId) {
       projectLoading.value = false;
+      capture('page_open_failed', { mode: 'project_page', step: 'create_page' });
       showToast('Failed to add page', 'error');
       return;
     }
@@ -105,6 +111,7 @@ export async function navigateTo(url: string) {
     );
     if (!ok) {
       projectLoading.value = false;
+      capture('page_open_failed', { mode: 'project_page', step: 'save_project' });
       showToast('Failed to save project', 'error');
       return;
     }
@@ -138,6 +145,7 @@ export async function navigateTo(url: string) {
     const newPageId = await createAnnotationFor(url);
     if (!newPageId) {
       projectLoading.value = false;
+      capture('page_open_failed', { mode: 'promoted', step: 'create_page' });
       showToast('Failed to add page', 'error');
       return;
     }
@@ -145,6 +153,7 @@ export async function navigateTo(url: string) {
     const ok = await saveProject(newProjectId, [currentId, newPageId]);
     if (!ok) {
       projectLoading.value = false;
+      capture('page_open_failed', { mode: 'promoted', step: 'save_project' });
       showToast('Failed to create project', 'error');
       return;
     }
@@ -155,10 +164,18 @@ export async function navigateTo(url: string) {
   // Landing fallback: fresh single-page share
   const w = window.innerWidth;
   const id = nanoid();
-  await fetch(`${API_BASE}${id}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ops: [], url, width: w }),
-  });
+  try {
+    const res = await fetch(`${API_BASE}${id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ops: [], url, width: w }),
+    });
+    if (!res.ok) throw new Error();
+  } catch {
+    // Instrumented like the other two modes, so a drop at the top of the funnel
+    // is a number rather than a mystery. The redirect still runs: the viewer
+    // re-creates the row on save, and stranding someone on the landing page is worse.
+    capture('page_open_failed', { mode: 'new', step: 'create_page' });
+  }
   location.href = `/s/${id}`;
 }

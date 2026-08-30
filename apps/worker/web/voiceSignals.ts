@@ -1,12 +1,38 @@
 // Voice/video signals split from useVoiceRoom so reading them doesn't drag
 // the WebRTC engine into the main client chunk.
 
-import { signal } from '@preact/signals';
+import { effect, signal } from '@preact/signals';
+import { capture } from './analytics';
 
 export const voiceActive = signal(false);
 export const voiceMuted = signal(false);
 export const videoActive = signal(false);
 export const videoMuted = signal(false);
+
+// Voice is the most expensive thing here to keep working (TURN, signalling, a
+// whole WebRTC path) and the least visible in the data. One event per call,
+// with how long it lasted: a room full of ten-second calls is a broken feature,
+// not a used one. Reads the signals rather than hooking the engine so a call
+// ended by teardown, an error, or the button is counted the same way.
+let voiceStartedAt = 0;
+let sawVideo = false;
+
+effect(() => {
+  const active = voiceActive.value;
+  const video = videoActive.value;
+  if (active) {
+    sawVideo ||= video;
+    if (voiceStartedAt) return;
+    voiceStartedAt = Date.now();
+    capture('voice_started', { video });
+    return;
+  }
+  if (!voiceStartedAt) return;
+  capture('voice_ended', { duration_ms: Date.now() - voiceStartedAt, video: sawVideo });
+  voiceStartedAt = 0;
+  sawVideo = false;
+});
+
 /** Set of peer IDs currently speaking (audio level above threshold) */
 export const voiceSpeaking = signal<Set<string>>(new Set());
 /** Local mic level 0–1 (updated at ~10 Hz when voice is active) */
@@ -49,14 +75,17 @@ const QUALITY_KEY = 'ml-video-quality';
 function parseQuality(raw: string | null): QualityPreset {
   return raw === 'medium' || raw === 'hd' ? raw : 'low';
 }
+
 export const videoQuality = signal<QualityPreset>(
   typeof localStorage !== 'undefined' ? parseQuality(localStorage.getItem(QUALITY_KEY)) : 'low',
 );
+
 export const QUALITY_CONSTRAINTS: Record<QualityPreset, MediaTrackConstraints> = {
   low: { width: { ideal: 160 }, height: { ideal: 160 }, frameRate: { ideal: 15 } },
   medium: { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 24 } },
   hd: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 30 } },
 };
+
 export function persistQuality(q: QualityPreset) {
   videoQuality.value = q;
   try {

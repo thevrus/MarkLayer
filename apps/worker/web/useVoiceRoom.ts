@@ -1,6 +1,7 @@
 import { peers, toast } from '@ext/lib/state';
 import { effect, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
+import { capture } from './analytics';
 import {
   audioConstraint,
   refreshDevices,
@@ -124,20 +125,33 @@ function setSinkIdSafe(el: HTMLMediaElement, deviceId: string | null) {
   setSinkId.call(el, deviceId).catch(() => {});
 }
 
-function describeGumError(err: unknown): { title: string; hint?: string } {
+/** `code` is the stable half — the title is user-facing copy and gets reworded. */
+function describeGumError(err: unknown): { code: string; title: string; hint?: string } {
   const name = err instanceof Error ? err.name : '';
   switch (name) {
     case 'NotAllowedError':
     case 'SecurityError':
-      return { title: 'Permission denied', hint: 'Allow microphone/camera access in your browser address bar.' };
+      return {
+        code: 'permission-denied',
+        title: 'Permission denied',
+        hint: 'Allow microphone/camera access in your browser address bar.',
+      };
     case 'NotFoundError':
     case 'OverconstrainedError':
-      return { title: 'Device not found', hint: 'The selected microphone or camera is unavailable.' };
+      return {
+        code: 'device-not-found',
+        title: 'Device not found',
+        hint: 'The selected microphone or camera is unavailable.',
+      };
     case 'NotReadableError':
     case 'AbortError':
-      return { title: 'Device is busy', hint: 'Another app may be using your microphone or camera.' };
+      return {
+        code: 'device-busy',
+        title: 'Device is busy',
+        hint: 'Another app may be using your microphone or camera.',
+      };
     default:
-      return { title: 'Could not access device' };
+      return { code: 'unknown', title: 'Could not access device' };
   }
 }
 
@@ -153,6 +167,8 @@ export function useVoiceRoom(localPeerId: string) {
   useEffect(() => {
     if (!active) return;
     let destroyed = false;
+    /** Non-zero once media is actually flowing — see `voice_started` below. */
+    let callStartedAt = 0;
 
     const conns = connsRef.current;
 
@@ -533,13 +549,19 @@ export function useVoiceRoom(localPeerId: string) {
       try {
         [stream, rtcConfig] = await Promise.all([getLocalStream(), getRtcConfig()]);
       } catch (err) {
-        const { title, hint } = describeGumError(err);
+        const { code, title, hint } = describeGumError(err);
+        capture('voice_failed', { stage: 'start', reason: code });
         toast(hint ? `${title}: ${hint}` : title, 'error', 6000);
         voiceActive.value = false;
         videoActive.value = false;
         return;
       }
       if (destroyed) return;
+      // Reported here rather than off `voiceActive`, which the join button sets
+      // before the mic prompt is answered: a denied prompt would otherwise show
+      // up as a call that lasted half a second.
+      callStartedAt = Date.now();
+      capture('voice_started', { video: videoActive.peek() });
       rtcConfigRef.current = rtcConfig;
       applyMute(stream);
 
@@ -591,6 +613,10 @@ export function useVoiceRoom(localPeerId: string) {
 
     return () => {
       destroyed = true;
+      if (callStartedAt) {
+        capture('voice_ended', { duration_ms: Date.now() - callStartedAt, video: videoActive.peek() });
+        callStartedAt = 0;
+      }
       disposeBootstrap();
       disposeIceServers();
       onRtcMessage.value = null;
@@ -665,7 +691,8 @@ export function useVoiceRoom(localPeerId: string) {
             }
             refreshDevices();
           } catch (err) {
-            const { title, hint } = describeGumError(err);
+            const { code, title, hint } = describeGumError(err);
+            capture('voice_failed', { stage: 'camera', reason: code });
             toast(hint ? `${title}: ${hint}` : title, 'error', 6000);
             videoActive.value = false;
           }
@@ -742,7 +769,8 @@ async function hotSwapTrack(
   try {
     next = await navigator.mediaDevices.getUserMedia(constraints);
   } catch (err) {
-    const { title, hint } = describeGumError(err);
+    const { code, title, hint } = describeGumError(err);
+    capture('voice_failed', { stage: 'switch_device', reason: code, kind });
     toast(hint ? `${title}: ${hint}` : title, 'error', 5000);
     return;
   }
