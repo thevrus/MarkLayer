@@ -33,7 +33,7 @@ faq:
   - q: "Can I review mobile rendering with MarkLayer?"
     a: "Open the page in Chrome with mobile emulation enabled (DevTools), then annotate. The annotations attach to the page state you see."
   - q: "Do contributors need accounts?"
-    a: "No. Reviewers open share links in any browser without signing up. Only contributors who want to add their own annotations need the Chrome extension."
+    a: "No. Reviewers open share links in any browser without signing up, and contributors who want to add their own annotations just paste a URL at marklayer.app. The Chrome extension is optional, for pages the web app cannot embed."
 ---
 
 Editing a published article or a draft on a CMS preview URL means leaving comments somewhere. Slack, Google Doc, an email thread. MarkLayer keeps the feedback on the page itself: highlight a sentence that needs work, pin a comment to a specific paragraph, draw an arrow at the awkward CTA. Send the share link; the writer or editor sees the comments overlaid on the actual rendered article.

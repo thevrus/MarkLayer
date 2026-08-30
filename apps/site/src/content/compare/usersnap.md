@@ -57,4 +57,4 @@ faq:
     a: "Both ship MCP servers, with different scopes. Usersnap's hosted MCP lets an assistant query collected feedback. MarkLayer's MCP server puts the agent inside a live annotation room: it can watch for new annotations, mark them in progress, resolve them, and reply, with each status change visible to everyone in the room."
 ---
 
-MarkLayer and [Usersnap](https://usersnap.com) both capture visual feedback on websites, but from different sides. Usersnap is a paid platform you embed in your own product: a widget collects bug reports and survey-style feedback from your users. MarkLayer is a free Chrome extension your team points at any webpage: yours, a staging site, or a page you do not own.
+MarkLayer and [Usersnap](https://usersnap.com) both capture visual feedback on websites, but from different sides. Usersnap is a paid platform you embed in your own product: a widget collects bug reports and survey-style feedback from your users. MarkLayer is a free, no-install web app your team points at any webpage: yours, a staging site, or a page you do not own.

@@ -10,7 +10,7 @@ modified: 2026-03-12
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free, open-source Chrome extension. Annotate any live webpage with drawings, threaded comments, arrows, and highlights. Real-time live cursors. Multi-page projects. 90-day retention on share links. No account, no paywall."
+    pitch: "Free and open source, with no install: paste a URL at marklayer.app and annotate the live page in your browser. Drawings, threaded comments, arrows, highlights. Real-time live cursors. Multi-page projects. 90-day retention on share links. No account, no paywall. An optional Chrome extension covers pages behind a login."
     bestFor: "Anyone who needs persistent visual feedback workflows. Design review, QA, client feedback, remote teams."
   - name: "Hypothesis"
     url: "/vs/hypothesis"
@@ -30,13 +30,13 @@ options:
     bestFor: "Agencies needing version comparison and live edit mode alongside annotation."
 faq:
   - q: "Is MarkLayer a free AnnotateWeb alternative?"
-    a: "Yes. Both are free with no sign-up. MarkLayer adds threaded comments, multi-page projects, 90-day retention (vs AnnotateWeb's 2-minute cleanup), and is open source. AnnotateWeb wins on multi-language UI and not requiring a Chrome extension."
+    a: "Yes. Both are free with no sign-up. MarkLayer adds threaded comments, multi-page projects, 90-day retention (vs AnnotateWeb's 2-minute cleanup), and is open source. Neither tool requires an install; AnnotateWeb wins on multi-language UI and PNG export."
   - q: "Why would someone leave AnnotateWeb?"
     a: "Common reasons: 2-minute inactivity deletion is too short for real review cycles, lack of threaded comments, no multi-page projects, or wanting a Chrome Web Store-distributed extension instead of a bookmarklet."
   - q: "Are these tools open source?"
     a: "MarkLayer and Hypothesis are open source. Markup.io, Pastel, Ruttl, and AnnotateWeb itself are closed-source."
   - q: "Which is the closest match to AnnotateWeb's bookmarklet model?"
-    a: "AnnotateWeb's bookmarklet model is unusual. Most alternatives are either Chrome extensions (MarkLayer, Hypothesis) or web apps (Markup.io, Pastel, Ruttl). If extension-free is non-negotiable, AnnotateWeb stays the strongest fit."
+    a: "Most of them are: MarkLayer, Markup.io, Pastel and Ruttl all run in the browser with nothing to install. Hypothesis is the exception, distributed mainly as a browser extension. If install-free is non-negotiable, MarkLayer and AnnotateWeb both qualify."
 ---
 
 Looking for an AnnotateWeb alternative? AnnotateWeb is already free, so the question is usually: which free webpage annotation tool fits my workflow better. Multi-language and bookmarklet-based (AnnotateWeb), or extension-based with threaded comments and longer retention (MarkLayer)? Below are the strongest options.

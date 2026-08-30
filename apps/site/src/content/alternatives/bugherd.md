@@ -11,7 +11,7 @@ modified: 2026-03-23
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free, open-source Chrome extension for visual annotation on any webpage. No Kanban or integrations. Just fast, link-based feedback. Real-time live cursors. No sign-up."
+    pitch: "Free and open source, no install: paste a URL and annotate any webpage in your browser. No Kanban or integrations. Just fast, link-based feedback. Real-time live cursors. No sign-up."
     bestFor: "Lightweight visual feedback without a paid bug-tracking platform."
   - name: "Markup.io"
     url: "/vs/markup-io"

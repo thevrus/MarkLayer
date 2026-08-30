@@ -57,7 +57,7 @@ faq:
   - q: "Screenshot-based or live-page annotation: which is better?"
     a: "Depends on what you review. A screenshot freezes the state, which is useful for sign-off records but goes stale after every deploy. Live-page annotation follows the element through changes, which fits iterative work. MarkLayer is live-page; Volley is screenshot-based."
   - q: "Do reviewers need to install anything for either tool?"
-    a: "No on both sides. Volley invites guest reviewers by link. MarkLayer share links open in any browser; only the person creating annotations from scratch on a new page uses the Chrome extension."
+    a: "No on both sides. Volley invites guest reviewers by link. MarkLayer share links open in any browser, and creating annotations needs no install either — paste a URL at marklayer.app."
 ---
 
 MarkLayer and [Volley](https://meetvolley.com) both collect visual feedback on websites, including staging sites and pages behind logins. The mechanics differ: Volley captures a screenshot and pins comments to the capture, while MarkLayer overlays the live page and anchors each annotation to the actual element, so feedback survives page changes. Volley is paid ($29/month after a 30-day trial); MarkLayer is free and open source.

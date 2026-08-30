@@ -11,7 +11,7 @@ modified: 2026-08-15
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free, open-source Chrome extension. Annotate any live webpage, share via link, no account on either side. Real-time live cursors and an MCP server for AI coding agents. No per-user pricing because there are no users to count."
+    pitch: "Free and open source, with nothing to install on either side. Paste a URL, annotate the live page, share via link, no account. Real-time live cursors and an MCP server for AI coding agents. No per-user pricing because there are no users to count."
     bestFor: "Anyone leaving Ruttl over per-seat cost or billing friction."
   - name: "Pastel"
     url: "/vs/pastel"

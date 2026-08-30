@@ -11,7 +11,7 @@ modified: 2026-03-19
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free, open-source Chrome extension for visual annotation. Doesn't auto-capture console or network. Focuses on the annotation step. Real-time live cursors. No sign-up."
+    pitch: "Free and open source, no install: paste a URL and annotate in your browser. Doesn't auto-capture console or network. Focuses on the annotation step. Real-time live cursors. No sign-up."
     bestFor: "Visual feedback, design review, lightweight QA where the bug is visible on the page."
   - name: "BugHerd"
     url: "/vs/bugherd"

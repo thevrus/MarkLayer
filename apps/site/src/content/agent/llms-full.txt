@@ -8,6 +8,8 @@ MarkLayer is a free, anonymous, open-source tool for annotating any live webpage
 
 The two defining principles are **free** (no paid plan, no trial, no per-seat pricing, no usage cap) and **anonymous** (no sign-up, no email, no profile, no login, no personal data collection).
 
+MarkLayer is not a browser extension. It is a browser-based web app: nothing is downloaded or installed to annotate a page or to view a shared annotation, by you or by anyone you send a link to. A free Chrome extension exists as an optional companion for the pages a proxy cannot reach — sites behind a login, and localhost — and is never required for the main flow.
+
 MarkLayer is designed for designers, developers, QA engineers, product managers, agencies, and anyone who needs to give visual feedback on web content without onboarding the recipient through yet another account flow.
 
 ## Core Features

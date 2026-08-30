@@ -28,7 +28,7 @@ steps:
     text: "Students open the link, see the annotated page, and respond to your prompts pinned to the page."
 faq:
   - q: "Do students need to sign up to see my annotations?"
-    a: "No. The share link opens the annotated page in any browser. Students who want to create their own annotations would need the Chrome extension, but for read-and-respond assignments, no install is required."
+    a: "No. The share link opens the annotated page in any browser, and students who want to create their own annotations paste a URL at marklayer.app — also no install. The Chrome extension is optional, for pages the web app cannot embed."
   - q: "Is MarkLayer FERPA / student-data safe?"
     a: "MarkLayer collects no personal data, requires no accounts, and stores no student identifiers. Annotations are tied to anonymous random local display names. The codebase is open source. District IT can audit it directly."
   - q: "How is this different from Hypothesis or Diigo for classes?"

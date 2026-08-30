@@ -30,7 +30,7 @@ faq:
   - q: "Is MarkLayer really free for students?"
     a: "Yes, 100% free for everyone, including students. No academic email check, no student tier, no future paywall planned."
   - q: "Do my classmates need an account to see my annotations?"
-    a: "No. They open the share link in any browser and see the source page with your highlights and comments overlaid. Only students who want to add their own annotations need the Chrome extension."
+    a: "No. They open the share link in any browser and see the source page with your highlights and comments overlaid. Students who want to add their own annotations paste a URL at marklayer.app, which also needs no install."
   - q: "Can I use MarkLayer on JSTOR, Google Scholar, or course pages?"
     a: "MarkLayer works on any page you can load in Chrome. For paywalled content, classmates viewing the share link will need their own access to the underlying page."
   - q: "Is this better than Hypothesis for students?"
