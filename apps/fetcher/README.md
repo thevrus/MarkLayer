@@ -87,6 +87,15 @@ one address. Check after any deploy:
 
     for i in $(seq 5); do curl -s https://marklayer-fetcher.fly.dev/health | jq -r .egress; done
 
+It runs **on demand**: `auto_stop_machines = "suspend"` with `min_machines_running
+= 0`, so Fly suspends the machine when nothing is asking and resumes it on the next
+request. Resume is a few hundred ms — against ~2s for a cold boot, which is why it
+is `suspend` and not `stop` — comfortably inside the Worker's 6s relay timeout. Note
+what this does *not* buy: Fly's $5/mo Hobby plan is a floor that includes $5 of usage
+credit, and this machine costs ~$2/mo running flat out, so idling it saves nothing on
+the bill. Only leaving Fly does that. Suspend is here because a box that runs only
+when needed is the honest shape of a fallback, not as a cost lever.
+
 Note the inbound/outbound distinction: Fly's `$2/mo` dedicated IPv4 is the address
 people connect *to*. The address a target site sees is the machine's egress NAT,
 which is a different thing and is not something the dedicated IPv4 buys. We do not

@@ -131,7 +131,15 @@
           "name": "Does MarkLayer work on any website?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "Yes. Production sites, staging URLs, internal tools, third-party pages. The web app works on any URL it can embed; the free Chrome extension covers sites behind a login or with strict embed policies."
+            "text": "Yes. Production sites, staging URLs, internal tools, localhost, third-party pages. The web app works on any URL it can embed; the free Chrome extension covers sites behind a login or with strict embed policies."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does MarkLayer work on localhost?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes, with the free Chrome extension. It draws in your browser, so your local dev server never has to be reachable from the internet and there is no proxy or tunnel involved. Share links do need a publicly reachable URL, so point collaborators at staging or a tunnel when someone else has to open the page."
           }
         },
         {

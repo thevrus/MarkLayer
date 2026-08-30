@@ -1,7 +1,7 @@
 import { parseFetchableUrl } from '@marklayer/types';
 import { Hono } from 'hono/tiny';
 import type { Env } from './index';
-import { captureServer } from './posthog';
+import { captureBlockedSite, captureServer } from './posthog';
 import { PROXY_ERRORS } from './proxy-errors';
 
 const BROWSER_UA =
@@ -316,6 +316,18 @@ proxy.get('/proxy', async (c) => {
       duration_ms: Date.now() - fetchStart,
     });
 
+    // The same refusal the viewer is about to see, filed as an Error Tracking
+    // issue keyed on the site — so "which sites turn us away" is a triageable
+    // list rather than a breakdown someone has to remember to run.
+    if (resp.challenged || resp.status >= 400) {
+      captureBlockedSite(c.env, c.executionCtx, {
+        kind: resp.challenged ? 'firewall-challenge' : 'http-error',
+        url,
+        status: resp.status,
+        via: resp.via,
+      });
+    }
+
     // For non-HTML resources, pass through as-is
     if (!resp.contentType.includes('text/html')) {
       const headers = new Headers();
@@ -495,11 +507,13 @@ proxy.get('/proxy', async (c) => {
 
     return rewriter.transform(new Response(resp.stream, { headers }));
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     captureServer(c.env, c.executionCtx, 'proxy_render_failed', {
       reason: PROXY_ERRORS.fetchThrew.label,
-      message: err instanceof Error ? err.message : String(err),
+      message,
       duration_ms: Date.now() - fetchStart,
     });
+    captureBlockedSite(c.env, c.executionCtx, { kind: 'fetch-threw', url, message });
     return c.text(PROXY_ERRORS.fetchThrew.message, 502);
   }
 });

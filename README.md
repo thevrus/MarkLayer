@@ -39,7 +39,7 @@ MarkLayer turns any webpage into a collaborative review surface. Instead of pass
 
 ## How it works
 
-1. **Open a page**: paste any public URL at [marklayer.app](https://marklayer.app), or use the Chrome extension on the page you are already viewing.
+1. **Open a page**: paste any public URL at [marklayer.app](https://marklayer.app), or use the Chrome extension on the page you are already viewing — including a page on your own `localhost` dev server, which never has to be reachable from the internet.
 2. **Make the feedback visible**: draw, highlight text, measure space, pin a threaded comment, or inspect an element.
 3. **Share one link**: collaborators join the same board and see cursors, marks, replies, and calls in real time.
 

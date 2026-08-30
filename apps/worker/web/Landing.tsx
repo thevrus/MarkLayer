@@ -912,7 +912,14 @@ export function Landing() {
                     a: 'No. Anyone can view your annotations via the share link. No install required.',
                   },
                   { q: 'Is it really free?', a: 'Yes. No account, no paywall, no trial period.' },
-                  { q: 'Does it work on any website?', a: 'Yes, MarkLayer works on any webpage.' },
+                  {
+                    q: 'Does it work on any website?',
+                    a: 'Yes. Production, staging, internal tools, localhost, third-party pages.',
+                  },
+                  {
+                    q: 'Does it work on localhost?',
+                    a: 'Yes, with the Chrome extension. It draws in your browser, so your dev server never has to be reachable from the internet. Share links do need a public URL, so point collaborators at staging or a tunnel.',
+                  },
                   {
                     q: 'Can multiple people annotate at the same time?',
                     a: 'Yes. Real-time cursors let you collaborate live on any page.',
