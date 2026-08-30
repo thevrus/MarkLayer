@@ -6,7 +6,6 @@
       "name": "MarkLayer",
       "url": "https://marklayer.app",
       "description": "Free webpage annotation and visual collaboration tool. Draw, comment, and mark up any live website, then share a link for instant feedback.",
-      "dateModified": "2026-08-30",
       "potentialAction": {
         "@type": "SearchAction",
         "target": "https://marklayer.app/proxy?url={url}",
@@ -27,8 +26,6 @@
       "url": "https://marklayer.app",
       "screenshot": "https://marklayer.app/og.jpg",
       "datePublished": "2026-03-18",
-      "dateModified": "2026-08-30",
-      "softwareVersion": "0.6.0",
       "featureList": [
         "Runs in the browser at marklayer.app. No download, no installation, no browser extension needed",
         "Optional free Chrome extension for in-place annotation on sites behind a login or with strict embed policies",
@@ -37,6 +34,7 @@
         "Real-time collaboration with live cursors",
         "Share annotations via a single link. Viewers need no extension and no account",
         "Drawing, comments, arrows, highlights, area capture, element inspector, measure tool",
+        "Annotate PDFs by link or by uploading a file up to 25MB, with selectable text and marks bound to a page",
         "MCP server (marklayer-mcp) for AI coding agent integration",
         "Open source and self-hostable on Cloudflare"
       ],

@@ -1,6 +1,8 @@
 ---
 import HomeContent from '../components/home/HomeContent.astro';
 import schema from '../data/home-schema.json';
+import dates from '../data/page-dates.json';
+import { getReleases } from '../lib/collections';
 import { FONTS_HREF, OG_IMAGE, ORIGIN, WORKER_DEV } from '../lib/site';
 
 /**
@@ -16,12 +18,29 @@ import { FONTS_HREF, OG_IMAGE, ORIGIN, WORKER_DEV } from '../lib/site';
  */
 const title = 'MarkLayer · Free, Anonymous Webpage Annotation. No Account.';
 const description =
-  'Free web app + Chrome extension for annotating any live webpage. Paste a URL, draw or comment on the page, share a link. No account, no email, no sign-up. Open source.';
+  'Free web app for annotating any live webpage. Paste a URL, draw and comment on the page, then share a link. No account, no email, no install. Open source.';
 const ogTitle = 'MarkLayer · Free & Anonymous Webpage Annotation';
 const ogDescription =
-  'Free web app + Chrome extension. Paste any URL, draw and comment on the live page, share a link. 100% free, 100% anonymous. No account, no email, no sign-up.';
+  'Free web app. Paste any URL, draw and comment on the live page, share a link. 100% free, 100% anonymous. No account, no email, no sign-up, nothing to install.';
 const twitterDescription =
-  'Free web app + Chrome extension. Paste a URL, draw and comment in your browser, share a link. Real-time collab. No account, no email, no sign-up.';
+  'Free web app. Paste a URL, draw and comment in your browser, share a link. Real-time collab. No account, no email, no sign-up, nothing to install.';
+
+/* The version and the modified date are derived, never stored in the graph: the
+   releases collection is the public version number (the changelog reads the same
+   entry) and page-dates.json is what the sitemap tells crawlers about `/`. Held
+   in the JSON, both drift the moment someone bumps one and not the other. */
+const softwareVersion = (await getReleases()).at(0)?.data.version;
+if (!softwareVersion) throw new Error('home-schema: no releases to take softwareVersion from');
+const dateModified = dates.home.modified;
+
+const ld = {
+  ...schema,
+  '@graph': schema['@graph'].map((node) => {
+    if (node['@type'] === 'WebSite') return { ...node, dateModified };
+    if (node['@type'] === 'WebApplication') return { ...node, dateModified, softwareVersion };
+    return node;
+  }),
+};
 ---
 
 <!doctype html>
@@ -55,7 +74,7 @@ const twitterDescription =
     <link href={FONTS_HREF} rel="stylesheet" media="print" onload="this.media = 'all'" />
     <noscript><link href={FONTS_HREF} rel="stylesheet" /></noscript>
 
-    <script type="application/ld+json" is:inline set:html={JSON.stringify(schema)} />
+    <script type="application/ld+json" is:inline set:html={JSON.stringify(ld)} />
 
     {/* Styles come from apps/worker: Vite injects its hashed stylesheet when it
         processes the built shell. `astro dev` never runs that build, so borrow
@@ -75,7 +94,7 @@ const twitterDescription =
         {/* Flat white, no card, no shadow, no rounding: separation comes from
             whitespace. The copy is left-aligned prose — centring it threw the
             tables, lists and FAQ on this page off-axis. */}
-        <main id="ssr" class="max-w-[760px] mx-auto" style="padding: 3rem 1.5rem; text-align: left">
+        <main id="ssr" class="max-w-page mx-auto" style="padding: 3rem 1.5rem; text-align: left">
           <HomeContent />
         </main>
       </div>

@@ -542,7 +542,7 @@ export function Landing() {
                 logo, two icons and no links at all, while the footer carried
                 twenty. Contained to the same column the hero sits in, so the
                 wordmark and the headline share one left margin. */}
-            <nav class="lp-fade-up relative z-1 mx-auto flex w-full max-w-280 items-center justify-between gap-6 px-6 pt-6 sm:px-10">
+            <nav class="lp-fade-up relative z-1 mx-auto flex w-full max-w-page items-center justify-between gap-6 px-6 pt-6 sm:px-10">
               <a href="/" class="flex items-center gap-2.5 no-underline">
                 <Logo size={34} />
                 {/* Solid ink. A gradient clipped into the wordmark is decoration
@@ -588,7 +588,7 @@ export function Landing() {
                 the screen reading as dead space rather than as board. The copy
                 holds the left; the board's working area — where the marks and
                 the other people's cursors are — holds the right. */}
-            <section class="relative mx-auto flex w-full max-w-280 flex-1 flex-col justify-center px-6 pb-28 pt-14 sm:px-10 sm:pb-36 sm:pt-8">
+            <section class="relative mx-auto flex w-full max-w-page flex-1 flex-col justify-center px-6 pb-28 pt-14 sm:px-10 sm:pb-36 sm:pt-8">
               <div class="max-w-[1080px]">
                 {/* Two lines, never three — the measure is set wide enough that
                   the longest channel word ("WhatsApp") still lands on line two
@@ -803,7 +803,7 @@ export function Landing() {
               bare sentence, one as a two-column split, one centred. A page
               where every section starts with a heading in the same place at the
               same size reads as a template. */}
-          <section class="mx-auto w-full max-w-280 px-6 pt-24 pb-20 sm:px-10 sm:pt-32 sm:pb-28">
+          <section class="mx-auto w-full max-w-page px-6 pt-24 pb-20 sm:px-10 sm:pt-32 sm:pb-28">
             <h2 class="lp-display max-w-[840px] text-statement text-balance text-ml-fg">
               Three things it does that a screenshot in a thread cannot.
             </h2>
@@ -860,7 +860,7 @@ export function Landing() {
               heading above it, no tracked-caps kicker. The claim is the whole
               section, so wrapping it in a section head would just be a label
               restating the line underneath it. */}
-          <section class="mx-auto w-full max-w-280 px-6 py-20 sm:px-10 sm:py-28">
+          <section class="mx-auto w-full max-w-page px-6 py-20 sm:px-10 sm:py-28">
             <h2 class="lp-display max-w-[800px] text-section text-balance text-ml-fg">
               Free alternative to BugHerd, Marker.io, Pastel, and Markup.io.
             </h2>
@@ -903,7 +903,7 @@ export function Landing() {
               hairline rule that used to sit on top of each one: a bare
               unrounded line used to fake structure is the cheapest divider
               there is, and four of them stacked read as a table. */}
-          <section class="mx-auto w-full max-w-280 px-6 pb-20 sm:px-10 sm:pb-28">
+          <section class="mx-auto w-full max-w-page px-6 pb-20 sm:px-10 sm:pb-28">
             <div class="grid gap-x-16 gap-y-8 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
               <h2 class="lp-display text-subsection text-balance text-ml-fg">Questions people ask first.</h2>
               <div class="flex flex-col gap-2">
@@ -981,7 +981,7 @@ export function Landing() {
               — so at 1440 the page's content spine was at 200px and the
               footer's at 160px, and the whole block read as slipped. */}
           <footer class="relative overflow-hidden bg-ml-board-deep pt-16 pb-7">
-            <div class="mx-auto w-full max-w-280 px-6 sm:px-10">
+            <div class="mx-auto w-full max-w-page px-6 sm:px-10">
               {/* A grid, not `flex-wrap`: wrapping drops the fourth column onto
                   its own row as soon as the links grow, leaving three columns
                   and an orphan off the shared baseline. */}

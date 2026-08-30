@@ -30,6 +30,7 @@ bun run lint:fix     # Biome auto-fix
 bun run deploy         # Build + deploy worker to Cloudflare (site is embedded in it)
 bun run deploy:mcp     # Publish marklayer-mcp to npm, but only if its version is ahead
 bun run deploy:site    # Deploy apps/site standalone to Cloudflare Pages
+cd apps/site && bun run indexnow:submit   # After a deploy that changed pages: ping IndexNow (Bing, Yandex, …)
 bun run zip:extension  # Build Chrome + Firefox store zips into apps/extension/.output
 
 # Extension only
