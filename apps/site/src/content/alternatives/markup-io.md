@@ -11,7 +11,7 @@ modified: 2026-04-13
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free, open-source Chrome extension. Annotate any live webpage with drawings, comments, arrows, and highlights, then share a link. Recipients need neither the extension nor an account. Real-time live cursors. There is no paid tier to upgrade to. Annotations are cleaned up 90 days after their last activity, and any comment or view resets that clock."
+    pitch: "Free and open source, with nothing to install. Paste any URL at marklayer.app, annotate the live page with drawings, comments, arrows, and highlights, then share a link. Recipients need no install and no account. Real-time live cursors. There is no paid tier to upgrade to. Annotations are cleaned up 90 days after their last activity, and any comment or view resets that clock."
     bestFor: "Anyone who wants the core Markup.io use case (live webpage feedback) without sign-up or fees."
   - name: "PageProofer"
     pitch: "Visual feedback on staging sites with sticky-note style comments. Has a free trial; paid plans for teams."

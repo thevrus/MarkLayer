@@ -1,6 +1,5 @@
 ---
 import BaseHead from '../components/BaseHead.astro';
-import ChromeMark from '../components/ChromeMark.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
@@ -68,15 +67,21 @@ const allSchema: object[] = [...schema, breadcrumbSchema(crumbs)];
       }
       <slot />
 
+      {/* The web app leads. This block is the closing CTA on ~50 static pages,
+          and it used to offer only the Chrome Store — which is what taught
+          crawlers and answer engines that MarkLayer is "the extension one",
+          the disqualifying read on any "no install" query. The no-install path
+          is the real product surface; the extension is the fallback. */}
       <h2>Try MarkLayer</h2>
       <p>
-        MarkLayer is free, requires no sign-up, and works on any webpage. Recipients of your share links don't need to
-        install anything.
+        Paste any URL at <a href={ORIGIN}>marklayer.app</a> and annotate the live page in your browser. No install, no
+        account, no sign-up. Recipients of your share links don't need to install anything either.
       </p>
-      <a class="ml-cta mt-2" href={CHROME_STORE_URL}>
-        <ChromeMark />
-        Add to Chrome
-      </a>
+      <a class="ml-cta mt-2" href={ORIGIN}>Annotate a page</a>
+      <p class="ml-meta mt-4">
+        Or <a href={CHROME_STORE_URL}>add the free Chrome extension</a> for sites the web app cannot embed, such as
+        pages behind a login.
+      </p>
     </div>
     <SiteFooter />
   </body>

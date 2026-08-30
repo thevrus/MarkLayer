@@ -57,7 +57,7 @@ faq:
   - q: "Does MarkLayer have a free tier or is it fully free?"
     a: "MarkLayer is fully free with no tiers. There is no paid plan, trial period, or credit-card requirement."
   - q: "Do recipients need to install MarkLayer to view annotations?"
-    a: "No. Share links open the annotated page in any browser. The Chrome extension is only required to create annotations, not to view them."
+    a: "No. Share links open the annotated page in any browser, and creating annotations needs no install either — paste a URL at marklayer.app. The optional Chrome extension is only for pages the web app cannot embed."
 ---
 
-MarkLayer and [Markup.io](https://markup.io) are both visual feedback tools for live websites. The core difference: MarkLayer is a free Chrome extension with no sign-up that works on any page in real time, while Markup.io is a paid, project-based web app tied to a team account. As of August 2026, Markup.io has no free plan; Pro costs $79/month.
+MarkLayer and [Markup.io](https://markup.io) are both visual feedback tools for live websites. The core difference: MarkLayer is a free, no-install web app with no sign-up that works on any page in real time, while Markup.io is a paid, project-based web app tied to a team account. As of August 2026, Markup.io has no free plan; Pro costs $79/month.

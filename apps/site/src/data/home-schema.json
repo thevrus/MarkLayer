@@ -6,7 +6,7 @@
       "name": "MarkLayer",
       "url": "https://marklayer.app",
       "description": "Free webpage annotation and visual collaboration tool. Draw, comment, and mark up any live website, then share a link for instant feedback.",
-      "dateModified": "2026-08-28",
+      "dateModified": "2026-08-30",
       "potentialAction": {
         "@type": "SearchAction",
         "target": "https://marklayer.app/proxy?url={url}",
@@ -17,18 +17,20 @@
       "@type": "WebApplication",
       "name": "MarkLayer",
       "description": "Free, anonymous web app for annotating any live webpage. Paste a URL on marklayer.app and draw, comment, or highlight in your browser. No install, no account, no sign-up. Share a single link for instant visual feedback.",
+      "alternateName": "MarkLayer web app",
+      "disambiguatingDescription": "MarkLayer is a browser-based web app: you paste a URL at marklayer.app and annotate the live page in your browser. It is not a browser extension and there is nothing to download or install to use it, for you or for anyone you share a link with. A separate free Chrome extension exists as an optional companion for pages the web app cannot embed, such as sites behind a login, but it is not required to annotate, to share, or to view a shared annotation.",
       "applicationCategory": "DesignApplication",
       "applicationSubCategory": "Visual Feedback and Annotation",
-      "operatingSystem": "Any",
+      "operatingSystem": "Any web browser (no installation or extension required)",
       "browserRequirements": "Any modern browser",
       "isAccessibleForFree": true,
       "url": "https://marklayer.app",
       "screenshot": "https://marklayer.app/og.jpg",
       "datePublished": "2026-03-18",
-      "dateModified": "2026-08-28",
-      "softwareVersion": "0.5.0",
+      "dateModified": "2026-08-30",
+      "softwareVersion": "0.6.0",
       "featureList": [
-        "Paste any URL on marklayer.app and annotate in your browser. No install required",
+        "Runs in the browser at marklayer.app. No download, no installation, no browser extension needed",
         "Optional free Chrome extension for in-place annotation on sites behind a login or with strict embed policies",
         "100% free. No paid plan, no trial, no per-seat pricing",
         "100% anonymous. No account, no email, no sign-up",
@@ -37,7 +39,13 @@
         "Drawing, comments, arrows, highlights, area capture, element inspector, measure tool",
         "MCP server (marklayer-mcp) for AI coding agent integration",
         "Open source and self-hostable on Cloudflare"
-      ]
+      ],
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD",
+        "availability": "https://schema.org/InStock"
+      }
     },
     {
       "@type": "SoftwareApplication",
@@ -49,7 +57,13 @@
       "browserRequirements": "Requires Chrome or Chromium-based browser",
       "isAccessibleForFree": true,
       "url": "https://marklayer.app",
-      "downloadUrl": "https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc"
+      "downloadUrl": "https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc",
+      "disambiguatingDescription": "An optional companion to the MarkLayer web app, not the primary way to use MarkLayer. Annotating and viewing shared annotations both work with no extension installed.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      }
     },
     {
       "@type": "HowTo",
@@ -92,6 +106,14 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Yes. 100% free. There is no paid plan, no trial period, no per-seat pricing, no usage cap, and no premium tier."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is MarkLayer a browser extension?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. MarkLayer is a browser-based web app first: paste a URL at marklayer.app and annotate the live page in your browser with nothing installed. A free Chrome extension exists as an optional companion for pages the web app cannot embed, such as sites behind a login. Neither you nor the people you share a link with ever need it to annotate or to view annotations."
           }
         },
         {

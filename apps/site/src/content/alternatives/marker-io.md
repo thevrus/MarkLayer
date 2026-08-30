@@ -11,7 +11,7 @@ modified: 2026-04-15
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free, open-source Chrome extension for visual annotation. No native integrations. Paste the share link into Jira, Linear, GitHub Issues. Real-time live cursors."
+    pitch: "Free and open source, no install: paste a URL and annotate in your browser. No native integrations. Paste the share link into Jira, Linear, GitHub Issues. Real-time live cursors."
     bestFor: "Teams happy to paste links manually and want zero billing."
   - name: "Jam.dev"
     url: "/vs/jam"

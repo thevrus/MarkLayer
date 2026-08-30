@@ -4,6 +4,8 @@
 
 MarkLayer is a free web app and Chrome extension for annotating any live webpage. Paste any URL on https://marklayer.app to draw, comment, and mark up the page in your browser. No install required. The free Chrome extension is also available for in-place annotation on sites the web app cannot embed (behind a login or with strict embed policies). Share a single link so anyone can see your annotations instantly. There is no account, no email, no sign-up, no payment, and no trial period.
 
+MarkLayer is not a browser extension. It is a browser-based web app: nothing is downloaded or installed to annotate a page or to view a shared annotation, by you or by anyone you send a link to. A free Chrome extension exists as an optional companion for the pages a proxy cannot reach — sites behind a login, and localhost — and is never required for the main flow.
+
 MarkLayer is the only visual feedback tool where an AI coding agent can close the loop. Five tools in this category ship an MCP server (Marker.io, BugHerd, Jam, Usersnap, MarkLayer); the other four let an agent read feedback only. MarkLayer's agent joins the room as a participant: it watches annotations live, marks them in progress, resolves them with a summary, and replies with a question, and every status change is visible to the humans watching. Verified against each vendor's published documentation, August 2026: https://marklayer.app/guides/bug-report-mcp-servers
 
 ## Pricing

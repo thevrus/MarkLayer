@@ -11,7 +11,7 @@ modified: 2026-03-11
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free, open-source Chrome extension for visual annotation. Drawings, arrows, threaded comments pinned anywhere on the page. Real-time live cursors."
+    pitch: "Free and open source, no install: paste a URL and annotate in your browser. Drawings, arrows, threaded comments pinned anywhere on the page. Real-time live cursors."
     bestFor: "Visual feedback on UI, design, and live web product. Not scholarly text."
   - name: "Diigo"
     pitch: "Freemium browser bookmarking and annotation tool with text highlights and sticky notes. Closer to Hypothesis in shape."

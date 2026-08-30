@@ -62,4 +62,4 @@ faq:
     a: "Yes. MarkLayer is open source and runs on Cloudflare Workers, D1, and Durable Objects. You can fork the repo and deploy your own instance."
 ---
 
-MarkLayer and Pastel both let you annotate live websites and share feedback via a link. The trade-off: Pastel is a polished, paid platform optimized for agency-client workflows; MarkLayer is a free, open-source Chrome extension built for fast, sign-up-free visual feedback.
+MarkLayer and Pastel both let you annotate live websites and share feedback via a link. The trade-off: Pastel is a polished, paid platform optimized for agency-client workflows; MarkLayer is a free, open-source web app built for fast, install-free and sign-up-free visual feedback.

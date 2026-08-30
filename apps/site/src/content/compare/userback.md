@@ -1,7 +1,7 @@
 ---
 order: 6
 title: "Userback vs MarkLayer: Customer Widget vs Team Tool"
-description: "Userback embeds a widget on your product for end-user feedback. MarkLayer is the Chrome extension your team uses to annotate any page, including pages you don't own."
+description: "Userback embeds a widget on your product for end-user feedback. MarkLayer is the free, no-install web app your team uses to annotate any page, including pages you don't own."
 competitor: "Userback"
 competitorTagline: "a paid feedback platform whose primary use case is collecting feedback FROM your end users via an embedded widget on your own product"
 bottomLine: "Choose MarkLayer when your team needs to give feedback on any webpage, anywhere on the internet. Choose Userback when you need to collect annotated feedback FROM your end users on your own product via an embedded widget."
@@ -53,11 +53,11 @@ faq:
   - q: "Is MarkLayer a free Userback alternative?"
     a: "Only for one direction of Userback's use case. Internal team annotation on any page. MarkLayer does not replace Userback's widget for collecting feedback from your end users on your own product."
   - q: "Can I embed MarkLayer on my website like Userback?"
-    a: "No. MarkLayer is a Chrome extension your team installs, not a JavaScript widget you embed on your site for visitors. If you need a customer-facing feedback widget, Userback is the right category of tool."
+    a: "No. MarkLayer is a tool your team opens in a browser, not a JavaScript widget you embed on your site for visitors. If you need a customer-facing feedback widget, Userback is the right category of tool."
   - q: "Can my team use MarkLayer to review competitor sites?"
     a: "Yes. MarkLayer works on any webpage, including third-party sites. Many teams use it for competitive analysis and content review."
   - q: "What's the cleanest split between MarkLayer and Userback?"
     a: "MarkLayer = your team annotating anything on the web. Userback = your end users annotating your product to give you feedback. Different sides of the table."
 ---
 
-MarkLayer and Userback look similar but solve different problems. Userback's main mode is a feedback widget you embed on your own product so end users can submit annotated feedback to you. MarkLayer is a Chrome extension your team uses to annotate any webpage (including third-party pages, staging sites, and competitor products) and share the result.
+MarkLayer and Userback look similar but solve different problems. Userback's main mode is a feedback widget you embed on your own product so end users can submit annotated feedback to you. MarkLayer is a browser-based app your team uses to annotate any webpage (including third-party pages, staging sites, and competitor products) and share the result, with nothing to install on either side.

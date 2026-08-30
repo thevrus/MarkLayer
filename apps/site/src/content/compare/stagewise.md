@@ -50,11 +50,11 @@ faq:
   - q: "Are MarkLayer and stagewise solving the same problem?"
     a: "Partly. Both let a human point at a UI element so an AI coding agent gets exact context (selector, styles, position) instead of a vague description. stagewise scopes this to a developer working in a local dev app. MarkLayer scopes it to a shared room on any URL, where non-developers can leave the annotations and the agent works through them."
   - q: "Does MarkLayer work on localhost like stagewise?"
-    a: "Yes. The Chrome extension annotates any page it can open, including localhost dev servers. Share links to public URLs additionally open in any browser with no extension."
+    a: "Yes. Public URLs need no install at all — paste them at marklayer.app. Localhost is the case for the optional Chrome extension, which annotates any page your browser can open, including a dev server on any port. Share links open in any browser either way."
   - q: "Can an AI agent resolve MarkLayer annotations?"
     a: "Yes. The marklayer-mcp server exposes tools to watch a room for new annotations, mark one in progress, resolve it with a summary reply, dismiss it with a reason, or reply without changing status. Humans in the room see each change live."
   - q: "Is stagewise free?"
     a: "The toolbar is open source under AGPLv3, and paid cloud plans exist (August 2026). MarkLayer is fully free with no tiers, licensed Apache-2.0."
 ---
 
-MarkLayer and [stagewise](https://stagewise.io) close the same gap: an AI coding agent cannot see the pixel you mean. stagewise is a developer toolbar embedded in your local dev app; you click an element and the context lands in your coding agent. MarkLayer is a Chrome extension plus share link that works on any page (localhost, staging, or production) and adds threaded comments, real-time multiplayer, and an MCP server the agent talks back through.
+MarkLayer and [stagewise](https://stagewise.io) close the same gap: an AI coding agent cannot see the pixel you mean. stagewise is a developer toolbar embedded in your local dev app; you click an element and the context lands in your coding agent. MarkLayer is a browser-based app plus share link that works on any page — paste a staging or production URL with nothing to install, or use the optional Chrome extension for localhost — and adds threaded comments, real-time multiplayer, and an MCP server the agent talks back through.
