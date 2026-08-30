@@ -1,11 +1,11 @@
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import { peers, showAnnotationPanel } from '@ext/lib/state';
+import { annotationPanelOpen, peers, uiHidden } from '@ext/lib/state';
 import { cn } from '@marklayer/types';
-import { Lock, Mic, MicOff, X } from 'lucide-preact';
+import { Lock, Mic, MicOff, MonitorPlay, X } from 'lucide-preact';
 import { lazy, Suspense } from 'preact/compat';
 import { Logo } from './shared';
-import { followingPeer } from './signals';
+import { followingPeer, presenting, setPresenting } from './signals';
 import {
   audioBlocked,
   expandedPeers,
@@ -82,8 +82,10 @@ export function VoicePill() {
   return (
     <div
       class={cn(
-        'fixed top-[60px] z-2147483646 flex items-center gap-2 px-3 py-2 rounded-xl transition-[right] duration-200',
-        showAnnotationPanel.value ? 'right-[364px]' : 'right-4',
+        'fixed z-2147483646 flex items-center gap-2 px-3 py-2 rounded-xl transition-[right] duration-200',
+        // Clears the top bar, and takes its place when ⌘/ has hidden it.
+        uiHidden.value ? 'top-4' : 'top-[60px]',
+        annotationPanelOpen.value ? 'right-[364px]' : 'right-4',
         'bg-(--ds-background-100) border border-(--ds-gray-alpha-400) [box-shadow:var(--ds-shadow-tooltip)]',
         'animate-[fadeInDown_0.2s_ease-out]',
         'select-none',
@@ -190,10 +192,22 @@ export function AudioUnblockPrompt() {
   );
 }
 
-export function FollowIndicator() {
-  const followed = followingPeer.value;
-  const peer = followed ? peers.value.get(followed) : null;
-  if (!peer) return null;
+/**
+ * The one banner both viewer roles wear. Presenting and following are mutually
+ * exclusive, so this is only ever on screen once, and the two states differ by a
+ * leading mark, a label and what dismissing them does.
+ */
+function HudBanner({
+  lead,
+  label,
+  dismissLabel,
+  onDismiss,
+}: {
+  lead: preact.JSX.Element;
+  label: string;
+  dismissLabel: string;
+  onDismiss: () => void;
+}) {
   return (
     <div
       class={cn(
@@ -203,17 +217,44 @@ export function FollowIndicator() {
         'animate-[fadeInDown_0.2s_ease-out]',
       )}
     >
-      <span class="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: peer.color }} />
-      <span class="text-ui font-medium text-(--ds-gray-1000)">Following {peer.name}</span>
+      {lead}
+      <span class="text-ui font-medium text-(--ds-gray-1000)">{label}</span>
       <button
         type="button"
-        class="ml-1 text-(--ds-gray-900) hover:text-(--ds-gray-900) transition-colors"
-        onClick={() => {
-          followingPeer.value = null;
-        }}
+        class="ml-1 text-(--ds-gray-900) hover:text-(--ds-gray-1000) transition-colors"
+        aria-label={dismissLabel}
+        onClick={onDismiss}
       >
         <X size={14} />
       </button>
     </div>
+  );
+}
+
+export function FollowIndicator() {
+  const followed = followingPeer.value;
+  const peer = followed ? peers.value.get(followed) : null;
+  // Presenting and following are mutually exclusive, so one banner covers both
+  // roles and they can never stack on top of each other.
+  if (presenting.value) {
+    return (
+      <HudBanner
+        lead={<MonitorPlay size={14} strokeWidth={1.75} class="shrink-0 text-(--ds-gray-900)" aria-hidden="true" />}
+        label="Presenting to everyone"
+        dismissLabel="Stop presenting"
+        onDismiss={() => setPresenting(false)}
+      />
+    );
+  }
+  if (!peer) return null;
+  return (
+    <HudBanner
+      lead={<span class="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: peer.color }} />}
+      label={`Following ${peer.name}`}
+      dismissLabel="Stop following"
+      onDismiss={() => {
+        followingPeer.value = null;
+      }}
+    />
   );
 }

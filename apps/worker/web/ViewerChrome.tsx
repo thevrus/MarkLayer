@@ -2,20 +2,11 @@ import { Menu } from '@base-ui/react/menu';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { Avatar } from '@ext/components/Avatar';
+import { IdentityCard } from '@ext/components/IdentityCard';
 import { Tooltip } from '@ext/components/Tooltip';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import {
-  color,
-  copyText,
-  cycleTheme,
-  localUser,
-  peerCount,
-  peers,
-  setUserName,
-  showAnnotationPanel,
-  theme,
-} from '@ext/lib/state';
+import { copyText, cycleTheme, peerCount, peers, showAnnotationPanel, theme } from '@ext/lib/state';
 import type { DeviceMode } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import {
@@ -28,6 +19,7 @@ import {
   Mic,
   MicOff,
   MonitorCog,
+  MonitorPlay,
   Moon,
   Sun,
   Upload,
@@ -44,6 +36,8 @@ import {
   navigateTo,
   onFollowScroll,
   pageUrl,
+  presenting,
+  setPresenting,
   sharing,
   showInfoPanel,
   type ViewerZoom,
@@ -283,6 +277,8 @@ function useAvatarSpring() {
   return { groupRef, spring, reset };
 }
 
+/** The other people in the room. You are not in the stack — you are the
+ *  IdentityCard trigger beside it, which is also where you rename yourself. */
 function PresenceGroup() {
   const { groupRef, spring, reset } = useAvatarSpring();
   const visible = Array.from(peers.value.values()).slice(0, MAX_VISIBLE_PEERS);
@@ -296,22 +292,16 @@ function PresenceGroup() {
   };
   const zOf = (index: number, base: number) => (hovered === index ? peers.value.size + 10 : base);
 
+  if (!peers.value.size) return null;
   return (
     <div
       ref={groupRef}
-      class="flex items-center -space-x-2 mr-1"
+      class="flex items-center -space-x-2 mx-1"
       onMouseLeave={() => {
         setHovered(null);
         reset();
       }}
     >
-      <Avatar
-        name={localUser.name}
-        color={color.value}
-        stacked
-        style={{ zIndex: zOf(0, peers.value.size + 1) }}
-        onMouseEnter={enter(0)}
-      />
       {visible.map((p, i) => (
         <Avatar
           key={p.id}
@@ -320,8 +310,8 @@ function PresenceGroup() {
           stacked
           dim={p.cursor == null}
           title={p.cursor != null ? p.name : `${p.name} (inactive)`}
-          style={{ zIndex: zOf(i + 1, peers.value.size - i) }}
-          onMouseEnter={enter(i + 1)}
+          style={{ zIndex: zOf(i, peers.value.size - i) }}
+          onMouseEnter={enter(i)}
           onClick={() => {
             if (p.cursor) onFollowScroll.value?.(p.cursor.y);
           }}
@@ -332,39 +322,14 @@ function PresenceGroup() {
           class="ml-avatar w-6 h-6 rounded-full grid place-items-center shrink-0 bg-(--ds-gray-100) text-(--ds-gray-900) text-meta font-medium tabular-nums"
           style={{
             boxShadow: '0 0 0 1.5px var(--ds-gray-alpha-400), 0 0 0 3px var(--ds-background-100)',
-            zIndex: zOf(MAX_VISIBLE_PEERS + 1, 0),
+            zIndex: zOf(MAX_VISIBLE_PEERS, 0),
           }}
-          onMouseEnter={enter(MAX_VISIBLE_PEERS + 1)}
+          onMouseEnter={enter(MAX_VISIBLE_PEERS)}
         >
           +{overflow}
         </div>
       )}
     </div>
-  );
-}
-
-function NameField() {
-  return (
-    <input
-      name="displayName"
-      type="text"
-      defaultValue={localUser.name}
-      maxLength={24}
-      class={cn(
-        geist.input,
-        'w-28 h-8 px-2 rounded-md truncate cursor-text',
-        'border border-transparent transition-[border-color,background-color] duration-150',
-        'hover:bg-(--ds-gray-alpha-100) focus:bg-(--ds-background-100) focus:border-(--ds-gray-700)',
-      )}
-      title="Click to edit your name"
-      onBlur={(e) => {
-        setUserName(e.currentTarget.value);
-        e.currentTarget.value = localUser.name;
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') e.currentTarget.blur();
-      }}
-    />
   );
 }
 
@@ -432,6 +397,23 @@ function ConnectionStatus() {
         {live ? `${peerCount.value} online` : 'offline'}
       </span>
     </div>
+  );
+}
+
+/**
+ * "Everyone follow me." Hidden when nobody else is in the room, because pulling
+ * an empty room is a control that does nothing.
+ */
+function PresentButton() {
+  if (!connected.value || peerCount.value < 2) return null;
+  const on = presenting.value;
+  return (
+    <BarButton
+      icon={<MonitorPlay size={16} strokeWidth={1.5} aria-hidden="true" />}
+      tip={on ? 'Stop presenting' : 'Present to everyone'}
+      on={on}
+      onClick={() => setPresenting(!on)}
+    />
   );
 }
 
@@ -503,10 +485,11 @@ export function ViewerTopBar() {
       <div class={geist.sep} />
 
       <div class="flex items-center gap-1 shrink-0">
+        <IdentityCard />
         <PresenceGroup />
-        <NameField />
         {voiceActive.value ? <InCallControls /> : <JoinVoiceControls />}
         <ConnectionStatus />
+        <PresentButton />
         <BarButton
           icon={<MessageSquare size={16} strokeWidth={1.5} aria-hidden="true" />}
           tip="Annotations panel"
