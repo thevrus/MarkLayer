@@ -131,7 +131,10 @@ function ProxiedPage() {
         if (!pageUrl.value) return;
         // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
         const doc = meta.frameRef.current?.contentDocument;
-        if (doc?.documentElement?.dataset?.marklayer === '1') return;
+        if (doc?.documentElement?.dataset?.marklayer === '1') {
+          actions.reportRenderSuccess();
+          return;
+        }
         actions.reportRenderFailure('no-marker', { proxy_error: classifyProxyError(doc?.body?.textContent) });
         state.renderFailed.value = 'no-marker';
       }}

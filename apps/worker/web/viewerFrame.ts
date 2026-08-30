@@ -55,6 +55,8 @@ interface ViewerFrameActions {
   scrollToAnnotation: (x: number, y: number) => void;
   buildExportData: () => ExportData;
   reportRenderFailure: (reason: RenderFailure, extra?: Record<string, unknown>) => void;
+  /** The other half of the pair — without it a failure rate has no denominator. */
+  reportRenderSuccess: () => void;
 }
 
 interface ViewerFrameMeta {

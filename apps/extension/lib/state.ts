@@ -2,15 +2,18 @@ import { isAnnotationOp, resolveOpStatus, translateOp } from '@marklayer/types';
 import { computed, effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { tinykeys } from 'tinykeys';
+import { track, trackChanges } from './analytics';
 import { createDraftStore } from './drafts';
 import { ELEMENT_INSPECTOR_HEADING, type OutputDetail } from './selector';
 
 export type { OutputDetail };
 
 import type {
+  AnnotationOp,
   AreaOp,
   CommentMeta,
   CommentOp,
+  CommentPriority,
   CommentStatus,
   DrawOp,
   GuideOp,
@@ -133,6 +136,9 @@ export function toggleClearOnCopy() {
 
 /** Transient open state for the floating settings panel. Not persisted. */
 export const showSettings = signal(false);
+// Six places close this panel and two open it, so counting at the buttons could
+// never balance. The signal is the one thing they all agree on.
+trackChanges(showSettings, (open) => track('settings_panel', { open }));
 
 /**
  * Realtime sync status. `null` = no room joined (extension on a normal page).
@@ -303,8 +309,17 @@ export function toast(message: string, type: Toast['type'] = 'info', duration = 
 /** Copy text to clipboard with success/error toast feedback. */
 export function copyText(text: string, label = 'Copied') {
   navigator.clipboard.writeText(text).then(
-    () => toast(label, 'success'),
-    () => toast('Failed to copy', 'error'),
+    () => {
+      // The clipboard is how work leaves this product — an element handed to an
+      // AI agent, a markdown export, a share link — so the one path they share
+      // is where it gets counted. `label` names the flow and is a fixed string.
+      track('copied', { label, chars: text.length });
+      toast(label, 'success');
+    },
+    () => {
+      track('copy_failed', { label });
+      toast('Failed to copy', 'error');
+    },
   );
 }
 
@@ -406,6 +421,18 @@ export const showAnnotationPanel = signal(false);
 
 /** Comment status filter for annotation panel */
 export const commentFilter = signal<CommentStatus | 'all'>('all');
+
+/**
+ * The one annotation the panel is showing on its own, or null for the list.
+ * A signal rather than panel state because the viewer's Escape chain steps back
+ * to the list before it closes the panel, so both sides read the same value.
+ */
+export const focusedAnnotationId = signal<string | null>(null);
+
+// Closing the panel drops the detail, so reopening never lands on a stale one.
+effect(() => {
+  if (!showAnnotationPanel.value) focusedAnnotationId.value = null;
+});
 
 export { resolveOpStatus as getCommentStatus };
 
@@ -616,6 +643,8 @@ export function moveTool(from: number, to: number) {
   next.splice(to, 0, moved);
   toolOrder.value = next;
   lsSet('ml-tool-order', JSON.stringify(next));
+  // A tool dragged to the front is someone telling us it matters more than its default slot.
+  track('toolbar_reordered', { tool: moved, to });
 }
 
 /**
@@ -684,6 +713,27 @@ effect(() => {
   activeTool.value;
   handTool.value = false;
 });
+
+/** How a tool was reached. A programmatic switch — Escape, an inspector exit — reports `other`. */
+export type ToolSelectVia = 'toolbar' | 'shortcut' | 'other';
+
+let pendingVia: ToolSelectVia = 'other';
+
+/**
+ * Pick a tool, recording how. The write and the reset happen here rather than at
+ * the call sites because re-picking the tool that is already active is a no-op
+ * write: the effect never runs, and a `via` left pending would then be spent on
+ * whatever automatic switch came next.
+ */
+export function selectTool({ tool, via }: { tool: Tool; via: ToolSelectVia }) {
+  pendingVia = via;
+  activeTool.value = tool;
+  pendingVia = 'other';
+}
+
+// Which tools people actually reach for. On the signal, not in `selectTool`, so
+// the switches nothing routes through it are still counted.
+trackChanges(activeTool, (tool) => track('tool_selected', { tool, via: pendingVia }));
 
 /**
  * Scrolls the annotated surface by a viewport delta. Null means the host window
@@ -768,9 +818,7 @@ export function bindFigmaKeys({
     },
   };
   for (const { tool, pattern } of TOOL_SHORTCUTS) {
-    bindings[pattern] = pd(guard, () => {
-      activeTool.value = tool;
-    });
+    bindings[pattern] = pd(guard, () => selectTool({ tool, via: 'shortcut' }));
   }
 
   const release = () => {
@@ -804,11 +852,17 @@ export const measureToolActive = computed(() => activeTool.value === 'measure');
 /** The measure overlays should render: the M tool, or a held Alt from any tool. */
 export const measureActive = computed(() => measureToolActive.value || altHeld.value);
 
-export function pushOp(op: DrawOp) {
+/**
+ * Commit an op. `seeded` marks ops the app places itself — the landing page's
+ * demo strokes — so they land in the document without being counted as somebody
+ * annotating.
+ */
+export function pushOp(op: DrawOp, { seeded = false }: { seeded?: boolean } = {}) {
   operations.value = [...operations.value, op];
   if (undoStack.value.length) undoStack.value = [];
   onOpPushed.value?.(op);
   drafts.scheduleSave();
+  if (!seeded) track('annotation_created', { tool: op.tool, reply: 'parentId' in op && Boolean(op.parentId) });
 }
 
 /** Create and push a reply to an existing comment */
@@ -831,24 +885,41 @@ export function pushReply(parentOp: { id: string; x: number; y: number }, text: 
 }
 
 export function setOpStatus(opId: string, status: CommentStatus) {
-  let patch: Partial<CommentOp> | Partial<SelectionOp> | undefined;
+  let patch: Partial<AnnotationOp> | undefined;
   operations.value = operations.value.map((op) => {
-    if (op.id !== opId) return op;
+    if (op.id !== opId || !isAnnotationOp(op) || resolveOpStatus(op) === status) return op;
     if (op.tool === 'comment') {
-      if (resolveOpStatus(op) === status) return op;
+      // `resolved` is the pre-`status` boolean. Kept in step so a peer or an
+      // export still reading it doesn't disagree with the status beside it.
       const p: Partial<CommentOp> = { status, resolved: status === 'resolved' };
       patch = p;
       return { ...op, ...p };
     }
-    if (op.tool === 'selection') {
-      if ((op.status ?? 'open') === status) return op;
-      const p: Partial<SelectionOp> = { status };
-      patch = p;
-      return { ...op, ...p };
-    }
-    return op;
+    // Typed as the field alone, not Partial<AnnotationOp>: spreading a union's
+    // partial back into one member of it widens `tool` and stops type-checking.
+    const p: { status: CommentStatus } = { status };
+    patch = p;
+    return { ...op, ...p };
   });
-  if (patch) onOpUpdated.value?.(opId, patch);
+  if (patch) {
+    onOpUpdated.value?.(opId, patch);
+    // The triage half of the product: whether shared annotations get worked, or just left.
+    track('annotation_status_changed', { status });
+  }
+}
+
+/** Set the annotation's triage priority; undefined clears it. */
+export function setOpPriority({ opId, priority }: { opId: string; priority: CommentPriority | null }) {
+  let changed = false;
+  operations.value = operations.value.map((op) => {
+    if (op.id !== opId || !isAnnotationOp(op) || (op.priority ?? null) === priority) return op;
+    changed = true;
+    return { ...op, priority };
+  });
+  if (changed) {
+    onOpUpdated.value?.(opId, { priority });
+    track('annotation_prioritized', { priority: priority ?? 'none' });
+  }
 }
 
 /** Assign the annotation's thread to a person by display name; null clears it. */
@@ -859,7 +930,10 @@ export function setOpAssignee({ opId, assignee }: { opId: string; assignee: stri
     changed = true;
     return { ...op, assignee };
   });
-  if (changed) onOpUpdated.value?.(opId, { assignee });
+  if (changed) {
+    onOpUpdated.value?.(opId, { assignee });
+    track('annotation_assigned', { cleared: assignee === null });
+  }
 }
 
 /** @deprecated Use setOpStatus instead */
@@ -891,10 +965,20 @@ const _cachedUA = (() => {
   };
 })();
 
+/**
+ * The page an annotation is actually about.
+ *
+ * The extension is injected into that page, so `location.href` is already right
+ * and it leaves this null. The web viewer is a wrapper around a *proxied* page,
+ * where `location.href` is the share URL — so it sets this to the page it framed,
+ * or every comment records where it was read instead of what it was about.
+ */
+export const annotatedUrl = signal<string | null>(null);
+
 /** Capture browser metadata for a comment */
 export function getCommentMeta(): CommentMeta {
   return {
-    url: location.href,
+    url: annotatedUrl.value || location.href,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     ..._cachedUA,
   };
@@ -907,6 +991,8 @@ export const onExportPng = signal<(() => void) | null>(null);
 export const undoRedoFlash = signal(0);
 
 export function undo() {
+  // Counted as an intent: a press with nothing to undo is still someone reaching for it.
+  track('history_action', { action: 'undo' });
   // While the guide tool is active, ⌘Z pops the most recent guide op specifically —
   // even if a non-guide op was added later — so guide scratch work feels independent.
   if (activeTool.value === 'guide') {
@@ -940,6 +1026,7 @@ export function undo() {
 }
 
 export function redo() {
+  track('history_action', { action: 'redo' });
   const stack = undoStack.value;
   const last = stack[stack.length - 1];
   if (!last || 'type' in last) return;
@@ -953,6 +1040,7 @@ export function clearAll() {
   const ops = operations.value;
   if (!ops.length) return;
   if (!confirm("Clear all annotations on this page? This can't be undone.")) return;
+  track('history_action', { action: 'clear', ops: ops.length });
   undoStack.value = [...undoStack.value, { type: 'clear' as const, ops: structuredClone(ops) }];
   operations.value = [];
   onCleared.value?.();

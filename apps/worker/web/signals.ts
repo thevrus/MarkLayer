@@ -1,8 +1,17 @@
-import { areas, bumpAnchorGeneration, comments, pushOp, selections, toast as showToast } from '@ext/lib/state';
+import { trackChanges } from '@ext/lib/analytics';
+import {
+  annotatedUrl,
+  areas,
+  bumpAnchorGeneration,
+  comments,
+  pushOp,
+  selections,
+  toast as showToast,
+} from '@ext/lib/state';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import type { CaptureViewport, TargetElement } from '@marklayer/types';
 import { computed, effect, signal } from '@preact/signals';
-import { captureOnce } from './analytics';
+import { capture, captureOnce } from './analytics';
 import { fromBase64 } from './encoding';
 import { annotationId, currentPageIdx, originalWidth, pageUrl, projectId } from './projects';
 
@@ -22,6 +31,13 @@ export {
   projectPages,
   saveProject,
 } from './projects';
+
+// Every path that frames a page writes `pageUrl` — the legacy view param, the
+// server init, a project page change — so the bridge sits on the signal rather
+// than on each of them.
+effect(() => {
+  annotatedUrl.value = pageUrl.value || null;
+});
 
 export const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && 'ontouchstart' in window;
 
@@ -145,6 +161,10 @@ export function stepZoom(dir: 1 | -1) {
   if (next !== undefined) viewerZoom.value = next;
 }
 
+// Whether the responsive frames get used, and which ones. Changes only: the mode
+// is in the URL, so a share can arrive on one without anyone having picked it.
+trackChanges(deviceMode, (device) => capture('device_mode_changed', { device }));
+
 // Sync device mode to URL
 effect(() => {
   const dev = deviceMode.value;
@@ -156,15 +176,15 @@ effect(() => {
 
 /** Tag an operation with the current device mode before pushing */
 export function pushDeviceOp(op: DrawOp) {
-  // Gates session replay: a visitor who annotates is worth recording, one who
-  // bounces off the landing page is not. See the replay trigger groups in PostHog.
+  // Gates session replay, which needs a stable event name of its own — the first
+  // `annotation_created` of a session would do as a number, but not as a trigger.
   captureOnce('annotation_started', { tool: op.tool });
-  seedDeviceOp(op);
+  pushOp({ ...op, device: deviceMode.value });
 }
 
 /** Same device tagging, for ops the app places itself — never counts as the visitor annotating. */
 export function seedDeviceOp(op: DrawOp) {
-  pushOp({ ...op, device: deviceMode.value });
+  pushOp({ ...op, device: deviceMode.value }, { seeded: true });
 }
 
 /** Check if an operation belongs to the current device viewport (ops without a device tag default to desktop) */

@@ -102,6 +102,9 @@ function isPeerInfo(v: unknown): v is PeerInfo {
   );
 }
 
+/** MCP agents connect as peers under this prefix (apps/mcp/src/room.ts). */
+const isAgentPeer = (peerId: string) => peerId.startsWith('mcp-');
+
 export class AnnotationRoom extends DurableObject<Env> {
   private ops: unknown[] | null = null;
   /** In-flight load promise — coalesces concurrent first-message reads. */
@@ -120,8 +123,13 @@ export class AnnotationRoom extends DurableObject<Env> {
   // fine: it is best-effort product signal, not billing.
   private sessionStartedAt = 0;
   private sessionOps = 0;
-  private sessionTools = new Set<string>();
+  /** tool → ops drawn with it this session. A set only ever said "used at all". */
+  private sessionTools = new Map<string, number>();
   private peakPeers = 0;
+  private peakHumanPeers = 0;
+  private sessionHadAgent = false;
+  /** Status, priority and assignee edits — the triage half, which draws no ops. */
+  private sessionUpdates = 0;
 
   private async getOps(id: string): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
@@ -190,7 +198,14 @@ export class AnnotationRoom extends DurableObject<Env> {
     pair[1].serializeAttachment({ id: peerId, name: peerName, color: peerColor });
 
     if (this.sessionStartedAt === 0) this.sessionStartedAt = Date.now();
-    this.peakPeers = Math.max(this.peakPeers, this.ctx.getWebSockets().length);
+    // The MCP bridge joins as an ordinary peer under an `mcp-` id (apps/mcp/src/room.ts),
+    // so a room worked by an agent is countable without the client reporting
+    // anything — and an agent must not make a solo session read as collaborative.
+    this.sessionHadAgent ||= isAgentPeer(peerId);
+    const sockets = this.ctx.getWebSockets();
+    this.peakPeers = Math.max(this.peakPeers, sockets.length);
+    const humans = sockets.filter((s) => !isAgentPeer(this.getPeerInfo(s)?.id ?? '')).length;
+    this.peakHumanPeers = Math.max(this.peakHumanPeers, humans);
 
     // Run getOps and the TURN fetch concurrently — both are network-bound and
     // independent, so this hides the TURN latency behind D1's read RTT.
@@ -265,7 +280,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         const ops = await this.getOps(id!);
         ops.push(msg.op);
         this.sessionOps++;
-        this.sessionTools.add(msg.op.tool);
+        this.sessionTools.set(msg.op.tool, (this.sessionTools.get(msg.op.tool) ?? 0) + 1);
         this.broadcast(JSON.stringify({ type: 'op', op: msg.op }), ws);
         await this.scheduleFlush();
         return;
@@ -282,6 +297,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         const merged = applyOpPatch({ op: current, patch: msg.patch });
         if (!merged) return;
         ops[idx] = merged;
+        this.sessionUpdates++;
         this.broadcast(JSON.stringify({ type: 'update_op', opId: msg.opId, patch: msg.patch }));
         await this.scheduleFlush();
         return;
@@ -394,18 +410,32 @@ export class AnnotationRoom extends DurableObject<Env> {
    * wider contract (and the scrubber that backstops it).
    */
   private captureSession() {
-    if (this.sessionOps === 0) return; // Nobody drew anything; nothing to learn.
+    // An agent-only session draws nothing — it resolves and replies — so ops alone
+    // would drop exactly the sessions the MCP bridge exists for.
+    if (this.sessionOps === 0 && this.sessionUpdates === 0 && !this.sessionHadAgent) return;
+    // Heaviest first, and only the top few: `top_tool` charts with nothing to
+    // parse, and the ranking has to stay well inside the scrubber's 200-char cap
+    // (src/posthog.ts), which would otherwise truncate it mid-entry.
+    const byUse = [...this.sessionTools].sort((a, b) => b[1] - a[1]).slice(0, 5);
     captureServer(this.env, this.ctx, 'annotation_session_ended', {
       ops_total: this.sessionOps,
-      tools: [...this.sessionTools].sort().join(','),
+      tools: [...this.sessionTools.keys()].sort().join(','),
+      tool_ops: byUse.map(([tool, n]) => `${tool}:${n}`).join(','),
+      top_tool: byUse[0]?.[0] ?? null,
       tool_count: this.sessionTools.size,
       peak_peers: this.peakPeers,
-      collaborative: this.peakPeers > 1,
+      peak_human_peers: this.peakHumanPeers,
+      collaborative: this.peakHumanPeers > 1,
+      agent_present: this.sessionHadAgent,
+      updates_total: this.sessionUpdates,
       duration_ms: this.sessionStartedAt ? Date.now() - this.sessionStartedAt : 0,
     });
     this.sessionOps = 0;
     this.sessionTools.clear();
     this.peakPeers = 0;
+    this.peakHumanPeers = 0;
+    this.sessionHadAgent = false;
+    this.sessionUpdates = 0;
     this.sessionStartedAt = 0;
   }
 

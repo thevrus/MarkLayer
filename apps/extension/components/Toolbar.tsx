@@ -4,6 +4,7 @@ import { cn } from '@marklayer/types';
 import { signal, useSignalEffect } from '@preact/signals';
 import type { ComponentChildren, RefObject } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
@@ -22,6 +23,7 @@ import {
   redo,
   SHORTCUTS,
   scrollTick,
+  selectTool,
   showSettings,
   showShareDialog,
   toggleToolbarMinimized,
@@ -49,6 +51,7 @@ function Ctl({
   onClick,
   on,
   anchor,
+  action,
 }: {
   icon?: string;
   /** A glyph other than an icon — the colour swatch is the only one so far. */
@@ -59,10 +62,19 @@ function Ctl({
   /** Selected — Geist's inverted primary fill. */
   on?: boolean;
   anchor?: string;
+  /**
+   * What this control is, for the toolbar usage count. Omitted where the action
+   * reports itself from `lib/state` — undo, redo, clear and the settings panel
+   * all have keyboard and off-toolbar paths that a button here cannot see.
+   */
+  action?: string;
 }) {
   return (
     <BaseToolbar.Button
-      onClick={onClick}
+      onClick={() => {
+        if (action) track('toolbar_action', { action });
+        onClick();
+      }}
       aria-label={tip}
       data-ml-anchor={anchor}
       className={cn(geist.ctl, on ? geist.ctlOn : geist.ctlIdle)}
@@ -331,6 +343,8 @@ const TOOL_LABELS: Partial<Record<Tool, string>> = {
 };
 const lbl = (t: Tool) => TOOL_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
 
+// Undo/redo/clear report themselves from `lib/state` so the keyboard path is
+// counted too — a wrapper here would have counted only the button.
 const HISTORY_ACTIONS = [
   { id: 'undo', icon: 'undo', tip: 'Undo', shortcut: '⌘Z', fn: undo },
   { id: 'redo', icon: 'redo', tip: 'Redo', shortcut: '⌘⇧Z', fn: redo },
@@ -408,6 +422,7 @@ function ColorChip() {
   return (
     <Ctl
       tip={tip}
+      action="color"
       onClick={() => {
         showSettings.value = !showSettings.value;
       }}
@@ -425,7 +440,7 @@ function ColorChip() {
 function MinimizedToolbar({ onExpand, drag }: { onExpand: () => void; drag: DragApi }) {
   return (
     <BaseToolbar.Root data-ml-tb="row" className="flex items-center gap-1">
-      <Ctl icon={activeTool.value} on onClick={onExpand} tip="Expand toolbar" />
+      <Ctl icon={activeTool.value} on onClick={onExpand} tip="Expand toolbar" action="expand" />
       <DragGrip drag={drag} />
     </BaseToolbar.Root>
   );
@@ -672,7 +687,7 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
               onReorderPointerDown={reorder.onPointerDown}
               // The click that lands a reorder must not also switch tools.
               onSelect={(next) => {
-                if (!reorder.consumeClickSuppression()) activeTool.value = next;
+                if (!reorder.consumeClickSuppression()) selectTool({ tool: next, via: 'toolbar' });
               }}
               draggingTool={reorder.draggingTool}
             />
@@ -700,7 +715,7 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
       {(operations.value.length > 0 || inspectorStack.value.length > 0) && (
         <>
           <BaseToolbar.Separator className={geist.sep} />
-          <Ctl icon={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} />
+          <Ctl icon={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} action="share" />
         </>
       )}
 
@@ -708,7 +723,7 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
 
       <ConnectionDot />
 
-      <Ctl icon="minimize" onClick={onMinimize} tip="Minimize" />
+      <Ctl icon="minimize" onClick={onMinimize} tip="Minimize" action="minimize" />
 
       <Ctl
         icon="settings"

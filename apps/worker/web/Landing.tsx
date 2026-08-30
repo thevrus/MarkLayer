@@ -31,6 +31,7 @@ import { CHROME_STORE_URL } from '@site/lib/site';
 import { ArrowRight, ChevronDown, Monitor, Search } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
 import { FakeCursors } from './FakeCursors';
 import { SelfCursor } from './SelfCursor';
@@ -128,9 +129,15 @@ const CTA_CLS =
   'lp-cta inline-flex items-center gap-2 h-12 px-7 rounded-full text-white text-body font-medium no-underline transition-colors select-none';
 
 /** The one install call to action, used at the fold and again above the footer. */
-function ChromeStoreLink({ label, class: cls }: { label: string; class?: string }) {
+function ChromeStoreLink({ label, class: cls, at }: { label: string; class?: string; at: string }) {
   return (
-    <a href={CHROME_STORE_URL} target="_blank" rel="noopener" class={cn(CTA_CLS, cls)}>
+    <a
+      href={CHROME_STORE_URL}
+      target="_blank"
+      rel="noopener"
+      class={cn(CTA_CLS, cls)}
+      onClick={() => capture('extension_install_clicked', { at })}
+    >
       <ChromeIcon />
       {label}
     </a>
@@ -658,7 +665,7 @@ export function Landing() {
                       if (!input) return;
                       let url = input;
                       if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-                      navigateTo(url);
+                      navigateTo({ url, source: 'hero_form' });
                     }}
                   >
                     {/* Pill, on the page's one elevation primitive: a hairline
@@ -716,7 +723,9 @@ export function Landing() {
                       <button
                         key={name}
                         type="button"
-                        onClick={() => navigateTo(url)}
+                        onClick={() =>
+                          navigateTo({ url, source: `suggestion_${name.toLowerCase().replace(/\s+/g, '_')}` })
+                        }
                         class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-ui-lg text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
                       >
                         {name}
@@ -739,6 +748,7 @@ export function Landing() {
                       target="_blank"
                       rel="noopener"
                       class="inline-flex items-center gap-1.5 text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
+                      onClick={() => capture('extension_install_clicked', { at: 'hero' })}
                     >
                       <ChromeIcon />
                       Add to Chrome
@@ -932,7 +942,7 @@ export function Landing() {
             <h2 class="lp-display mx-auto mb-8 max-w-[720px] text-closing text-balance text-ml-fg">
               Start annotating any page on the web.
             </h2>
-            <ChromeStoreLink label="Add to Chrome" />
+            <ChromeStoreLink label="Add to Chrome" at="closing" />
             <p class="mt-4 text-ui text-ml-fg/60">Free to use &middot; No sign-up required</p>
           </section>
 
