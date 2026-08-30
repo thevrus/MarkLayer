@@ -464,6 +464,37 @@ export function isAnnotationOp(op: DrawOp): op is AnnotationOp {
 }
 
 /**
+ * Where this annotation sits: its top-left in document px.
+ *
+ * Distinct from `opAnchorPoint`, which is the element-anchoring coordinate and
+ * is deliberately null for exactly these ops. This is the human answer — where
+ * the panel scrolls to, where the board sorts by, where a reply pin lands.
+ *
+ * Here rather than in a host because four surfaces ask it — the panel, the
+ * board, the detail view and the MCP server — and each deriving it separately is
+ * how they came to disagree: an area dragged right-to-left has `endX < startX`,
+ * so the raw `startX` is its *right* edge, not its anchor.
+ */
+export function opAnchor(op: AnnotationOp): Point {
+  switch (op.tool) {
+    case 'comment':
+      return { x: op.x, y: op.y };
+    case 'selection': {
+      const first = op.rects[0];
+      return { x: first?.x ?? 0, y: first?.y ?? 0 };
+    }
+    case 'area':
+      return { x: Math.min(op.startX, op.endX), y: Math.min(op.startY, op.endY) };
+    case 'inspect':
+      return { x: op.rect.x, y: op.rect.y };
+    default: {
+      const _exhaustive: never = op;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
  * Collapse the legacy `resolved` boolean (comments only, written before `status`
  * existed) and an unset `status` into the canonical value. Panels, pins and the
  * MCP listers all filter on this, so it has to be one definition or the surfaces
@@ -568,7 +599,7 @@ export type ClientMsg = z.infer<typeof clientMsgSchema>;
  * in apps/worker/src/integrations, which describes a request but never makes one
  * — see docs/adr/0003-outbound-integrations.md.
  */
-export const integrationProviderSchema = z.enum(['slack', 'teams', 'discord', 'webhook']);
+export const integrationProviderSchema = z.enum(['slack', 'teams', 'discord', 'webhook', 'linear', 'github', 'jira']);
 export type IntegrationProvider = z.infer<typeof integrationProviderSchema>;
 
 /**
@@ -587,6 +618,53 @@ export const roomIntegrationsSchema = z.array(integrationSchema);
 
 /** Ceiling on destinations per room — enough for a team, low enough to bound a flush. */
 export const MAX_INTEGRATIONS_PER_ROOM = 5;
+
+/**
+ * One field of a provider's config, as the client needs to render it.
+ *
+ * `secret` is `text` that the client must not echo back: an issue tracker is
+ * configured with an API token, not a URL carrying one, and a token sitting in a
+ * readable input is a token read over someone's shoulder. It is an enum rather
+ * than a string because `type !== 'secret'` is the check that keeps a credential
+ * out of the room's stored config, in five places on the client and one on the
+ * server — a free-form string would let a rename compile straight past all six.
+ */
+export const configFieldInfoSchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  type: z.enum(['url', 'text', 'secret']),
+  placeholder: z.optional(z.string()),
+  help: z.optional(z.string()),
+  helpUrl: z.optional(z.string()),
+});
+export type ConfigFieldInfo = z.infer<typeof configFieldInfoSchema>;
+
+/**
+ * A destination as `GET /api/providers` describes it.
+ *
+ * The client ships one generic form driven by this, so adding a provider costs
+ * the client bundle nothing — see docs/adr/0003. Here rather than in the web app
+ * because it is wire data, and this file is where wire data is defined and
+ * parsed; the OpenAPI mirror in api.ts stays hand-written because
+ * `@hono/zod-openapi` is a different builder (see CLAUDE.md).
+ */
+export const providerInfoSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  blurb: z.string(),
+  /** `auto` posts every batch the room produces; `manual` files only on request. */
+  trigger: z.enum(['auto', 'manual']),
+  fields: z.array(configFieldInfoSchema),
+});
+export type ProviderInfo = z.infer<typeof providerInfoSchema>;
+
+export const providerCatalogueSchema = z.object({ providers: z.array(providerInfoSchema) });
+
+/** A configured destination as the server describes it — never its credentials. */
+export const destinationSummarySchema = z.object({ provider: z.string(), hint: z.nullable(z.string()) });
+export type DestinationSummary = z.infer<typeof destinationSummarySchema>;
+
+export const destinationListSchema = z.object({ integrations: z.array(destinationSummarySchema) });
 
 /**
  * Days of inactivity before a share link and its OG card are deleted. The

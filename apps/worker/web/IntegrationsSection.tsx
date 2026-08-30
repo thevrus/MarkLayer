@@ -1,43 +1,31 @@
 import { PanelSection } from '@ext/components/PanelSection';
+import { ScrollTrack } from '@ext/components/ScrollTrack';
 import { geist } from '@ext/lib/geist';
 import { toast } from '@ext/lib/state';
 import { cn } from '@marklayer/types';
 import { Send } from 'lucide-preact';
 import { useEffect, useState } from 'preact/hooks';
 import { capture } from './analytics';
+import { Help, helpFor, Input, LabelledField } from './IntegrationFields';
+import {
+  destinationListSchema,
+  destinations,
+  loadIntegrations,
+  providerCatalogue,
+  saveSecrets,
+  stringField,
+} from './integrations';
 import { API_BASE } from './signals';
 
 /**
- * The provider catalogue, fetched as data rather than compiled in.
+ * The provider catalogue is fetched as data rather than compiled in.
  *
- * This is what keeps the client flat: adding Teams or Discord server-side adds a
- * row to this list and zero bytes to the bundle everyone downloads. See
- * docs/adr/0003-outbound-integrations.md.
+ * This is what keeps the client flat: adding Teams or Linear server-side adds a
+ * row to that list and zero bytes to the bundle everyone downloads. See
+ * docs/adr/0003-outbound-integrations.md. The catalogue and this room's
+ * destinations live in ./integrations, because the thread control reads them too;
+ * the field primitives live in ./IntegrationFields for the same reason.
  */
-interface Field {
-  name: string;
-  label: string;
-  type: string;
-  placeholder?: string;
-  help?: string;
-  helpUrl?: string;
-}
-interface Provider {
-  id: string;
-  label: string;
-  blurb: string;
-  fields: Field[];
-}
-/** A configured destination as the server describes it — never its credentials. */
-interface Summary {
-  provider: string;
-  hint: string | null;
-}
-
-const isProviders = (v: unknown): v is { providers: Provider[] } =>
-  typeof v === 'object' && v !== null && Array.isArray((v as { providers?: unknown }).providers);
-const isSummaries = (v: unknown): v is { integrations: Summary[] } =>
-  typeof v === 'object' && v !== null && Array.isArray((v as { integrations?: unknown }).integrations);
 
 /**
  * Send this room's new annotations somewhere: a Slack or Teams channel, Discord,
@@ -48,37 +36,30 @@ const isSummaries = (v: unknown): v is { integrations: Summary[] } =>
  * says so rather than implying a privacy the link cannot provide.
  */
 export function IntegrationsSection({ id }: { id: string }) {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [configured, setConfigured] = useState<Summary[]>([]);
+  const providers = providerCatalogue.value;
+  const configured = destinations.value;
   const [picked, setPicked] = useState('');
-  const [value, setValue] = useState('');
+  const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetch(`${API_BASE}providers`).then((r) => (r.ok ? r.json() : null)),
-      fetch(`${API_BASE}${id}/integrations`).then((r) => (r.ok ? r.json() : null)),
-    ])
-      .then(([catalogue, mine]) => {
-        if (cancelled) return;
-        if (isProviders(catalogue)) {
-          setProviders(catalogue.providers);
-          setPicked((p) => p || (catalogue.providers[0]?.id ?? ''));
-        }
-        if (isSummaries(mine)) setConfigured(mine.integrations);
-      })
-      .catch(() => {
-        /* offline — the section stays quiet rather than claiming a state */
-      });
-    return () => {
-      cancelled = true;
-    };
+    void loadIntegrations({ id });
   }, [id]);
 
-  const provider = providers.find((p) => p.id === picked);
-  const field = provider?.fields[0];
+  // Defaulted here rather than at load, so the catalogue arriving after this
+  // panel mounts still lands on a selected tab instead of an empty form.
+  const active = picked || (providers[0]?.id ?? '');
+
+  const provider = providers.find((p) => p.id === active);
+  const fields = provider?.fields ?? [];
+  // A chat hook is one URL and reads best with Add inside the field. An issue
+  // tracker needs a token, a project and where to file it, and four unlabelled
+  // boxes in a column are unusable — so the shape of the form follows the
+  // destination rather than one compromise that suits neither.
+  const single = fields.length === 1 ? fields[0] : null;
+  const ready = fields.length > 0 && fields.every((f) => (values[f.name] ?? '').trim());
   const labelFor = (providerId: string) => providers.find((p) => p.id === providerId)?.label ?? providerId;
+  const set = (name: string, v: string) => setValues((prev) => ({ ...prev, [name]: v }));
 
   /**
    * One request per change, and never a stored config in either direction: the
@@ -94,14 +75,14 @@ export function IntegrationsSection({ id }: { id: string }) {
         body: req.body,
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok || !isSummaries(body)) {
+      const parsed = destinationListSchema.safeParse(body);
+      if (!res.ok || !parsed.success) {
         // The API names which destination it refused and why, and the reason is
         // almost always "that is not the kind of URL this one takes".
-        const error = (body as { error?: unknown } | null)?.error;
-        toast(typeof error === 'string' ? error : 'Could not save destinations', 'error', 4500);
+        toast(stringField(body, 'error') ?? 'Could not save destinations', 'error', 4500);
         return false;
       }
-      setConfigured(body.integrations);
+      destinations.value = parsed.data.integrations;
       capture(event, { provider });
       return true;
     } finally {
@@ -110,19 +91,26 @@ export function IntegrationsSection({ id }: { id: string }) {
   };
 
   const add = async () => {
-    const url = value.trim();
-    if (!url || !provider || !field || busy) return;
+    if (!provider || !ready || busy) return;
+    // The token half never leaves this browser. What the room stores is where to
+    // file — the repository, the project key — and nothing that authorises it.
+    saveSecrets({ provider, values });
+    const config = Object.fromEntries(
+      fields.filter((f) => f.type !== 'secret').map((f) => [f.name, (values[f.name] ?? '').trim()]),
+    );
     const ok = await send(
       {
         url: `${API_BASE}${id}/integrations`,
         method: 'POST',
-        body: JSON.stringify({ provider: provider.id, config: { [field.name]: url } }),
+        body: JSON.stringify({ provider: provider.id, config }),
       },
       'integration_added',
       provider.id,
     );
     if (ok) {
-      setValue('');
+      // Cleared on success only: a rejected token should not take the four
+      // fields the person got right down with it.
+      setValues({});
       toast(`${provider.label} connected`, 'success');
     }
   };
@@ -134,29 +122,48 @@ export function IntegrationsSection({ id }: { id: string }) {
       providerId,
     );
 
+  const submit = () => void add();
+
+  /**
+   * The one Add control. The two form shapes place it differently, not style it
+   * differently. A plain call rather than a nested component: a component
+   * declared in a render body is a new type every render, which is an unmount
+   * and remount of the button on every keystroke.
+   */
+  const addButton = ({ label, ariaLabel, class: extra }: { label: string; ariaLabel?: string; class?: string }) => (
+    <button
+      type="button"
+      onClick={submit}
+      disabled={busy || !ready}
+      aria-label={ariaLabel}
+      class={cn(geist.actionBtn, 'mx-0 px-2 text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-200)', extra)}
+    >
+      {busy ? 'Saving…' : label}
+    </button>
+  );
+
   return (
     <>
       <div class={cn(geist.divider, 'my-2 -mx-4')} />
       <PanelSection icon={Send} label="Send annotations out">
         <div class="flex flex-col gap-2">
-          <p class="m-0 text-meta leading-snug text-(--ds-gray-900)">
-            New comments here post to the channels you add, batched so a burst arrives as one message. Anyone with this
-            room's link can change them, the same as everything else in the room.
-          </p>
-
+          {/* What is already wired up comes first: it is the answer to the question
+              that opens this section, and on a room with a destination the picker
+              below is a secondary task. */}
           {configured.length > 0 && (
-            <ul class="m-0 flex list-none flex-col gap-1 p-0">
+            <ul class="m-0 mb-1 flex list-none flex-col gap-0.5 p-0">
               {configured.map((c) => (
-                <li key={`${c.provider}-${c.hint}`} class="flex items-center justify-between gap-3">
-                  <span class="truncate text-meta text-(--ds-gray-1000)">
+                <li key={`${c.provider}-${c.hint}`} class="flex items-center justify-between gap-2">
+                  <span class="min-w-0 truncate text-meta text-(--ds-gray-1000)">
                     {labelFor(c.provider)}
-                    {c.hint ? ` · ${c.hint}` : ''}
+                    {c.hint && <span class="text-(--ds-gray-900)"> · {c.hint}</span>}
                   </span>
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => remove(c.provider)}
-                    class={cn(geist.bareBtn, geist.bareBtnDanger, 'shrink-0 font-medium')}
+                    aria-label={`Remove ${labelFor(c.provider)}`}
+                    class={cn(geist.actionBtn, geist.actionBtnDanger, 'shrink-0')}
                   >
                     Remove
                   </button>
@@ -165,74 +172,77 @@ export function IntegrationsSection({ id }: { id: string }) {
             </ul>
           )}
 
+          {/* Four labels of very different widths wrapped raggedly, orphaning the
+              last one on its own line. One track that scrolls holds the row on a
+              single line at any panel width. */}
           {providers.length > 1 && (
-            <div class="flex flex-wrap gap-1">
-              {providers.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPicked(p.id)}
-                  aria-pressed={p.id === picked}
-                  class={cn(
-                    'h-7 rounded-md border px-2 text-meta font-medium transition-colors duration-100',
-                    p.id === picked
-                      ? 'border-(--ds-gray-600) bg-(--ds-gray-alpha-100) text-(--ds-gray-1000)'
-                      : 'border-(--ds-gray-alpha-400) bg-transparent text-(--ds-gray-900) hover:text-(--ds-gray-1000)',
-                  )}
-                >
-                  {p.label}
-                </button>
-              ))}
+            <ScrollTrack activeKey={active} class="-mx-1 px-1">
+              <div class={geist.track} role="tablist">
+                {providers.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={p.id === active}
+                    data-pressed={p.id === active ? '' : undefined}
+                    onClick={() => {
+                      setPicked(p.id);
+                      // Nothing typed for Slack belongs in Linear's token box.
+                      setValues({});
+                    }}
+                    class={geist.segmentText}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </ScrollTrack>
+          )}
+
+          {/* The catalogue already describes each destination in one line; the
+              client was overriding all four with the same four-line paragraph. */}
+          {provider && <p class="m-0 text-meta leading-snug text-(--ds-gray-900)">{provider.blurb}</p>}
+
+          {single && (
+            <div class="flex flex-col gap-1">
+              {/* Add lives inside the field, not under it. Beside a help line that
+                  wraps to two, a `justify-between` button floats to whatever height
+                  the wrap leaves it at — which is how it came to sit level with the
+                  second line of a link it has nothing to do with. */}
+              <div class={cn(geist.field, 'flex items-center gap-1 py-0 pr-1 pl-2.5')}>
+                <Input field={single} value={values[single.name] ?? ''} onInput={set} onEnter={submit} />
+                {/* A word, not a glyph. A bare `+` at the end of a URL field does
+                    not say what it does to anyone who has not met the pattern, and
+                    Enter is not an affordance you can see. */}
+                {addButton({ label: 'Add', ariaLabel: `Add ${provider?.label ?? 'destination'}`, class: 'shrink-0' })}
+              </div>
+              <Help field={single} text={helpFor(single)} />
             </div>
           )}
 
-          {field && (
-            <>
-              <div class={cn(geist.field, 'flex items-center px-2.5')}>
-                <input
-                  name={field.name}
-                  type={field.type === 'url' ? 'url' : 'text'}
-                  value={value}
-                  placeholder={field.placeholder}
-                  aria-label={field.label}
-                  spellcheck={false}
-                  autocomplete="off"
-                  class={cn(geist.input, 'flex-1')}
-                  onInput={(e) => setValue(e.currentTarget.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void add();
-                  }}
+          {!single && fields.length > 0 && (
+            <div class="flex flex-col gap-2">
+              {fields.map((f) => (
+                <LabelledField
+                  key={f.name}
+                  id={`${active}-${f.name}`}
+                  field={f}
+                  label={f.label}
+                  value={values[f.name] ?? ''}
+                  onInput={set}
+                  onEnter={submit}
                 />
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                {field.helpUrl ? (
-                  <a
-                    href={field.helpUrl}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    class="text-meta text-(--ds-gray-900) underline underline-offset-2 hover:text-(--ds-gray-1000)"
-                  >
-                    {field.help ?? 'How to get one'}
-                  </a>
-                ) : (
-                  <span class="truncate text-meta text-(--ds-gray-900)">{field.help}</span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void add()}
-                  disabled={busy || !value.trim()}
-                  class={cn(
-                    geist.bareBtn,
-                    geist.bareBtnQuiet,
-                    'shrink-0 font-medium',
-                    (busy || !value.trim()) && 'pointer-events-none opacity-50',
-                  )}
-                >
-                  {busy ? 'Saving…' : 'Add'}
-                </button>
-              </div>
-            </>
+              ))}
+              <div class="flex justify-end">{addButton({ label: `Connect ${provider?.label ?? ''}`.trim() })}</div>
+            </div>
           )}
+
+          {/* Said once, at the bottom, where it is a caveat rather than the first
+              thing between the reader and the control they came for. */}
+          <p class="m-0 mt-1 text-meta leading-snug text-(--ds-gray-900)">
+            Chat destinations get every annotation, batched. Issue trackers file only what you send them, with a token
+            kept in your browser and never in the room. Anyone with the room link can change these.
+          </p>
         </div>
       </PanelSection>
     </>
