@@ -7,6 +7,7 @@ import {
   pushOp,
   selections,
   toast as showToast,
+  uiHidden,
 } from '@ext/lib/state';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import type { CaptureViewport, TargetElement } from '@marklayer/types';
@@ -107,11 +108,34 @@ export const isReadonly = signal(false);
 export const sharing = signal(false);
 export const showInfoPanel = signal(false);
 
+/** What the info panel actually renders on — ⌘/ closes it without forgetting it was open. */
+export const infoPanelOpen = computed(() => showInfoPanel.value && !uiHidden.value);
+
 /** Peer ID we're currently following (auto-scroll to their cursor) */
 export const followingPeer = signal<string | null>(null);
 
 /** Callback for follow-mode scrolling — set by Viewer (owns iframe ref) */
 export const onFollowScroll = signal<((y: number) => void) | null>(null);
+
+/** The full-screen triage board — a second view of the annotations, by status. */
+export const showBoard = signal(false);
+
+/** Whether we are presenting: pulling every other peer onto our scroll position. */
+export const presenting = signal(false);
+
+/** Sends the presenting state to the room — set by useRealtimeSync. */
+export const onPresentChange = signal<((on: boolean) => void) | null>(null);
+
+/**
+ * Start or stop presenting. Presenting and following are mutually exclusive: you
+ * cannot pull the room onto a scroll position you are not the one steering.
+ */
+export function setPresenting(on: boolean) {
+  if (presenting.value === on) return;
+  presenting.value = on;
+  if (on) followingPeer.value = null;
+  onPresentChange.value?.(on);
+}
 
 // Device mode
 const isDeviceMode = (v: unknown): v is DeviceMode => v === 'desktop' || v === 'tablet' || v === 'mobile';

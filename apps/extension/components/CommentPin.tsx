@@ -1,5 +1,5 @@
 import { cn } from '@marklayer/types';
-import { Check, HelpCircle, Loader2 } from 'lucide-preact';
+import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
 import { applyAnchorDelta } from '../lib/anchor';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
@@ -11,6 +11,7 @@ import {
   getReplies,
   hostMutationTick,
   openContextMenu,
+  STATUS_LABELS,
   STATUS_STYLES,
   scrollTick,
   setOpStatus,
@@ -134,11 +135,12 @@ export function CommentPin({ op }: { op: CommentOp }) {
           {status !== 'open' && (
             <div
               role="img"
-              aria-label={styles.label}
+              aria-label={STATUS_LABELS[status]}
               class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full text-white grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]"
               style={{ background: styles.bg }}
             >
               {status === 'resolved' && <Check size={9} strokeWidth={2.5} aria-hidden="true" />}
+              {status === 'approved' && <CheckCheck size={9} strokeWidth={2.5} aria-hidden="true" />}
               {status === 'in_progress' && (
                 <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />
               )}

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   applyOpPatch,
   type CommentOp,
+  clientMsgSchema,
   cn,
   type DrawOp,
   normalizeSuggestion,
@@ -76,6 +77,19 @@ describe('applyOpPatch', () => {
     expect(applyOpPatch({ op: 'nonsense', patch: { status: 'open' } })).toBeNull();
     expect(applyOpPatch({ op: { id: 'x' }, patch: { status: 'open' } })).toBeNull();
   });
+
+  // Load-bearing, and the one invariant nothing else pins. `update_op` is the only
+  // message the room broadcasts back to its own sender (annotation-room.ts:272 passes
+  // no exclude, where `op` and `undo` both pass `ws`), so whoever sent a patch applies
+  // it twice — once locally, once on the echo. That is only safe while a patch is an
+  // absolute field merge. A relative one ('+1') would double-count for the sender alone,
+  // which is the hardest kind of drift to see: every other peer stays correct.
+  test('applying the same patch twice lands where applying it once did', () => {
+    const once = applyOpPatch({ op: comment, patch: { status: 'resolved', priority: 'high' } });
+    expect(once).not.toBeNull();
+    if (!once) return;
+    expect(applyOpPatch({ op: once, patch: { status: 'resolved', priority: 'high' } })).toEqual(once);
+  });
 });
 
 describe('resolveOpStatus', () => {
@@ -91,6 +105,13 @@ describe('resolveOpStatus', () => {
   test('reads the legacy resolved boolean on comments', () => {
     expect(resolveOpStatus({ ...comment, resolved: true })).toBe('resolved');
     expect(resolveOpStatus({ ...comment, resolved: false })).toBe('open');
+  });
+
+  // setOpStatus writes `resolved: true` alongside an approval, so a reader that
+  // only knows the boolean still sees a finished thread. The status has to win
+  // anyway, or approving a comment would read back as merely resolved.
+  test('an explicit approved beats the resolved boolean beside it', () => {
+    expect(resolveOpStatus({ ...comment, status: 'approved', resolved: true })).toBe('approved');
   });
 
   test('an explicit status wins over the legacy boolean', () => {
@@ -160,5 +181,20 @@ describe('cn', () => {
   test('still merges two sizes, and two colours', () => {
     expect(cn('text-meta', 'text-ui')).toBe('text-ui');
     expect(cn('text-red-500', 'text-(--ds-gray-900)')).toBe('text-(--ds-gray-900)');
+  });
+});
+
+// The wire schema is the only thing standing between a client message and the
+// broadcast: an unparsed type is dropped silently by the Durable Object, so a
+// feature can look wired up on both ends and simply never cross.
+describe('clientMsgSchema', () => {
+  test('accepts a flock toggle in both directions', () => {
+    expect(clientMsgSchema.safeParse({ type: 'flock', on: true }).success).toBe(true);
+    expect(clientMsgSchema.safeParse({ type: 'flock', on: false }).success).toBe(true);
+  });
+
+  test('rejects a flock message with no state to apply', () => {
+    expect(clientMsgSchema.safeParse({ type: 'flock' }).success).toBe(false);
+    expect(clientMsgSchema.safeParse({ type: 'flock', on: 'yes' }).success).toBe(false);
   });
 });

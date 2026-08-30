@@ -91,6 +91,9 @@
     --ds-amber-700: #ffb200;
     --ds-red-700: #fc0035;
     --ds-green-700: #28a948;
+    /* One step past green-700: the "approved" badge, so a signed-off thread
+       reads as further along than a resolved one rather than identical. */
+    --ds-green-900: #0a7d33;
     --ds-focus-color: #0070f7;
     --ds-shadow-menu: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px -4px #0000000a, 0 16px 24px -8px #0000000f;
     --ds-shadow-tooltip: 0 0 0 1px #00000014, 0 1px 1px #00000005, 0 4px 8px #0000000a;
@@ -138,6 +141,9 @@
       --ds-amber-700: #ffb200;
       --ds-red-700: #f13242;
       --ds-green-700: #00ab3e;
+      /* One step past green-700: the "approved" badge, so a signed-off thread
+         reads as further along than a resolved one rather than identical. */
+      --ds-green-900: #00c853;
       --ds-focus-color: #50a8ff;
       --ds-shadow-menu: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px -4px #00000052, 0 16px 24px -8px #00000052;
       --ds-shadow-tooltip: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px #00000052;
@@ -184,6 +190,9 @@
     --ds-amber-700: #ffb200;
     --ds-red-700: #f13242;
     --ds-green-700: #00ab3e;
+    /* One step past green-700: the "approved" badge, so a signed-off thread
+       reads as further along than a resolved one rather than identical. */
+    --ds-green-900: #00c853;
     --ds-focus-color: #50a8ff;
     --ds-shadow-menu: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px -4px #00000052, 0 16px 24px -8px #00000052;
     --ds-shadow-tooltip: 0 0 0 1px #ffffff25, 0 1px 1px #00000052, 0 4px 8px #00000052;

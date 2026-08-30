@@ -3,6 +3,7 @@ import { SuggestionDiff } from '@ext/components/SelectionEdit';
 import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from '@ext/lib/export-text';
 import { geist } from '@ext/lib/geist';
 import {
+  annotationPanelOpen,
   areas,
   commentFilter,
   copyText,
@@ -18,13 +19,15 @@ import {
 } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { CommentOp, CommentStatus, DeviceMode, DrawOp } from '@ext/lib/types';
-import { cn } from '@marklayer/types';
+import { cn, isSettled } from '@marklayer/types';
 import {
   BoxSelect,
   Check,
+  CheckCheck,
   ChevronLeft,
   ChevronRight,
   ClipboardCopy,
+  Columns3,
   Download,
   MessageSquare,
   Replace,
@@ -39,6 +42,7 @@ import { AnnotationDetail } from './AnnotationDetail';
 import { capture } from './analytics';
 import { type AnnotationItem, itemAnchor, itemLabel } from './annotationItems';
 import { DEVICE_ICONS, DEVICE_LABELS } from './shared';
+import { showBoard } from './signals';
 
 /** What an export writes: the live page's ops, plus every other page when this is a project. */
 export interface ExportData {
@@ -56,19 +60,22 @@ const STATUS_COLORS: Record<CommentStatus, string> = {
   open: 'var(--ds-blue-800)',
   in_progress: 'var(--ds-amber-700)',
   resolved: 'var(--ds-green-700)',
+  approved: 'var(--ds-green-900)',
   dismissed: 'var(--ds-gray-700)',
 };
 /** The row offers one action, not a menu; this is where it goes next. */
 const STATUS_CYCLE: Record<CommentStatus, CommentStatus> = {
   open: 'in_progress',
   in_progress: 'resolved',
-  resolved: 'open',
+  resolved: 'approved',
+  approved: 'open',
   dismissed: 'open',
 };
 const STATUS_ACTIONS: Record<CommentStatus, string> = {
   open: 'Mark in progress',
   in_progress: 'Resolve',
-  resolved: 'Reopen',
+  resolved: 'Approve',
+  approved: 'Reopen',
   dismissed: 'Reopen',
 };
 
@@ -106,6 +113,7 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
   const status = getCommentStatus(op);
   const replies = getReplies(op.id);
   const resolved = status === 'resolved';
+  const settled = isSettled(status);
 
   return (
     <div class="border-b border-(--ds-gray-alpha-400)">
@@ -118,9 +126,15 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
         <div class="flex items-center gap-2 mb-1.5">
           <div
             class="w-5 h-5 rounded-full text-white text-mini font-medium tabular-nums grid place-items-center shrink-0"
-            style={{ background: resolved ? 'var(--ds-gray-700)' : op.color }}
+            style={{ background: settled ? 'var(--ds-gray-700)' : op.color }}
           >
-            {resolved ? <Check size={11} strokeWidth={2} aria-hidden="true" /> : op.num}
+            {status === 'approved' ? (
+              <CheckCheck size={11} strokeWidth={2} aria-hidden="true" />
+            ) : resolved ? (
+              <Check size={11} strokeWidth={2} aria-hidden="true" />
+            ) : (
+              op.num
+            )}
           </div>
           <span class="text-meta text-(--ds-gray-1000) font-semibold flex-1 truncate">{op.author || 'Anonymous'}</span>
           {op.priority && <PriorityBadge priority={op.priority} />}
@@ -130,7 +144,7 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
         </div>
         <p
           class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 line-clamp-2"
-          style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
+          style={{ textDecoration: settled ? 'line-through' : 'none', opacity: settled ? 0.5 : 1 }}
         >
           {op.text}
         </p>
@@ -154,7 +168,7 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
   );
 }
 
-const STATUS_VALUES = ['open', 'in_progress', 'resolved'] as const satisfies readonly CommentStatus[];
+const STATUS_VALUES = ['open', 'in_progress', 'resolved', 'approved'] as const satisfies readonly CommentStatus[];
 const FILTER_OPTIONS: { value: CommentStatus | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
   ...STATUS_VALUES.map((value) => ({ value, label: STATUS_LABELS[value] })),
@@ -180,7 +194,13 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   const filter = commentFilter.value;
 
   const items: AnnotationItem[] = [];
-  const statusCounts: Record<CommentStatus, number> = { open: 0, in_progress: 0, resolved: 0, dismissed: 0 };
+  const statusCounts: Record<CommentStatus, number> = {
+    open: 0,
+    in_progress: 0,
+    resolved: 0,
+    approved: 0,
+    dismissed: 0,
+  };
   for (const c of rootComments.value) {
     const s = getCommentStatus(c);
     statusCounts[s]++;
@@ -302,12 +322,26 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
             <span class="text-meta text-(--ds-gray-900)">
               {rootComments.value.length} thread{rootComments.value.length !== 1 ? 's' : ''}
               {statusCounts.resolved > 0 && ` · ${statusCounts.resolved} resolved`}
+              {statusCounts.approved > 0 && ` · ${statusCounts.approved} approved`}
               {textCount > 0 && ` · ${textCount} text`}
               {selectionCount > 0 && ` · ${selectionCount} selection`}
               {areaList.length > 0 && ` · ${areaList.length} area`}
             </span>
           </div>
           <div class="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                // The board is the same annotations in another arrangement, so it
+                // replaces the panel rather than stacking over it.
+                showAnnotationPanel.value = false;
+                showBoard.value = true;
+              }}
+              title="Open the board"
+              class={cn(geist.ctl, geist.ctlIdle)}
+            >
+              <Columns3 size={16} strokeWidth={1.5} aria-hidden="true" />
+            </button>
             <button
               type="button"
               onClick={handleCopy}
@@ -334,26 +368,31 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
             </button>
           </div>
         </div>
-        {/* Filter tabs */}
-        <div class={cn(geist.track, 'mt-3')} role="tablist">
-          {FILTER_OPTIONS.map((f) => {
-            const count = f.value === 'all' ? rootComments.value.length : statusCounts[f.value];
-            const on = filter === f.value;
-            return (
-              <button
-                key={f.value}
-                type="button"
-                role="tab"
-                aria-selected={on}
-                data-pressed={on ? '' : undefined}
-                onClick={() => (commentFilter.value = f.value)}
-                class={geist.segmentText}
-              >
-                {f.label}
-                {count > 0 ? ` (${count})` : ''}
-              </button>
-            );
-          })}
+        {/* Filter tabs. Five of them overrun a 340px panel, so the row scrolls
+            rather than clipping the last one against the panel edge. The negative
+            margin lets it bleed to both edges while the padding keeps the end
+            chips clear of them. */}
+        <div class="mt-3 -mx-4 px-4 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div class={geist.track} role="tablist">
+            {FILTER_OPTIONS.map((f) => {
+              const count = f.value === 'all' ? rootComments.value.length : statusCounts[f.value];
+              const on = filter === f.value;
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  data-pressed={on ? '' : undefined}
+                  onClick={() => (commentFilter.value = f.value)}
+                  class={geist.segmentText}
+                >
+                  {f.label}
+                  {count > 0 ? ` (${count})` : ''}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -569,7 +608,7 @@ export function DockedPanel({
 }
 
 export function AnnotationPanel(props: BodyProps) {
-  const visible = showAnnotationPanel.value;
+  const visible = annotationPanelOpen.value;
   return (
     <div
       class={cn(
@@ -586,7 +625,7 @@ export function AnnotationPanel(props: BodyProps) {
 
 export function DockedAnnotationPanel(props: BodyProps) {
   return (
-    <DockedPanel visible={showAnnotationPanel.value} width={DOCKED_ANNOTATION_WIDTH}>
+    <DockedPanel visible={annotationPanelOpen.value} width={DOCKED_ANNOTATION_WIDTH}>
       <AnnotationPanelBody {...props} />
     </DockedPanel>
   );

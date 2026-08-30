@@ -18,11 +18,11 @@ import {
   deleteOp,
   hostMutationTick,
   lineWidth,
-  localUser,
   openContextMenu,
   pushOp,
   scrollTick,
   setOpStatus,
+  signedBy,
 } from '../lib/state';
 import type { AreaOp } from '../lib/types';
 import { CancelButton } from './CancelButton';
@@ -337,7 +337,7 @@ export function AreaLayer() {
       comment: comment || undefined,
       priority,
       ts: Date.now(),
-      author: localUser.name,
+      ...signedBy(),
       target: el ? captureTarget({ el, anchor: { x: r.x, y: r.y } }) : undefined,
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };

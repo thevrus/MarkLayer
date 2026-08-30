@@ -1,7 +1,7 @@
 import { PanelSection } from '@ext/components/PanelSection';
 import { geist } from '@ext/lib/geist';
 import { claudeMcpCommand, HOW_IT_WORKS_URL, npxMcpCommand } from '@ext/lib/share';
-import { copyText, operations, peerCount, showAnnotationPanel } from '@ext/lib/state';
+import { annotationPanelOpen, copyText, operations, peerCount } from '@ext/lib/state';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
 import { cn, type DrawOp, RETENTION_DAYS } from '@marklayer/types';
 import {
@@ -23,7 +23,8 @@ import {
 } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { DOCK_GUTTER, DOCKED_ANNOTATION_WIDTH, DockedPanel, PANEL_SIDEBAR, PANEL_TRANSITION } from './AnnotationPanel';
-import { annotationId, isReadonly, pageUrl, showInfoPanel, timeAgo } from './signals';
+import { IntegrationsSection } from './IntegrationsSection';
+import { annotationId, infoPanelOpen, isReadonly, pageUrl, showInfoPanel, timeAgo } from './signals';
 import { connected, createdAt, expiresAt } from './useRealtimeSync';
 import { PresenceDot } from './ViewerChrome';
 
@@ -279,6 +280,7 @@ function InfoPanelBody() {
         {url && <PageUrlRow url={url} />}
         {id && <RoomIdRow id={id} />}
         {id && <AgentSection id={id} />}
+        {id && !isReadonly.value && <IntegrationsSection id={id} />}
         <ToolTally />
         <div class={cn(geist.divider, 'my-2 -mx-4')} />
         <a
@@ -310,7 +312,7 @@ export function InfoPanel() {
         PANEL_SIDEBAR,
         'left-0 border-r border-(--ds-gray-alpha-400)',
         PANEL_TRANSITION,
-        showInfoPanel.value ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none',
+        infoPanelOpen.value ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-4 pointer-events-none',
       )}
       style={{ width: INFO_PANEL_WIDTH }}
     >
@@ -324,7 +326,7 @@ export function InfoPanel() {
 // DockedAnnotationPanel does on the other side.
 export function DockedInfoPanel() {
   return (
-    <DockedPanel visible={showInfoPanel.value} width={INFO_PANEL_WIDTH}>
+    <DockedPanel visible={infoPanelOpen.value} width={INFO_PANEL_WIDTH}>
       <InfoPanelBody />
     </DockedPanel>
   );
@@ -333,7 +335,7 @@ export function DockedInfoPanel() {
 /** Horizontal space the open docked panels take from a device frame. */
 export function dockedPanelsWidth(): number {
   return (
-    (showInfoPanel.value ? INFO_PANEL_WIDTH + DOCK_GUTTER : 0) +
-    (showAnnotationPanel.value ? DOCKED_ANNOTATION_WIDTH + DOCK_GUTTER : 0)
+    (infoPanelOpen.value ? INFO_PANEL_WIDTH + DOCK_GUTTER : 0) +
+    (annotationPanelOpen.value ? DOCKED_ANNOTATION_WIDTH + DOCK_GUTTER : 0)
   );
 }

@@ -4,7 +4,7 @@ import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { useEdgeClamp } from '@ext/lib/popover';
-import { color, commentCounter, getCommentMeta, lineWidth, localUser } from '@ext/lib/state';
+import { color, commentCounter, getCommentMeta, lineWidth, signedBy } from '@ext/lib/state';
 import { type CommentPriority, cn } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
@@ -44,7 +44,7 @@ export function WebCommentPopover({ x, y, scale: s, scrollY, frameRef, onClose }
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
-        author: localUser.name,
+        ...signedBy(),
         status: 'open',
         priority: priority.value,
         meta: getCommentMeta(),
