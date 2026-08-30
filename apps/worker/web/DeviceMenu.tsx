@@ -4,11 +4,10 @@ import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { geist } from '@ext/lib/geist';
 import { cn } from '@marklayer/types';
 import { useComputed } from '@preact/signals';
-import { Check, ChevronDown, Headphones, Mic, Video } from 'lucide-preact';
+import { Check, ChevronDown, ChevronRight, Headphones, Mic, Video } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import {
   availableDevices,
-  type DeviceKind,
   refreshDevices,
   selectedAudioInput,
   selectedAudioOutput,
@@ -26,6 +25,7 @@ const QUALITY_OPTIONS: { value: QualityPreset; label: string; short: string }[] 
 
 /** Sentinel RadioGroup value standing in for "system default" (`null` in the signals). */
 const DEFAULT_DEVICE = 'default';
+const DEFAULT_LABEL = 'System default';
 
 interface Props {
   /** Whether the user has already granted media permission (controls hint copy). */
@@ -61,7 +61,7 @@ export function DeviceMenu({ hasPermission }: Props) {
 
       <Menu.Portal>
         <Menu.Positioner side="bottom" align="end" sideOffset={6} className="z-2147483647">
-          <Menu.Popup className={cn(geist.surface, 'min-w-70 p-1 text-(--ds-gray-1000) text-ui')}>
+          <Menu.Popup className={cn(geist.surface, 'w-64 p-1 text-(--ds-gray-1000) text-ui')}>
             {!hasPermission && (
               <div class="mx-1 mb-1 px-2.5 py-2 rounded-md bg-(--ds-gray-alpha-100) text-meta text-(--ds-gray-900) leading-snug">
                 Grant microphone access to see device names.
@@ -76,10 +76,7 @@ export function DeviceMenu({ hasPermission }: Props) {
               onSelect={(id) => {
                 selectedAudioInput.value = id;
               }}
-              kind="audioinput"
             />
-
-            <SectionDivider />
 
             <DeviceSection
               title="Camera"
@@ -89,26 +86,21 @@ export function DeviceMenu({ hasPermission }: Props) {
               onSelect={(id) => {
                 selectedVideoInput.value = id;
               }}
-              kind="videoinput"
             />
 
             {supportsSinkId() && (
-              <>
-                <SectionDivider />
-                <DeviceSection
-                  title="Speaker"
-                  icon={<Headphones size={14} strokeWidth={1.5} />}
-                  options={speakers}
-                  selectedId={selectedAudioOutput.value}
-                  onSelect={(id) => {
-                    selectedAudioOutput.value = id;
-                  }}
-                  kind="audiooutput"
-                />
-              </>
+              <DeviceSection
+                title="Speaker"
+                icon={<Headphones size={14} strokeWidth={1.5} />}
+                options={speakers}
+                selectedId={selectedAudioOutput.value}
+                onSelect={(id) => {
+                  selectedAudioOutput.value = id;
+                }}
+              />
             )}
 
-            <SectionDivider />
+            <div class="mx-2 my-1 h-px bg-(--ds-gray-alpha-400)" />
 
             <div class={cn(geist.sectionLabel, 'px-2.5 pt-1.5 pb-1')}>Video quality</div>
             <div class="p-1 pt-0.5">
@@ -141,32 +133,45 @@ interface SectionProps {
   options: { deviceId: string; label: string }[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  kind: DeviceKind;
 }
 
-function SectionDivider() {
-  return <div class="mx-2 my-1 h-px bg-(--ds-gray-alpha-400)" />;
-}
-
+/**
+ * One row per device kind, with the choices in a submenu. Flat, the three lists
+ * ran to a dozen-plus rows on a laptop with a phone paired — taller than most
+ * viewports and unreadable at a glance.
+ */
 function DeviceSection({ title, icon, options, selectedId, onSelect }: SectionProps) {
+  const current = (selectedId && options.find((d) => d.deviceId === selectedId)?.label) || DEFAULT_LABEL;
+
   return (
-    <div>
-      <div class={cn(geist.sectionLabel, 'px-2.5 pt-1.5 pb-1 flex items-center gap-1.5')}>
-        <span>{icon}</span>
-        {title}
-      </div>
-      <Menu.RadioGroup
-        className="flex flex-col gap-px"
-        value={selectedId ?? DEFAULT_DEVICE}
-        onValueChange={(value: string) => onSelect(value === DEFAULT_DEVICE ? null : value)}
+    <Menu.SubmenuRoot>
+      <Menu.SubmenuTrigger
+        className="flex items-center gap-2 w-full px-2.5 py-2 rounded-md text-ui cursor-pointer border-none transition-colors
+                   bg-transparent text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) data-popup-open:bg-(--ds-gray-alpha-100)"
       >
-        <DeviceRow label="System default" value={DEFAULT_DEVICE} />
-        {options.length === 0 && <div class={cn(geist.sectionLabel, 'px-2.5 py-1.5')}>No devices detected</div>}
-        {options.map((d) => (
-          <DeviceRow key={d.deviceId} label={d.label} value={d.deviceId} />
-        ))}
-      </Menu.RadioGroup>
-    </div>
+        <span class="shrink-0 inline-flex text-(--ds-gray-900)">{icon}</span>
+        <span class="shrink-0 leading-tight">{title}</span>
+        <span class="ml-auto min-w-0 truncate text-right text-meta text-(--ds-gray-900)">{current}</span>
+        <ChevronRight size={13} strokeWidth={1.5} class="shrink-0 text-(--ds-gray-900)" aria-hidden="true" />
+      </Menu.SubmenuTrigger>
+
+      <Menu.Portal>
+        <Menu.Positioner side="left" align="start" sideOffset={4} className="z-2147483647">
+          <Menu.Popup className={cn(geist.surface, 'min-w-56 max-w-80 p-1 text-(--ds-gray-1000) text-ui')}>
+            <Menu.RadioGroup
+              className="flex flex-col gap-px"
+              value={selectedId ?? DEFAULT_DEVICE}
+              onValueChange={(value: string) => onSelect(value === DEFAULT_DEVICE ? null : value)}
+            >
+              <DeviceRow label={DEFAULT_LABEL} value={DEFAULT_DEVICE} />
+              {options.map((d) => (
+                <DeviceRow key={d.deviceId} label={d.label} value={d.deviceId} />
+              ))}
+            </Menu.RadioGroup>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.SubmenuRoot>
   );
 }
 
@@ -176,7 +181,6 @@ function DeviceRow({ label, value }: { label: string; value: string }) {
   return (
     <Menu.RadioItem
       value={value}
-      closeOnClick={false}
       className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-md text-ui cursor-pointer border-none transition-colors
                  bg-transparent text-(--ds-gray-1000) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100)
                  data-checked:bg-(--ds-gray-alpha-100) data-checked:text-(--ds-gray-1000) data-checked:font-medium"
