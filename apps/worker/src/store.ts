@@ -138,6 +138,32 @@ export function annotationStore(db: D1Database) {
         .run();
     },
 
+    /**
+     * Replace the room's outbound destinations. Writes nothing else, so it
+     * cannot race the realtime room's op flush.
+     *
+     * Returns false when the room does not exist: a destination with no room to
+     * belong to would be an orphan the retention cron never reaps.
+     */
+    async setIntegrations({ id, json }: { id: string; json: string | null }): Promise<boolean> {
+      const res = await db.prepare('UPDATE annotations SET integrations = ? WHERE id = ?').bind(json, id).run();
+      return (res.meta.changes ?? 0) > 0;
+    },
+
+    /**
+     * The destinations alone — what the realtime room and the integration routes
+     * need and nothing more. Returns null for a missing row so a caller can tell
+     * "no such room" from "room with no destinations" without a second query, and
+     * so no route has to pull the whole ops blob just to check the row exists.
+     */
+    async getIntegrations(id: string): Promise<{ integrations: string | null } | null> {
+      const row = await db
+        .prepare('SELECT integrations FROM annotations WHERE id = ?')
+        .bind(id)
+        .first<{ integrations: string | null }>();
+      return row ?? null;
+    },
+
     /** Push back the retention clock. Callers decide whether to await it. */
     touch(id: string): Promise<unknown> {
       return db.prepare('UPDATE annotations SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run();

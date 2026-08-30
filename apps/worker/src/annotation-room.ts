@@ -1,5 +1,9 @@
 import { DurableObject } from 'cloudflare:workers';
 import { applyOpPatch, clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType } from '@marklayer/types';
+import { STUN_ONLY, stripPort53 } from './ice';
+import { deliver, parseIntegrations } from './integrations/deliver';
+import { type Notifiable, notifiableFrom } from './integrations/types';
+import { isAgentPeer, isPeerInfo, type PeerInfo, sanitizeColor, sanitizeName } from './peers';
 import { captureServer } from './posthog';
 import { annotationStore } from './store';
 
@@ -11,44 +15,13 @@ interface Env {
   POSTHOG_HOST?: string;
 }
 
-interface PeerInfo {
-  id: string;
-  name: string;
-  color: string;
-}
-
-const DEFAULT_COLOR = '#8b5cf6';
-const COLOR_RE = /^#[0-9a-f]{6}$/i;
-const MAX_NAME_LEN = 64;
-
-function sanitizeName(n: unknown, fallback = 'Anonymous'): string {
-  if (typeof n !== 'string') return fallback;
-  const trimmed = n.trim().slice(0, MAX_NAME_LEN);
-  return trimmed || fallback;
-}
-
-function sanitizeColor(c: unknown, fallback = DEFAULT_COLOR): string {
-  return typeof c === 'string' && COLOR_RE.test(c) ? c : fallback;
-}
-
 // TURN creds are tied to the worker's key (not per-room), so a module-level
 // cache works for all DO instances on this isolate. `turnPromise` coalesces
 // concurrent first-time fetches.
-const STUN_ONLY: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }];
 const TURN_TTL_SECONDS = 3600;
 const STUN_FALLBACK_TTL_MS = 60_000;
 let turnCache: { iceServers: RTCIceServer[]; expiresAt: number } | null = null;
 let turnPromise: Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> | null = null;
-
-// Cloudflare's response includes :53 URLs that Chrome and Firefox silently block.
-// Leaving them in the iceServers list causes wasted candidate-pair churn and can
-// mask working relays. https://developers.cloudflare.com/realtime/turn/ #gotchas.
-function stripPort53(server: RTCIceServer): RTCIceServer | null {
-  const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-  const kept = urls.filter((u) => typeof u === 'string' && !u.includes(':53'));
-  if (kept.length === 0) return null;
-  return { ...server, urls: kept };
-}
 
 async function fetchIceServers(env: Env): Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> {
   if (!env.TURN_KEY_ID || !env.TURN_KEY_TOKEN) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
@@ -89,22 +62,6 @@ async function getIceServers(env: Env): Promise<RTCIceServer[]> {
   }
 }
 
-function isPeerInfo(v: unknown): v is PeerInfo {
-  return (
-    !!v &&
-    typeof v === 'object' &&
-    'id' in v &&
-    typeof (v as { id: unknown }).id === 'string' &&
-    'name' in v &&
-    typeof (v as { name: unknown }).name === 'string' &&
-    'color' in v &&
-    typeof (v as { color: unknown }).color === 'string'
-  );
-}
-
-/** MCP agents connect as peers under this prefix (apps/mcp/src/room.ts). */
-const isAgentPeer = (peerId: string) => peerId.startsWith('mcp-');
-
 export class AnnotationRoom extends DurableObject<Env> {
   private ops: unknown[] | null = null;
   /** In-flight load promise — coalesces concurrent first-message reads. */
@@ -130,6 +87,22 @@ export class AnnotationRoom extends DurableObject<Env> {
   private sessionHadAgent = false;
   /** Status, priority and assignee edits — the triage half, which draws no ops. */
   private sessionUpdates = 0;
+
+  /**
+   * Annotations written since the last outbound send. They ride the existing 3s
+   * flush alarm rather than a timer of their own, which makes the debounce the
+   * batching window too: ten comments in a burst arrive as one message.
+   */
+  private pendingNotifications: Notifiable[] = [];
+  /**
+   * Consecutive flushes where every destination failed. A revoked hook errors
+   * forever, and a room that keeps retrying one pays for a request on every
+   * flush, so it stops asking after three — the same circuit breaker the fetch
+   * relay uses.
+   */
+  private deliveryFailures = 0;
+  /** Public origin of the request that opened this room, for the "open the room" link. */
+  private origin: string | null = null;
 
   private async getOps(id: string): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
@@ -188,6 +161,8 @@ export class AnnotationRoom extends DurableObject<Env> {
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
     if (!id) return new Response('Missing id', { status: 400 });
+
+    this.origin = url.origin;
 
     const peerId = url.searchParams.get('peerId') || crypto.randomUUID();
     const peerName = sanitizeName(url.searchParams.get('name'));
@@ -282,6 +257,8 @@ export class AnnotationRoom extends DurableObject<Env> {
         this.sessionOps++;
         this.sessionTools.set(msg.op.tool, (this.sessionTools.get(msg.op.tool) ?? 0) + 1);
         this.broadcast(JSON.stringify({ type: 'op', op: msg.op }), ws);
+        const notifiable = notifiableFrom(msg.op);
+        if (notifiable) this.pendingNotifications.push(notifiable);
         await this.scheduleFlush();
         return;
       }
@@ -368,6 +345,14 @@ export class AnnotationRoom extends DurableObject<Env> {
         this.broadcast(JSON.stringify({ type: 'profile', peerId: next.id, name: next.name, color: next.color }), ws);
         return;
       }
+      case 'flock': {
+        const info = this.getPeerInfo(ws);
+        if (!info) return;
+        // Not persisted and not replayed on join: presenting is a live gesture,
+        // so someone arriving after it started is not dragged into it.
+        this.broadcast(JSON.stringify({ type: 'flock', peerId: info.id, name: info.name, on: msg.on }), ws);
+        return;
+      }
     }
   }
 
@@ -444,8 +429,43 @@ export class AnnotationRoom extends DurableObject<Env> {
   }
 
   async alarm() {
-    if (!this.dirty || !this.ops || !this.annotationId) return;
-    this.dirty = false;
-    await annotationStore(this.env.DB).putOps({ id: this.annotationId, ops: this.ops });
+    const id = this.annotationId;
+    if (!id) return;
+    // Independent: the ops write touches a different column from the one the
+    // notification flush reads, and neither needs the other's result. Settled
+    // rather than raced so a failing send cannot swallow the persist.
+    const write = this.dirty && this.ops ? annotationStore(this.env.DB).putOps({ id, ops: this.ops }) : null;
+    if (write) this.dirty = false;
+    await Promise.allSettled([write, this.flushNotifications(id)]);
+  }
+
+  /**
+   * Send the batch to every destination the room has, if it has any.
+   *
+   * Drains `pendingNotifications` before awaiting anything: a send that fails
+   * must not replay the same annotations on the next flush, and a send that is
+   * slow must not block the ops arriving while it is in flight.
+   */
+  private async flushNotifications(id: string) {
+    if (this.pendingNotifications.length === 0) return;
+    const items = this.pendingNotifications;
+    this.pendingNotifications = [];
+    // Drained before the breaker is consulted: a room whose hook was revoked
+    // still discards each batch, rather than accumulating every comment it ever
+    // sees in memory for the life of the instance.
+    if (this.deliveryFailures >= 3) return;
+
+    const row = await annotationStore(this.env.DB).getIntegrations(id);
+    const integrations = parseIntegrations(row?.integrations ?? null);
+    if (integrations.length === 0) return;
+
+    const { sent } = await deliver({
+      integrations,
+      event: { type: 'annotations.created', items },
+      roomUrl: `${this.origin ?? 'https://marklayer.app'}/s/${id}`,
+      pageUrl: this.url,
+    });
+    // One destination succeeding is enough to say the room is still wired up.
+    this.deliveryFailures = sent > 0 ? 0 : this.deliveryFailures + 1;
   }
 }

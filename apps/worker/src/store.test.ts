@@ -34,7 +34,13 @@ const asDb = (db: ReturnType<typeof fakeDb>) => db as any;
 describe('annotationStore.get', () => {
   test('parses the ops column and maps the row to camelCase', async () => {
     const db = fakeDb({
-      first: { ops: '[{"tool":"comment"}]', url: 'https://example.com', width: 1280, created_at: 10, expires_at: null },
+      first: {
+        ops: '[{"tool":"comment"}]',
+        url: 'https://example.com',
+        width: 1280,
+        created_at: 10,
+        expires_at: null,
+      },
     });
     const row = await annotationStore(asDb(db)).get('abc');
     expect(row).toEqual({
