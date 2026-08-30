@@ -28,8 +28,8 @@ import {
   showShareDialog,
   toggleToolbarMinimized,
   toolbarMinimized,
-  toolOrder,
   undo,
+  visibleTools,
 } from '../lib/state';
 import type { Tool } from '../lib/types';
 import { SettingsPanel } from './SettingsPanel';
@@ -658,7 +658,7 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
 }
 
 function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: DragApi }) {
-  const tools = toolOrder.value;
+  const tools = visibleTools.value;
   const toolsRef = useFlipReorder([tools]);
   const reorder = useToolReorder(toolsRef);
 

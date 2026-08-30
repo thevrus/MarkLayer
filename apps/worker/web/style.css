@@ -679,7 +679,11 @@
 .lp-field {
   transition: box-shadow 150ms ease;
 }
-.lp-field:focus-within {
+/* Dragging a PDF onto the field borrows the focus ring rather than introducing a
+   dashed outline: the page has one emphasis primitive and a drop target is not a
+   reason to invent a second. */
+.lp-field:focus-within,
+.lp-field[data-dropping="true"] {
   box-shadow:
     0 0 0 1px var(--ds-focus-color),
     0 0 0 4px color-mix(in srgb, var(--ds-focus-color) 22%, transparent);

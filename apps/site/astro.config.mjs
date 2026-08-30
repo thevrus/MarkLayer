@@ -4,6 +4,7 @@ import { unified } from '@astrojs/markdown-remark';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
+import { WORKER_DEV } from './src/lib/site';
 
 export default defineConfig({
   site: 'https://marklayer.app',
@@ -40,5 +41,13 @@ export default defineConfig({
     }),
   },
 
-  vite: { plugins: [tailwindcss()] },
+  vite: {
+    plugins: [tailwindcss()],
+    // The middleware below redirects anything this site 404s to the Worker, which
+    // is right for a navigation but loses a request body: a 302 downgrades POST
+    // to GET, and Astro hands middleware a bodyless stub request for prerendered
+    // routes anyway, so it cannot forward one itself. These are proxied at the
+    // dev server instead, where the body is still intact.
+    server: { proxy: { '^/(f|api)(/.*)?$': { target: WORKER_DEV, changeOrigin: true } } },
+  },
 });

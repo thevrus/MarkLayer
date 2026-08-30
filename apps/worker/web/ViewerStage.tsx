@@ -1,6 +1,6 @@
 import { CommentPopover } from '@ext/components/CommentPopover';
 import { PanLayer } from '@ext/components/PanLayer';
-import { activeTool, color, lineWidth, panScrollBy, toolPaintsCanvas } from '@ext/lib/state';
+import { activeTool, color, elementToolsUnavailable, lineWidth, panScrollBy, toolPaintsCanvas } from '@ext/lib/state';
 import type { TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import { Loader2 } from 'lucide-preact';
@@ -8,7 +8,8 @@ import { nanoid } from 'nanoid';
 import { classifyProxyError } from '../src/proxy-errors';
 import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
 import { CursorLayer } from './CursorLayer';
-import { frameViewport, pickFrameTarget } from './iframeOverlay';
+import { captureAnchors, frameViewport } from './iframeOverlay';
+import { frameSrc, isUploadPath } from './pdfSource';
 import { Logo, TextInputOverlay } from './shared';
 import {
   commentPopover,
@@ -139,7 +140,7 @@ function PageFailure() {
             rel="noreferrer"
             class="px-4 py-2 rounded-lg bg-ml-btn text-ml-btn-fg text-ui font-medium no-underline hover:bg-ml-btn-hover transition-colors"
           >
-            Open original site
+            {isUploadPath(pageUrl.value) ? 'Open the PDF' : 'Open original site'}
           </a>
           <a href="/" class="text-ui text-ml-fg/70 underline underline-offset-2 hover:text-ml-fg transition-colors">
             Back home
@@ -175,13 +176,16 @@ function ProxiedPage() {
     <iframe
       ref={meta.frameRef}
       title="Annotated page"
-      src={pageUrl.value ? `/proxy?url=${encodeURIComponent(pageUrl.value)}` : undefined}
+      src={pageUrl.value ? frameSrc({ url: pageUrl.value }) : undefined}
       sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
       onLoad={() => {
         state.iframeLoaded.value = true;
         if (!pageUrl.value) return;
         // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
         const doc = meta.frameRef.current?.contentDocument;
+        // A PDF has no element tree worth inspecting and no responsive layout to
+        // resize, so the tools and device sizes that act on those come off.
+        elementToolsUnavailable.value = doc?.documentElement?.dataset?.pdf === '1';
         if (doc?.documentElement?.dataset?.marklayer === '1') {
           actions.reportRenderSuccess();
           return;
@@ -277,7 +281,7 @@ function TextPlacement() {
                 fontSize: Math.max(14, lineWidth.value * 6),
                 color: color.value,
                 lineWidth: lineWidth.value,
-                target: pickFrameTarget({ frame: frameRef.current, x, y }),
+                ...captureAnchors({ frame: frameRef.current, x, y }),
                 captureViewport: frameViewport(frameRef.current),
               };
               pushDeviceOp(op);
@@ -357,7 +361,7 @@ function PendingComment({ frameRef }: { frameRef: { current: HTMLIFrameElement |
       at={at}
       anchorAt={{ x: at.x * cssScale.value, y: (at.y - iframeScrollY.value) * cssScale.value }}
       capture={() => ({
-        target: pickFrameTarget({ frame: frameRef.current, x: at.x, y: at.y }),
+        ...captureAnchors({ frame: frameRef.current, x: at.x, y: at.y }),
         captureViewport: frameViewport(frameRef.current),
       })}
       push={pushDeviceOp}

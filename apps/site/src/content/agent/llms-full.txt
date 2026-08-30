@@ -41,6 +41,16 @@ Drag to capture a rectangular region of a page and attach a note. The captured f
 ### Quick Grab
 Hold the Alt key to temporarily arm element capture without switching tools, then release to revert. Lets users move fluidly between annotating and inspecting.
 
+### PDFs
+A PDF can be annotated like any other page, either by pasting a link to one or by uploading a file from
+your computer, up to 25MB. MarkLayer renders it in the browser and puts the same canvas over it, so
+drawing, comments, areas and highlights all behave the way they do on a webpage. Text inside the PDF
+stays selectable, so a highlight binds to the words rather than to a point in space. Every mark records
+the page it was made on and where it sat on that page, which is what keeps it in place at any zoom
+level. The annotations belong to the share link rather than to the file, so nothing is written back into
+the PDF and there is no annotated copy to download. An uploaded file is deleted on the same clock as the
+annotation: 90 days after the link was last opened.
+
 ### No Sign-up Required
 There is no registration, no email verification, and no onboarding flow. Users install the extension and start annotating immediately.
 
@@ -119,7 +129,10 @@ JavaScript is failing", runtime logs win. If they are mostly "this element is wr
 ### What MarkLayer does not do
 
 MarkLayer captures no console or network logs, and has no two-way sync into Jira or Linear. That is what
-the $39-79 tier is priced for. If every piece of feedback needs an owner, a status, a priority and a
+the $39-79 tier is priced for. Three tools switch off on a PDF, and for the same reason: the element
+inspector, measure and multi-select all read the page's HTML, and a PDF has none, so pointing at it
+returns the whole page rather than a heading or a button. A scanned PDF with no text layer takes drawing
+and comments but not text highlights, because there are no words to attach one to. If every piece of feedback needs an owner, a status, a priority and a
 ticket in an existing tracker, BugHerd, Marker.io or Usersnap are the honest recommendation. MarkLayer is
 the visual feedback layer, not a project management system.
 

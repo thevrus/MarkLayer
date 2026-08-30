@@ -810,7 +810,22 @@ function loadToolOrder(): Tool[] {
   }
 }
 
+/**
+ * Tools that read the framed page's element tree. On a PDF there isn't one worth
+ * reading — every hover resolves to a page-sized canvas or a single text run —
+ * so the web app raises this and the toolbar drops them. The extension never
+ * sets it: it only ever runs on a real document.
+ */
+const ELEMENT_TOOLS: ReadonlySet<Tool> = new Set(['inspect', 'multiInspect', 'measure']);
+export const elementToolsUnavailable = signal(false);
+
 export const toolOrder = signal<Tool[]>(loadToolOrder());
+
+/** What the toolbar renders. Derived rather than filtered per render: the list
+ *  keys a FLIP layout pass, so a fresh array identity re-measures every button. */
+export const visibleTools = computed(() =>
+  elementToolsUnavailable.value ? toolOrder.value.filter((t) => !ELEMENT_TOOLS.has(t)) : toolOrder.value,
+);
 
 export function moveTool(from: number, to: number) {
   const arr = toolOrder.value;

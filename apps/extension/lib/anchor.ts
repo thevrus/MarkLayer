@@ -28,7 +28,7 @@ export interface AnchorContext {
 }
 
 /** `primary` = stored selector matched; `text` = tag+text fingerprint fallback. */
-export type AnchorStrategy = 'primary' | 'text';
+export type AnchorStrategy = 'primary' | 'text' | 'pdf';
 
 export interface ResolvedAnchor {
   x: number;

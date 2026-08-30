@@ -27,6 +27,23 @@ export default defineConfig({
     outDir: 'public',
     emptyOutDir: true,
   },
+  // Scoped to the `client` environment only: @cloudflare/vite-plugin builds
+  // separate Worker environments (one per `wrangler.jsonc` entry) that share
+  // the top-level `build` config, and those don't know what to do with an
+  // HTML entry — a shared `build.rollupOptions.input` here breaks the Worker
+  // build with "Entry module ... cannot be external".
+  environments: {
+    client: {
+      build: {
+        rollupOptions: {
+          input: {
+            main: resolve(__dirname, 'index.html'),
+            pdf: resolve(__dirname, 'pdf.html'),
+          },
+        },
+      },
+    },
+  },
   server: {
     // apps/site's shell hardcodes this origin (`WORKER_DEV` in src/lib/site.ts)
     // to borrow the stylesheet and SPA entry in dev. Vite's default is to bump

@@ -33,7 +33,9 @@
       "/robots.txt",
       "/llms.txt",
       "/llms-full.txt",
-      "/.well-known/*"
+      "/.well-known/*",
+      "/f", // anonymous PDF upload — `/f/*` does not match the bare path
+      "/f/*" // and retrieval of one
     ]
   },
   // Secrets, set with `wrangler secret put <NAME>` — deliberately not `vars`,
@@ -66,6 +68,13 @@
     {
       "binding": "OG_BUCKET",
       "bucket_name": "marklayer-og"
+    },
+    {
+      // Uploaded PDFs. Kept separate from OG_BUCKET on purpose: that one is a
+      // regenerable cache the cron can evict freely, this one holds the only
+      // copy of a user's file until its own retention window clears it.
+      "binding": "FILE_BUCKET",
+      "bucket_name": "marklayer-files"
     }
   ],
   "triggers": {

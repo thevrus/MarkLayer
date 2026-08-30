@@ -10,7 +10,7 @@ import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
 import { useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { frameViewport, isElementNode, pickFrameTarget, useIframeOverlay } from './iframeOverlay';
+import { captureAnchors, frameViewport, isElementNode, useIframeOverlay } from './iframeOverlay';
 import { cssScale, iframeScrollY, pushDeviceOp } from './signals';
 
 export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
@@ -154,7 +154,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
     const r = pending.value;
     if (!r) return;
     // Hit-test the rect's centre, but anchor to its top-left.
-    const target = pickFrameTarget({
+    const anchors = captureAnchors({
       frame: frameRef.current,
       x: r.x + r.w / 2,
       y: r.y + r.h / 2,
@@ -173,7 +173,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       priority,
       ts: Date.now(),
       ...signedBy(),
-      target,
+      ...anchors,
       captureViewport: frameViewport(frameRef.current),
     };
     pushDeviceOp(op);
