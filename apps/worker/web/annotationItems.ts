@@ -1,5 +1,9 @@
 import type { AreaOp, CommentOp, SelectionOp, TextOp } from '@ext/lib/types';
-import type { AnnotationOp } from '@marklayer/types';
+import { type AnnotationOp, opAnchor } from '@marklayer/types';
+
+// `opAnchor` lives in packages/types — the MCP server needs the same answer, and
+// two copies of it had already drifted on right-to-left area drags.
+export { opAnchor };
 
 /** One row of the annotation panel, and one step of its detail view. */
 export type AnnotationItem =
@@ -22,21 +26,11 @@ export function itemLabel(item: AnnotationItem): string {
 }
 
 /**
- * The three projections below answer "where is it", "what is it called" and
- * "what does it say" for any annotation. The panel and the board both render
- * those answers, and each deriving them separately is how the two views came to
- * disagree about what a selection is called.
+ * `opAnchor` above and the two projections below answer "where is it", "what is
+ * it called" and "what does it say" for any annotation. The panel and the board
+ * both render those answers, and each deriving them separately is how the two
+ * views came to disagree about what a selection is called.
  */
-export function opAnchor(op: AnnotationOp): { x: number; y: number } {
-  if (op.tool === 'selection') {
-    const rect = op.rects[0];
-    return { x: rect?.x ?? 0, y: rect?.y ?? 0 };
-  }
-  if (op.tool === 'area') return { x: Math.min(op.startX, op.endX), y: Math.min(op.startY, op.endY) };
-  if (op.tool === 'inspect') return { x: op.rect.x, y: op.rect.y };
-  return { x: op.x, y: op.y };
-}
-
 export function opLabel(op: AnnotationOp): string {
   if (op.tool === 'comment') return `Comment ${op.num}`;
   // A selection carrying a replacement is a copy edit, and the surfaces should
