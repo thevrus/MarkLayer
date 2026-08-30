@@ -3,7 +3,7 @@ import { signal, useSignalEffect } from '@preact/signals';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
-import { copyText, deleteOp, inspects, openContextMenu, STATUS_STYLES, setOpStatus } from '../lib/state';
+import { copyText, deleteOp, inspects, openContextMenu, STATUS_LABELS, STATUS_STYLES, setOpStatus } from '../lib/state';
 import type { InspectOp } from '../lib/types';
 
 // Bumped on window scroll so each marker repositions. Module-level so a single
@@ -89,7 +89,7 @@ function InspectorMarker({ op }: { op: InspectOp }) {
                 class="text-meta font-medium px-1.5 py-0.5 rounded-sm"
                 style={{ background: `color-mix(in oklch, ${styles.bg} 18%, transparent)`, color: styles.color }}
               >
-                {styles.label}
+                {STATUS_LABELS[status]}
               </span>
             )}
           </div>

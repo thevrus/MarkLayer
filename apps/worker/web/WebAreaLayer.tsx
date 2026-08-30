@@ -2,7 +2,7 @@ import { AreaPopover, type DraftAreaState, type DraftRect, rectFromDraft } from 
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 
-import { activeTool, color, lineWidth, localUser } from '@ext/lib/state';
+import { activeTool, color, lineWidth, signedBy } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
 import type { CommentPriority } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
@@ -172,7 +172,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       comment: comment || undefined,
       priority,
       ts: Date.now(),
-      author: localUser.name,
+      ...signedBy(),
       target,
       captureViewport: frameViewport(frameRef.current),
     };

@@ -10,7 +10,7 @@ import { type AnnotationOp, RoomClient, resolveStatus } from './room.js';
  * markup) so the agent has everything it needs to act on the change without
  * round-tripping back to the page.
  */
-function projectAnnotation(op: AnnotationOp) {
+export function projectAnnotation(op: AnnotationOp) {
   const common = {
     id: op.id,
     kind: op.tool,
@@ -72,7 +72,7 @@ interface ServerOptions {
  *   - "https://marklayer.app/s/abc123"
  *   - "https://marklayer.app/s/abc123?something"
  */
-function parseRoomRef(input: string): string {
+export function parseRoomRef(input: string): string {
   const trimmed = input.trim();
   if (!trimmed) throw new Error('empty room reference');
   if (!trimmed.includes('/')) return trimmed;
@@ -97,7 +97,14 @@ function err(message: string): ToolContent {
   return { content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }], isError: true };
 }
 
-const StatusFilter = z.enum(['open', 'in_progress', 'resolved', 'dismissed', 'all']);
+/**
+ * Kept as one list because it is advertised and enforced separately: the Zod
+ * schema validates the call, the hand-written JSON Schema below tells the client
+ * what to send. Two literals would drift into a tool that offers a value it
+ * rejects.
+ */
+const STATUS_FILTERS = ['open', 'in_progress', 'resolved', 'approved', 'dismissed', 'all'] as const;
+const StatusFilter = z.enum(STATUS_FILTERS);
 
 const ConnectInput = z.object({ room: z.string().check(z.minLength(1)) });
 const ListInput = z.object({ status: z.optional(StatusFilter) });
@@ -153,12 +160,12 @@ const TOOLS: Tool[] = [
       'List every annotation in the connected room across all tools (comment, area, selection, inspect). ' +
       'Each entry carries a `kind` discriminator and, where the user marked an element, a `target` block ' +
       'with selector + markdown so you can address the change without reopening the page. ' +
-      'Filter by status: open, in_progress, resolved, dismissed, or all (default).',
+      'Filter by status: open, in_progress, resolved, approved, dismissed, or all (default). `approved` means the person who asked for the change confirmed the fix, so those need nothing from you.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
       properties: {
-        status: { type: 'string', enum: ['open', 'in_progress', 'resolved', 'dismissed', 'all'] },
+        status: { type: 'string', enum: [...STATUS_FILTERS] },
       },
     },
   },

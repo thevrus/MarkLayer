@@ -23,10 +23,10 @@ import {
   getCommentMeta,
   inspectorStack,
   lineWidth,
-  localUser,
   operations,
   pushOp,
   showShareDialog,
+  signedBy,
   toast,
 } from '../lib/state';
 import type { CommentOp } from '../lib/types';
@@ -77,7 +77,7 @@ function flushInspectorStackToComments(): number {
       color: color.value,
       lineWidth: lineWidth.value,
       ts: Date.now() + i,
-      author: localUser.name,
+      ...signedBy(),
       meta: getCommentMeta(),
     };
     pushOp(op);

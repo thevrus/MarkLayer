@@ -189,7 +189,13 @@ export const circleOpSchema = z.object({
 });
 export type CircleOp = z.infer<typeof circleOpSchema>;
 
-export const commentStatusSchema = z.enum(['open', 'in_progress', 'resolved', 'dismissed']);
+/**
+ * `resolved` and `approved` are two halves of one handoff, not synonyms: whoever
+ * did the work marks it resolved, and whoever asked for it confirms with approved.
+ * Without the second value a review has no ending the requester owns — the person
+ * who fixed the thing is also the person who declares it done.
+ */
+export const commentStatusSchema = z.enum(['open', 'in_progress', 'resolved', 'approved', 'dismissed']);
 export type CommentStatus = z.infer<typeof commentStatusSchema>;
 
 /**
@@ -207,6 +213,17 @@ export const commentMetaSchema = z.object({
   os: z.optional(z.string()),
 });
 export type CommentMeta = z.infer<typeof commentMetaSchema>;
+
+/**
+ * Who wrote it. `author` is a display name, so it is only ever a snapshot of
+ * what the person was called at the time; `authorId` is stable per browser, and
+ * it is what lets a rename find the work it has to follow. Ops written before
+ * `authorId` existed carry only the name.
+ */
+const authored = {
+  author: z.optional(z.string()),
+  authorId: z.optional(z.string()),
+};
 
 /** Triage state carried by every annotation that owns a comment thread. */
 const triageable = {
@@ -233,7 +250,7 @@ export const commentOpSchema = z.object({
   ts: z.number(),
   resolved: z.optional(z.boolean()),
   parentId: z.optional(z.string()),
-  author: z.optional(z.string()),
+  ...authored,
   meta: z.optional(commentMetaSchema),
 });
 export type CommentOp = z.infer<typeof commentOpSchema>;
@@ -272,7 +289,7 @@ export const selectionOpSchema = z.object({
    */
   suggestion: z.optional(z.string()),
   ts: z.number(),
-  author: z.optional(z.string()),
+  ...authored,
 });
 export type SelectionOp = z.infer<typeof selectionOpSchema>;
 
@@ -306,7 +323,7 @@ export const areaOpSchema = z.object({
   endY: z.number(),
   comment: z.optional(z.string()),
   ts: z.number(),
-  author: z.optional(z.string()),
+  ...authored,
 });
 export type AreaOp = z.infer<typeof areaOpSchema>;
 
@@ -325,7 +342,7 @@ export const inspectOpSchema = z.object({
   markdown: z.string(),
   rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
   ts: z.number(),
-  author: z.optional(z.string()),
+  ...authored,
 });
 export type InspectOp = z.infer<typeof inspectOpSchema>;
 
@@ -455,6 +472,16 @@ export function isAnnotationOp(op: DrawOp): op is AnnotationOp {
 export function resolveOpStatus(op: AnnotationOp): CommentStatus {
   if (op.tool === 'comment') return op.status || (op.resolved ? 'resolved' : 'open');
   return op.status || 'open';
+}
+
+/**
+ * Both endings of a thread. `approved` is `resolved` one step further on, so
+ * every surface that dims, strikes through or drops an unread-reply count wants
+ * both — and each one deciding that for itself is how the extension pin and the
+ * web pin came to disagree about an approved comment.
+ */
+export function isSettled(status: CommentStatus): boolean {
+  return status === 'resolved' || status === 'approved';
 }
 
 /**

@@ -16,6 +16,8 @@ import {
   showSettings,
   showShareDialog,
   theme,
+  toggleUiHidden,
+  uiHidden,
   undo,
   visible,
 } from '../lib/state';
@@ -74,6 +76,13 @@ export function App() {
         const t = editableTarget(e);
         if (t) {
           t.blur();
+          return;
+        }
+        // Nothing else is on screen to escape from, and it is the state a lost
+        // user hits Escape to get out of — so it unwinds first.
+        if (uiHidden.value) {
+          toggleUiHidden();
+          e.preventDefault();
           return;
         }
         if (showSettings.value) {
@@ -207,7 +216,11 @@ export function App() {
       <GuideLayer />
       <QuickGrabLayer />
       <PanLayer />
-      <Toolbar />
+      {/* Figma's hide-UI: the chrome goes, the annotations stay. Hidden rather
+          than unmounted so a dragged toolbar comes back where it was left. */}
+      <div class={cn(uiHidden.value && 'hidden')}>
+        <Toolbar />
+      </div>
       <ShareDialog />
       <ContextMenu />
       <Toasts />

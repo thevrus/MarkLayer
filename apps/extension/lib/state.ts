@@ -1,4 +1,4 @@
-import { isAnnotationOp, resolveOpStatus, translateOp } from '@marklayer/types';
+import { isAnnotationOp, isSettled, resolveOpStatus, translateOp } from '@marklayer/types';
 import { computed, effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { tinykeys } from 'tinykeys';
@@ -96,6 +96,27 @@ export function toggleToolbarMinimized() {
   const next = !toolbarMinimized.value;
   toolbarMinimized.value = next;
   lsSet('ml-toolbar-min', next ? '1' : null);
+}
+
+/**
+ * Figma's hide-UI. Every piece of chrome off, the annotations left on screen.
+ * Deliberately not persisted: a reload that came back with no visible UI would
+ * read as the tool being broken, and the shortcut to undo it is invisible too.
+ */
+export const uiHidden = signal(false);
+
+export function toggleUiHidden() {
+  const next = !uiHidden.value;
+  uiHidden.value = next;
+  if (!next) return;
+  // The way back is two shortcuts with nothing on screen pointing at either, so say it.
+  toast('Interface hidden — Esc or ⌘/ to bring it back', 'info', 2600);
+  // A dialog is a transient surface, not chrome to restore later; drop it outright.
+  showSettings.value = false;
+  showShareDialog.value = false;
+  // Drawing with the toolbar gone means no colour, no width and no way to see
+  // which tool is armed, so hiding the UI drops to the move tool the way Figma does.
+  activeTool.value = 'navigate';
 }
 
 /** Show the framework component badge (React/Vue/Svelte) in the inspector hover + panel. */
@@ -247,23 +268,149 @@ const ANIMALS = [
 function randomPick<T>(arr: readonly [T, ...T[]]): T {
   return arr[Math.floor(Math.random() * arr.length)] ?? arr[0];
 }
+/** Tailwind's own names for these hexes — a swatch has to say what it is out loud. */
+const CURSOR_COLOR_NAMES: Record<string, string> = {
+  '#f43f5e': 'Rose',
+  '#8b5cf6': 'Violet',
+  '#3b82f6': 'Blue',
+  '#10b981': 'Emerald',
+  '#f59e0b': 'Amber',
+  '#ec4899': 'Pink',
+  '#06b6d4': 'Cyan',
+  '#84cc16': 'Lime',
+  '#ef4444': 'Red',
+  '#6366f1': 'Indigo',
+};
+
+export function cursorColorName(hex: string): string {
+  return CURSOR_COLOR_NAMES[hex.toLowerCase()] ?? hex.toUpperCase();
+}
+
+export function randomUserName(): string {
+  return `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`;
+}
+
 const savedName = _ls?.getItem('ml-username') ?? null;
 const savedCursorColor = _ls?.getItem('ml-usercolor') ?? null;
-const freshName = `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`;
-const freshCursorColor = randomPick(CURSOR_COLORS);
+const savedClientId = _ls?.getItem('ml-clientid') ?? null;
+/** Stable across reloads and rooms, unlike the per-connection peer id, so an op
+ *  written last week still points at the person who wrote it. */
+const clientId = savedClientId || nanoid();
+const userName = signal(savedName || randomUserName());
+const userColor = signal<string>(savedCursorColor || randomPick(CURSOR_COLORS));
+/**
+ * Identity is read on every cursor label, avatar and new comment, so it is
+ * exposed as an object of signal-backed getters rather than as two bare
+ * signals: a rename repaints everything that shows it, and no call site has to
+ * learn a `.value`. Write through `setUserName` / `setUserColor` — assigning to
+ * these properties does nothing.
+ */
 export const localUser = {
-  name: savedName || freshName,
-  color: savedCursorColor || freshCursorColor,
+  get name() {
+    return userName.value;
+  },
+  get color() {
+    return userColor.value;
+  },
+  /** Not a signal: this one never changes. */
+  get id() {
+    return clientId;
+  },
 };
-// Persist on first visit so color stays stable
-if (!savedName) lsSet('ml-username', localUser.name);
-if (!savedCursorColor) lsSet('ml-usercolor', localUser.color);
+/**
+ * The signature every annotation carries. One helper because the two fields have
+ * to travel together: a tool that sets `author` but forgets `authorId` still
+ * type-checks, and a later rename silently stops following that tool's work.
+ */
+export const signedBy = () => ({ author: localUser.name, authorId: localUser.id });
 
+// Persist on first visit so name, color and id stay stable
+if (!savedName) lsSet('ml-username', userName.value);
+if (!savedCursorColor) lsSet('ml-usercolor', userColor.value);
+if (!savedClientId) lsSet('ml-clientid', clientId);
+
+/**
+ * The name your existing annotations were written under. A rename has to reach
+ * them too — `author` is a stored string, so leaving it alone makes one person
+ * show up in a room as two — but not on every keystroke, hence the settle.
+ */
+let authoredName = userName.value;
+let relabelTimer: ReturnType<typeof setTimeout> | undefined;
+const RELABEL_SETTLE_MS = 1200;
+/** Long enough to swallow a burst of keystrokes, short enough to still read as live. */
+const PROFILE_SETTLE_MS = 200;
+let profileTimer: ReturnType<typeof setTimeout>;
+
+/**
+ * Ignores an empty name instead of rolling a random one: the field applies as
+ * you type, and clearing it to retype must not silently rename you mid-word.
+ */
 export function setUserName(name: string) {
-  const trimmed = name.trim() || `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`;
-  localUser.name = trimmed;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === userName.value) return;
+  userName.value = trimmed;
   lsSet('ml-username', trimmed);
-  onProfileChange.value?.(localUser.name, localUser.color);
+  // The field applies as you type, but each broadcast is a Durable Object
+  // attachment write plus a fan-out to every peer, so a 15-character name would
+  // be 15 of each. Settling briefly still reads as live and costs one.
+  clearTimeout(profileTimer);
+  profileTimer = setTimeout(() => onProfileChange.value?.(userName.value, userColor.value), PROFILE_SETTLE_MS);
+  // The paper trail follows once the typing stops.
+  clearTimeout(relabelTimer);
+  relabelTimer = setTimeout(relabelOwnWork, RELABEL_SETTLE_MS);
+}
+
+/**
+ * Carry a rename onto the work already signed with the old name: your own
+ * annotations and their replies, plus any thread assigned to you.
+ *
+ * Ownership is matched on `authorId` where the op has one. Ops written before
+ * that field existed can only be matched by the old name, which is also the
+ * only handle `assignee` ever offers — so a peer who happens to share your old
+ * name is the one ambiguity here, and the card warns before you take one.
+ *
+ * Safe to call at any time: it returns 0 when there is nothing to carry.
+ */
+export function relabelOwnWork(): number {
+  clearTimeout(relabelTimer);
+  const previous = authoredName;
+  const next = userName.value;
+  authoredName = next;
+  if (!previous || previous === next) return 0;
+
+  const patches: { opId: string; patch: { author?: string; assignee?: string } }[] = [];
+  const relabelled = operations.value.map((op) => {
+    if (!isAnnotationOp(op)) return op;
+    const mine = op.authorId ? op.authorId === clientId : op.author === previous;
+    const patch: { author?: string; assignee?: string } = {};
+    if (mine && op.author === previous) patch.author = next;
+    if (op.assignee === previous) patch.assignee = next;
+    if (!patch.author && !patch.assignee) return op;
+    patches.push({ opId: op.id, patch });
+    return { ...op, ...patch };
+  });
+
+  // Assigned only when something moved: signals compare by identity, so writing
+  // the fresh array unconditionally would re-partition `_opIndex` and re-render
+  // every layer for a rename that touched nothing — the common case.
+  if (!patches.length) return 0;
+  operations.value = relabelled;
+  for (const { opId, patch } of patches) onOpUpdated.value?.(opId, patch);
+  drafts.scheduleSave();
+  // Said out loud because it is a bulk edit of work already on the page, and
+  // because it fires from a settle timer as well as from closing the card.
+  toast(`Updated your name on ${patches.length} annotation${patches.length === 1 ? '' : 's'}`);
+  return patches.length;
+}
+
+export function setUserColor(c: string) {
+  if (c === userColor.value) return;
+  userColor.value = c;
+  lsSet('ml-usercolor', c);
+  // Discrete, so it goes out at once — and it carries the name too, which makes
+  // any name broadcast still settling redundant.
+  clearTimeout(profileTimer);
+  onProfileChange.value?.(userName.value, userColor.value);
 }
 
 // Callback for WebSocket sync — set by useRealtimeSync hook
@@ -419,6 +566,9 @@ export function getReplies(parentId: string): CommentOp[] {
 /** Annotation panel open state */
 export const showAnnotationPanel = signal(false);
 
+/** What the panel actually renders on — hiding the UI closes it without forgetting it was open. */
+export const annotationPanelOpen = computed(() => showAnnotationPanel.value && !uiHidden.value);
+
 /** Comment status filter for annotation panel */
 export const commentFilter = signal<CommentStatus | 'all'>('all');
 
@@ -440,38 +590,42 @@ export { resolveOpStatus as getCommentStatus };
  * Visual styling for a comment status badge.
  * Used by both the extension and the web viewer pins.
  */
-export const STATUS_STYLES: Record<
-  CommentStatus,
-  { color: string; bg: string; ring: string; pinOpacity: number; label: string }
-> = {
-  open: { color: 'transparent', bg: 'transparent', ring: 'transparent', pinOpacity: 1, label: 'Open' },
+export const STATUS_STYLES: Record<CommentStatus, { color: string; bg: string; ring: string; pinOpacity: number }> = {
+  open: { color: 'transparent', bg: 'transparent', ring: 'transparent', pinOpacity: 1 },
   in_progress: {
     color: 'oklch(0.7 0.16 60)',
     bg: 'oklch(0.7 0.16 60)',
     ring: 'oklch(1 0 0 / 0.8)',
     pinOpacity: 1,
-    label: 'In progress',
   },
   resolved: {
     color: 'oklch(0.7 0.18 145)',
     bg: 'oklch(0.7 0.18 145)',
     ring: 'oklch(1 0 0 / 0.8)',
     pinOpacity: 1,
-    label: 'Resolved',
+  },
+  // A deeper green than resolved, not a new hue: approved is the same journey one
+  // step further on. It also has to stay legible on a pin painted the brand violet,
+  // which is what the default pin colour is.
+  approved: {
+    color: 'var(--ds-green-900)',
+    bg: 'var(--ds-green-900)',
+    ring: 'oklch(1 0 0 / 0.8)',
+    pinOpacity: 1,
   },
   dismissed: {
     color: 'oklch(0.6 0 0)',
     bg: 'oklch(0.6 0 0)',
     ring: 'oklch(1 0 0 / 0.6)',
     pinOpacity: 0.55,
-    label: 'Dismissed',
   },
 };
 
 export const STATUS_LABELS: Record<CommentStatus, string> = {
   open: 'Open',
-  in_progress: 'In Progress',
+  in_progress: 'In progress',
   resolved: 'Resolved',
+  approved: 'Approved',
   dismissed: 'Dismissed',
 };
 
@@ -758,7 +912,7 @@ export const altHeld = signal(false);
 type KeyGuard = (fn: (e: KeyboardEvent) => void) => (e: KeyboardEvent) => void;
 
 /**
- * The Figma-parity half of a host's keymap: the tool letters, ⌘D, ⌘\, and the
+ * The Figma-parity half of a host's keymap: the tool letters, ⌘D, ⌘\, ⌘/, and the
  * held Space/Alt modifiers with their release. Both hosts bound this identically
  * and differed only in which guard wrapped each key, so the guards are the
  * parameters and the table lives here — press and release included, since a
@@ -795,8 +949,10 @@ export function bindFigmaKeys({
 
   const bindings: Record<string, (e: KeyboardEvent) => void> = {
     '$mod+KeyD': pd(guard, duplicateLastOp),
-    // Figma's ⌘\ — hide the chrome, keep the annotations on screen.
+    // Figma's ⌘\ — shrink the toolbar to its compact form.
     '$mod+Backslash': pd(viewGuard, toggleToolbarMinimized),
+    // Figma's hide-UI: all chrome off, the annotations stay on screen.
+    '$mod+Slash': pd(viewGuard, toggleUiHidden),
     KeyH: pd(viewGuard, () => {
       handTool.value = !handTool.value;
     }),
@@ -878,7 +1034,7 @@ export function pushReply(parentOp: { id: string; x: number; y: number }, text: 
     lineWidth: lineWidth.value,
     ts: Date.now(),
     parentId: parentOp.id,
-    author: localUser.name,
+    ...signedBy(),
     meta: getCommentMeta(),
   };
   pushOp(op);
@@ -891,7 +1047,9 @@ export function setOpStatus(opId: string, status: CommentStatus) {
     if (op.tool === 'comment') {
       // `resolved` is the pre-`status` boolean. Kept in step so a peer or an
       // export still reading it doesn't disagree with the status beside it.
-      const p: Partial<CommentOp> = { status, resolved: status === 'resolved' };
+      // Approved counts as resolved here: to a reader that only knows the
+      // boolean, a signed-off thread is a finished one.
+      const p: Partial<CommentOp> = { status, resolved: isSettled(status) };
       patch = p;
       return { ...op, ...p };
     }

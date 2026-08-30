@@ -7,7 +7,7 @@ import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { useEdgeClamp } from '../lib/popover';
 import { captureTarget } from '../lib/selector';
-import { color, commentCounter, getCommentMeta, lineWidth, localUser, pushOp } from '../lib/state';
+import { color, commentCounter, getCommentMeta, lineWidth, pushOp, signedBy } from '../lib/state';
 import { CancelButton } from './CancelButton';
 import { PriorityPicker } from './PriorityPicker';
 
@@ -40,7 +40,7 @@ export function CommentPopover({ x, y, el, onClose }: Props) {
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
-        author: localUser.name,
+        ...signedBy(),
         status: 'open',
         priority: priority.value,
         meta: getCommentMeta(),

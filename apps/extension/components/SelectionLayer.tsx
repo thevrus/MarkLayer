@@ -17,7 +17,6 @@ import {
   getReplies,
   hostMutationTick,
   lineWidth,
-  localUser,
   openContextMenu,
   pushOp,
   STATUS_STYLES,
@@ -25,6 +24,7 @@ import {
   selectionCaptureArmed,
   selections,
   setOpStatus,
+  signedBy,
 } from '../lib/state';
 import type { SelectionOp, SelectionRect } from '../lib/types';
 import { CancelButton } from './CancelButton';
@@ -215,7 +215,7 @@ function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverS
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
-        author: localUser.name,
+        ...signedBy(),
         target,
         captureViewport: { width: window.innerWidth, height: window.innerHeight },
       };

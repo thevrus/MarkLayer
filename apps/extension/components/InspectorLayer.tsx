@@ -20,11 +20,11 @@ import {
   inspectorStack,
   inspectorStackOpen,
   lineWidth,
-  localUser,
   outputDetail,
   pushOp,
   removeFromInspectorStack,
   showFrameworkBadges,
+  signedBy,
   toast,
 } from '../lib/state';
 import type { InspectOp } from '../lib/types';
@@ -209,7 +209,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       markdown: state.markdown,
       rect: { x: state.rect.x, y: state.rect.y, width: state.rect.width, height: state.rect.height },
       ts: Date.now(),
-      author: localUser.name,
+      ...signedBy(),
       status: 'open',
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };

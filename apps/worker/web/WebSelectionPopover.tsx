@@ -5,7 +5,7 @@ import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { useEdgeClamp, useSelectionDismiss } from '@ext/lib/popover';
-import { color, lineWidth, localUser } from '@ext/lib/state';
+import { color, lineWidth, signedBy } from '@ext/lib/state';
 import type { SelectionOp, SelectionRect } from '@ext/lib/types';
 import {
   type CaptureViewport,
@@ -61,7 +61,7 @@ export function WebSelectionPopover({
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
-        author: localUser.name,
+        ...signedBy(),
         target,
         captureViewport,
       };

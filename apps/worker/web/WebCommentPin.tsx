@@ -10,12 +10,13 @@ import {
   getCommentStatus,
   getReplies,
   openContextMenu,
+  STATUS_LABELS,
   STATUS_STYLES,
   setOpStatus,
 } from '@ext/lib/state';
 import type { CommentOp } from '@ext/lib/types';
-import { cn } from '@marklayer/types';
-import { Check, HelpCircle, Loader2 } from 'lucide-preact';
+import { cn, isSettled } from '@marklayer/types';
+import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
 import { cssScale, iframeMutationTick } from './signals';
 
 interface Props {
@@ -44,8 +45,10 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
   const flipV = (top + 400) * cs > window.innerHeight;
   const status = getCommentStatus(op);
   const resolved = status === 'resolved';
+  const approved = status === 'approved';
   const inProgress = status === 'in_progress';
   const dismissed = status === 'dismissed';
+  const settled = isSettled(status);
   const styles = STATUS_STYLES[status];
   const showBadge = status !== 'open';
   const replies = getReplies(op.id);
@@ -58,10 +61,15 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
   const onContextMenu = (e: MouseEvent) => {
     openContextMenu(e, [
       {
-        label: resolved ? 'Reopen' : 'Resolve',
+        label: settled ? 'Reopen' : 'Resolve',
         icon: 'check',
-        onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
+        onClick: () => setOpStatus(op.id, settled ? 'open' : 'resolved'),
       },
+      // Only once the work is claimed done: approving is the requester agreeing
+      // with a fix, so offering it on an open thread would skip the fix.
+      ...(resolved
+        ? [{ label: 'Approve', icon: 'check' as const, onClick: () => setOpStatus(op.id, 'approved' as const) }]
+        : []),
       { label: 'Copy text', icon: 'copy', onClick: () => copyText(op.text, 'Comment copied') },
       { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
     ]);
@@ -91,16 +99,17 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
           {showBadge && (
             <div
               role="img"
-              aria-label={styles.label}
+              aria-label={STATUS_LABELS[status]}
               class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full text-white grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]"
               style={{ background: styles.bg }}
             >
               {resolved && <Check size={9} strokeWidth={2.5} aria-hidden="true" />}
+              {approved && <CheckCheck size={9} strokeWidth={2.5} aria-hidden="true" />}
               {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
               {dismissed && <HelpCircle size={9} strokeWidth={2.5} aria-hidden="true" />}
             </div>
           )}
-          {replies.length > 0 && !resolved && !dismissed && (
+          {replies.length > 0 && !settled && !dismissed && (
             <div class="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-(--ds-background-100) text-micro font-medium text-(--ds-gray-1000) grid place-items-center [box-shadow:0_0_0_1.5px_var(--ds-background-100)]">
               {replies.length}
             </div>
