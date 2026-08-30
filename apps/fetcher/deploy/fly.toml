@@ -19,12 +19,18 @@ primary_region = "iad"
 [http_service]
   internal_port = 8080
   force_https = true
-  # Never scale to zero: a cold start on every proxy fallback would blow the
-  # viewer's 12s render budget, and the whole point of this box is a *stable*
-  # address, which a suspended machine does not reliably keep.
-  auto_stop_machines = false
+  # On demand only. The relay is a fallback on a path that has already failed
+  # once, so it is idle almost all the time; Fly's proxy suspends it when nothing
+  # is asking and resumes it on the next request.
+  #
+  # `suspend` rather than `stop` because resume is a few hundred ms against ~2s
+  # for a cold boot, which keeps the wake inside RELAY_TIMEOUT_MS (6s) with room
+  # to spare and so inside the viewer's 12s render budget. This machine is
+  # eligible: 256MB, no swap, no volume, no schedule. If Fly ever cannot suspend
+  # it, it falls back to a stop, and the boot still fits.
+  auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
 [[vm]]
   size = "shared-cpu-1x"

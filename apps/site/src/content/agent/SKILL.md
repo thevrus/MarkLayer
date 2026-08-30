@@ -45,12 +45,16 @@ Typical loop:
 
 1. \`marklayer_connect_room\` with the share link or bare id (or set \`MARKLAYER_ROOM\`).
 2. \`marklayer_list_annotations\` to backfill anything pending (filter by status:
-   open | in_progress | resolved | dismissed | all).
+   open | in_progress | resolved | approved | dismissed | all).
 3. \`marklayer_watch_annotations\` in a loop to receive new ones as they arrive.
 4. For each: \`marklayer_acknowledge\` (marks in_progress so the human sees you are
    on it), make the change, then \`marklayer_resolve\` with a summary (posted as a
    reply). Use \`marklayer_dismiss\` with a reason when it cannot be acted on, and
    \`marklayer_reply\` to ask a clarifying question without changing status.
+
+\`approved\` is the one status you never set: it is the person who asked for the
+change confirming your fix. Seeing it means the thread is closed for good, and
+seeing a resolved thread go back to open means they disagreed.
 
 Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
 

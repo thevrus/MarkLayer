@@ -98,8 +98,8 @@ import { CHROME_STORE_URL } from '../../lib/site';
   </li>
   <li>
     <strong>Works on any website.</strong> Production, staging,
-    internal tools, third-party sites. Anything you can open in
-    Chrome.
+    internal tools, localhost, third-party sites. Anything you can
+    open in Chrome.
   </li>
   <li>
     <strong>Browser extension.</strong> One click to start annotating.
@@ -312,6 +312,16 @@ import { CHROME_STORE_URL } from '../../lib/site';
     Yes. Production, staging, internal tools, third-party sites. The
     web app works on any URL it can embed; the extension covers sites
     behind a login or with strict embed policies.
+  </dd>
+  <dt>Does it work on localhost?</dt>
+  <dd>
+    Yes, with the Chrome extension. It draws in your browser, so your
+    dev server never has to be reachable from the internet and there
+    is no proxy or tunnel involved. Share links do need a public URL,
+    so point collaborators at staging or a tunnel when someone else
+    has to open the page. See <a href="/for/localhost-ai-agents"
+      >annotating localhost for AI agents</a
+    >.
   </dd>
   <dt>Can multiple people annotate at the same time?</dt>
   <dd>

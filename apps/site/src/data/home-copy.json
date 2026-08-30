@@ -1,8 +1,8 @@
 {
-  "_comment": "Homepage copy rendered twice: prerendered by apps/site (HomeContent.astro, what crawlers read) and live by apps/worker/web/Landing.tsx, where the channel word cycles. Both read this file so the two can never drift; apps/site/scripts/verify-build.mjs checks the prerendered markup against it. pricingFacts carries the competitor pricing claims (sourced from the August 2026 audit in /guides/free-website-annotation-tools) — update it here when a vendor's pricing changes.",
+  "_comment": "Homepage copy rendered twice: prerendered by apps/site (HomeContent.astro, what crawlers read) and live by apps/worker/web/Landing.tsx, where the channel word cycles. Both read this file so the two can never drift; apps/site/scripts/verify-build.mjs checks the prerendered markup against it. pricingFacts carries the competitor pricing claims (sourced from the August 2026 audit in /guides/free-website-annotation-tools) \u2014 update it here when a vendor's pricing changes.",
   "headlinePrefix": "Website Feedback Without",
   "headlineJoiner": "the",
   "headlineChannel": "Email",
   "headlineSuffix": "Thread.",
-  "pricingFacts": "Markup.io discontinued its free tier in 2025 and moved Pro to $79/month. BugHerd, Marker.io, Volley, Feedbucket and Usersnap have no permanent free plan at all, only trials."
+  "pricingFacts": "Markup.io discontinued its free tier in 2025 and moved Pro to $79/month. BugHerd, Marker.io and Feedbucket have no permanent free plan at all, only trials."
 }
