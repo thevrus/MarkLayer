@@ -5,15 +5,36 @@ import { SuggestionDiff } from '@ext/components/SelectionEdit';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import { color, copyText, getCommentStatus, getReplies, localUser, pushReply, setOpPriority } from '@ext/lib/state';
+import {
+  color,
+  copyText,
+  getCommentStatus,
+  getReplies,
+  localUser,
+  pushReply,
+  setOpPriority,
+  toast,
+} from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { AnnotationOp, CommentPriority, DrawOp } from '@ext/lib/types';
 import { cn, isAnnotationOp } from '@marklayer/types';
+import { useSignalEffect } from '@preact/signals';
 import { ClipboardCopy, Crosshair, Minus } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { type AnnotationItem, itemAnchor } from './annotationItems';
+import { LabelledField } from './IntegrationFields';
+import {
+  fileTargets,
+  loadIntegrations,
+  missingSecrets,
+  type ProviderInfo,
+  readSecrets,
+  saveSecrets,
+  stringField,
+} from './integrations';
 import { DEVICE_LABELS } from './shared';
+import { API_BASE, annotationId } from './signals';
 
 /** Local time, spelled out — the detail view has the room the list row does not. */
 const stamp = (ts: number) =>
@@ -324,6 +345,145 @@ function DetailBody({ item }: { item: AnnotationItem }) {
 }
 
 /**
+ * File this one annotation into an issue tracker.
+ *
+ * Only ever on request, and only ever this annotation. Chat destinations get
+ * every batch automatically because a message is cheap; an issue is not, and a
+ * tracker that opens one per comment is a tracker somebody disconnects by
+ * Friday. So the room's trackers appear here and nowhere else.
+ *
+ * Absent rather than disabled when no tracker is connected: a dead button in
+ * every thread, on the majority of rooms that will never connect one, is worse
+ * than the feature being discoverable where it is configured.
+ */
+function FileRow({ op }: { op: { id: string; x: number; y: number } }) {
+  const targets = fileTargets.value;
+  const [filing, setFiling] = useState('');
+  /** The destination waiting on a token from this browser, if any. */
+  const [asking, setAsking] = useState<ProviderInfo | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+
+  useSignalEffect(() => {
+    const id = annotationId.value;
+    if (id) void loadIntegrations({ id });
+  });
+
+  // One read of this browser's storage per render, not one per call site: it
+  // drives the form, the Enter guard and the submit button alike.
+  const asked = asking ? missingSecrets(asking) : [];
+
+  if (targets.length === 0) return null;
+
+  const file = async ({ target, secrets }: { target: ProviderInfo; secrets: Record<string, string> }) => {
+    const id = annotationId.value;
+    if (!id || filing) return;
+    setFiling(target.id);
+    try {
+      const res = await fetch(`${API_BASE}${id}/annotations/${encodeURIComponent(op.id)}/push`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // The token rides this one request and is stored nowhere on the server.
+        body: JSON.stringify({ provider: target.id, secrets }),
+      });
+      const body: unknown = await res.json().catch(() => null);
+      if (!res.ok) {
+        // The API names the reason, and the reason is the whole point of this
+        // route: a rejected token and an unreachable host need different fixes.
+        toast(stringField(body, 'error') ?? `Could not file in ${target.label}`, 'error', 4500);
+        return;
+      }
+      // Kept only once it has actually worked, so a typo is not remembered.
+      saveSecrets({ provider: target, values: secrets });
+      setAsking(null);
+      setDraft({});
+      const url = stringField(body, 'url');
+      // Into the thread, not only a toast. Everyone in the room needs to be able
+      // to find the issue tomorrow, and an agent reading over MCP sees it too.
+      pushReply(op, url ? `Filed in ${target.label}: ${url}` : `Filed in ${target.label}.`);
+      // Not captured here: the push route already records `annotation_filed`,
+      // and it is the emitter that cannot be blocked or missed on a slow tab.
+      toast(`Filed in ${target.label}`, 'success');
+    } catch {
+      toast(`Could not reach ${target.label}`, 'error', 4500);
+    } finally {
+      setFiling('');
+    }
+  };
+
+  /** Straight through when this browser already holds the token; ask if not. */
+  const start = (target: ProviderInfo) => {
+    if (missingSecrets(target).length === 0) {
+      // Close a form opened for a different destination, rather than leaving it
+      // standing under an action that has already happened.
+      setAsking(null);
+      void file({ target, secrets: readSecrets(target) });
+      return;
+    }
+    setDraft({});
+    setAsking(asking?.id === target.id ? null : target);
+  };
+
+  const submitAsked = () => {
+    if (!asking) return;
+    const secrets = { ...readSecrets(asking), ...draft };
+    if (asked.some((f) => !secrets[f.name]?.trim())) return;
+    void file({ target: asking, secrets });
+  };
+
+  return (
+    <Section label="File as an issue">
+      {/* The section label carries the verb, so each button is just the
+          destination — three of them read at 340px, "File in GitHub" ×3 do not. */}
+      <div class="flex flex-wrap gap-1">
+        {targets.map((target) => (
+          <button
+            key={target.id}
+            type="button"
+            disabled={filing !== ''}
+            aria-expanded={asking?.id === target.id}
+            onClick={() => start(target)}
+            class={cn(geist.actionBtn, geist.ctlIdle, 'mx-0')}
+          >
+            {filing === target.id ? 'Filing…' : target.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Asked for here, once per browser, because the room deliberately does
+          not keep it. Said plainly rather than left to look like a bug. */}
+      {asking && (
+        <div class="mt-2 flex flex-col gap-1.5">
+          {asked.map((field) => (
+            <LabelledField
+              key={field.name}
+              id={`file-${asking.id}-${field.name}`}
+              field={field}
+              label={`${asking.label} ${field.label.toLowerCase()}`}
+              value={draft[field.name] ?? ''}
+              onInput={(name, v) => setDraft((prev) => ({ ...prev, [name]: v }))}
+              onEnter={submitAsked}
+            />
+          ))}
+          <p class="m-0 text-meta leading-snug text-(--ds-gray-900)">
+            Kept in this browser only, never in the shared room.
+          </p>
+          <div class="flex justify-end">
+            <button
+              type="button"
+              disabled={filing !== ''}
+              onClick={submitAsked}
+              class={cn(geist.actionBtn, geist.ctlIdle, 'mx-0')}
+            >
+              {filing === asking.id ? 'Filing…' : `File in ${asking.label}`}
+            </button>
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/**
  * One annotation on its own, stepped through with the header's counter. The list
  * answers "what is there"; this answers "what do I do about this one", which is
  * why triage, context and replies live here and not in a 340px-wide row.
@@ -381,6 +541,7 @@ export function AnnotationDetail({
             class="px-4 py-3 border-b border-(--ds-gray-alpha-400)"
           />
           <PriorityRow op={annotation} />
+          <FileRow op={{ id: annotation.id, x: anchor.x, y: anchor.y }} />
         </>
       )}
 

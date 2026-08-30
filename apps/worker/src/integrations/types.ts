@@ -1,4 +1,4 @@
-import type { DrawOp, IntegrationProvider } from '@marklayer/types';
+import type { ConfigFieldInfo, DrawOp, IntegrationProvider } from '@marklayer/types';
 
 /** One annotation, reduced to the line a destination should show for it. */
 export interface Notifiable {
@@ -8,8 +8,22 @@ export interface Notifiable {
   priority?: string | null;
 }
 
-/** Something that happened in a room, worth telling the outside about. */
-export type RoomEvent = { type: 'annotations.created'; items: Notifiable[] };
+/** Every event tag, for the callers that need to try each in turn. */
+export const ROOM_EVENT_TYPES = ['annotations.created', 'annotation.pushed'] as const;
+
+/**
+ * Something that happened in a room, worth telling the outside about.
+ *
+ * Every event carries `items`, so a destination that only wants to print the
+ * annotations never has to care which one it got. The tag exists for the
+ * destinations that do care: an issue tracker files on `annotation.pushed` and
+ * declines `annotations.created`, because an issue per comment, unasked, is how
+ * a team ends up turning the integration off.
+ *
+ * Derived from `ROOM_EVENT_TYPES` rather than restating it, so a new tag cannot
+ * be added to one and forgotten in the other.
+ */
+export type RoomEvent = { type: (typeof ROOM_EVENT_TYPES)[number]; items: Notifiable[] };
 
 /** Everything a provider is given to render one event. */
 export interface RenderArgs {
@@ -30,16 +44,12 @@ export interface OutboundRequest {
  * One field of a provider's config, as the client needs to render it.
  *
  * The client ships a single generic form driven by this, so adding a provider
- * costs the client bundle nothing — see docs/adr/0003.
+ * costs the client bundle nothing — see docs/adr/0003. Defined in
+ * `packages/types` because it is the shape `GET /providers` serves and the
+ * client parses; `type` in particular decides whether a value may be stored, and
+ * it has to mean the same thing at both ends.
  */
-export interface ConfigField {
-  name: string;
-  label: string;
-  type: 'url' | 'text';
-  placeholder?: string;
-  help?: string;
-  helpUrl?: string;
-}
+export type ConfigField = ConfigFieldInfo;
 
 export interface Provider {
   id: IntegrationProvider;
@@ -54,12 +64,29 @@ export interface Provider {
    */
   allowedHosts: readonly string[];
   /**
+   * When this destination fires. `auto` posts every batch the room produces;
+   * `manual` only ever sends when a person pushes one annotation at it.
+   *
+   * The client reads this to decide which destinations belong in the "file this
+   * thread" menu, so the distinction lives in the manifest with everything else
+   * the UI needs rather than as a list of ids the client has to keep in step.
+   */
+  trigger: 'auto' | 'manual';
+  /**
    * Describe the request for this event, or null to decline it.
    *
    * Pure by contract: no provider calls fetch, so no provider can open an egress
    * path. This is the whole security argument of the integrations layer.
    */
   render(args: RenderArgs): OutboundRequest | null;
+  /**
+   * Pull the created thing's URL out of a success body, for the destinations
+   * that make one. Optional because a chat hook creates nothing to link to.
+   *
+   * Pure, like `render`: it is handed a parsed body and returns a string. The
+   * caller does the reading, so this cannot become a second egress path.
+   */
+  parseResult?(body: unknown): string | null;
 }
 
 const MAX_LINES = 8;

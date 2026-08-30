@@ -3,6 +3,9 @@ import { type ConfigField, type Notifiable, oneLine, type Provider, type RenderA
 
 const json = { 'Content-Type': 'application/json' };
 
+/** A tracker's title field is one line. Past this the sentence belongs in the body. */
+const ISSUE_TITLE_MAX = 120;
+
 /** Discord's documented ceiling on `content`. Over it, the message is refused. */
 const DISCORD_MAX_CONTENT = 2000;
 
@@ -53,6 +56,7 @@ function chatProvider(dialect: ChatDialect): Provider {
     blurb: dialect.blurb,
     fields: dialect.fields,
     allowedHosts: dialect.allowedHosts,
+    trigger: 'auto',
     render({ event, config, roomUrl, pageUrl }: RenderArgs) {
       const url = hookUrl(config);
       if (!url) return null;
@@ -131,8 +135,12 @@ const teams = chatProvider({
       name: 'url',
       label: 'Incoming webhook',
       type: 'url',
-      placeholder: 'https://….azure.com/… or https://….powerautomate.com/…',
-      help: 'Teams → Workflows → "Post to a channel when a webhook request is received".',
+      // Both hint strings are read inside a ~270px panel field. The pair of full
+      // example hosts this replaces was clipped by the input with no ellipsis, and
+      // the help was a three-line breadcrumb next to three one-line siblings —
+      // `helpUrl` carries the click-by-click version.
+      placeholder: 'https://….powerautomate.com/…',
+      help: 'Add a Workflows webhook to the channel.',
       helpUrl:
         'https://support.microsoft.com/office/send-messages-in-teams-using-incoming-webhooks-323660ec-12ca-40b1-a1d3-a3df47e808c4',
     },
@@ -210,6 +218,7 @@ const webhook: Provider = {
     },
   ],
   allowedHosts: [],
+  trigger: 'auto',
   render({ event, config, roomUrl, pageUrl }: RenderArgs) {
     const url = hookUrl(config);
     if (!url) return null;
@@ -226,8 +235,274 @@ const webhook: Provider = {
   },
 };
 
+/**
+ * A pushed annotation as the two things every tracker wants: a one-line title
+ * and a body that stands on its own.
+ *
+ * Self-contained on purpose. There is no deep link to a single annotation yet,
+ * so an issue saying "see the room" would drop a reader into a page of twelve
+ * comments with no idea which one. Carrying the text means the issue is
+ * readable without opening anything.
+ */
+function issueContent({ event, roomUrl, pageUrl }: RenderArgs): { title: string; body: string } | null {
+  // Only ever a person filing one annotation. An issue per comment, raised
+  // automatically off every batch, is the behaviour teams switch off.
+  if (event.type !== 'annotation.pushed') return null;
+  const item = event.items[0];
+  if (!item) return null;
+
+  const text = oneLine(item.text);
+  const title = text.length > ISSUE_TITLE_MAX ? `${text.slice(0, ISSUE_TITLE_MAX - 1)}…` : text;
+  const attribution = item.priority
+    ? `${item.kind} by ${item.author} · priority ${item.priority}`
+    : `${item.kind} by ${item.author}`;
+
+  const body = [text, '', attribution, pageUrl ? `Page: ${pageUrl}` : null, `Annotations: ${roomUrl}`]
+    .filter((l) => l !== null)
+    .join('\n');
+
+  return { title: title || 'Annotation', body };
+}
+
+/** The stored config for Linear: a personal key, and the team to file into. */
+const linearConfig = z.object({ apiKey: z.string(), teamId: z.string() });
+
+/**
+ * Linear files through a GraphQL mutation rather than a REST path, so the team
+ * travels in the body and the endpoint is fixed.
+ *
+ * The key goes in `Authorization` raw, with no `Bearer` — that is a personal API
+ * key, and prefixing it is the documented way to get a 401 from this API.
+ */
+const linear: Provider = {
+  id: 'linear',
+  label: 'Linear',
+  blurb: 'File a thread as a Linear issue.',
+  fields: [
+    {
+      name: 'apiKey',
+      label: 'API key',
+      type: 'secret',
+      placeholder: 'lin_api_…',
+      help: 'Linear → Settings → Security & access → Personal API keys.',
+      helpUrl: 'https://linear.app/settings/account/security',
+    },
+    {
+      name: 'teamId',
+      label: 'Team ID',
+      type: 'text',
+      placeholder: 'ENG',
+      help: "The team key from your issue ids, or the team's UUID.",
+    },
+  ],
+  allowedHosts: ['api.linear.app'],
+  trigger: 'manual',
+  render(args: RenderArgs) {
+    const parsed = linearConfig.safeParse(args.config);
+    if (!parsed.success) return null;
+    const content = issueContent(args);
+    if (!content) return null;
+
+    return {
+      url: 'https://api.linear.app/graphql',
+      headers: { ...json, Authorization: parsed.data.apiKey },
+      body: JSON.stringify({
+        query:
+          'mutation($teamId: String!, $title: String!, $description: String) {' +
+          ' issueCreate(input: { teamId: $teamId, title: $title, description: $description })' +
+          ' { success issue { url } } }',
+        variables: { teamId: parsed.data.teamId, title: content.title, description: content.body },
+      }),
+    };
+  },
+  /**
+   * GraphQL answers 200 for a refused mutation, so success is whatever the body
+   * says it is. No issue url means it did not create one, whatever the status.
+   */
+  parseResult(body: unknown): string | null {
+    const parsed = linearResult.safeParse(body);
+    if (!parsed.success || !parsed.data.data.issueCreate.success) return null;
+    return parsed.data.data.issueCreate.issue?.url ?? null;
+  },
+};
+
+const linearResult = z.object({
+  data: z.object({
+    issueCreate: z.object({
+      success: z.boolean(),
+      issue: z.nullable(z.optional(z.object({ url: z.string() }))),
+    }),
+  }),
+});
+
+/** The stored config for GitHub: a token, and one `owner/name` repository. */
+const githubConfig = z.object({ token: z.string(), repo: z.string() });
+
+/** `owner/name`, and nothing else — a path segment each, neither one empty. */
+const REPO_SHAPE = /^[\w.-]+\/[\w.-]+$/;
+
+const github: Provider = {
+  id: 'github',
+  label: 'GitHub',
+  blurb: 'File a thread as a GitHub issue.',
+  fields: [
+    {
+      name: 'token',
+      label: 'Access token',
+      type: 'secret',
+      placeholder: 'github_pat_…',
+      help: 'A fine-grained token with Issues write on the repository.',
+      helpUrl: 'https://github.com/settings/tokens',
+    },
+    {
+      name: 'repo',
+      label: 'Repository',
+      type: 'text',
+      placeholder: 'owner/repository',
+    },
+  ],
+  allowedHosts: ['api.github.com'],
+  trigger: 'manual',
+  render(args: RenderArgs) {
+    const parsed = githubConfig.safeParse(args.config);
+    if (!parsed.success || !REPO_SHAPE.test(parsed.data.repo)) return null;
+    const content = issueContent(args);
+    if (!content) return null;
+
+    return {
+      // The shape is checked above, so nothing here can walk out of /repos.
+      url: `https://api.github.com/repos/${parsed.data.repo}/issues`,
+      headers: {
+        ...json,
+        Authorization: `Bearer ${parsed.data.token}`,
+        Accept: 'application/vnd.github+json',
+        // Pinned rather than omitted: the default version is whatever GitHub
+        // decides it is next, and a create call should not change under us.
+        'X-GitHub-Api-Version': '2022-11-28',
+        // GitHub refuses a request with no User-Agent.
+        'User-Agent': 'MarkLayer',
+      },
+      body: JSON.stringify({ title: content.title, body: content.body }),
+    };
+  },
+  /** `html_url` is the page a person can open; `url` is the API resource. */
+  parseResult(body: unknown): string | null {
+    const parsed = githubResult.safeParse(body);
+    return parsed.success ? parsed.data.html_url : null;
+  },
+};
+
+const githubResult = z.object({ html_url: z.string() });
+
+/**
+ * The stored config for Jira. Five fields because Jira genuinely needs them:
+ * the site, who the token belongs to, the token, and where to file.
+ *
+ * `issueType` is a name rather than an id — "Task" is something a person can
+ * type, and the numeric id it maps to is buried in an admin screen.
+ */
+const jiraConfig = z.object({
+  site: z.string(),
+  email: z.string(),
+  apiToken: z.string(),
+  projectKey: z.string(),
+  issueType: z.string(),
+});
+
+/** A bare Atlassian tenant name: what goes in front of `.atlassian.net`. */
+const JIRA_SITE_SHAPE = /^[a-z0-9][a-z0-9-]*$/i;
+
+/**
+ * Base64 of `email:token`, UTF-8 safe.
+ *
+ * `btoa` throws on any code point over 255, so the bytes are made first. An
+ * accented character in a display name should not take the integration down.
+ */
+function basicAuth({ email, token }: { email: string; token: string }): string {
+  const bytes = new TextEncoder().encode(`${email}:${token}`);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/** Jira v3 takes rich text as a document, not a string. */
+function adf(body: string) {
+  return {
+    type: 'doc',
+    version: 1,
+    content: body.split('\n').map((line) => ({
+      type: 'paragraph',
+      // An empty paragraph carries no content array at all — a text node with
+      // an empty string is rejected by the document schema.
+      content: line ? [{ type: 'text', text: line }] : [],
+    })),
+  };
+}
+
+const jira: Provider = {
+  id: 'jira',
+  label: 'Jira',
+  blurb: 'File a thread as a Jira issue.',
+  fields: [
+    {
+      name: 'site',
+      label: 'Site',
+      type: 'text',
+      placeholder: 'your-company',
+      help: 'The part before .atlassian.net.',
+    },
+    { name: 'email', label: 'Account email', type: 'text', placeholder: 'you@company.com' },
+    {
+      name: 'apiToken',
+      label: 'API token',
+      type: 'secret',
+      placeholder: 'ATATT…',
+      help: 'Atlassian account → Security → API tokens.',
+      helpUrl: 'https://id.atlassian.com/manage-profile/security/api-tokens',
+    },
+    { name: 'projectKey', label: 'Project key', type: 'text', placeholder: 'PROJ' },
+    { name: 'issueType', label: 'Issue type', type: 'text', placeholder: 'Task' },
+  ],
+  allowedHosts: ['.atlassian.net'],
+  trigger: 'manual',
+  render(args: RenderArgs) {
+    const parsed = jiraConfig.safeParse(args.config);
+    if (!parsed.success || !JIRA_SITE_SHAPE.test(parsed.data.site)) return null;
+    const content = issueContent(args);
+    if (!content) return null;
+
+    return {
+      url: `https://${parsed.data.site}.atlassian.net/rest/api/3/issue`,
+      headers: {
+        ...json,
+        Authorization: `Basic ${basicAuth({ email: parsed.data.email, token: parsed.data.apiToken })}`,
+      },
+      body: JSON.stringify({
+        fields: {
+          project: { key: parsed.data.projectKey },
+          issuetype: { name: parsed.data.issueType },
+          summary: content.title,
+          description: adf(content.body),
+        },
+      }),
+    };
+  },
+  /**
+   * Jira returns `self`, which is the REST resource, and no browsable link at
+   * all — so the one a person can open is built from the key it does return.
+   */
+  parseResult(body: unknown): string | null {
+    const parsed = jiraResult.safeParse(body);
+    if (!parsed.success) return null;
+    const site = new URL(parsed.data.self).origin;
+    return `${site}/browse/${parsed.data.key}`;
+  },
+};
+
+const jiraResult = z.object({ key: z.string(), self: z.string() });
+
 /** Every destination a room can post to, by id. */
-export const PROVIDERS = { slack, teams, discord, webhook } as const;
+export const PROVIDERS = { slack, teams, discord, webhook, linear, github, jira } as const;
 
 export const providerList: readonly Provider[] = Object.values(PROVIDERS);
 

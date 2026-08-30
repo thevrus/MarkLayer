@@ -113,6 +113,12 @@ require inventing accounts.
 If a server-side tracker integration is ever genuinely wanted, it needs an owner
 identity, which means accounts, which is a different ADR.
 
+> **Amended by [ADR 0004](0004-filing-annotations-into-trackers.md).** Trackers
+> were added without accounts by splitting the credential: the room stores only
+> the non-secret half (repository, project key, site) and the token is supplied
+> per request by the browser doing the filing. The objection above is answered by
+> never storing the token, not by deciding it was overstated.
+
 ## Consequences
 
 **Good.** A new notify provider is one file and one registry line, reviewable in
