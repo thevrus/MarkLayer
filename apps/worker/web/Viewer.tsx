@@ -71,6 +71,7 @@ import {
   pushDeviceOp,
   selectionPopover,
   sharing,
+  showBoard,
   showInfoPanel,
   stepZoom,
   textInput,
@@ -545,6 +546,17 @@ export default function Viewer() {
       '$mod+KeyY': guard((e) => {
         e.preventDefault();
         redo();
+      }),
+      // The board is the same annotations in another arrangement, so a read-only
+      // guest gets it too — `viewKey`, not `guard`. ⌘B is free in a browser: the
+      // bookmarks bar is ⌘⇧B, and this never fires while a field has focus.
+      '$mod+KeyB': viewKey((e) => {
+        e.preventDefault();
+        const opening = !showBoard.value;
+        showBoard.value = opening;
+        // It replaces the panel rather than stacking over it, the same way the
+        // panel's own board button does.
+        if (opening) showAnnotationPanel.value = false;
       }),
       '$mod+Equal': viewKeyPD(() => stepZoom(1)),
       '$mod+Minus': viewKeyPD(() => stepZoom(-1)),
