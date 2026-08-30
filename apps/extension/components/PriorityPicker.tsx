@@ -3,7 +3,7 @@ import { CircleAlert, type LucideIcon, SignalHigh, SignalLow, SignalMedium } fro
 
 interface PriorityMeta {
   label: string;
-  /** oklch accent used for the icon, text, and tinted badge background. */
+  /** oklch accent for the signal icon. It reinforces the level, never carries it. */
   color: string;
   Icon: LucideIcon;
 }
@@ -71,20 +71,23 @@ export function PriorityPicker({
 }
 
 /**
- * Read-only priority chip for pins, hover cards, and the annotation list — the
- * level's icon + label tinted with its accent on a faint matching background.
+ * Read-only priority for pins, hover cards, and the annotation list. The signal
+ * icon carries the level's accent; the word is set in the same muted ink as the
+ * status and timestamp it sits beside. The tinted capsule this replaces made
+ * priority the loudest object in a comment row, and set the label in the accent
+ * itself — 2.5:1 for `medium` on a light panel, which the 16% wash behind it did
+ * nothing to fix. Colour is now reinforcement, never the only carrier.
  */
 export function PriorityBadge({ priority, class: cls }: { priority: CommentPriority; class?: string }) {
   const m = PRIORITY_META[priority];
   return (
     <span
       class={cn(
-        'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-meta font-semibold leading-none whitespace-nowrap',
+        'inline-flex items-center gap-1 text-meta font-medium leading-none whitespace-nowrap text-(--ds-gray-900)',
         cls,
       )}
-      style={{ color: m.color, background: `color-mix(in oklch, ${m.color} 16%, transparent)` }}
     >
-      <m.Icon size={11} strokeWidth={2.5} />
+      <m.Icon size={11} strokeWidth={2.5} style={{ color: m.color }} aria-hidden="true" />
       {m.label}
     </span>
   );

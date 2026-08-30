@@ -38,9 +38,27 @@ export const restoreDraft = drafts.restore;
 export const visible = signal(false);
 export const activeTool = signal<Tool>('navigate');
 
-const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
+// Reading the handle is itself the risky part: in a sandboxed iframe, or with
+// site data blocked, touching `localStorage` throws rather than returning null,
+// and this module is imported by a content script running on any page. Exported
+// so the web app's modules reach for this rather than a seventh private copy.
+const _ls = (() => {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    return null;
+  }
+})();
 
-function lsSet(key: string, value: string | null) {
+export function lsGet(key: string): string | null {
+  try {
+    return _ls?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function lsSet(key: string, value: string | null) {
   try {
     value === null ? _ls?.removeItem(key) : _ls?.setItem(key, value);
   } catch {
@@ -48,9 +66,26 @@ function lsSet(key: string, value: string | null) {
   }
 }
 
+/**
+ * A boolean setting that survives a reload, as a signal plus its toggle.
+ *
+ * Only the non-default value is ever written, so a missing key means "as
+ * shipped" — which is what lets a default flip in code carry over to everyone
+ * who never touched the setting.
+ */
+function persistedFlag({ key, fallback }: { key: string; fallback: boolean }) {
+  const stored = lsGet(key);
+  const flag = signal(stored === null ? fallback : stored === '1');
+  const toggle = () => {
+    flag.value = !flag.value;
+    lsSet(key, flag.value === fallback ? null : flag.value ? '1' : '0');
+  };
+  return [flag, toggle] as const;
+}
+
 export type Theme = 'system' | 'light' | 'dark';
 const isTheme = (v: unknown): v is Theme => v === 'system' || v === 'light' || v === 'dark';
-const storedTheme = _ls?.getItem('ml-theme');
+const storedTheme = lsGet('ml-theme');
 export const theme = signal<Theme>(isTheme(storedTheme) ? storedTheme : 'light');
 export function cycleTheme() {
   const order: Theme[] = ['light', 'dark', 'system'];
@@ -81,7 +116,7 @@ export function colorName(hex: string): string {
   return COLOR_NAMES[hex.toLowerCase()] ?? hex.toUpperCase();
 }
 
-export const color = signal(_ls?.getItem('ml-color') || '#f43f5e');
+export const color = signal(lsGet('ml-color') || '#f43f5e');
 
 export function setColor(c: string) {
   color.value = c;
@@ -90,13 +125,7 @@ export function setColor(c: string) {
 
 export const lineWidth = signal(2);
 
-export const toolbarMinimized = signal(_ls?.getItem('ml-toolbar-min') === '1');
-
-export function toggleToolbarMinimized() {
-  const next = !toolbarMinimized.value;
-  toolbarMinimized.value = next;
-  lsSet('ml-toolbar-min', next ? '1' : null);
-}
+export const [toolbarMinimized, toggleToolbarMinimized] = persistedFlag({ key: 'ml-toolbar-min', fallback: false });
 
 /**
  * Figma's hide-UI. Every piece of chrome off, the annotations left on screen.
@@ -120,40 +149,22 @@ export function toggleUiHidden() {
 }
 
 /** Show the framework component badge (React/Vue/Svelte) in the inspector hover + panel. */
-export const showFrameworkBadges = signal(_ls?.getItem('ml-framework-badges') !== '0');
-
-export function toggleFrameworkBadges() {
-  const next = !showFrameworkBadges.value;
-  showFrameworkBadges.value = next;
-  lsSet('ml-framework-badges', next ? null : '0');
-}
+export const [showFrameworkBadges, toggleFrameworkBadges] = persistedFlag({
+  key: 'ml-framework-badges',
+  fallback: true,
+});
 
 /** Show all annotation markers (pins, highlights, drawings, areas). When false, the canvas + overlays still render the active tool, but committed ops are hidden. */
-export const markersVisible = signal(_ls?.getItem('ml-markers-visible') !== '0');
-
-export function toggleMarkersVisible() {
-  const next = !markersVisible.value;
-  markersVisible.value = next;
-  lsSet('ml-markers-visible', next ? null : '0');
-}
+export const [markersVisible, toggleMarkersVisible] = persistedFlag({ key: 'ml-markers-visible', fallback: true });
 
 /** Swallow page clicks while extension is open — useful when annotating links/buttons that would otherwise navigate. */
-export const blockInteractions = signal(_ls?.getItem('ml-block-interactions') === '1');
-
-export function toggleBlockInteractions() {
-  const next = !blockInteractions.value;
-  blockInteractions.value = next;
-  lsSet('ml-block-interactions', next ? '1' : null);
-}
+export const [blockInteractions, toggleBlockInteractions] = persistedFlag({
+  key: 'ml-block-interactions',
+  fallback: false,
+});
 
 /** Auto-clear the inspector stack after copy/send so the next handoff starts fresh. */
-export const clearOnCopyEnabled = signal(_ls?.getItem('ml-clear-on-copy') === '1');
-
-export function toggleClearOnCopy() {
-  const next = !clearOnCopyEnabled.value;
-  clearOnCopyEnabled.value = next;
-  lsSet('ml-clear-on-copy', next ? '1' : null);
-}
+export const [clearOnCopyEnabled, toggleClearOnCopy] = persistedFlag({ key: 'ml-clear-on-copy', fallback: false });
 
 /** Transient open state for the floating settings panel. Not persisted. */
 export const showSettings = signal(false);
@@ -174,7 +185,7 @@ export const connectionStatus = signal<ConnectionStatus>(null);
  */
 export const isOutputDetail = (v: unknown): v is OutputDetail =>
   v === 'compact' || v === 'standard' || v === 'detailed' || v === 'forensic';
-const storedOutputDetail = _ls?.getItem('ml-output-detail');
+const storedOutputDetail = lsGet('ml-output-detail');
 // Migrate the previous two-tier values: 'full' was the everything-on option.
 const initialOutputDetail: OutputDetail = isOutputDetail(storedOutputDetail)
   ? storedOutputDetail
@@ -290,9 +301,9 @@ export function randomUserName(): string {
   return `${randomPick(ADJECTIVES)} ${randomPick(ANIMALS)}`;
 }
 
-const savedName = _ls?.getItem('ml-username') ?? null;
-const savedCursorColor = _ls?.getItem('ml-usercolor') ?? null;
-const savedClientId = _ls?.getItem('ml-clientid') ?? null;
+const savedName = lsGet('ml-username');
+const savedCursorColor = lsGet('ml-usercolor');
+const savedClientId = lsGet('ml-clientid');
 /** Stable across reloads and rooms, unlike the per-connection peer id, so an op
  *  written last week still points at the person who wrote it. */
 const clientId = savedClientId || nanoid();
@@ -629,6 +640,19 @@ export const STATUS_LABELS: Record<CommentStatus, string> = {
   dismissed: 'Dismissed',
 };
 
+/**
+ * The hue a status carries in flat UI chrome — the dot beside a label, a board
+ * column head. Separate from STATUS_STYLES, which paints a pin over somebody
+ * else's page and so needs a ring and an opacity as well.
+ */
+export const STATUS_COLORS: Record<CommentStatus, string> = {
+  open: 'var(--ds-blue-800)',
+  in_progress: 'var(--ds-amber-700)',
+  resolved: 'var(--ds-green-700)',
+  approved: 'var(--ds-green-900)',
+  dismissed: 'var(--ds-gray-700)',
+};
+
 export const isDrawingTool = (t: Tool) => t !== 'navigate';
 
 /**
@@ -766,7 +790,7 @@ const isTool = (v: unknown): v is Tool => typeof v === 'string' && TOOL_SET.has(
 
 function loadToolOrder(): Tool[] {
   try {
-    const raw = _ls?.getItem('ml-tool-order');
+    const raw = lsGet('ml-tool-order');
     if (!raw) return TOOLS;
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return TOOLS;

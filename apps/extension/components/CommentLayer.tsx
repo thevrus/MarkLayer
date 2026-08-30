@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'preact/hooks';
-import { pickElementAtPoint } from '../lib/selector';
-import { activeTool, rootComments } from '../lib/state';
+import { captureTarget, pickElementAtPoint } from '../lib/selector';
+import { activeTool, pushOp, rootComments } from '../lib/state';
 import { CommentPin } from './CommentPin';
 import { CommentPopover } from './CommentPopover';
 
@@ -36,7 +36,18 @@ export function CommentLayer() {
       ))}
 
       {/* Input popover */}
-      {popover && <CommentPopover x={popover.x} y={popover.y} el={popover.el} onClose={() => setPopover(null)} />}
+      {popover && (
+        <CommentPopover
+          at={{ x: popover.x, y: popover.y }}
+          anchorAt={{ x: popover.x - scrollX, y: popover.y - scrollY }}
+          capture={() => ({
+            target: popover.el ? captureTarget({ el: popover.el, anchor: { x: popover.x, y: popover.y } }) : undefined,
+            captureViewport: { width: window.innerWidth, height: window.innerHeight },
+          })}
+          push={pushOp}
+          onClose={() => setPopover(null)}
+        />
+      )}
     </div>
   );
 }

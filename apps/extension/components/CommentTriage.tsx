@@ -7,12 +7,9 @@ import { useState } from 'preact/hooks';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
-import { localUser, peers, STATUS_LABELS, STATUS_STYLES, setOpAssignee, setOpStatus } from '../lib/state';
+import { localUser, peers, STATUS_COLORS, STATUS_LABELS, setOpAssignee, setOpStatus } from '../lib/state';
 
 const STATUS_ORDER = commentStatusSchema.options;
-
-/** STATUS_STYLES leaves `open` transparent (pins show no badge); menus need a visible dot. */
-const statusDot = (s: CommentStatus) => (s === 'open' ? 'var(--ds-blue-800)' : STATUS_STYLES[s].color);
 
 /** Sentinel RadioGroup value standing in for "no assignee" (`null` on the op). */
 const UNASSIGNED = '\u0000unassigned';
@@ -110,7 +107,7 @@ function StatusPicker({
       onOpenChange={onOpenChange}
       trigger={
         <>
-          <span class="w-2 h-2 rounded-full shrink-0" style={{ background: statusDot(status) }} />
+          <span class="w-2 h-2 rounded-full shrink-0" style={{ background: STATUS_COLORS[status] }} />
           <span class="truncate">{STATUS_LABELS[status]}</span>
         </>
       }
@@ -124,7 +121,7 @@ function StatusPicker({
       >
         {STATUS_ORDER.map((s) => (
           <Menu.RadioItem key={s} value={s} closeOnClick className={itemCls}>
-            <span class="w-2 h-2 rounded-full shrink-0" style={{ background: statusDot(s) }} />
+            <span class="w-2 h-2 rounded-full shrink-0" style={{ background: STATUS_COLORS[s] }} />
             {STATUS_LABELS[s]}
             <CheckMark />
           </Menu.RadioItem>
