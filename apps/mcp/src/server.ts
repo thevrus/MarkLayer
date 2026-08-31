@@ -18,6 +18,9 @@ export function projectAnnotation(op: AnnotationOp) {
     author: op.author ?? null,
     assignee: op.assignee ?? null,
     assignedAgent: op.assignedAgent ?? null,
+    // Who the note names. An agent reading a thread has to know that "@Vadym can
+    // you check this" is addressed to a person, not to it.
+    mentions: op.mentions?.map((m) => m.name) ?? [],
     ts: op.ts,
   };
   if (op.tool === 'comment') {

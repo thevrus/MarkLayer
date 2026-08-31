@@ -12,11 +12,14 @@
     "zip:firefox": "wxt zip -b firefox",
     "zip:all": "bun run zip && bun run zip:firefox",
     "check": "tsc --noEmit",
+    "test": "bun test lib",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.12.0",
     "@preact/preset-vite": "^2.10.6",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/bun": "^1.4.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
