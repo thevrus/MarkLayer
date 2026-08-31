@@ -4,7 +4,16 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["public/**"]
+      "outputs": ["public/**"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/extension/components/**", "$TURBO_ROOT$/apps/extension/lib/**"]
+    },
+    "check": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/extension/components/**", "$TURBO_ROOT$/apps/extension/lib/**"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/apps/extension/components/**", "$TURBO_ROOT$/apps/extension/lib/**"]
     }
   }
 }

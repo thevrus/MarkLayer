@@ -2,6 +2,10 @@
   "extends": "./.wxt/tsconfig.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    // `bun` for the `bun:test` module the specs import. Naming it here turns off
+    // tsc's automatic @types inclusion, which is fine: WXT's own globals arrive
+    // through .wxt/wxt.d.ts, not through a @types package.
+    "types": ["bun"],
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     // `paths` replaces (not merges with) the WXT-generated set in .wxt/tsconfig.json,
