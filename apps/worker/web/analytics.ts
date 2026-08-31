@@ -13,6 +13,7 @@
 import { type AnalyticsProps, type Surface, setAnalytics } from '@ext/lib/analytics';
 
 type Props = AnalyticsProps;
+type Role = 'editor' | 'viewer';
 type Posthog = {
   init: (key: string, opts: Record<string, unknown>) => void;
   capture: (event: string, props?: Props) => void;
@@ -23,6 +24,19 @@ let posthog: Posthog | null = null;
 /** Set once analytics can never load — opted out, no key, or the import failed. */
 let dropping = false;
 let surface: Surface = 'viewer';
+
+/**
+ * Editor or read-only viewer, as a per-event label — not an identity. DAU/WAU and
+ * retention counted a share link opened once the same as a session someone drew
+ * in; this separates the two without a person profile or anything that survives
+ * the page load.
+ */
+let role: Role = 'editor';
+
+/** Called from signals.ts, which cannot be imported here — it imports `capture`. */
+export function setRole(next: Role): void {
+  role = next;
+}
 
 /**
  * One page load reports an event at most this many times, and buffers at most
@@ -68,6 +82,13 @@ function sanitize(props: Props): Props {
   for (const [key, value] of Object.entries(props)) {
     out[key] = typeof value === 'string' ? stripUrl(value) : value;
   }
+  // Both ambient labels land here rather than in `capture` so they also reach the
+  // $pageview/$pageleave posthog-js sends itself — the events the DAU/WAU counts
+  // are built from, which `capture` never sees. `role` is viewer-only: the
+  // marketing page has no readonly state, and naming the surfaces that do label
+  // themselves keeps a surface added later opted out until someone decides.
+  out.surface ??= surface;
+  if (surface === 'viewer') out.role = role;
   return out;
 }
 
@@ -76,15 +97,14 @@ export function capture(event: string, props?: Props): void {
   const seen = counts.get(event) ?? 0;
   if (seen >= MAX_PER_EVENT) return;
   counts.set(event, seen + 1);
-  // Landing and viewer are different products sharing a bundle; nothing here is
-  // readable without knowing which one it came from.
-  const tagged = { surface, ...props };
+  // `surface` is not stamped here: sanitize_properties does it for every event,
+  // including the queued ones, which drain through posthog.capture below.
   if (posthog) {
-    posthog.capture(event, tagged);
+    posthog.capture(event, props);
     return;
   }
   if (queue.length >= MAX_QUEUED) queue.shift();
-  queue.push([event, tagged]);
+  queue.push([event, props]);
 }
 
 const firedOnce = new Set<string>();
