@@ -28,7 +28,7 @@ Free. There is no paid plan. There is no trial. There is no per-seat pricing. Ev
 - Measure: Pixel-precise distance and dimension measurement on any page
 - Area: Capture a rectangular region with a note attached
 - Quick grab: Hold Alt to arm element capture without switching tools
-- PDFs: annotate a PDF the same way as a page, either by pasting a link to one or uploading a file from your computer (25MB limit). Text inside the PDF stays selectable, so a highlight attaches to the words rather than to coordinates
+- PDFs and images: annotate a PDF, a screenshot, a mockup or a photo the same way as a page, either by pasting a link to one or uploading a file from your computer (25MB limit). Text inside a PDF stays selectable, so a highlight attaches to the words rather than to coordinates
 - Real-time collaboration: Live cursors with unlimited collaborators per session
 - Shareable links: Recipients don't need the extension or an account to view
 - Works on any website, by two routes: the web app renders the page server-side and overlays the canvas, and the extension annotates in place on anything the web app cannot reach, including pages behind a login and internal tools
@@ -107,9 +107,9 @@ https://marklayer.app/guides/bug-report-mcp-servers
 ### What MarkLayer does not do
 
 MarkLayer captures no console or network logs, and has no two-way sync into Jira or Linear. That is
-what the $39-79 tier is priced for. On a PDF the element inspector, measure and multi-select are
-switched off, because a PDF has no HTML elements to point at, and annotations sit in a layer over the
-file rather than being written into it, so there is no annotated PDF to export. If every comment needs an owner, a status and a ticket in an
+what the $39-79 tier is priced for. On a PDF or an image the element inspector, measure and multi-select
+are switched off, because a file has no HTML elements to point at, and annotations sit in a layer over
+the file rather than being written into it, so there is no annotated PDF or image to export. If every comment needs an owner, a status and a ticket in an
 existing tracker, BugHerd, Marker.io or Usersnap are the honest recommendation. MarkLayer is the
 visual feedback layer, not a project management system.
 
@@ -216,8 +216,8 @@ A: Yes, by two routes, and the second has no exceptions. The web app fetches the
 Q: How long are annotations kept?
 A: Indefinitely, as long as the link is in use. There is no fixed expiry. A share link is deleted 90 days after its last access, and any view, comment or edit resets that clock, so an active review never expires. Most tools in this category publish no retention period at all; the ones that do range from AnnotateWeb's two minutes of inactivity to Pastel's one year: https://marklayer.app/guides/website-feedback-tools
 
-Q: Can I annotate a PDF?
-A: Yes. Paste a link to a PDF, or upload one from your computer up to 25MB. The drawing, comment, area and highlight tools all work on it. Each mark is tied to a page number and a position on that page, so it stays where you put it when you zoom. The annotations live in the share link, not inside the file, so there is no annotated PDF to download afterwards. An uploaded file is deleted on the same clock as the link: 90 days after it was last opened.
+Q: Can I annotate a PDF or an image?
+A: Yes, both. Paste a link to a PDF, a PNG, a JPEG, a GIF, a WebP or an AVIF, or upload one from your computer up to 25MB. The drawing, comment, area and highlight tools all work on it. Each mark is tied to a page number and a position on that page — an image being a document of one page — so it stays where you put it when the view changes size. The annotations live in the share link, not inside the file, so there is no annotated copy to download afterwards. An uploaded file is deleted on the same clock as the link: 90 days after it was last opened.
 
 Q: Can multiple people annotate at the same time?
 A: Yes. Real-time live cursors let unlimited collaborators work together.

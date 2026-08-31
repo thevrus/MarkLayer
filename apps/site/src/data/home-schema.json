@@ -34,7 +34,7 @@
         "Real-time collaboration with live cursors",
         "Share annotations via a single link. Viewers need no extension and no account",
         "Drawing, comments, arrows, highlights, area capture, element inspector, measure tool",
-        "Annotate PDFs by link or by uploading a file up to 25MB, with selectable text and marks bound to a page",
+        "Annotate PDFs and images by link or by uploading a file up to 25MB, with selectable PDF text and marks bound to a page",
         "MCP server (marklayer-mcp) for AI coding agent integration",
         "Open source and self-hostable on Cloudflare"
       ],
