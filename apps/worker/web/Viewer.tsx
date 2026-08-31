@@ -92,6 +92,7 @@ import {
 } from './ViewerHud';
 import { dockedPanelsWidth } from './ViewerInfoPanel';
 import { ViewerStage } from './ViewerStage';
+import { useRenderOutcome } from './viewer/useRenderOutcome';
 import { FAILURE_COPY, type RenderFailure, type ViewerFrame, ViewerFrameProvider } from './viewerFrame';
 import { videoActive, voiceActive } from './voiceSignals';
 
@@ -130,6 +131,7 @@ function AuthoringChrome() {
  * handler below is published through `ViewerFrameProvider`, so the chrome, stage
  * and HUD it composes read one contract instead of taking a dozen props each.
  */
+
 export default function Viewer() {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -139,6 +141,7 @@ export default function Viewer() {
   const iframeLoaded = useSignal(false);
   const renderFailed = useSignal<RenderFailure | null>(null);
   const blockedEgressIp = useSignal<string | null>(null);
+  const pageSlow = useSignal(false);
   const zoomMenuOpen = useSignal(false);
   // The two causes the upstream names itself win; anything else is judged by the URL.
   const failureCopy = useComputed(() => {
@@ -240,55 +243,11 @@ export default function Viewer() {
     peers.value = new Map();
   });
 
-  // Reset loading state when the proxied URL changes
-  useSignalEffect(() => {
-    pageUrl.value;
-    iframeLoaded.value = false;
-    renderFailed.value = null;
-    renderReportedRef.current = false;
-  });
-
-  const renderStartRef = useRef(0);
-  /** One outcome per page, first report wins — see `reportRenderSuccess`. */
-  const renderReportedRef = useRef(false);
-  const reportRenderFailure = useCallback((reason: RenderFailure, extra?: Record<string, unknown>) => {
-    if (renderReportedRef.current) return;
-    renderReportedRef.current = true;
-    capture('page_render_failed', {
-      // Deliberately no `url` and no `annotation_id`: the annotated page can be
-      // private and the room ID is an unlisted share credential. `reason` plus
-      // timing is enough to spot a proxy regression.
-      reason,
-      duration_ms: Math.round(performance.now() - renderStartRef.current),
-      ...extra,
-    });
-  }, []);
-  /**
-   * The success half, and the reason it waits: a firewall challenge is served
-   * with the proxy's marker on it, so `load` fires and looks like a clean render
-   * until the page's own `ml-blocked` message arrives a task later. Reporting
-   * immediately would have counted every blocked page as a success too, which is
-   * exactly the number this event exists to be the denominator of.
-   */
-  const reportRenderSuccess = useCallback(() => {
-    const at = performance.now();
-    window.setTimeout(() => {
-      if (renderReportedRef.current || renderFailed.peek()) return;
-      renderReportedRef.current = true;
-      capture('page_rendered', { duration_ms: Math.round(at - renderStartRef.current) });
-    }, 500);
-  }, []);
-
-  useSignalEffect(() => {
-    const url = pageUrl.value;
-    const loaded = iframeLoaded.value;
-    if (!url || loaded) return;
-    renderStartRef.current = performance.now();
-    const timer = window.setTimeout(() => {
-      reportRenderFailure('timeout');
-      if (!iframeLoaded.peek()) renderFailed.value = 'timeout';
-    }, 12_000);
-    return () => clearTimeout(timer);
+  const { reportRenderFailure, reportRenderSuccess } = useRenderOutcome({
+    frameRef,
+    iframeLoaded,
+    renderFailed,
+    pageSlow,
   });
 
   // Export PNG. Captures the live page (iframe content) plus the drawing canvas
@@ -1120,7 +1079,7 @@ export default function Viewer() {
   // once and a Viewer re-render never invalidates the subtree beneath it.
   const frame = useMemo<ViewerFrame>(
     () => ({
-      state: { iframeLoaded, renderFailed, blockedEgressIp, failureCopy, zoomMenuOpen },
+      state: { iframeLoaded, renderFailed, pageSlow, blockedEgressIp, failureCopy, zoomMenuOpen },
       actions: {
         canvasCoords,
         startDrawing,

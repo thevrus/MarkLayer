@@ -27,8 +27,9 @@ export interface AnchorContext {
   win?: Window;
 }
 
-/** `primary` = stored selector matched; `text` = tag+text fingerprint fallback. */
-export type AnchorStrategy = 'primary' | 'text' | 'pdf';
+/** `primary` = stored selector matched; `text` = tag+text fingerprint fallback;
+ *  `page` = a page box in a document we paginate ourselves (a PDF, an image). */
+export type AnchorStrategy = 'primary' | 'text' | 'page';
 
 export interface ResolvedAnchor {
   x: number;

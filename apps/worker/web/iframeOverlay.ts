@@ -1,9 +1,9 @@
 import { type AnchorDelta, applyAnchorDelta } from '@ext/lib/anchor';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
-import type { CaptureViewport, PdfAnchor, Point, TargetElement } from '@marklayer/types';
+import type { CaptureViewport, PageAnchor, Point, TargetElement } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { capturePdfAnchor, isPdfDocument, resolvePdfAnchor } from './pdfAnchor';
+import { capturePageAnchor, isPagedDocument, resolvePageAnchor } from './docAnchor';
 import { cssScale, iframeScrollY } from './signals';
 
 // Cross-realm: iframe DOM nodes are instances of the iframe's Element, not the host's,
@@ -54,20 +54,20 @@ function pickFrameTarget({ frame, x, y, anchor }: FramePoint): TargetElement | u
 }
 
 /**
- * Both anchor kinds for one point. A PDF has no element worth binding to and an
- * ordinary page has no page number, so exactly one of these is ever present —
- * spread it into the op and a tool never has to know which kind of document it
- * is drawing on.
+ * Both anchor kinds for one point. A PDF or an image has no element worth
+ * binding to and an ordinary page has no page number, so exactly one of these is
+ * ever present — spread it into the op and a tool never has to know which kind
+ * of document it is drawing on.
  */
-export function captureAnchors({ frame, x, y, anchor }: FramePoint): { target?: TargetElement; pdf?: PdfAnchor } {
-  if (isPdfDocument(frame?.contentDocument)) {
-    return { pdf: capturePdfAnchor({ frame, ...(anchor ?? { x, y }) }) };
+export function captureAnchors({ frame, x, y, anchor }: FramePoint): { target?: TargetElement; pdf?: PageAnchor } {
+  if (isPagedDocument(frame?.contentDocument)) {
+    return { pdf: capturePageAnchor({ frame, ...(anchor ?? { x, y }) }) };
   }
   return { target: pickFrameTarget({ frame, x, y, anchor }) };
 }
 
 /**
- * Mirror of `captureAnchors` for the render side. A PDF page's box is the whole
+ * Mirror of `captureAnchors` for the render side. A page's box is the whole
  * anchor, so there is no drift to measure against the stored point the way the
  * element strategies do — a page either exists at this number or it does not.
  */
@@ -79,14 +79,14 @@ export function resolveAnchors({
   doc,
 }: {
   target?: TargetElement;
-  pdf?: PdfAnchor;
+  pdf?: PageAnchor;
   docX: number;
   docY: number;
   doc: Document;
 }): Pick<AnchorDelta, 'x' | 'y' | 'strategy'> {
   if (pdf) {
-    const p = resolvePdfAnchor({ doc, anchor: pdf });
-    if (p) return { x: p.x, y: p.y, strategy: 'pdf' };
+    const p = resolvePageAnchor({ doc, anchor: pdf });
+    if (p) return { x: p.x, y: p.y, strategy: 'page' };
   }
   return applyAnchorDelta(target, { docX, docY }, { doc, win: doc.defaultView ?? undefined });
 }

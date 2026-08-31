@@ -1,4 +1,5 @@
-// Standalone PDF viewer hosted at /pdf.html. Plain TS, no framework: the host
+// The PDF half of the document viewer, loaded on demand so a page that turns
+// out to be an image never pays for pdf.js. Plain TS, no framework: the host
 // app (Viewer.tsx) attaches a native `scroll` listener to this page's own
 // window and reads `window.scrollY`, so pages must sit in normal document
 // flow and scroll the real document — no virtual scroller, no inner
@@ -6,8 +7,7 @@
 
 import type { PageViewport, PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 import { GlobalWorkerOptions, getDocument, TextLayer } from 'pdfjs-dist';
-import { PDF_PAGE_ATTR } from './pdfAnchor';
-import { bytesUrl } from './pdfSource';
+import { DOC_PAGE_ATTR } from './docAnchor';
 
 // Vite only rewrites this exact `new URL(literal, import.meta.url)` shape.
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).href;
@@ -25,30 +25,13 @@ function cssBox(viewport: PageViewport) {
   return { widthPx: Math.floor(viewport.width), heightPx: Math.floor(viewport.height) };
 }
 
-function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function renderError(message: string): void {
-  const pre = document.createElement('pre');
-  pre.className = 'pdf-error';
-  pre.textContent = message;
-  document.body.replaceChildren(pre);
-}
-
-async function fetchPdfBytes(url: string): Promise<ArrayBuffer> {
-  const response = await fetch(bytesUrl({ url, origin: location.origin }));
-  if (!response.ok) throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
-  return response.arrayBuffer();
-}
-
 /** The container's border-box must equal the PDF page box exactly — the host
  * converts a click to a page-relative fraction via getBoundingClientRect(). */
 function createPageContainer({ pageNumber, viewport }: { pageNumber: number; viewport: PageViewport }): HTMLDivElement {
   const { widthPx, heightPx } = cssBox(viewport);
   const container = document.createElement('div');
-  container.className = 'pdf-page';
-  container.setAttribute(PDF_PAGE_ATTR, String(pageNumber));
+  container.className = 'doc-page';
+  container.setAttribute(DOC_PAGE_ATTR, String(pageNumber));
   container.style.width = `${widthPx}px`;
   container.style.height = `${heightPx}px`;
   // TextLayer sizes its own box as `round(down, var(--total-scale-factor) * Npx,
@@ -126,7 +109,7 @@ function observeForLazyPaint(entries: PageEntry[]): void {
         // stop watching one: every later crossing would re-enter and return.
         observer.unobserve(observed.target);
         paintPage(entry).catch((error: unknown) => {
-          console.error('failed to render PDF page', describeError(error));
+          console.error('failed to render PDF page', error);
         });
       }
     },
@@ -135,15 +118,8 @@ function observeForLazyPaint(entries: PageEntry[]): void {
   for (const entry of entries) observer.observe(entry.container);
 }
 
-async function main(): Promise<void> {
-  const url = new URLSearchParams(location.search).get('url');
-  if (!url) throw new Error('Missing "url" query parameter.');
-
-  const bytes = await fetchPdfBytes(url);
+export async function renderPdf({ bytes, root }: { bytes: ArrayBuffer; root: HTMLElement }): Promise<void> {
   const pdf = await getDocument({ data: bytes }).promise;
-
-  const root = document.getElementById('pdf-root');
-  if (!root) throw new Error('Missing #pdf-root mount point.');
 
   const entries = await loadPages({ pdf, root });
   const firstEntry = entries[0];
@@ -154,7 +130,3 @@ async function main(): Promise<void> {
   observeForLazyPaint(entries);
   await paintPage(firstEntry);
 }
-
-main().catch((error: unknown) => {
-  renderError(`Could not load PDF: ${describeError(error)}`);
-});

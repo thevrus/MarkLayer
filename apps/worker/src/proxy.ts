@@ -30,6 +30,23 @@ const CHALLENGE_PATH =
 /** Titles the well-known challenge interstitials ship with, for the pages that carry no meta refresh. */
 const CHALLENGE_TITLE = /<title[^>]*>[^<]*(just a moment|attention required|access denied|security check)/i;
 
+/**
+ * Container ids and vendor endpoints the major bot-mitigation products put in
+ * their interstitials.
+ *
+ * These arrive as a plain `200` with an empty `<title>` and no meta refresh, so
+ * the status, path and title checks all pass them through. The proxy then called
+ * it a success and injected the marker, the challenge's own script navigated the
+ * frame off-origin, and the viewer was left holding a blank box whose document it
+ * could no longer read — the `SecurityError: Blocked a frame` in telemetry.
+ * Measured against booking.com, which ships `challenge-container`.
+ *
+ * Deliberately narrow: an id attribute or a vendor's own hostname, never a bare
+ * product name, so a page that merely writes about a WAF is not mistaken for one.
+ */
+const CHALLENGE_MARKUP =
+  /(id=["']challenge-(container|form|running|error-title)["']|id=["']px-captcha["']|id=["']cf-(wrapper|challenge-running)["']|captcha-delivery\.com|token\.awswaf\.com|geo\.captcha-delivery)/i;
+
 /** Statuses a WAF answers with when it is refusing us rather than reporting a real 404/500. */
 const CHALLENGE_STATUS = new Set([401, 403, 405, 429, 503]);
 
@@ -41,7 +58,12 @@ const CHALLENGE_STATUS = new Set([401, 403, 405, 429, 503]);
  * content is a redirect to a CAPTCHA.
  */
 function isChallenged({ status, head }: { status: number; head: string }): boolean {
-  return CHALLENGE_STATUS.has(status) || CHALLENGE_PATH.test(head) || CHALLENGE_TITLE.test(head);
+  return (
+    CHALLENGE_STATUS.has(status) ||
+    CHALLENGE_PATH.test(head) ||
+    CHALLENGE_TITLE.test(head) ||
+    CHALLENGE_MARKUP.test(head)
+  );
 }
 
 /**
@@ -108,11 +130,21 @@ async function peekBody(
 }
 
 /**
- * Well inside the viewer's 12s render budget. The relay is an optimization on a
+ * Well inside the viewer's give-up bound. The relay is an optimization on a
  * page that has already failed once, so it may spend a little time — but never
  * so much that waiting for a dead host is worse than the block it was fixing.
  */
 const RELAY_TIMEOUT_MS = 6_000;
+
+/**
+ * How long to wait for the upstream's response *headers*, and nothing more.
+ *
+ * Deliberately generous: the goal is to render as many sites as possible, and a
+ * host that answers at 18s is still a site we can show. Before this the direct
+ * fetch had no bound at all, so a hanging host held the request open until the
+ * platform killed it and the viewer was left to guess at the cause.
+ */
+const DIRECT_HEADERS_TIMEOUT_MS = 20_000;
 
 /** Consecutive failures before the relay is presumed gone rather than unlucky. */
 const RELAY_FAILURES_BEFORE_TRIP = 3;
@@ -222,6 +254,33 @@ async function describePage({
 }
 
 /**
+ * `fetch`, bounding the wait for response headers and nothing else.
+ *
+ * A plain `AbortSignal.timeout` on a proxy fetch is a trap: it keeps firing after
+ * the response resolves, so any page that streams its HTML slowly gets its body
+ * truncated mid-document and arrives without the marker — a page that renders
+ * turned into a page that reports failure. Clearing the timer once the headers
+ * land bounds a hanging host without ever touching the stream.
+ */
+export async function fetchWithHeaderTimeout({
+  url,
+  init,
+  timeoutMs,
+}: {
+  url: string;
+  init: RequestInit;
+  timeoutMs: number;
+}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Fetch a page, falling back to the fixed-IP relay when Cloudflare's shared
  * egress is challenged.
  *
@@ -232,15 +291,19 @@ async function describePage({
  */
 async function fetchPage({ url, env }: { url: string; env: Env['Bindings'] }): Promise<FetchedPage> {
   const origin = new URL(url).origin;
-  const resp = await fetch(url, {
-    headers: {
-      'User-Agent': BROWSER_UA,
-      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.9',
-      Referer: `${origin}/`,
-      Origin: origin,
+  const resp = await fetchWithHeaderTimeout({
+    url,
+    timeoutMs: DIRECT_HEADERS_TIMEOUT_MS,
+    init: {
+      headers: {
+        'User-Agent': BROWSER_UA,
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        Referer: `${origin}/`,
+        Origin: origin,
+      },
+      redirect: 'follow',
     },
-    redirect: 'follow',
   });
 
   const direct = await describePage({ resp, finalUrl: resp.url || url, via: 'direct' });
@@ -280,6 +343,23 @@ const URL_ERRORS = {
   scheme: PROXY_ERRORS.badScheme,
   blocked: PROXY_ERRORS.blockedHost,
 } as const;
+
+/**
+ * A document `/doc` can render and the viewer can annotate: a PDF, or a raster
+ * image. SVG is excluded on purpose — it is markup with script in it, and the
+ * viewer would be pointing an `<img>` at bytes we would rather never serve as a
+ * document at all.
+ */
+/**
+ * Deliberately broader than `UPLOAD_FORMATS`: this asks whether the *browser* can
+ * draw the bytes, not whether we would store them. A remote BMP or TIFF renders
+ * fine in the doc viewer even though it is not an accepted upload.
+ */
+function isViewableDocument(contentType: string): boolean {
+  const type = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
+  if (type === 'application/pdf') return true;
+  return type.startsWith('image/') && type !== 'image/svg+xml';
+}
 
 const proxy = new Hono<Env>();
 
@@ -330,23 +410,30 @@ proxy.get('/proxy', async (c) => {
 
     // For non-HTML resources, pass through as-is
     if (!resp.contentType.includes('text/html')) {
-      // pdf.js fetches the raw bytes itself via ?raw=1; that request must always
+      // The viewer fetches the raw bytes itself via ?raw=1; that request must always
       // fall through to the plain pass-through below, whatever the content type is.
-      if (reqUrl.searchParams.get('raw') !== '1' && resp.contentType.includes('application/pdf')) {
+      if (reqUrl.searchParams.get('raw') !== '1' && isViewableDocument(resp.contentType)) {
         // The viewer page fetches the bytes itself; this body is never read, so
         // release the upstream connection instead of leaving it open.
         void resp.stream?.cancel();
         // Redirect rather than inline a shell, so Vite owns the viewer's script tag
-        // and its content hash. `/pdf`, not `/pdf.html`: the asset layer redirects
+        // and its content hash. `/doc`, not `/doc.html`: the asset layer redirects
         // the extension away anyway, and this skips that second hop. It carries the
         // target url, not the ?raw=1 proxy url, so the page can only ever be
         // pointed at this origin's own proxy.
-        return c.redirect(`/pdf?url=${encodeURIComponent(url)}`, 302);
+        return c.redirect(`/doc?url=${encodeURIComponent(url)}`, 302);
       }
 
       const headers = new Headers();
       headers.set('Content-Type', resp.contentType);
       headers.set('Access-Control-Allow-Origin', '*');
+      // Whatever this turns out to be, it is a stranger's bytes on our origin. An
+      // SVG or an XML document navigated to directly would otherwise run its own
+      // script as this app; `sandbox` drops it into an opaque origin where it can
+      // reach nothing of ours. Ignored when the bytes are loaded as an image or a
+      // stylesheet, which is every use the viewer actually makes of this path.
+      headers.set('Content-Security-Policy', 'sandbox');
+      headers.set('X-Content-Type-Options', 'nosniff');
       return new Response(resp.stream, { headers });
     }
 
@@ -407,6 +494,18 @@ proxy.get('/proxy', async (c) => {
             el.prepend(inject, { html: true });
             injected = true;
           }
+        },
+      })
+      // `head` and `body` are the only injection points, and a document served as
+      // text/html with neither — a bare fragment, an XML or RSS body, a
+      // hand-written error page — came through unmarked, so the viewer called a
+      // page that rendered perfectly well a failure. The document's end is the one
+      // hook guaranteed to fire whatever the markup turns out to be.
+      .onDocument({
+        end(end) {
+          if (injected) return;
+          end.append(inject, { html: true });
+          injected = true;
         },
       })
       // Rewrite same-origin absolute URLs in common attributes + inline style url()

@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { isChallenged, isRefusedSubResource, peekBody, relayFetch, resetRelayBreaker } from './proxy';
+import {
+  fetchWithHeaderTimeout,
+  isChallenged,
+  isRefusedSubResource,
+  peekBody,
+  relayFetch,
+  resetRelayBreaker,
+} from './proxy';
 
 /** A body delivered in fixed-size chunks, so the peek boundary lands mid-stream. */
 function streamOf(text: string, chunkSize: number): ReadableStream<Uint8Array> {
@@ -177,5 +184,77 @@ describe('isRefusedSubResource', () => {
 
   test('a missing Accept header does not turn an HTML response into a refusal by itself', () => {
     expect(isRefusedSubResource({ resp: res({ status: 200, type: 'image/png' }), accept: undefined })).toBe(false);
+  });
+});
+
+describe('fetchWithHeaderTimeout', () => {
+  /** Serve one response, controlling headers and body timing independently. */
+  function serve({ headerDelayMs, chunks }: { headerDelayMs: number; chunks: string[] }) {
+    return Bun.serve({
+      port: 0,
+      async fetch() {
+        if (headerDelayMs > 0) await Bun.sleep(headerDelayMs);
+        return new Response(
+          new ReadableStream({
+            async pull(controller) {
+              for (const chunk of chunks) {
+                await Bun.sleep(200);
+                controller.enqueue(new TextEncoder().encode(chunk));
+              }
+              controller.close();
+            },
+          }),
+          { headers: { 'content-type': 'text/html' } },
+        );
+      },
+    });
+  }
+
+  test('a body that streams for longer than the timeout still arrives whole', async () => {
+    // The regression this exists for: `AbortSignal.timeout` keeps firing after the
+    // response resolves, so it truncates any page that streams its HTML slowly —
+    // and a half-document arrives with no marker, turning a page that renders into
+    // a reported failure. Headers are instant here; the body outlasts the bound.
+    const server = serve({ headerDelayMs: 0, chunks: ['<html><head></head><body>', 'a'.repeat(64), '</body></html>'] });
+    try {
+      const resp = await fetchWithHeaderTimeout({ url: server.url.href, init: {}, timeoutMs: 300 });
+      expect(await resp.text()).toBe(`<html><head></head><body>${'a'.repeat(64)}</body></html>`);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  test('a host that never answers is abandoned at the bound', async () => {
+    const server = serve({ headerDelayMs: 1500, chunks: ['ignored'] });
+    try {
+      await expect(fetchWithHeaderTimeout({ url: server.url.href, init: {}, timeoutMs: 150 })).rejects.toThrow();
+    } finally {
+      await server.stop(true);
+    }
+  });
+});
+
+describe('isChallenged — interstitials with no status, path or title tell', () => {
+  // The regression: these came back as a plain 200 with an empty title, so the
+  // proxy marked them a success and the challenge's own script then navigated the
+  // frame off-origin, leaving the viewer a blank box. Detecting them is what lets
+  // the relay retry and, failing that, what makes the failure screen honest.
+  const cases: Array<[string, string]> = [
+    ['cloudflare challenge container', '<html><head><title></title></head><body><div id="challenge-container"></div>'],
+    ['cloudflare challenge form', '<html><body><form id="challenge-form" action="/cdn-cgi/l/chk"></form>'],
+    ['perimeterx', '<html><body><div id="px-captcha"></div>'],
+    ['datadome', '<html><body><iframe src="https://geo.captcha-delivery.com/captcha/?initialCid=x">'],
+    ['aws waf', '<html><head><script src="https://token.awswaf.com/token.js"></script>'],
+  ];
+  for (const [name, head] of cases) {
+    test(`${name} is a challenge, not a page`, () => {
+      expect(isChallenged({ status: 200, head })).toBe(true);
+    });
+  }
+
+  test('a page that merely mentions a WAF vendor is still a page', () => {
+    const head =
+      '<html><head><title>How Cloudflare challenges work</title></head><body><p>A challenge container is…</p>';
+    expect(isChallenged({ status: 200, head })).toBe(false);
   });
 });

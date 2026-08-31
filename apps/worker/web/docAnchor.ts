@@ -1,33 +1,34 @@
-import type { PdfAnchor } from '@marklayer/types';
+import type { PageAnchor } from '@marklayer/types';
 
 /**
- * A PDF is framed by our own viewer page, which lays every page out in normal
- * flow as an element boxed exactly to the page and tagged with its 1-based
- * number. That tag is the whole contract: it is what lets a point become a
- * page-relative fraction, and a fraction become a point again at any zoom.
+ * A PDF or an image is framed by our own viewer page, which lays every page out
+ * in normal flow as an element boxed exactly to the page and tagged with its
+ * 1-based number — an image being a document of one page. That tag is the whole
+ * contract: it is what lets a point become a page-relative fraction, and a
+ * fraction become a point again at any zoom.
  *
- * Namespaced because it doubles as "this document is a PDF": a bare `data-page`
- * is common enough on the open web (pagination, carousels) that an ordinary
- * proxied page would flip every capture onto the PDF anchor model.
+ * Namespaced because it doubles as "we paginated this ourselves": a bare
+ * `data-page` is common enough on the open web (pagination, carousels) that an
+ * ordinary proxied page would flip every capture onto the page anchor model.
  */
-export const PDF_PAGE_ATTR = 'data-ml-pdf-page';
-const PAGE_SELECTOR = `[${PDF_PAGE_ATTR}]`;
+export const DOC_PAGE_ATTR = 'data-ml-page';
+const PAGE_SELECTOR = `[${DOC_PAGE_ATTR}]`;
 
-export function isPdfDocument(doc: Document | null | undefined): boolean {
+export function isPagedDocument(doc: Document | null | undefined): boolean {
   return Boolean(doc?.querySelector(PAGE_SELECTOR));
 }
 
 /** Only ever called on elements the selector already matched, so the attribute
  *  is present; a non-positive number is the one thing left to reject. */
 function pageNumber(el: Element): number | undefined {
-  const n = Number.parseInt(el.getAttribute(PDF_PAGE_ATTR) ?? '', 10);
+  const n = Number.parseInt(el.getAttribute(DOC_PAGE_ATTR) ?? '', 10);
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
 
 /**
  * The page under a client point, falling back to the vertically nearest one so
- * a mark dropped in the gutter between two pages still anchors somewhere sane
- * rather than not at all.
+ * a mark dropped in the gutter beside or between pages still anchors somewhere
+ * sane rather than not at all.
  */
 function pageAt({ doc, clientX, clientY }: { doc: Document; clientX: number; clientY: number }): Element | undefined {
   const hit = doc.elementFromPoint(clientX, clientY)?.closest(PAGE_SELECTOR);
@@ -58,12 +59,12 @@ export function toPageFraction({ box, clientX, clientY }: { box: Box; clientX: n
   return { x: (clientX - box.left) / box.width, y: (clientY - box.top) / box.height };
 }
 
-export function fromPageFraction({ box, anchor }: { box: Box; anchor: PdfAnchor }) {
+export function fromPageFraction({ box, anchor }: { box: Box; anchor: PageAnchor }) {
   return { x: box.left + anchor.x * box.width, y: box.top + anchor.y * box.height };
 }
 
-/** Bind a point in the framed document's space to the PDF page under it. */
-export function capturePdfAnchor({
+/** Bind a point in the framed document's space to the page under it. */
+export function capturePageAnchor({
   frame,
   x,
   y,
@@ -71,7 +72,7 @@ export function capturePdfAnchor({
   frame: HTMLIFrameElement | null;
   x: number;
   y: number;
-}): PdfAnchor | undefined {
+}): PageAnchor | undefined {
   const win = frame?.contentWindow;
   const doc = frame?.contentDocument;
   if (!win || !doc) return undefined;
@@ -89,17 +90,17 @@ export function capturePdfAnchor({
 }
 
 /** Project a stored anchor back into the framed document's current space. */
-export function resolvePdfAnchor({
+export function resolvePageAnchor({
   doc,
   anchor,
 }: {
   doc: Document;
-  anchor: PdfAnchor;
+  anchor: PageAnchor;
 }): { x: number; y: number } | undefined {
   const win = doc.defaultView;
   if (!win) return undefined;
 
-  const el = doc.querySelector(`[${PDF_PAGE_ATTR}="${anchor.page}"]`);
+  const el = doc.querySelector(`[${DOC_PAGE_ATTR}="${anchor.page}"]`);
   if (!el) return undefined;
   const r = el.getBoundingClientRect();
   if (r.width === 0 || r.height === 0) return undefined;

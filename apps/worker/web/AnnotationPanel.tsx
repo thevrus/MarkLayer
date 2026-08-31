@@ -1,4 +1,5 @@
 import { Menu } from '@base-ui/react/menu';
+import { MentionText } from '@ext/components/MentionText';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
 import { StatusDot } from '@ext/components/StatusDot';
@@ -144,7 +145,7 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
           class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 line-clamp-2"
           style={{ textDecoration: settled ? 'line-through' : 'none', opacity: settled ? 0.5 : 1 }}
         >
-          {op.text}
+          <MentionText text={op.text} mentions={op.mentions} />
         </p>
       </button>
       <div class="flex items-center gap-3 px-4 pb-2.5">
@@ -552,7 +553,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                         opacity: areaResolved ? 0.5 : 1,
                       }}
                     >
-                      {op.comment}
+                      <MentionText text={op.comment} mentions={op.mentions} />
                     </p>
                   ) : (
                     <p class="text-meta text-(--ds-gray-900) m-0">No comment</p>
@@ -619,7 +620,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
                       class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 mt-1 line-clamp-2"
                       style={{ textDecoration: selResolved ? 'line-through' : 'none', opacity: selResolved ? 0.5 : 1 }}
                     >
-                      {op.comment}
+                      <MentionText text={op.comment} mentions={op.mentions} />
                     </p>
                   )}
                 </button>
