@@ -58,6 +58,60 @@ const UPLOAD_ID = /^[A-Za-z0-9_-]{21}$/;
 /** The cap on an anonymous upload. Enforced server-side; shown client-side. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/** A format the product accepts as an upload: what it is, and how to recognise it. */
+export const uploadFormatSchema = z.object({
+  contentType: z.string(),
+  /** For the download filename. */
+  extension: z.string(),
+  /** Byte sequences that must all match, keyed by the offset they sit at. */
+  magic: z.array(z.object({ offset: z.number(), bytes: z.array(z.number()) })),
+});
+
+export type UploadFormat = z.infer<typeof uploadFormatSchema>;
+
+const ascii = (s: string): number[] => Array.from(s, (c) => c.charCodeAt(0));
+
+/**
+ * Raster images and PDFs, and the bytes that prove it.
+ *
+ * One table because the file picker's `accept` and the server's sniffer are the
+ * same question asked twice, and a disagreement means a person is offered a file
+ * that is then rejected. Deliberately no SVG: it is a document that can carry
+ * script, and served back from `/f/{id}` that script would run with this
+ * origin's cookies and storage. It also has no magic number to check.
+ */
+export const UPLOAD_FORMATS: UploadFormat[] = [
+  { contentType: 'application/pdf', extension: 'pdf', magic: [{ offset: 0, bytes: ascii('%PDF-') }] },
+  {
+    contentType: 'image/png',
+    extension: 'png',
+    magic: [{ offset: 0, bytes: [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a] }],
+  },
+  { contentType: 'image/jpeg', extension: 'jpg', magic: [{ offset: 0, bytes: [0xff, 0xd8, 0xff] }] },
+  { contentType: 'image/gif', extension: 'gif', magic: [{ offset: 0, bytes: ascii('GIF8') }] },
+  // Both are ISO-BMFF-ish containers: a chunk/box tag at 4 and the flavour at 8,
+  // with the length field in between meaning byte 0 alone identifies neither.
+  {
+    contentType: 'image/webp',
+    extension: 'webp',
+    magic: [
+      { offset: 0, bytes: ascii('RIFF') },
+      { offset: 8, bytes: ascii('WEBP') },
+    ],
+  },
+  {
+    contentType: 'image/avif',
+    extension: 'avif',
+    magic: [
+      { offset: 4, bytes: ascii('ftyp') },
+      { offset: 8, bytes: ascii('avi') },
+    ],
+  },
+];
+
+/** What a file picker offers, derived so it cannot drift from what the sniffer takes. */
+export const UPLOAD_ACCEPT = UPLOAD_FORMATS.map((format) => format.contentType).join(',');
+
 export const isUploadId = (id: string): boolean => UPLOAD_ID.test(id);
 export const uploadPath = (id: string): string => `/f/${id}`;
 export const isUploadPath = (url: string): boolean => url.startsWith('/f/') && isUploadId(url.slice(3));
@@ -157,29 +211,32 @@ export const targetElementSchema = z.object({
 export type TargetElement = z.infer<typeof targetElementSchema>;
 
 /**
- * Anchor for an annotation drawn on a PDF, as a fraction of its page box.
- * A PDF has no stable element to bind to: pdf.js tears down offscreen pages
- * and rebuilds the text layer's spans at every zoom level, so both halves of
- * `targetElement` — the selector and the element-local offset — go stale. The
- * page number plus a 0..1 fraction survives all of it, and reprojects with a
- * multiply. Absent on ops drawn over ordinary web pages.
+ * Anchor for an annotation drawn on a document we render ourselves — a PDF, or
+ * an image — as a fraction of the box of one of its pages. Such a document has
+ * no stable element to bind to: pdf.js rebuilds the text layer's spans at every
+ * zoom level, so both halves of `targetElement` — the selector and the
+ * element-local offset — go stale. The page number plus a 0..1 fraction
+ * survives all of it, and reprojects with a multiply. An image is simply a
+ * one-page document. Absent on ops drawn over ordinary web pages.
  */
-export const pdfAnchorSchema = z.object({
+export const pageAnchorSchema = z.object({
   /** 1-based, matching how PDF pages are numbered everywhere a user sees them. */
   page: z.number(),
   x: z.number(),
   y: z.number(),
 });
 
-export type PdfAnchor = z.infer<typeof pdfAnchorSchema>;
+export type PageAnchor = z.infer<typeof pageAnchorSchema>;
 
 /**
  * Mixed into every op that can be bound to a page element, so adding an
  * anchorable tool is one spread rather than a remembered line. Optional for
  * backwards compat with ops recorded before anchoring existed. `pdf` is the
- * same idea for PDFs, and the two are mutually exclusive in practice.
+ * same idea for a document we paginate ourselves, and the two are mutually
+ * exclusive in practice. The key predates images being one of those documents
+ * and is kept as it is: it is on every mark already stored on a PDF.
  */
-const anchorable = { target: z.optional(targetElementSchema), pdf: z.optional(pdfAnchorSchema) };
+const anchorable = { target: z.optional(targetElementSchema), pdf: z.optional(pageAnchorSchema) };
 
 export const freehandOpSchema = z.object({
   ...baseOp,
@@ -259,6 +316,72 @@ const authored = {
   authorId: z.optional(z.string()),
 };
 
+/**
+ * One person named inside a comment body. Both halves travel because they answer
+ * different questions: `id` is the stable client id, so a mention still points at
+ * the right person after a rename and can be matched against the reader's own id
+ * to decide "this one is for you"; `name` is the snapshot the text was written
+ * with, which is what lets a renderer find `@Name` in the prose and what shows
+ * when that person is nowhere in the room. Same split as `author`/`authorId`.
+ */
+export const mentionSchema = z.object({ id: z.string(), name: z.string() });
+export type Mention = z.infer<typeof mentionSchema>;
+
+/** People named in this annotation's body. Absent = nobody was tagged. */
+const mentioned = {
+  mentions: z.optional(z.array(mentionSchema)),
+};
+
+/** A run of comment text, either plain or one resolved `@mention`. */
+export interface MentionSegment {
+  text: string;
+  mention?: Mention;
+}
+
+/**
+ * Split a comment body into plain runs and `@mention` tokens.
+ *
+ * Driven by the op's own `mentions` list rather than by a regex over the text,
+ * because display names contain spaces: `@Speedy Axolotl` is one tag, and no
+ * pattern can tell that from `@Speedy` followed by a word. Candidates are tried
+ * longest-first for the same reason. A mention whose name no longer appears in
+ * the text (someone edited around it) simply renders as prose — it stays on the
+ * op, so notification and filtering still see it.
+ */
+export function mentionSegments({ text, mentions }: { text: string; mentions?: Mention[] }): MentionSegment[] {
+  if (!mentions?.length || !text.includes('@')) return [{ text }];
+  // Names lower-cased once, longest first: this runs per keystroke in the
+  // composer, so the comparison key is not rebuilt at every `@` position.
+  const byLength = mentions
+    .filter((mention) => mention.name)
+    .map((mention) => ({ mention, lower: mention.name.toLowerCase() }))
+    .sort((a, b) => b.lower.length - a.lower.length);
+  const lower = text.toLowerCase();
+  const segments: MentionSegment[] = [];
+  let plainFrom = 0;
+  let i = 0;
+
+  while (i < text.length) {
+    if (text[i] !== '@') {
+      i += 1;
+      continue;
+    }
+    const hit = byLength.find((candidate) => lower.startsWith(candidate.lower, i + 1))?.mention;
+    if (!hit) {
+      i += 1;
+      continue;
+    }
+    if (i > plainFrom) segments.push({ text: text.slice(plainFrom, i) });
+    const end = i + 1 + hit.name.length;
+    segments.push({ text: text.slice(i, end), mention: hit });
+    i = end;
+    plainFrom = end;
+  }
+
+  if (plainFrom < text.length) segments.push({ text: text.slice(plainFrom) });
+  return segments;
+}
+
 /** Triage state carried by every annotation that owns a comment thread. */
 const triageable = {
   status: z.optional(commentStatusSchema),
@@ -276,6 +399,7 @@ export const commentOpSchema = z.object({
   ...baseOp,
   ...anchorable,
   ...triageable,
+  ...mentioned,
   tool: z.literal('comment'),
   num: z.number(),
   text: z.string(),
@@ -312,6 +436,7 @@ export const selectionOpSchema = z.object({
   ...baseOp,
   ...anchorable,
   ...triageable,
+  ...mentioned,
   tool: z.literal('selection'),
   text: z.string(),
   rects: z.array(selectionRectSchema),
@@ -350,6 +475,7 @@ export const areaOpSchema = z.object({
   ...baseOp,
   ...anchorable,
   ...triageable,
+  ...mentioned,
   tool: z.literal('area'),
   startX: z.number(),
   startY: z.number(),
@@ -369,6 +495,7 @@ export type AreaOp = z.infer<typeof areaOpSchema>;
 export const inspectOpSchema = z.object({
   ...baseOp,
   ...triageable,
+  ...mentioned,
   tool: z.literal('inspect'),
   selector: z.string(),
   tag: z.string(),
@@ -566,7 +693,13 @@ export function applyOpPatch({ op, patch }: { op: unknown; patch: object }): Dra
 
 /** Peer presence for live cursors. Runtime-only state — not on the wire. */
 export interface Peer {
+  /** Per-connection, so two tabs of one browser are two peers. */
   id: string;
+  /**
+   * The peer's stable client id, when they announced one. Mentions and any other
+   * record that has to survive a reconnect point at this, never at `id`.
+   */
+  uid?: string;
   name: string;
   color: string;
   cursor: Point | null;
@@ -700,9 +833,56 @@ export type DestinationSummary = z.infer<typeof destinationSummarySchema>;
 
 export const destinationListSchema = z.object({ integrations: z.array(destinationSummarySchema) });
 
+// === Accounts: the `/auth` wire shapes, parsed on both sides ===
+
+/** A signed-in person, as the server holds them and as `/auth/me` returns them. */
+export const sessionUserSchema = z.object({ id: z.string(), email: z.string() });
+export type SessionUser = z.infer<typeof sessionUserSchema>;
+
+/** A share link someone has claimed. `url` is null for an upload with no source page. */
+export const ownedLinkSchema = z.object({
+  id: z.string(),
+  url: z.nullable(z.string()),
+  createdAt: z.number(),
+  lastAccessedAt: z.number(),
+  expiresAt: z.nullable(z.number()),
+});
+export type OwnedLink = z.infer<typeof ownedLinkSchema>;
+
+export const sessionResponseSchema = z.object({ user: z.nullable(sessionUserSchema) });
+export const ownedLinksResponseSchema = z.object({ links: z.array(ownedLinkSchema) });
+export const errorResponseSchema = z.object({ error: z.string() });
+
+/**
+ * What `POST /auth/request` takes. Only that the field is a string — whether it
+ * is an address at all is `normalizeEmail`'s judgement, and deliberately loose.
+ */
+export const signInRequestSchema = z.object({ email: z.string() });
+
+/** What `POST /f` answers with, parsed by the caller rather than read field by field. */
+export const uploadResponseSchema = z.object({ id: z.string(), url: z.string() });
+
 /**
  * Days of inactivity before a share link and its OG card are deleted. The
  * cleanup cron enforces it; the viewer quotes it back to the user, so both read
  * it from here rather than each hand-typing "90 days".
  */
 export const RETENTION_DAYS = 90;
+
+/**
+ * When the retention cron will delete a link.
+ *
+ * The cron's condition is `last_accessed_at < cutoff OR expires_at < now`, so an
+ * explicit expiry brings the date forward — it does not replace the idle window.
+ * One definition, so a countdown shown to a person cannot outlive the row.
+ */
+export function deletionDeadline({
+  lastAccessedAt,
+  expiresAt,
+}: {
+  lastAccessedAt: number;
+  expiresAt: number | null;
+}): number {
+  const idleUntil = lastAccessedAt + RETENTION_DAYS * 24 * 60 * 60;
+  return expiresAt === null ? idleUntil : Math.min(idleUntil, expiresAt);
+}
