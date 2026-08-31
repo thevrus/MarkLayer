@@ -2,42 +2,27 @@ import { CommentPopover } from '@ext/components/CommentPopover';
 import { InspectorLayer } from '@ext/components/InspectorLayer';
 import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
-import { hexToRgba, inView, opBounds, renderOp, simplify, strokeArrowHead } from '@ext/lib/renderer';
-import { HOW_IT_WORKS_PATH } from '@ext/lib/share';
-import {
-  activeTool,
-  color,
-  comments as commentsComputed,
-  FREEHAND,
-  isDrawingActive,
-  isDrawingTool,
-  lineWidth,
-  onCursorMove,
-  operations,
-  redo,
-  SHAPES,
-  selections,
-  showAnnotationPanel,
-  showShareDialog,
-  toast,
-  toolForKeyEvent,
-  undo,
-  undoRedoFlash,
-} from '@ext/lib/state';
-import type { FreehandOp, Point, TextOp } from '@ext/lib/types';
-import { cn, MAX_UPLOAD_BYTES } from '@marklayer/types';
-import { useSignal, useSignalEffect } from '@preact/signals';
+import { activeTool, color, comments as commentsComputed, isDrawingTool, lineWidth, selections } from '@ext/lib/state';
+import type { TextOp } from '@ext/lib/types';
+import { cn, UPLOAD_ACCEPT } from '@marklayer/types';
+import { useSignal } from '@preact/signals';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
 import { ArrowRight, ChevronDown, Monitor, Search } from 'lucide-preact';
 import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { useRef } from 'preact/hooks';
 import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
 import { FakeCursors } from './FakeCursors';
 import { frameViewport } from './iframeOverlay';
-import { stringField } from './integrations';
+import { ChromeIcon, ChromeStoreLink } from './landing/ChromeStoreLink';
+import { MOMENTS, NAV_LINKS } from './landing/content';
+import { useHeroPin } from './landing/useHeroPin';
+import { useLandingCanvas } from './landing/useLandingCanvas';
+import { useLandingPresence } from './landing/useLandingPresence';
+import { useLandingShortcuts } from './landing/useLandingShortcuts';
+import { useLandingUpload } from './landing/useLandingUpload';
 import { SelfCursor } from './SelfCursor';
 import { GithubLink, Logo, TextInputOverlay } from './shared';
 import {
@@ -45,7 +30,6 @@ import {
   isMobileDevice,
   navigateTo,
   pushDeviceOp,
-  seedDeviceOp,
   selectionPopover,
   textInput,
   urlReady,
@@ -55,498 +39,24 @@ import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
 
 /**
- * The three claims named under the review board.
+ * The marketing page, which is also a live board: every mark on the first screen
+ * is a real op on the real op stream, drawn with the product's own canvas and
+ * toolbar.
  *
- * Text only: the visuals all live in one artifact now (see ReviewBoard) rather
- * than being restated as three small objects beside three paragraphs.
+ * The behaviour that makes that true lives in `./landing` — the drawing engine,
+ * the keyboard layer, the seeded pin, uploads and presence each as one hook — so
+ * what is left here is the composition. It was one 1,277-line component with all
+ * six concerns interleaved above the JSX.
  */
-const MOMENTS: { title: string; desc: string }[] = [
-  {
-    title: 'Send one link.',
-    desc: 'Whoever opens it can read the page and comment on it in their own browser. No account, nothing to install.',
-  },
-  {
-    title: 'Watch it happen.',
-    desc: 'Cursors, strokes and replies land for everyone at once, so a review is a conversation, not a queue of screenshots.',
-  },
-  {
-    title: 'It stays put.',
-    desc: 'Threads anchor to the element they were left on, so they survive a deploy, a reflow and a different screen size.',
-  },
-];
-
-/**
- * The nav's links. The page shipped with a logo, two icon links and no
- * navigation at all, while the footer carried twenty — so the only way into the
- * comparison and use-case pages was to scroll past everything first.
- */
-const NAV_LINKS: { label: string; href: string }[] = [
-  { label: 'How it works', href: HOW_IT_WORKS_PATH },
-  { label: 'Compare', href: '/compare' },
-  { label: 'Use cases', href: '/use-cases' },
-  { label: 'Pricing', href: '/pricing' },
-];
-
-/* Declared at module scope, not in the render body. Landing re-renders on every
-   signal read it makes — the active tool, the op list, the toast queue — and a
-   component declared inside it is a new type each time, so Preact would unmount
-   and remount this SVG on all of them. */
-function ChromeIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="4" />
-      <line x1="21.17" y1="8" x2="12" y2="8" />
-      <line x1="3.95" y1="6.06" x2="8.54" y2="14" />
-      <line x1="10.88" y1="21.94" x2="15.46" y2="14" />
-    </svg>
-  );
-}
-
-/**
- * The one seeded annotation on the board.
- *
- * A fixed id rather than a nanoid, so a re-mount can never stack a second copy
- * of it. The landing never calls `restoreDraft`, so every load starts from an
- * empty op list and this is the only thing on the board until a visitor draws.
- *
- * It is a real CommentOp on the real op stream: the pin it renders is
- * WebCommentPin, clicking it opens the actual thread, and replying, resolving
- * or deleting it all work exactly as they do on a shared page. The page claims
- * to be a live board one line above the toolbar; this is the claim being true
- * rather than asserted.
- */
-const HERO_PIN_ID = 'ml-hero-pin';
-
-const CTA_CLS =
-  'lp-cta inline-flex items-center gap-2 h-12 px-7 rounded-full text-white text-body font-medium no-underline transition-colors select-none';
-
-/** The one install call to action, used at the fold and again above the footer. */
-function ChromeStoreLink({ label, class: cls, at }: { label: string; class?: string; at: string }) {
-  return (
-    <a
-      href={CHROME_STORE_URL}
-      target="_blank"
-      rel="noopener"
-      class={cn(CTA_CLS, cls)}
-      onClick={() => capture('extension_install_clicked', { at })}
-    >
-      <ChromeIcon />
-      {label}
-    </a>
-  );
-}
-
 export function Landing() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const heroFormRef = useRef<HTMLFormElement>(null);
-  const pdfInputRef = useRef<HTMLInputElement>(null);
+  const { canvasRef, onDown } = useLandingCanvas();
+  const { fileInputRef, uploading, uploadFile } = useLandingUpload();
+  // Drag state belongs to the drop zone below, which is the only thing that reads it.
   const dropping = useSignal(false);
-  const uploading = useSignal(false);
-
-  // A file dropped anywhere but the field would otherwise navigate the tab to
-  // it, silently throwing away whatever the person was doing.
-  useEffect(() => {
-    const swallow = (e: DragEvent) => e.preventDefault();
-    window.addEventListener('dragover', swallow);
-    window.addEventListener('drop', swallow);
-    return () => {
-      window.removeEventListener('dragover', swallow);
-      window.removeEventListener('drop', swallow);
-    };
-  }, []);
-
-  // A local PDF has no url to proxy, so it is stored first and annotated at the
-  // path it comes back as. Only "too big" gets its own message — it is the one
-  // failure a person can act on; the rest throw into the shared catch.
-  const uploadPdf = useCallback(async (file: File) => {
-    if (uploading.value) return;
-    uploading.value = true;
-    try {
-      const res = await fetch('/f', { method: 'POST', body: file });
-      if (res.status === 413) {
-        toast(`That PDF is larger than ${MAX_UPLOAD_BYTES / 1024 / 1024}MB`, 'error');
-        return;
-      }
-      if (!res.ok) throw new Error(String(res.status));
-      const url = stringField(await res.json(), 'url');
-      if (!url) throw new Error('no url');
-      navigateTo({ url, source: 'hero_upload' });
-    } catch {
-      toast('Could not upload that PDF', 'error');
-    } finally {
-      uploading.value = false;
-    }
-  }, []);
-  const drawingRef = useRef(false);
-  const startPtRef = useRef<Point>({ x: 0, y: 0 });
-  const currentPathRef = useRef<FreehandOp | null>(null);
-  const snapshotRef = useRef<ImageData | null>(null);
-
-  const applyTool = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.lineCap = ctx.lineJoin = 'round';
-    const tool = activeTool.value;
-    const c = color.value;
-    const lw = lineWidth.value;
-    switch (tool) {
-      case 'eraser':
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = Math.max(5, lw * 1.5);
-        ctx.strokeStyle = 'black';
-        break;
-      case 'highlight':
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = Math.max(8, lw * 2);
-        ctx.strokeStyle = ctx.fillStyle = hexToRgba(c, 0.4);
-        break;
-      default:
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = lw;
-        ctx.strokeStyle = ctx.fillStyle = c;
-    }
-  }, []);
-
-  const renderAll = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const canvasW = window.innerWidth;
-    const canvasH = document.documentElement.scrollHeight;
-    if (canvas.width !== canvasW) canvas.width = canvasW;
-    if (canvas.height !== canvasH) canvas.height = canvasH;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvasW, canvasH);
-    for (const op of operations.value) {
-      if (op.tool === 'comment' || op.tool === 'selection') continue;
-      if (!inView(opBounds(op), 0, 0, canvasW, canvasH)) continue;
-      renderOp(ctx, op, 0, 0);
-    }
-  }, []);
-
-  const canvasCoords = useCallback((e: MouseEvent): Point => {
-    return { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
-  }, []);
-
-  const onDown = useCallback(
-    (e: MouseEvent) => {
-      const tool = activeTool.value;
-      if (tool === 'navigate' || tool === 'comment' || tool === 'selection') return;
-      if (tool === 'text') {
-        textInput.value = canvasCoords(e);
-        return;
-      }
-      drawingRef.current = true;
-      isDrawingActive.value = true;
-      const pos = canvasCoords(e);
-      startPtRef.current = pos;
-      const ctx = canvasRef.current?.getContext('2d');
-      if (!ctx) return;
-      applyTool(ctx);
-      if (FREEHAND.has(tool)) {
-        ctx.beginPath();
-        ctx.moveTo(pos.x, pos.y);
-        currentPathRef.current = {
-          id: nanoid(),
-          tool,
-          points: [pos],
-          color: tool === 'highlight' ? hexToRgba(color.value, 0.4) : color.value,
-          lineWidth: ctx.lineWidth,
-          compositeOperation: ctx.globalCompositeOperation,
-        };
-      } else if (SHAPES.has(tool)) {
-        snapshotRef.current = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
-      }
-    },
-    [canvasCoords, applyTool],
-  );
-
-  const onMove = useCallback(
-    (e: MouseEvent) => {
-      if (!drawingRef.current) return;
-      const tool = activeTool.value;
-      const pos = canvasCoords(e);
-      const ctx = canvasRef.current?.getContext('2d');
-      if (!ctx) return;
-      if (FREEHAND.has(tool)) {
-        currentPathRef.current?.points.push(pos);
-        ctx.lineTo(pos.x, pos.y);
-        ctx.stroke();
-      } else if (snapshotRef.current && SHAPES.has(tool)) {
-        ctx.putImageData(snapshotRef.current, 0, 0);
-        ctx.beginPath();
-        const sp = startPtRef.current;
-        applyTool(ctx);
-        switch (tool) {
-          case 'rectangle':
-            ctx.strokeRect(sp.x, sp.y, pos.x - sp.x, pos.y - sp.y);
-            break;
-          case 'circle': {
-            const r = Math.hypot(pos.x - sp.x, pos.y - sp.y);
-            ctx.arc(sp.x, sp.y, r, 0, Math.PI * 2);
-            ctx.stroke();
-            break;
-          }
-          case 'line':
-          case 'arrow':
-            ctx.moveTo(sp.x, sp.y);
-            ctx.lineTo(pos.x, pos.y);
-            ctx.stroke();
-            if (tool === 'arrow') {
-              strokeArrowHead(ctx, { start: sp, end: pos, lineWidth: ctx.lineWidth });
-            }
-            break;
-        }
-      }
-    },
-    [canvasCoords, applyTool],
-  );
-
-  const onUp = useCallback(
-    (e: MouseEvent) => {
-      if (!drawingRef.current) return;
-      drawingRef.current = false;
-      isDrawingActive.value = false;
-      const tool = activeTool.value;
-      const pos = canvasCoords(e);
-      const sp = startPtRef.current;
-      if (FREEHAND.has(tool) && currentPathRef.current) {
-        currentPathRef.current.points.push(pos);
-        if (currentPathRef.current.points.length > 1) {
-          currentPathRef.current.points = simplify(currentPathRef.current.points, 1.5);
-          pushDeviceOp(currentPathRef.current);
-        }
-        currentPathRef.current = null;
-      } else if (SHAPES.has(tool)) {
-        snapshotRef.current = null;
-        const base = { id: nanoid(), color: color.value, lineWidth: lineWidth.value };
-        if (tool === 'circle') {
-          const r = Math.hypot(pos.x - sp.x, pos.y - sp.y);
-          if (r > 0) pushDeviceOp({ ...base, tool: 'circle', centerX: sp.x, centerY: sp.y, radius: r });
-        } else if (tool === 'rectangle') {
-          if (sp.x !== pos.x && sp.y !== pos.y)
-            pushDeviceOp({
-              ...base,
-              tool: 'rectangle',
-              startX: sp.x,
-              startY: sp.y,
-              endX: pos.x,
-              endY: pos.y,
-            });
-        } else if (tool === 'line' || tool === 'arrow') {
-          if (sp.x !== pos.x || sp.y !== pos.y)
-            pushDeviceOp({
-              ...base,
-              tool: 'line',
-              arrow: tool === 'arrow',
-              startX: sp.x,
-              startY: sp.y,
-              endX: pos.x,
-              endY: pos.y,
-            });
-        }
-      }
-    },
-    [canvasCoords],
-  );
-
-  // Re-render canvas when operations change
-  useSignalEffect(() => {
-    operations.value;
-    renderAll();
-  });
-
-  useSignalEffect(() => {
-    const v = undoRedoFlash.value;
-    if (v > 0) canvasRef.current?.animate([{ opacity: 0.3 }, { opacity: 1 }], { duration: 400, easing: 'ease-out' });
-  });
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const onResize = () => {
-      clearTimeout(timer);
-      timer = setTimeout(renderAll, 100);
-    };
-    window.addEventListener('resize', onResize);
-    const ro = new ResizeObserver(() => renderAll());
-    ro.observe(document.body);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      ro.disconnect();
-    };
-  }, [renderAll]);
-
-  useEffect(() => {
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  }, [onMove, onUp]);
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target;
-      if (!(target instanceof HTMLElement)) return;
-      const tag = target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-        if (e.key === 'Escape') target.blur();
-        return;
-      }
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          undo();
-          return;
-        }
-        if (e.key === 'y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
-          e.preventDefault();
-          redo();
-          return;
-        }
-      }
-      const m = toolForKeyEvent(e);
-      if (m) {
-        activeTool.value = m;
-        e.preventDefault();
-        return;
-      }
-      if (e.key === 'Escape') {
-        if (showShareDialog.value) {
-          showShareDialog.value = false;
-          e.preventDefault();
-          return;
-        }
-        if (showAnnotationPanel.value) {
-          showAnnotationPanel.value = false;
-          e.preventDefault();
-          return;
-        }
-        activeTool.value = 'navigate';
-        e.preventDefault();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  /* Put one real annotation on the board.
-
-     Measured off the URL field rather than hard-coded, so the pin sits on it at
-     every width instead of drifting into the copy on a narrow screen. It waits
-     for `document.fonts.ready` and then a frame: the hero's height depends on
-     Geist's metrics and on ChannelCycle measuring its word slot, and both land
-     after first paint — measuring in a plain mount effect put the pin ~300px
-     high, above the headline instead of on the field. */
-  useEffect(() => {
-    let cancelled = false;
-
-    const place = () => {
-      const form = heroFormRef.current;
-      if (cancelled || !form) return;
-      const r = form.getBoundingClientRect();
-      // A zero-width rect means layout still has not settled; placing the pin
-      // off that would park it against the left edge of the page.
-      if (r.width === 0) return;
-      // Just off the field's right edge, level with its centre.
-      //
-      // It sat on the field's top-right corner until a click test showed it
-      // covering a 16x12px bite out of the submit button — the pin layer
-      // re-enables pointer events for the pin itself, so `elementFromPoint` on
-      // the button's own corner returned the pin and that corner was dead. It
-      // still reads as attached to the field at this distance, and it no longer
-      // sits on top of the page's primary action.
-      const x = r.right + window.scrollX + 30;
-      const y = r.top + r.height / 2 + window.scrollY;
-      const seeded = operations.peek().find((op) => op.id === HERO_PIN_ID);
-      if (seeded) {
-        if (seeded.tool !== 'comment' || (seeded.x === x && seeded.y === y)) return;
-        operations.value = operations.peek().map((op) => (op.id === HERO_PIN_ID ? { ...op, x, y } : op));
-        return;
-      }
-      seedDeviceOp({
-        id: HERO_PIN_ID,
-        tool: 'comment',
-        num: 1,
-        text: 'This pin is real. Open it, reply to it, resolve it, then drop your own anywhere on the page.',
-        x,
-        y,
-        // From the peer-cursor palette, so the mark belongs to the same
-        // vocabulary as the people already on the board.
-        color: '#8b5cf6',
-        lineWidth: lineWidth.peek(),
-        ts: Date.now(),
-        author: 'Yuki',
-      });
-    };
-
-    let timer: ReturnType<typeof setTimeout>;
-    // Only the viewport changing moves the field. Watching the document instead
-    // would re-place the pin every time a FAQ row opened.
-    const onResize = () => {
-      clearTimeout(timer);
-      timer = setTimeout(place, 120);
-    };
-    document.fonts.ready.then(() => {
-      requestAnimationFrame(place);
-    });
-    window.addEventListener('resize', onResize);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-      window.removeEventListener('resize', onResize);
-    };
-  }, []);
-
-  // Cursor broadcast
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const pos = canvasCoords(e);
-      onCursorMove.value?.(pos.x, pos.y, activeTool.value);
-    };
-    window.addEventListener('mousemove', handler);
-    return () => window.removeEventListener('mousemove', handler);
-  }, [canvasCoords]);
-
-  // Selection tool
-  useEffect(() => {
-    const onMouseUp = () => {
-      if (activeTool.value !== 'selection') return;
-      requestAnimationFrame(() => {
-        const sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !sel.toString().trim()) return;
-        const text = sel.toString();
-        const rects: import('@ext/lib/types').SelectionRect[] = [];
-        for (let i = 0; i < sel.rangeCount; i++) {
-          for (const cr of sel.getRangeAt(i).getClientRects()) {
-            rects.push({ x: cr.x + window.scrollX, y: cr.y + window.scrollY, width: cr.width, height: cr.height });
-          }
-        }
-        if (rects.length === 0) return;
-        const lastCr = sel.getRangeAt(sel.rangeCount - 1).getClientRects();
-        // A range can contribute no client rects (a collapsed boundary inside a
-        // multi-range selection). `rects` is in document space and these anchor
-        // the popover in viewport space, so there is nothing here to fall back
-        // to — without a rect there is no place to put it.
-        const last = lastCr[lastCr.length - 1];
-        if (!last) return;
-        selectionPopover.value = { text, rects, screenX: last.right, screenY: last.bottom, auto: false };
-      });
-    };
-    window.addEventListener('mouseup', onMouseUp);
-    return () => window.removeEventListener('mouseup', onMouseUp);
-  }, []);
+  useLandingShortcuts();
+  useLandingPresence();
+  useHeroPin(heroFormRef);
 
   const tool = activeTool.value;
   const showCanvas = isDrawingTool(tool) && tool !== 'comment' && tool !== 'text' && tool !== 'selection';
@@ -713,7 +223,7 @@ export function Landing() {
                       e.preventDefault();
                       dropping.value = false;
                       const file = e.dataTransfer?.files?.[0];
-                      if (file) void uploadPdf(file);
+                      if (file) void uploadFile(file);
                     }}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -798,21 +308,21 @@ export function Landing() {
                       worth its own filled button. */}
                     <button
                       type="button"
-                      onClick={() => pdfInputRef.current?.click()}
+                      onClick={() => fileInputRef.current?.click()}
                       class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-ui-lg text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
                     >
-                      {uploading.value ? 'Uploading…' : 'open a PDF'}
+                      {uploading.value ? 'Uploading…' : 'open a PDF or image'}
                     </button>
                     <input
-                      ref={pdfInputRef}
+                      ref={fileInputRef}
                       type="file"
-                      accept="application/pdf,.pdf"
+                      accept={UPLOAD_ACCEPT}
                       hidden
                       onChange={(e) => {
                         const file = e.currentTarget.files?.[0];
                         // Cleared so picking the same file twice still fires.
                         e.currentTarget.value = '';
-                        if (file) void uploadPdf(file);
+                        if (file) void uploadFile(file);
                       }}
                     />
                   </div>
