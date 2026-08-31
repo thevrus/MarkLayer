@@ -36,11 +36,11 @@ Install the stdio MCP server and let a human's feedback drive your edits:
 
     claude mcp add marklayer -- npx -y marklayer-mcp
 
-A room's \`url\` is not always a webpage. It can be a PDF, either a link to one or
-a file someone uploaded, served from \`/f/{id}\`. Annotations on a PDF record the
-page they were made on rather than a CSS selector, and the \`inspect\` kind never
-appears there, so take the location from that instead of asking which element was
-meant.
+A room's \`url\` is not always a webpage. It can be a PDF or an image, either a
+link to one or a file someone uploaded, served from \`/f/{id}\`. Annotations on
+one record the page they were made on rather than a CSS selector — an image
+counts as a single page — and the \`inspect\` kind never appears there, so take
+the location from that instead of asking which element was meant.
 
 Each annotation carries a \`kind\` (comment | area | selection | inspect) and,
 where the human marked an element, a \`target\` block with the CSS selector +
