@@ -12,7 +12,7 @@ import {
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import type { CaptureViewport, TargetElement } from '@marklayer/types';
 import { computed, effect, signal } from '@preact/signals';
-import { capture, captureOnce } from './analytics';
+import { capture, captureOnce, setRole } from './analytics';
 import { fromBase64 } from './encoding';
 import { annotationId, currentPageIdx, originalWidth, pageUrl, projectId } from './projects';
 
@@ -105,6 +105,10 @@ export const selectionPopover = signal<{
 export type SupportTrigger = 'auto' | 'bar' | 'menu';
 export const showSupportDialog = signal<SupportTrigger | null>(null);
 export const isReadonly = signal(false);
+// Mirror read-only into the telemetry label (see setRole). Nothing demotes a
+// session after `parseViewParam` today, so an effect buys only that this keeps
+// holding if something ever does.
+effect(() => setRole(isReadonly.value ? 'viewer' : 'editor'));
 export const sharing = signal(false);
 export const showInfoPanel = signal(false);
 
