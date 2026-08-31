@@ -1,14 +1,15 @@
 <!doctype html>
-<!-- The host reads this the instant the iframe fires `load` (ViewerStage.tsx),
-     which is long before pdf.js has fetched and painted anything. It marks who
-     served the page, not that rendering finished, so it has to be in the markup
-     — set from script it always loses the race and every PDF reads as a failed
-     render. Failures surface as .pdf-error inside the frame instead. -->
-<html lang="en" data-marklayer="1" data-pdf="1">
+<!-- The host reads these the instant the iframe fires `load` (ViewerStage.tsx),
+     which is long before the file has been fetched and painted. They mark who
+     served the page, not that rendering finished, so they have to be in the
+     markup — set from script they always lose the race and every document reads
+     as a failed render. Failures surface as .doc-error inside the frame
+     instead. -->
+<html lang="en" data-marklayer="1" data-doc="1">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDF · MarkLayer</title>
+    <title>Document · MarkLayer</title>
     <style>
       html,
       body {
@@ -17,24 +18,33 @@
         background: #525659;
       }
 
-      #pdf-root {
+      #doc-root {
         display: flex;
         flex-direction: column;
         align-items: center;
+        /* A single image shorter than the frame sits in the middle of it rather
+           than pinned to the top of a field of grey. `safe` is what makes that
+           usable on the other side: a tall PDF overflows, and unsafe centring
+           would push its first page up out of reach where nothing can scroll
+           back to it. Where `safe` is not understood the whole declaration is
+           dropped, which leaves the top-aligned stack this had before. */
+        justify-content: safe center;
+        min-height: 100vh;
       }
 
-      .pdf-page {
+      .doc-page {
         position: relative;
         margin: 12px 0;
         background: #fff;
         box-sizing: border-box;
       }
 
-      .pdf-page canvas {
+      .doc-page canvas,
+      .doc-page img {
         display: block;
       }
 
-      .pdf-error {
+      .doc-error {
         margin: 24px;
         color: #eee;
         font-family: monospace;
@@ -109,7 +119,7 @@
     </style>
   </head>
   <body>
-    <div id="pdf-root"></div>
-    <script type="module" src="/web/pdf-viewer.ts"></script>
+    <div id="doc-root"></div>
+    <script type="module" src="/web/doc-viewer.ts"></script>
   </body>
 </html>

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { fromPageFraction, toPageFraction } from './pdfAnchor';
+import { fromPageFraction, toPageFraction } from './docAnchor';
 
 // A page box offset from the viewport origin, so a dropped `left`/`top` term
 // shows up rather than cancelling against zero.
 const box = { left: 40, top: 100, width: 800, height: 1000 };
 
-describe('pdf page fractions', () => {
+describe('document page fractions', () => {
   it('normalises a point against the page box, not the viewport', () => {
     expect(toPageFraction({ box, clientX: 440, clientY: 600 })).toEqual({ x: 0.5, y: 0.5 });
     expect(toPageFraction({ box, clientX: 40, clientY: 100 })).toEqual({ x: 0, y: 0 });

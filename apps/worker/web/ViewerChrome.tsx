@@ -37,7 +37,7 @@ import {
 import type { ComponentChildren } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
 import { useRef, useState } from 'preact/hooks';
-import { isUploadPath } from './pdfSource';
+import { isUploadPath } from './docSource';
 import { DEVICE_ICONS, Logo } from './shared';
 import {
   deviceMode,
@@ -183,8 +183,9 @@ function ViewportToggle({ mode }: { mode: DeviceMode }) {
 
 /** Mutually exclusive views, so the selection reads as a panel raised off a track. */
 function ViewportSwitcher() {
-  // A PDF is laid out to the frame's width, not by media queries — switching to a
-  // phone viewport would only make the same page narrower, so it isn't offered.
+  // A PDF or an image is laid out to the frame's width, not by media queries —
+  // switching to a phone viewport would only make the same page narrower, so it
+  // isn't offered.
   if (elementToolsUnavailable.value) return null;
   return (
     <ToggleGroup

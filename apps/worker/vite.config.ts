@@ -38,7 +38,8 @@ export default defineConfig({
         rollupOptions: {
           input: {
             main: resolve(__dirname, 'index.html'),
-            pdf: resolve(__dirname, 'pdf.html'),
+            doc: resolve(__dirname, 'doc.html'),
+            app: resolve(__dirname, 'app.html'),
           },
         },
       },

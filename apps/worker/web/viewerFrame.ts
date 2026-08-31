@@ -38,6 +38,8 @@ type Ref<T> = { current: T | null };
 interface ViewerFrameState {
   iframeLoaded: Signal<boolean>;
   renderFailed: Signal<RenderFailure | null>;
+  /** Past the slow mark but not given up on, so the loader can say so. */
+  pageSlow: Signal<boolean>;
   /**
    * The egress address the host's firewall named in its challenge, when it named
    * one — the only detail that turns "it broke" into something the owner can act on.

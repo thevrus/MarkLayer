@@ -8,8 +8,8 @@ import { nanoid } from 'nanoid';
 import { classifyProxyError } from '../src/proxy-errors';
 import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
 import { CursorLayer } from './CursorLayer';
+import { frameSrc, isUploadPath } from './docSource';
 import { captureAnchors, frameViewport } from './iframeOverlay';
-import { frameSrc, isUploadPath } from './pdfSource';
 import { Logo, TextInputOverlay } from './shared';
 import {
   commentPopover,
@@ -140,7 +140,7 @@ function PageFailure() {
             rel="noreferrer"
             class="px-4 py-2 rounded-lg bg-ml-btn text-ml-btn-fg text-ui font-medium no-underline hover:bg-ml-btn-hover transition-colors"
           >
-            {isUploadPath(pageUrl.value) ? 'Open the PDF' : 'Open original site'}
+            {isUploadPath(pageUrl.value) ? 'Open the file' : 'Open original site'}
           </a>
           <a href="/" class="text-ui text-ml-fg/70 underline underline-offset-2 hover:text-ml-fg transition-colors">
             Back home
@@ -152,11 +152,14 @@ function PageFailure() {
 }
 
 function PageLoading() {
+  const { state } = useViewerFrame();
   return (
     <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-ml-bg-viewer">
       <Logo size={48} />
       <Loader2 size={32} class="animate-spin text-ml-accent" aria-hidden="true" />
-      <p class="text-ui text-ml-fg/70">Loading page…</p>
+      <p class="text-ui text-ml-fg/70">
+        {state.pageSlow.value ? 'Still loading. This page is slow to answer…' : 'Loading page…'}
+      </p>
     </div>
   );
 }
@@ -183,14 +186,26 @@ function ProxiedPage() {
         if (!pageUrl.value) return;
         // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
         const doc = meta.frameRef.current?.contentDocument;
-        // A PDF has no element tree worth inspecting and no responsive layout to
-        // resize, so the tools and device sizes that act on those come off.
-        elementToolsUnavailable.value = doc?.documentElement?.dataset?.pdf === '1';
+        // A PDF or an image has no element tree worth inspecting and no responsive
+        // layout to resize, so the tools and device sizes that act on those come off.
+        elementToolsUnavailable.value = doc?.documentElement?.dataset?.doc === '1';
         if (doc?.documentElement?.dataset?.marklayer === '1') {
+          // A page that arrives after the give-up bound still rendered, so clear
+          // that failure instead of leaving its screen parked over a working page.
+          // Only `timeout` is cleared here: a firewall notice can land before
+          // `load` and has to survive it.
+          if (state.renderFailed.value === 'timeout') state.renderFailed.value = null;
           actions.reportRenderSuccess();
           return;
         }
-        actions.reportRenderFailure('no-marker', { proxy_error: classifyProxyError(doc?.body?.textContent) });
+        actions.reportRenderFailure('no-marker', {
+          proxy_error: classifyProxyError(doc?.body?.textContent),
+          // `empty` was collapsing two unrelated causes: the proxy served a blank
+          // body, and the frame navigated itself cross-origin so its document is
+          // unreachable. Only the second is a page escaping the proxy, and telling
+          // them apart is what decides whether there is anything here to fix.
+          doc_reachable: Boolean(doc),
+        });
         state.renderFailed.value = 'no-marker';
       }}
       onError={() => {
