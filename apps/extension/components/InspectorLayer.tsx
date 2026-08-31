@@ -28,6 +28,7 @@ import {
   toast,
 } from '../lib/state';
 import type { InspectOp } from '../lib/types';
+import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PRIORITY_META, PriorityPicker } from './PriorityPicker';
 
 export interface HoverState {
@@ -163,6 +164,7 @@ export type { SelectedInfo };
 export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const priority = useSignal<CommentPriority | undefined>(undefined);
+  const { mentionProps, mentions } = useMentions();
   const setTaRef = useCallback((el: HTMLTextAreaElement | null) => {
     taRef.current = el;
     el?.focus();
@@ -206,6 +208,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       tag: state.tag,
       comment: comment || undefined,
       priority: priority.value,
+      mentions: mentions(),
       markdown: state.markdown,
       rect: { x: state.rect.x, y: state.rect.y, width: state.rect.width, height: state.rect.height },
       ts: Date.now(),
@@ -303,8 +306,9 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
         </div>
 
         <div class="px-3.5 pb-2.5">
-          <textarea
-            ref={setTaRef}
+          <MentionTextarea
+            taRef={setTaRef}
+            {...mentionProps}
             placeholder="What should change on this element?"
             rows={2}
             onKeyDown={(e) => {

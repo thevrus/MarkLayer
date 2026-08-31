@@ -18,6 +18,7 @@ import {
 } from '../lib/state';
 import type { CommentOp } from '../lib/types';
 import { TriageSection, useTriageHold } from './CommentTriage';
+import { MentionText } from './MentionText';
 import { PriorityPin } from './PriorityPicker';
 import { ReplyComposer, ThreadHeader, ThreadReplies } from './ThreadCard';
 
@@ -194,7 +195,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
                   class="text-(--ds-gray-1000) text-ui leading-body wrap-break-word whitespace-pre-wrap m-0"
                   style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
                 >
-                  {op.text}
+                  <MentionText text={op.text} mentions={op.mentions} />
                 </p>
               )}
             </div>

@@ -1,12 +1,12 @@
 import { Menu } from '@base-ui/react/menu';
 import { type CommentStatus, cn, commentStatusSchema } from '@marklayer/types';
-import { computed } from '@preact/signals';
 import { Check, ChevronDown, CircleUserRound } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
+import { stableComputed } from '../lib/stable';
 import { localUser, peers, STATUS_COLORS, STATUS_LABELS, setOpAssignee, setOpStatus } from '../lib/state';
 
 const STATUS_ORDER = commentStatusSchema.options;
@@ -15,22 +15,20 @@ const STATUS_ORDER = commentStatusSchema.options;
 const UNASSIGNED = '\u0000unassigned';
 const OFFLINE_COLOR = 'oklch(0.55 0.02 260)';
 
-/* `peers` swaps its Map on every remote cursor move, but the menu only cares
-   about who is present. Returning the same reference while name→color pairs
-   are unchanged keeps every comment pin from re-rendering per cursor frame. */
-let rosterCache = new Map<string, string>();
-
-const matchesCache = (next: Map<string, string>) => {
-  if (next.size !== rosterCache.size) return false;
-  for (const [name, c] of next) if (rosterCache.get(name) !== c) return false;
-  return true;
-};
-
-const peerRoster = computed(() => {
-  const next = new Map<string, string>();
-  for (const p of peers.value.values()) if (p.name) next.set(p.name, p.color);
-  if (!matchesCache(next)) rosterCache = next;
-  return rosterCache;
+/* The menu only cares about who is present, so it holds its reference while the
+   name→color pairs are unchanged — otherwise every remote cursor frame swaps
+   `peers` and re-renders every comment pin. */
+const peerRoster = stableComputed({
+  compute: () => {
+    const next = new Map<string, string>();
+    for (const p of peers.value.values()) if (p.name) next.set(p.name, p.color);
+    return next;
+  },
+  equals: (previous, next) => {
+    if (previous.size !== next.size) return false;
+    for (const [name, color] of next) if (previous.get(name) !== color) return false;
+    return true;
+  },
 });
 
 const triggerCls = cn(

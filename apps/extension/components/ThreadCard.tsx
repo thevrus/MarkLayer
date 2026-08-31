@@ -6,6 +6,8 @@ import { glass } from '../lib/glass';
 import { pushReply } from '../lib/state';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
+import { MentionText } from './MentionText';
+import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityBadge } from './PriorityPicker';
 
 /**
@@ -89,7 +91,9 @@ export function ThreadReplies({ replies }: { replies: CommentOp[] }) {
             <span class="text-meta text-(--ds-gray-1000) font-semibold truncate">{reply.author || 'Anonymous'}</span>
             <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(reply.ts)}</span>
           </div>
-          <p class="m-0 text-(--ds-gray-1000) text-ui leading-body wrap-break-word whitespace-pre-wrap">{reply.text}</p>
+          <p class="m-0 text-(--ds-gray-1000) text-ui leading-body wrap-break-word whitespace-pre-wrap">
+            <MentionText text={reply.text} mentions={reply.mentions} />
+          </p>
         </div>
       ))}
     </>
@@ -111,6 +115,7 @@ const replyBtn = trim(`
 export function ReplyComposer({ parent }: { parent: { id: string; x: number; y: number } }) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement | null>(null);
+  const { mentionProps, mentions } = useMentions();
 
   // Focus from the ref callback rather than an effect: the textarea only exists
   // once `open` flips, so there is nothing to focus at the click that opens it.
@@ -122,7 +127,7 @@ export function ReplyComposer({ parent }: { parent: { id: string; x: number; y: 
   const submit = () => {
     const text = boxRef.current?.value.trim();
     if (!text) return;
-    pushReply(parent, text);
+    pushReply({ parent, text, mentions: mentions() });
     setOpen(false);
   };
 
@@ -137,9 +142,10 @@ export function ReplyComposer({ parent }: { parent: { id: string; x: number; y: 
 
   return (
     <div class="px-3 pt-2 pb-2.5">
-      <textarea
+      <MentionTextarea
         name="reply"
-        ref={mount}
+        taRef={mount}
+        {...mentionProps}
         placeholder="Reply…"
         rows={1}
         class={cn(textareaCls, 'w-full min-h-8 max-h-20', glass.font)}

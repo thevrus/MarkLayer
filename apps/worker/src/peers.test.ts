@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { isAgentPeer, isPeerInfo, sanitizeColor, sanitizeName } from './peers';
+import { isAgentPeer, readPeerInfo, sanitizeColor, sanitizeName, sanitizeUid } from './peers';
 
 describe('sanitizeName', () => {
   test('falls back for a non-string value', () => {
@@ -71,28 +71,28 @@ describe('sanitizeColor', () => {
   });
 });
 
-describe('isPeerInfo', () => {
+describe('readPeerInfo', () => {
   test('accepts a well-formed peer', () => {
-    expect(isPeerInfo({ id: 'p1', name: 'Ada', color: '#8b5cf6' })).toBe(true);
+    expect(readPeerInfo({ id: 'p1', name: 'Ada', color: '#8b5cf6' })).not.toBeNull();
   });
 
   test('rejects null and non-objects', () => {
-    expect(isPeerInfo(null)).toBe(false);
-    expect(isPeerInfo(undefined)).toBe(false);
-    expect(isPeerInfo('peer')).toBe(false);
-    expect(isPeerInfo(42)).toBe(false);
+    expect(readPeerInfo(null)).toBeNull();
+    expect(readPeerInfo(undefined)).toBeNull();
+    expect(readPeerInfo('peer')).toBeNull();
+    expect(readPeerInfo(42)).toBeNull();
   });
 
   test('rejects an object missing a field', () => {
-    expect(isPeerInfo({ name: 'Ada', color: '#8b5cf6' })).toBe(false);
-    expect(isPeerInfo({ id: 'p1', color: '#8b5cf6' })).toBe(false);
-    expect(isPeerInfo({ id: 'p1', name: 'Ada' })).toBe(false);
+    expect(readPeerInfo({ name: 'Ada', color: '#8b5cf6' })).toBeNull();
+    expect(readPeerInfo({ id: 'p1', color: '#8b5cf6' })).toBeNull();
+    expect(readPeerInfo({ id: 'p1', name: 'Ada' })).toBeNull();
   });
 
   test('rejects an object with a mistyped field', () => {
-    expect(isPeerInfo({ id: 1, name: 'Ada', color: '#8b5cf6' })).toBe(false);
-    expect(isPeerInfo({ id: 'p1', name: 42, color: '#8b5cf6' })).toBe(false);
-    expect(isPeerInfo({ id: 'p1', name: 'Ada', color: null })).toBe(false);
+    expect(readPeerInfo({ id: 1, name: 'Ada', color: '#8b5cf6' })).toBeNull();
+    expect(readPeerInfo({ id: 'p1', name: 42, color: '#8b5cf6' })).toBeNull();
+    expect(readPeerInfo({ id: 'p1', name: 'Ada', color: null })).toBeNull();
   });
 });
 
@@ -107,5 +107,51 @@ describe('isAgentPeer', () => {
 
   test('a bare "mcp" without the dash is not an agent', () => {
     expect(isAgentPeer('mcp')).toBe(false);
+  });
+});
+
+// The stable client id is what a mention points at, so presence has to carry it
+// across a reconnect. An attachment that fails the schema is dropped whole —
+// the peer then has no name, no colour and no uid, and nobody can tag them.
+describe('sanitizeUid', () => {
+  test('keeps a client-supplied id', () => {
+    expect(sanitizeUid('V1StGXR8_Z5jdHi6B-myT')).toBe('V1StGXR8_Z5jdHi6B-myT');
+  });
+
+  test('is absent rather than invented when the client sent nothing usable', () => {
+    expect(sanitizeUid(null)).toBeUndefined();
+    expect(sanitizeUid(undefined)).toBeUndefined();
+    expect(sanitizeUid('')).toBeUndefined();
+    expect(sanitizeUid('   ')).toBeUndefined();
+    expect(sanitizeUid(42)).toBeUndefined();
+  });
+
+  test('caps the length, since it is stored verbatim', () => {
+    expect(sanitizeUid('x'.repeat(200))).toHaveLength(64);
+  });
+});
+
+describe('readPeerInfo with a uid', () => {
+  test('accepts an attachment carrying one, and hands the uid back', () => {
+    // Asserted on the parsed value, not just non-null: a schema that dropped
+    // `uid` would still parse, and the peer would stop being addressable.
+    expect(readPeerInfo({ id: 'p1', uid: 'me-1', name: 'Ada', color: '#8b5cf6' })).toEqual({
+      id: 'p1',
+      uid: 'me-1',
+      name: 'Ada',
+      color: '#8b5cf6',
+    });
+  });
+
+  test('still accepts one written before uid existed', () => {
+    expect(readPeerInfo({ id: 'p1', name: 'Ada', color: '#8b5cf6' })).not.toBeNull();
+  });
+
+  test('accepts an explicitly absent uid', () => {
+    expect(readPeerInfo({ id: 'p1', uid: undefined, name: 'Ada', color: '#8b5cf6' })).not.toBeNull();
+  });
+
+  test('rejects a mistyped uid rather than passing it to peers', () => {
+    expect(readPeerInfo({ id: 'p1', uid: 7, name: 'Ada', color: '#8b5cf6' })).toBeNull();
   });
 });

@@ -5,6 +5,7 @@ import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { copyText, deleteOp, inspects, openContextMenu, STATUS_LABELS, STATUS_STYLES, setOpStatus } from '../lib/state';
 import type { InspectOp } from '../lib/types';
+import { MentionText } from './MentionText';
 
 // Bumped on window scroll so each marker repositions. Module-level so a single
 // listener serves every marker — same pattern as AreaLayer.
@@ -104,7 +105,7 @@ function InspectorMarker({ op }: { op: InspectOp }) {
               class="text-meta text-(--ds-gray-1000) m-0 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
             >
-              {op.comment}
+              <MentionText text={op.comment} mentions={op.mentions} />
             </p>
           ) : (
             <p class="text-meta text-(--ds-gray-900) m-0">No task description</p>

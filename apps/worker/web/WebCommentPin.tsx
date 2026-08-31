@@ -1,4 +1,5 @@
 import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
+import { MentionText } from '@ext/components/MentionText';
 import { PriorityPin } from '@ext/components/PriorityPicker';
 import { ReplyComposer, ThreadHeader, ThreadReplies, threadCard } from '@ext/components/ThreadCard';
 import { geist } from '@ext/lib/geist';
@@ -168,7 +169,9 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             )}
 
             <div class="pt-1 px-3.5 pb-2.5">
-              <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">{op.text}</p>
+              <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">
+                <MentionText text={op.text} mentions={op.mentions} />
+              </p>
             </div>
 
             <ThreadReplies replies={replies} />

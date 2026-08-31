@@ -1,5 +1,7 @@
 import { Avatar } from '@ext/components/Avatar';
 import { TriageSection } from '@ext/components/CommentTriage';
+import { MentionText } from '@ext/components/MentionText';
+import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
 import { PRIORITY_LEVELS, PRIORITY_META } from '@ext/components/PriorityPicker';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
@@ -172,12 +174,13 @@ function ContextSection({ op }: { op: DrawOp }) {
 function Replies({ op }: { op: { id: string; x: number; y: number } }) {
   const [replying, setReplying] = useState(false);
   const replyRef = useRef<HTMLTextAreaElement>(null);
+  const { mentionProps, mentions } = useMentions();
   const replies = getReplies(op.id);
 
   const submit = () => {
     const text = replyRef.current?.value.trim();
     if (!text) return;
-    pushReply(op, text);
+    pushReply({ parent: op, text, mentions: mentions() });
     if (replyRef.current) replyRef.current.value = '';
     setReplying(false);
   };
@@ -201,7 +204,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
               class="text-ui text-(--ds-gray-1000) leading-relaxed m-0 mt-0.5"
               style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
             >
-              {reply.text}
+              <MentionText text={reply.text} mentions={reply.mentions} />
             </p>
           </div>
         </div>
@@ -211,9 +214,10 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
         <div class="flex gap-2 mt-1">
           <Avatar name={localUser.name} color={color.value} size="sm" style={{ marginTop: 6 }} />
           <div class="flex-1">
-            <textarea
+            <MentionTextarea
               name="reply"
-              ref={replyRef}
+              taRef={replyRef}
+              {...mentionProps}
               placeholder="Write a reply…"
               rows={1}
               class={cn(textareaCls, glass.font, 'w-full min-h-8 max-h-[140px]')}
@@ -273,7 +277,7 @@ function DetailBody({ item }: { item: AnnotationItem }) {
         class="text-body text-(--ds-gray-1000) leading-body m-0"
         style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
       >
-        {item.op.text}
+        <MentionText text={item.op.text} mentions={item.op.mentions} />
       </p>
     );
   }
@@ -295,7 +299,7 @@ function DetailBody({ item }: { item: AnnotationItem }) {
             class="text-body text-(--ds-gray-1000) leading-body m-0"
             style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
           >
-            {op.comment}
+            <MentionText text={op.comment} mentions={op.mentions} />
           </p>
         ) : (
           <p class="text-ui text-(--ds-gray-900) m-0">No comment on this area.</p>
@@ -337,7 +341,7 @@ function DetailBody({ item }: { item: AnnotationItem }) {
           class="text-ui text-(--ds-gray-900) leading-relaxed m-0 mt-2"
           style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
         >
-          {op.comment}
+          <MentionText text={op.comment} mentions={op.mentions} />
         </p>
       )}
     </>
@@ -399,7 +403,7 @@ function FileRow({ op }: { op: { id: string; x: number; y: number } }) {
       const url = stringField(body, 'url');
       // Into the thread, not only a toast. Everyone in the room needs to be able
       // to find the issue tomorrow, and an agent reading over MCP sees it too.
-      pushReply(op, url ? `Filed in ${target.label}: ${url}` : `Filed in ${target.label}.`);
+      pushReply({ parent: op, text: url ? `Filed in ${target.label}: ${url}` : `Filed in ${target.label}.` });
       // Not captured here: the push route already records `annotation_filed`,
       // and it is the emitter that cannot be blocked or missed on a slow tab.
       toast(`Filed in ${target.label}`, 'success');

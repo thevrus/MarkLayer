@@ -3,7 +3,7 @@ import { applyOpPatch, clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType }
 import { STUN_ONLY, stripPort53 } from './ice';
 import { deliver, parseIntegrations } from './integrations/deliver';
 import { type Notifiable, notifiableFrom } from './integrations/types';
-import { isAgentPeer, isPeerInfo, type PeerInfo, sanitizeColor, sanitizeName } from './peers';
+import { isAgentPeer, type PeerInfo, readPeerInfo, sanitizeColor, sanitizeName, sanitizeUid } from './peers';
 import { captureServer } from './posthog';
 import { annotationStore } from './store';
 
@@ -130,8 +130,7 @@ export class AnnotationRoom extends DurableObject<Env> {
 
   /** Read peer metadata from the socket attachment — survives DO hibernation. */
   private getPeerInfo(ws: WebSocket): PeerInfo | null {
-    const att = ws.deserializeAttachment();
-    return isPeerInfo(att) ? att : null;
+    return readPeerInfo(ws.deserializeAttachment());
   }
 
   private getPeerList(): PeerInfo[] {
@@ -167,10 +166,11 @@ export class AnnotationRoom extends DurableObject<Env> {
     const peerId = url.searchParams.get('peerId') || crypto.randomUUID();
     const peerName = sanitizeName(url.searchParams.get('name'));
     const peerColor = sanitizeColor(url.searchParams.get('color'));
+    const peerUid = sanitizeUid(url.searchParams.get('uid'));
 
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1], [id]);
-    pair[1].serializeAttachment({ id: peerId, name: peerName, color: peerColor });
+    pair[1].serializeAttachment({ id: peerId, uid: peerUid, name: peerName, color: peerColor });
 
     if (this.sessionStartedAt === 0) this.sessionStartedAt = Date.now();
     // The MCP bridge joins as an ordinary peer under an `mcp-` id (apps/mcp/src/room.ts),
@@ -203,7 +203,7 @@ export class AnnotationRoom extends DurableObject<Env> {
     this.broadcast(
       JSON.stringify({
         type: 'peer_join',
-        peer: { id: peerId, name: peerName, color: peerColor },
+        peer: { id: peerId, uid: peerUid, name: peerName, color: peerColor },
       }),
       pair[1],
     );
@@ -336,8 +336,10 @@ export class AnnotationRoom extends DurableObject<Env> {
       case 'profile': {
         const info = this.getPeerInfo(ws);
         if (!info) return;
+        // Spread rather than rebuild: a rename must not drop `uid`, or the peer
+        // stops being addressable the moment they change their name.
         const next: PeerInfo = {
-          id: info.id,
+          ...info,
           name: sanitizeName(msg.name, info.name),
           color: sanitizeColor(msg.color, info.color),
         };
