@@ -26,3 +26,29 @@ export function once<T>(factory: () => T): () => T {
 export function dayCached(contentType: string): Record<string, string> {
   return { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=86400' };
 }
+
+/**
+ * `btoa` throws on any code point over 255, so the bytes become a binary string
+ * first. One definition for the MIME encoder, integration basic-auth and tokens.
+ */
+export function toBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/** UTF-8 text as base64. */
+export function base64Utf8(value: string): string {
+  return toBase64(new TextEncoder().encode(value));
+}
+
+/** URL- and cookie-safe base64: no padding, no `+`, no `/`. */
+export function toBase64Url(bytes: Uint8Array): string {
+  return toBase64(bytes).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '');
+}
+
+/** Lowercase hex SHA-256 of UTF-8 text. */
+export async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}

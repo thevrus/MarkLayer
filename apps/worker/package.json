@@ -17,6 +17,7 @@
     "@base-ui/react": "^1.7.0",
     "@cloudflare/vite-plugin": "^1.54.2",
     "@hono/zod-openapi": "^1.6.1",
+    "@marklayer/emails": "workspace:*",
     "@marklayer/site": "workspace:*",
     "@marklayer/types": "workspace:*",
     "@posthog/react": "^1.10.5",
@@ -30,6 +31,7 @@
     "posthog-js": "^1.422.5",
     "preact": "^10.29.8",
     "tinykeys": "^4.0.0",
+    "wouter-preact": "^3.10.0",
     "zod": "^4.5.2"
   },
   "devDependencies": {

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" data-marklayer="1">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your links · MarkLayer</title>
+    <!-- A signed-in surface has nothing to offer a crawler, and the claim URLs
+         under /app/claim/:id should never appear in an index. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,400..700;1,400..700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <!-- The app is product chrome, not the marketing surface: it sits on Geist's
+       background, and the var flips with the .dark class set below. Inline
+       because this file is outside the stylesheet's @source globs. -->
+  <body style="background: var(--ds-background-100)">
+    <script>
+      // Before paint, matching index.html: a dashboard that flashes white then
+      // repaints dark is worse than one that never animates at all.
+      (() => {
+        var t = localStorage.getItem('ml-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.classList.add(t);
+      })();
+    </script>
+    <div id="app"></div>
+    <script type="module" src="/web/dashboard-main.tsx"></script>
+  </body>
+</html>

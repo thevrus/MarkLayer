@@ -1,5 +1,6 @@
 import { initWasm, Resvg } from '@resvg/resvg-wasm';
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
+import { toBase64 } from './http';
 import { buildOgSvg } from './og-card';
 import { OG_FONTS_BASE64 } from './og-fonts';
 
@@ -33,7 +34,7 @@ async function fetchFaviconDataUri(domain: string): Promise<string | null> {
     if (!res.ok) return null;
     const ct = res.headers.get('content-type') || 'image/png';
     const buf = await res.arrayBuffer();
-    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+    const b64 = toBase64(new Uint8Array(buf));
     return `data:${ct};base64,${b64}`;
   } catch {
     return null;
