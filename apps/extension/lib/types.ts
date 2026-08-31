@@ -13,6 +13,7 @@ export type {
   GuideOp,
   InspectOp,
   LineOp,
+  Mention,
   Peer,
   Point,
   RectOp,

@@ -9,6 +9,7 @@ import { useEdgeClamp } from '../lib/popover';
 import { color, commentCounter, getCommentMeta, lineWidth, signedBy } from '../lib/state';
 import type { CommentOp } from '../lib/types';
 import { CancelButton } from './CancelButton';
+import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityPicker } from './PriorityPicker';
 
 interface Props {
@@ -28,6 +29,7 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const num = commentCounter.value + 1;
   const priority = useSignal<CommentPriority | undefined>(undefined);
+  const { mentionProps, mentions } = useMentions();
 
   useEffect(() => {
     taRef.current?.focus();
@@ -49,6 +51,7 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) 
         ...signedBy(),
         status: 'open',
         priority: priority.value,
+        mentions: mentions(),
         meta: getCommentMeta(),
         ...capture(),
       });
@@ -86,9 +89,10 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) 
       <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="p-3.5">
-        <textarea
+        <MentionTextarea
           name="comment"
-          ref={taRef}
+          taRef={taRef}
+          {...mentionProps}
           placeholder="Leave a comment…"
           rows={1}
           onKeyDown={(e) => {

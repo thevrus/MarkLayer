@@ -1,3 +1,4 @@
+import { MentionText } from '@ext/components/MentionText';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { reprojectBox } from '@ext/lib/anchor';
 import { geist } from '@ext/lib/geist';
@@ -93,7 +94,7 @@ export function WebAreaShape({ op, scale: s, scrollY, frameDoc }: Props) {
               class="text-ui text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
-              {op.comment}
+              <MentionText text={op.comment} mentions={op.mentions} />
             </p>
           ) : (
             <p class="text-meta text-(--ds-gray-900) m-0 mt-1">No comment</p>

@@ -29,6 +29,8 @@ import {
 import type { SelectionOp, SelectionRect } from '../lib/types';
 import { CancelButton } from './CancelButton';
 import { TriageSection, useTriageHold } from './CommentTriage';
+import { MentionText } from './MentionText';
+import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityPicker } from './PriorityPicker';
 import { SelectionEdit, SuggestionDiff } from './SelectionEdit';
 import { ReplyComposer, ThreadHeader, ThreadReplies } from './ThreadCard';
@@ -170,7 +172,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
                   class="text-ui text-(--ds-gray-1000) m-0 mt-2 leading-body wrap-break-word whitespace-pre-wrap"
                   style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
                 >
-                  {op.comment}
+                  <MentionText text={op.comment} mentions={op.mentions} />
                 </p>
               )}
             </div>
@@ -200,6 +202,7 @@ function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverS
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  const { mentionProps, mentions } = useMentions();
 
   const commit = (save: boolean) => {
     const comment = taRef.current?.value.trim();
@@ -212,6 +215,7 @@ function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverS
         comment: comment || undefined,
         suggestion: normalizeSuggestion({ text, suggestion }),
         priority,
+        mentions: mentions(),
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
@@ -252,8 +256,9 @@ function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverS
 
       {/* Optional comment */}
       <div class="p-3.5">
-        <textarea
-          ref={taRef}
+        <MentionTextarea
+          taRef={taRef}
+          {...mentionProps}
           placeholder="Add a comment (optional)…"
           rows={1}
           onKeyDown={(e) => {

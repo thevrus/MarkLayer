@@ -1,4 +1,4 @@
-import { type CommentPriority, cn } from '@marklayer/types';
+import { type CommentPriority, cn, type Mention } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
@@ -26,6 +26,8 @@ import {
 } from '../lib/state';
 import type { AreaOp } from '../lib/types';
 import { CancelButton } from './CancelButton';
+import { MentionText } from './MentionText';
+import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityBadge, PriorityPicker } from './PriorityPicker';
 
 export interface DraftRect {
@@ -139,7 +141,7 @@ function AreaShape({ op }: { op: AreaOp }) {
               class="text-ui text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
               style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
             >
-              {op.comment}
+              <MentionText text={op.comment} mentions={op.mentions} />
             </p>
           ) : (
             <p class="text-meta text-(--ds-gray-900) m-0 mt-1">No comment</p>
@@ -175,21 +177,35 @@ function AreaShape({ op }: { op: AreaOp }) {
   );
 }
 
+/** What the area popover hands back on save — the whole note, not three arguments. */
+export interface AreaDraft {
+  comment: string;
+  priority?: CommentPriority;
+  mentions?: Mention[];
+}
+
 export function AreaPopover({
   rect,
   onCommit,
   onCancel,
 }: {
   rect: DraftRect;
-  onCommit: (comment: string, priority?: CommentPriority) => void;
+  onCommit: (draft: AreaDraft) => void;
   onCancel: () => void;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const priority = useSignal<CommentPriority | undefined>(undefined);
+  const { mentionProps, mentions } = useMentions();
   const setTaRef = useCallback((el: HTMLTextAreaElement | null) => {
     taRef.current = el;
     el?.focus();
   }, []);
+
+  const submission = () => ({
+    comment: taRef.current?.value.trim() || '',
+    priority: priority.value,
+    mentions: mentions(),
+  });
 
   const vx = rect.x - scrollX;
   const vy = rect.y - scrollY;
@@ -221,14 +237,15 @@ export function AreaPopover({
       <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="p-3.5">
-        <textarea
-          ref={setTaRef}
+        <MentionTextarea
+          taRef={setTaRef}
+          {...mentionProps}
           placeholder="What's wrong with this region? (optional)…"
           rows={1}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              onCommit(taRef.current?.value.trim() || '', priority.value);
+              onCommit(submission());
             } else if (e.key === 'Escape') {
               e.preventDefault();
               onCancel();
@@ -244,11 +261,7 @@ export function AreaPopover({
 
       <div class="flex items-center justify-between px-4 py-2.5">
         <CancelButton onClick={onCancel} />
-        <button
-          type="button"
-          onClick={() => onCommit(taRef.current?.value.trim() || '', priority.value)}
-          class={submitBtn}
-        >
+        <button type="button" onClick={() => onCommit(submission())} class={submitBtn}>
           Save ↵
         </button>
       </div>
@@ -317,7 +330,7 @@ export function AreaLayer() {
     [draft, pending],
   );
 
-  const commit = (comment: string, priority?: CommentPriority) => {
+  const commit = ({ comment, priority, mentions }: AreaDraft) => {
     const r = pending.value;
     if (!r) return;
     // Centre of the rect in viewport coords — find the topmost real page element
@@ -336,6 +349,7 @@ export function AreaLayer() {
       endY: r.y + r.h,
       comment: comment || undefined,
       priority,
+      mentions: mentions?.length ? mentions : undefined,
       ts: Date.now(),
       ...signedBy(),
       target: el ? captureTarget({ el, anchor: { x: r.x, y: r.y } }) : undefined,

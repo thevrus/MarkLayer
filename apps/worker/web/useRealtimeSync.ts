@@ -1,6 +1,8 @@
 import {
   connectionStatus,
   localUser,
+  lsGet,
+  lsSet,
   onCleared,
   onCursorMove,
   onOpPushed,
@@ -12,7 +14,7 @@ import {
   toast,
 } from '@ext/lib/state';
 import type { DrawOp, Peer } from '@ext/lib/types';
-import { applyOpPatch } from '@marklayer/types';
+import { type AnnotationOp, applyOpPatch, isAnnotationOp } from '@marklayer/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
@@ -55,6 +57,46 @@ function iceServersEqual(a: RTCIceServer[] | null, b: RTCIceServer[]): boolean {
     }
   }
   return true;
+}
+
+/**
+ * Highest `ts` of a mention this browser has already been told about, per room.
+ * Without it, everything written while you were away is either announced every
+ * time you open the room or never announced at all.
+ */
+const seenKey = (room: string) => `ml-mentions-seen-${room}`;
+
+/** A type guard, so the callers that read `author`/`tool` need no second narrowing. */
+function tagsMe(op: DrawOp): op is AnnotationOp {
+  return isAnnotationOp(op) && !!op.mentions?.some((m) => m.id === localUser.id);
+}
+
+/**
+ * Everything written while you were away that names you, said once on arrival.
+ * A mention has no address to be delivered to — no accounts, no email — so this
+ * and the live toast below are the whole of it.
+ */
+function announceMissedMentions({ ops, room }: { ops: DrawOp[]; room: string }) {
+  const seen = Number(lsGet(seenKey(room))) || 0;
+  // Guard first as its own filter, so the result is typed as annotation ops.
+  const missed = ops.filter(tagsMe).filter((op) => op.ts > seen);
+  if (!missed.length) return;
+  lsSet(seenKey(room), String(missed.reduce((latest, op) => Math.max(latest, op.ts), 0)));
+  toast(`${missed.length} annotation${missed.length === 1 ? '' : 's'} mention${missed.length === 1 ? 's' : ''} you`);
+  capture('mention_missed_seen', { count: missed.length });
+}
+
+/**
+ * Say it out loud when an incoming annotation tags you. This is the whole of
+ * "notifications": the room has no accounts and no address to reach, so a
+ * mention can only be delivered to someone who is here to see it — which is why
+ * it is matched on the stable client id rather than on the display name.
+ */
+function announceMention({ op, room }: { op: DrawOp; room: string }) {
+  if (!tagsMe(op)) return;
+  lsSet(seenKey(room), String(op.ts));
+  toast(`${op.author || 'Someone'} mentioned you`);
+  capture('mention_received', { tool: op.tool });
 }
 
 export const localPeerId = nanoid();
@@ -195,6 +237,9 @@ export function useRealtimeSync(annotationId: string) {
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       const params = new URLSearchParams({
         peerId: localPeerId,
+        // Announced alongside the per-session peer id so peers can address each
+        // other across reconnects — this is what a mention points at.
+        uid: localUser.id,
         name: localUser.name,
         color: localUser.color,
       });
@@ -233,6 +278,9 @@ export function useRealtimeSync(annotationId: string) {
           const msg = JSON.parse(e.data);
           switch (msg.type) {
             case 'init': {
+              // Only the first init is an arrival. A silent reconnect replays the
+              // same room, and announcing it again would re-toast every mention.
+              const arriving = !initReceived;
               if (initReceived) {
                 const serverIds = new Set(msg.ops.map((o: DrawOp) => o.id));
                 const localOnly = operations.value.filter((o) => !serverIds.has(o.id));
@@ -241,6 +289,7 @@ export function useRealtimeSync(annotationId: string) {
                 operations.value = msg.ops;
                 initReceived = true;
               }
+              if (arriving) announceMissedMentions({ ops: msg.ops, room: annotationId });
               if (msg.createdAt != null) createdAt.value = msg.createdAt;
               if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
               if (msg.url) serverUrl.value = msg.url;
@@ -261,6 +310,7 @@ export function useRealtimeSync(annotationId: string) {
             case 'op':
               if (!operations.value.some((o) => o.id === msg.op.id)) {
                 operations.value = [...operations.value, msg.op];
+                announceMention({ op: msg.op, room: annotationId });
               }
               break;
             case 'update_op': {
@@ -332,6 +382,7 @@ export function useRealtimeSync(annotationId: string) {
                 const isNew = !map.has(p.id);
                 map.set(p.id, {
                   id: p.id,
+                  uid: p.uid,
                   name: p.name,
                   color: p.color,
                   cursor: null,

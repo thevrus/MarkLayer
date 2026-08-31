@@ -1,10 +1,15 @@
-import { AreaPopover, type DraftAreaState, type DraftRect, rectFromDraft } from '@ext/components/AreaLayer';
+import {
+  type AreaDraft,
+  AreaPopover,
+  type DraftAreaState,
+  type DraftRect,
+  rectFromDraft,
+} from '@ext/components/AreaLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 
 import { activeTool, color, lineWidth, signedBy } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
-import type { CommentPriority } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
@@ -150,7 +155,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
 
   const hostRect = toHostViewport(draftRect);
 
-  const commit = (comment: string, priority?: CommentPriority) => {
+  const commit = ({ comment, priority, mentions }: AreaDraft) => {
     const r = pending.value;
     if (!r) return;
     // Hit-test the rect's centre, but anchor to its top-left.
@@ -171,6 +176,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       endY: r.y + r.h,
       comment: comment || undefined,
       priority,
+      mentions: mentions?.length ? mentions : undefined,
       ts: Date.now(),
       ...signedBy(),
       ...anchors,

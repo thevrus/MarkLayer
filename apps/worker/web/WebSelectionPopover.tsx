@@ -1,4 +1,5 @@
 import { CancelButton } from '@ext/components/CancelButton';
+import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
 import { PriorityPicker } from '@ext/components/PriorityPicker';
 import { SelectionEdit } from '@ext/components/SelectionEdit';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
@@ -46,6 +47,7 @@ export function WebSelectionPopover({
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
   const [suggestion, setSuggestion] = useState<string | null>(null);
+  const { mentionProps, mentions } = useMentions();
 
   const commit = (save: boolean) => {
     const comment = taRef.current?.value.trim();
@@ -58,6 +60,7 @@ export function WebSelectionPopover({
         comment: comment || undefined,
         suggestion: normalizeSuggestion({ text, suggestion }),
         priority,
+        mentions: mentions(),
         color: color.value,
         lineWidth: lineWidth.value,
         ts: Date.now(),
@@ -100,9 +103,10 @@ export function WebSelectionPopover({
       <div class={cn(geist.divider, 'mx-3.5')} />
 
       <div class="p-3.5">
-        <textarea
+        <MentionTextarea
           name="comment"
-          ref={taRef}
+          taRef={taRef}
+          {...mentionProps}
           placeholder="Add a comment (optional)…"
           rows={1}
           onKeyDown={(e) => {
