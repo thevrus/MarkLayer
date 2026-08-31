@@ -35,7 +35,10 @@
       "/llms-full.txt",
       "/.well-known/*",
       "/f", // anonymous PDF upload — `/f/*` does not match the bare path
-      "/f/*" // and retrieval of one
+      "/f/*", // and retrieval of one
+      "/auth/*", // magic-link sign-in
+      "/app", // dashboard shell (app.html)
+      "/app/*" // and its client-routed sub-paths, which have no asset of their own
     ]
   },
   // Secrets, set with `wrangler secret put <NAME>` — deliberately not `vars`,

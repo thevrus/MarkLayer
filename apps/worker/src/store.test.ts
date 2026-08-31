@@ -1,35 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { annotationStore, isExpired, projectStore } from './store';
-
-/**
- * A D1 stand-in that records the SQL it was handed and replays a queued row.
- * Enough to exercise the store's parsing and expiry rules, which is where the
- * four previous call sites disagreed; it deliberately does not model SQLite.
- */
-function fakeDb({ first = null, all = [] }: { first?: unknown; all?: unknown[] } = {}) {
-  const calls: { sql: string; bindings: unknown[] }[] = [];
-  const db = {
-    calls,
-    prepare(sql: string) {
-      const call = { sql, bindings: [] as unknown[] };
-      calls.push(call);
-      const stmt = {
-        bind(...bindings: unknown[]) {
-          call.bindings = bindings;
-          return stmt;
-        },
-        first: async () => first,
-        all: async () => ({ results: all }),
-        run: async () => ({ success: true }),
-      };
-      return stmt;
-    },
-  };
-  return db;
-}
-
-// biome-ignore lint/suspicious/noExplicitAny: the fake implements only the slice of D1 the store touches.
-const asDb = (db: ReturnType<typeof fakeDb>) => db as any;
+import { asDb, fakeDb } from './test-d1';
 
 describe('annotationStore.get', () => {
   test('parses the ops column and maps the row to camelCase', async () => {

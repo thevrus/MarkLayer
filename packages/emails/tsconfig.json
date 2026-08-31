@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "noEmit": true,
+    // React, not Preact. This is the whole reason emails are their own package:
+    // the worker's tsconfig maps `react` to `preact/compat`, and @react-email
+    // peers on real React 19. The two cannot share a compiler config.
+    "jsx": "react-jsx",
+    "jsxImportSource": "react",
+    "paths": {}
+  },
+  "include": ["src", "scripts"]
+}

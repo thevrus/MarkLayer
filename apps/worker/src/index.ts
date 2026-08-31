@@ -4,14 +4,18 @@ import LLMS_FULL_TXT from '@site/content/agent/llms-full.txt?raw';
 import ROBOTS_TXT from '@site/content/agent/robots.txt?raw';
 import SKILL_MD from '@site/content/agent/SKILL.md?raw';
 import { API_CATALOG, MCP_SERVER_CARD, SKILL_PATH, skillIndex } from '@site/lib/agent';
+import type { Context } from 'hono';
 import { Hono } from 'hono/tiny';
 import { nanoid } from 'nanoid';
 import { api } from './api';
-import { dayCached, once } from './http';
+import { auth, authStore } from './auth';
+import type { EmailEnv } from './email';
+import { dayCached, once, sha256Hex } from './http';
 import { generateOgImage } from './og';
 import { collectMarks } from './og-marks';
 import { proxy } from './proxy';
 import { annotationStore, nowInSeconds, projectStore, uploadStore } from './store';
+import { extensionFor, isUploadType, sniffUploadType } from './uploads';
 
 export { AnnotationRoom } from './annotation-room';
 
@@ -45,7 +49,14 @@ export type Env = {
      * reports its own address on the response, which cannot go stale.
      */
     FETCHER_EGRESS_IP?: string;
-  };
+    /**
+     * Sign-in email, from `EmailEnv` so the bindings the mailer reads are
+     * declared once. `EMAIL` is the Cloudflare Email Service send binding and is
+     * preferred; `RESEND_API_KEY` is the swap if its unpublished daily quota
+     * ever bites. Neither set — the default in dev and in a fork — logs the
+     * link instead of sending it, so sign-in still works locally.
+     */
+  } & EmailEnv;
 };
 
 const app = new Hono<Env>();
@@ -209,8 +220,8 @@ app.get('/ws/:id', async (c) => {
   return room.fetch(new Request(url.toString(), c.req.raw));
 });
 
-// Anonymous PDF upload, so a share can annotate a local file and not just a
-// public URL. The id itself is the access token, same as an annotation's.
+// Anonymous file upload, so a share can annotate a local PDF or image and not
+// just a public URL. The id itself is the access token, same as an annotation's.
 app.post('/f', async (c) => {
   const reader = c.req.raw.body?.getReader();
   if (!reader) return c.text('Empty body', 400);
@@ -239,15 +250,17 @@ app.post('/f', async (c) => {
     offset += chunk.byteLength;
   }
 
-  // Sniff the real bytes, never the client's declared Content-Type.
-  if (new TextDecoder().decode(body.subarray(0, 5)) !== '%PDF-') return c.text('Not a PDF', 415);
+  // Sniff the real bytes, never the client's declared Content-Type: this type is
+  // what `/f/{id}` will later hand a browser on our own origin.
+  const contentType = sniffUploadType(body);
+  if (!contentType) return c.text('Unsupported file type', 415);
 
   const id = nanoid();
   // Row first: the cleanup cron sweeps R2 by what it finds in D1, so an object
   // written without one would never be collected. The reverse order only risks a
   // row pointing at nothing, which reads as a 404 and expires on its own.
   await uploadStore(c.env.DB).put({ id, size });
-  await c.env.FILE_BUCKET.put(id, body, { httpMetadata: { contentType: 'application/pdf' } });
+  await c.env.FILE_BUCKET.put(id, body, { httpMetadata: { contentType } });
   return c.json({ id, url: uploadPath(id) });
 });
 
@@ -258,18 +271,23 @@ app.get('/f/:id', async (c) => {
   const object = await c.env.FILE_BUCKET.get(id);
   if (!object) return c.notFound();
 
+  // Written by the upload route, but re-checked rather than echoed: this value
+  // becomes a `Content-Type` the browser acts on.
+  const stored = object.httpMetadata?.contentType;
+  if (!isUploadType(stored)) return c.notFound();
+
   // Push the retention clock back without delaying the response the browser is
-  // waiting on to render the PDF.
+  // waiting on to render the file.
   c.executionCtx.waitUntil(uploadStore(c.env.DB).touch(id));
 
   return new Response(object.body, {
     headers: {
-      'Content-Type': 'application/pdf',
+      'Content-Type': stored,
       // Load-bearing: without this, a sniffing browser could treat the bytes at
-      // this URL as something other than a PDF and execute them as the app's
-      // own origin.
+      // this URL as something other than what they were stored as and execute
+      // them as the app's own origin.
       'X-Content-Type-Options': 'nosniff',
-      'Content-Disposition': 'inline; filename="document.pdf"',
+      'Content-Disposition': `inline; filename="document.${extensionFor(stored)}"`,
       'Cache-Control': 'public, max-age=31536000, immutable',
     },
   });
@@ -322,11 +340,7 @@ app.get(SKILL_PATH, (c) => c.body(SKILL_MD, 200, dayCached('text/markdown; chars
 // Built once per isolate and memoized: the digest is computed from the SKILL.md
 // bytes this Worker actually serves, so it always matches — even if the skill
 // text is edited — with no manual bookkeeping.
-const skillIndexJson = once(async () => {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(SKILL_MD));
-  const digest = `sha256:${[...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
-  return JSON.stringify(skillIndex(digest));
-});
+const skillIndexJson = once(async () => JSON.stringify(skillIndex(`sha256:${await sha256Hex(SKILL_MD)}`)));
 
 app.get('/.well-known/agent-skills/index.json', async (c) =>
   c.body(await skillIndexJson(), 200, dayCached('application/json; charset=utf-8')),
@@ -360,6 +374,17 @@ app.get('/', async (c) => {
   return new Response(res.body, { status: res.status, headers });
 });
 
+app.route('/auth', auth);
+
+// The dashboard is its own bundle (app.html), so `/app` resolves from the asset
+// layer — but `/app/links` does not, and an unmatched path falls through to the
+// proxy catch-all, which would try to fetch it as a remote URL. Serve the same
+// shell for every path under /app and let the client router read the rest.
+// `/app`, not `/app.html`: the asset layer redirects the extension away.
+const appShell = (c: Context<Env>) => c.env.ASSETS.fetch(new Request(new URL('/app', c.req.url)));
+app.get('/app', appShell);
+app.get('/app/*', appShell);
+
 // Proxy + catch-all (must be last)
 app.route('/', proxy);
 
@@ -380,6 +405,9 @@ const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_even
   // Same retention policy for single annotations and project bundles.
   await dropOgCards(await annotationStore(env.DB).deleteExpired({ unusedSince: staleBefore }));
   await dropOgCards(await projectStore(env.DB).deleteExpired({ unusedSince: staleBefore }));
+
+  // Expired sessions and spent magic links are dead weight, not history.
+  await authStore(env.DB).sweepExpired();
 
   // Uploaded PDFs get the same window, keyed off their own last_accessed_at —
   // an upload that never makes it into a shared annotation must still be

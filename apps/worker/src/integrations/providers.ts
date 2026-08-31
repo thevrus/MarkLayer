@@ -1,4 +1,5 @@
 import { z } from 'zod/mini';
+import { base64Utf8 } from '../http';
 import { type ConfigField, type Notifiable, oneLine, type Provider, type RenderArgs, summarize } from './types';
 
 const json = { 'Content-Type': 'application/json' };
@@ -412,17 +413,9 @@ const jiraConfig = z.object({
 /** A bare Atlassian tenant name: what goes in front of `.atlassian.net`. */
 const JIRA_SITE_SHAPE = /^[a-z0-9][a-z0-9-]*$/i;
 
-/**
- * Base64 of `email:token`, UTF-8 safe.
- *
- * `btoa` throws on any code point over 255, so the bytes are made first. An
- * accented character in a display name should not take the integration down.
- */
+/** Base64 of `email:token`. UTF-8 safe, so an accented display name cannot take the integration down. */
 function basicAuth({ email, token }: { email: string; token: string }): string {
-  const bytes = new TextEncoder().encode(`${email}:${token}`);
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
+  return base64Utf8(`${email}:${token}`);
 }
 
 /** Jira v3 takes rich text as a document, not a string. */
