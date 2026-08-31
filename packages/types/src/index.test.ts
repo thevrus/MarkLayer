@@ -5,9 +5,15 @@ import {
   clientMsgSchema,
   cn,
   type DrawOp,
+  deletionDeadline,
+  type Mention,
+  mentionSegments,
   normalizeSuggestion,
+  RETENTION_DAYS,
   resolveOpStatus,
   translateOp,
+  UPLOAD_ACCEPT,
+  UPLOAD_FORMATS,
 } from './index';
 
 const comment: CommentOp = {
@@ -196,5 +202,79 @@ describe('clientMsgSchema', () => {
   test('rejects a flock message with no state to apply', () => {
     expect(clientMsgSchema.safeParse({ type: 'flock' }).success).toBe(false);
     expect(clientMsgSchema.safeParse({ type: 'flock', on: 'yes' }).success).toBe(false);
+  });
+});
+
+// Display names contain spaces, so tokenising has to be driven by the op's own
+// mention list. A regex over the text splits "@Speedy Axolotl" into a tag plus a
+// stray word, which renders as a half-highlighted name in every thread.
+describe('mentionSegments', () => {
+  const speedy: Mention = { id: 'c1', name: 'Speedy Axolotl' };
+  const speedyShort: Mention = { id: 'c2', name: 'Speedy' };
+
+  test('tokenises a multi-word name as one mention', () => {
+    expect(mentionSegments({ text: 'hey @Speedy Axolotl look', mentions: [speedy] })).toEqual([
+      { text: 'hey ' },
+      { text: '@Speedy Axolotl', mention: speedy },
+      { text: ' look' },
+    ]);
+  });
+
+  test('prefers the longest matching name', () => {
+    const segments = mentionSegments({ text: '@Speedy Axolotl', mentions: [speedyShort, speedy] });
+    expect(segments).toEqual([{ text: '@Speedy Axolotl', mention: speedy }]);
+  });
+
+  test('matches case-insensitively but keeps what was typed', () => {
+    expect(mentionSegments({ text: '@speedy axolotl!', mentions: [speedy] })).toEqual([
+      { text: '@speedy axolotl', mention: speedy },
+      { text: '!' },
+    ]);
+  });
+
+  test('leaves an unmatched @ and a stale mention as prose', () => {
+    expect(mentionSegments({ text: 'email a@b.com', mentions: [speedy] })).toEqual([{ text: 'email a@b.com' }]);
+    expect(mentionSegments({ text: 'they left', mentions: [speedy] })).toEqual([{ text: 'they left' }]);
+  });
+
+  test('tokenises two mentions in one body', () => {
+    const other: Mention = { id: 'c3', name: 'Jazzy Quokka' };
+    expect(mentionSegments({ text: '@Speedy Axolotl and @Jazzy Quokka', mentions: [speedy, other] })).toEqual([
+      { text: '@Speedy Axolotl', mention: speedy },
+      { text: ' and ' },
+      { text: '@Jazzy Quokka', mention: other },
+    ]);
+  });
+
+  test('returns the whole body untouched when nothing is tagged', () => {
+    expect(mentionSegments({ text: 'plain note', mentions: [] })).toEqual([{ text: 'plain note' }]);
+    expect(mentionSegments({ text: 'plain note' })).toEqual([{ text: 'plain note' }]);
+  });
+});
+
+describe('deletionDeadline', () => {
+  const DAY = 24 * 60 * 60;
+  const lastAccessedAt = 1_700_000_000;
+
+  test('is the idle window when no explicit expiry is set', () => {
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: null })).toBe(lastAccessedAt + RETENTION_DAYS * DAY);
+  });
+
+  test('an explicit expiry brings the date forward, it does not replace the window', () => {
+    // The cron's condition is an OR, so whichever comes first wins. Reading it as
+    // "expiry instead of the window" is how a countdown outlives its own row.
+    const soon = lastAccessedAt + 5 * DAY;
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: soon })).toBe(soon);
+    const late = lastAccessedAt + 500 * DAY;
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: late })).toBe(lastAccessedAt + RETENTION_DAYS * DAY);
+  });
+});
+
+describe('UPLOAD_ACCEPT', () => {
+  test('offers exactly the formats the sniffer recognises', () => {
+    // Derived rather than hand-listed: the two disagreeing is how a person is
+    // offered a file that the server then refuses.
+    expect(UPLOAD_ACCEPT.split(',')).toEqual(UPLOAD_FORMATS.map((format) => format.contentType));
+    expect(UPLOAD_ACCEPT).not.toContain('svg');
   });
 });
