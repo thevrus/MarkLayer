@@ -18,6 +18,18 @@ export const peerInfoSchema = z.object({
   uid: z.optional(z.string()),
   name: z.string(),
   color: z.string(),
+  /**
+   * Connect time, and what this peer has done since. Kept on the attachment
+   * rather than in an instance field because the attachment is the one piece of
+   * per-socket state that survives hibernation — and an agent that idles in
+   * `watch` mode hibernates the room almost every time, which is exactly how
+   * the in-memory session counters came to report nothing at all.
+   *
+   * All optional: a socket that connected before this shipped parses fine.
+   */
+  joinedAt: z.optional(z.number()),
+  ops: z.optional(z.number()),
+  updates: z.optional(z.number()),
 });
 
 export type PeerInfo = z.infer<typeof peerInfoSchema>;
@@ -52,5 +64,5 @@ export function readPeerInfo(value: unknown): PeerInfo | null {
   return parsed.success ? parsed.data : null;
 }
 
-/** MCP agents connect as peers under this prefix (apps/mcp/src/room.ts). */
-export const isAgentPeer = (peerId: string) => peerId.startsWith('mcp-');
+// Moved to packages/types so client code can use it without importing server-side src/.
+export { isAgentPeer } from '@marklayer/types';

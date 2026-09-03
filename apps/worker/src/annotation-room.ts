@@ -133,6 +133,42 @@ export class AnnotationRoom extends DurableObject<Env> {
     return readPeerInfo(ws.deserializeAttachment());
   }
 
+  /**
+   * Count an agent's work on its own socket attachment. Only agents are counted:
+   * this costs a write per op, and the per-peer breakdown is only ever read for
+   * `agent_left`. Humans stay on the cheap in-memory counters above.
+   */
+  private countAgentWork(ws: WebSocket, field: 'ops' | 'updates') {
+    const info = this.getPeerInfo(ws);
+    if (!info || !isAgentPeer(info.id)) return;
+    ws.serializeAttachment({ ...info, [field]: (info[field] ?? 0) + 1 });
+  }
+
+  /**
+   * Live human peers, ignoring one socket.
+   *
+   * `exclude` is load-bearing: workerd keeps a terminating socket in
+   * `getWebSockets()` for the whole of its close handler, so a leaving peer
+   * counts itself unless the caller says otherwise.
+   */
+  private countHumans(exclude?: WebSocket): number {
+    let n = 0;
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === exclude) continue;
+      const info = this.getPeerInfo(ws);
+      if (info && !isAgentPeer(info.id)) n++;
+    }
+    return n;
+  }
+
+  /**
+   * Sockets already torn down. workerd dispatches `webSocketClose` or
+   * `webSocketError` for one termination, never both, so this only guards
+   * against a runtime that someday does otherwise — and unlike clearing the
+   * attachment it leans on no undocumented behaviour around `close()`.
+   */
+  private readonly closed = new WeakSet<WebSocket>();
+
   private getPeerList(): PeerInfo[] {
     const list: PeerInfo[] = [];
     for (const ws of this.ctx.getWebSockets()) {
@@ -170,7 +206,7 @@ export class AnnotationRoom extends DurableObject<Env> {
 
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1], [id]);
-    pair[1].serializeAttachment({ id: peerId, uid: peerUid, name: peerName, color: peerColor });
+    pair[1].serializeAttachment({ id: peerId, uid: peerUid, name: peerName, color: peerColor, joinedAt: Date.now() });
 
     if (this.sessionStartedAt === 0) this.sessionStartedAt = Date.now();
     // The MCP bridge joins as an ordinary peer under an `mcp-` id (apps/mcp/src/room.ts),
@@ -179,7 +215,7 @@ export class AnnotationRoom extends DurableObject<Env> {
     this.sessionHadAgent ||= isAgentPeer(peerId);
     const sockets = this.ctx.getWebSockets();
     this.peakPeers = Math.max(this.peakPeers, sockets.length);
-    const humans = sockets.filter((s) => !isAgentPeer(this.getPeerInfo(s)?.id ?? '')).length;
+    const humans = this.countHumans();
     this.peakHumanPeers = Math.max(this.peakHumanPeers, humans);
 
     // Run getOps and the TURN fetch concurrently — both are network-bound and
@@ -207,6 +243,21 @@ export class AnnotationRoom extends DurableObject<Env> {
       }),
       pair[1],
     );
+
+    // Awaited before the 101 goes out. An accepted hibernatable socket does not
+    // keep this object resident — hibernating with the socket open is the whole
+    // point of the API — and an unawaited fetch neither blocks hibernation nor
+    // gets any delivery guarantee. Awaiting is what makes it pending I/O.
+    // https://developers.cloudflare.com/durable-objects/concepts/durable-object-lifecycle/
+    if (isAgentPeer(peerId)) {
+      await captureServer(this.env, this.ctx, 'agent_joined', {
+        // Whether the agent is working alongside someone or on its own — the
+        // difference between a live handoff and an unattended sweep.
+        humans_present: humans,
+        peers_present: sockets.length,
+        ops_waiting: ops.length,
+      });
+    }
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
 
@@ -255,6 +306,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         const ops = await this.getOps(id!);
         ops.push(msg.op);
         this.sessionOps++;
+        this.countAgentWork(ws, 'ops');
         this.sessionTools.set(msg.op.tool, (this.sessionTools.get(msg.op.tool) ?? 0) + 1);
         this.broadcast(JSON.stringify({ type: 'op', op: msg.op }), ws);
         const notifiable = notifiableFrom(msg.op);
@@ -275,6 +327,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         if (!merged) return;
         ops[idx] = merged;
         this.sessionUpdates++;
+        this.countAgentWork(ws, 'updates');
         this.broadcast(JSON.stringify({ type: 'update_op', opId: msg.opId, patch: msg.patch }));
         await this.scheduleFlush();
         return;
@@ -371,20 +424,60 @@ export class AnnotationRoom extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket) {
+    await this.teardown(ws);
+  }
+
+  /**
+   * One exit path for both a clean close and an errored one.
+   *
+   * `webSocketError` used to only close the socket, which lost two things on
+   * every abrupt disconnect — the common case, since a closed tab rarely sends
+   * a close frame. Peers kept a ghost in their presence list because no
+   * `peer_leave` went out, and the session was never counted at all.
+   *
+   * Idempotent by way of the attachment: it is cleared before the socket is
+   * closed, so a second handler for the same socket finds no peer and returns.
+   */
+  private async teardown(ws: WebSocket) {
+    if (this.closed.has(ws)) return;
+    this.closed.add(ws);
     const info = this.getPeerInfo(ws);
     ws.close();
-    if (info) {
-      this.broadcast(JSON.stringify({ type: 'peer_leave', peerId: info.id }));
+    if (!info) return;
+
+    this.broadcast(JSON.stringify({ type: 'peer_leave', peerId: info.id }));
+
+    // Awaited, not fire-and-forget: an agent's socket is usually the last one
+    // out, and after that there is nothing keeping this object alive. Started
+    // together and awaited once — two PostHog posts and a D1 flush that share
+    // no state, so serializing them would only lengthen the window the object
+    // has to survive.
+    const pending: Promise<unknown>[] = [];
+    if (isAgentPeer(info.id)) {
+      pending.push(
+        captureServer(this.env, this.ctx, 'agent_left', {
+          ops_total: info.ops ?? 0,
+          updates_total: info.updates ?? 0,
+          // How long the agent held the room. `watch` idles here; `resolve` does not.
+          duration_ms: info.joinedAt ? Date.now() - info.joinedAt : 0,
+          // Did anyone see it happen, or did it work an empty room?
+          humans_present: this.countHumans(ws),
+        }),
+      );
     }
-    if (this.ctx.getWebSockets().length === 0) {
-      this.captureSession();
-      if (this.dirty) {
-        // Flush immediately when the last peer leaves — otherwise a recent mutation
-        // (e.g. an MCP agent's status change) could be lost if the DO is evicted
-        // before the 3s alarm fires.
-        await this.alarm();
-      }
+
+    // Not `length === 0`: workerd defers dropping a terminating socket until
+    // this handler's promise resolves, so the leaver is still listed here. That
+    // is why the session event never once fired — the condition could not be
+    // true. https://github.com/cloudflare/workerd/blob/main/src/workerd/io/legacy-hibernation-manager.c++
+    if (this.ctx.getWebSockets().every((s) => s === ws)) {
+      pending.push(this.captureSession());
+      // Flush immediately when the last peer leaves — otherwise a recent mutation
+      // (e.g. an MCP agent's status change) could be lost if the DO is evicted
+      // before the 3s alarm fires.
+      if (this.dirty) pending.push(this.alarm());
     }
+    await Promise.all(pending);
   }
 
   /**
@@ -396,7 +489,7 @@ export class AnnotationRoom extends DurableObject<Env> {
    * set of tool names and the rest are counters. See src/posthog.ts for the
    * wider contract (and the scrubber that backstops it).
    */
-  private captureSession() {
+  private async captureSession() {
     // An agent-only session draws nothing — it resolves and replies — so ops alone
     // would drop exactly the sessions the MCP bridge exists for.
     if (this.sessionOps === 0 && this.sessionUpdates === 0 && !this.sessionHadAgent) return;
@@ -404,7 +497,9 @@ export class AnnotationRoom extends DurableObject<Env> {
     // parse, and the ranking has to stay well inside the scrubber's 200-char cap
     // (src/posthog.ts), which would otherwise truncate it mid-entry.
     const byUse = [...this.sessionTools].sort((a, b) => b[1] - a[1]).slice(0, 5);
-    captureServer(this.env, this.ctx, 'annotation_session_ended', {
+    // Started before the counters are reset, awaited after — the reset is
+    // synchronous, so the event carries the session it describes.
+    const sent = captureServer(this.env, this.ctx, 'annotation_session_ended', {
       ops_total: this.sessionOps,
       tools: [...this.sessionTools.keys()].sort().join(','),
       tool_ops: byUse.map(([tool, n]) => `${tool}:${n}`).join(','),
@@ -424,10 +519,11 @@ export class AnnotationRoom extends DurableObject<Env> {
     this.sessionHadAgent = false;
     this.sessionUpdates = 0;
     this.sessionStartedAt = 0;
+    await sent;
   }
 
   async webSocketError(ws: WebSocket) {
-    ws.close();
+    await this.teardown(ws);
   }
 
   async alarm() {
