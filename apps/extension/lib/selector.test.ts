@@ -116,6 +116,31 @@ describe('getSelector', () => {
     expect(getSelector(pick('.Other'))).not.toContain('nth-of-type');
   });
 
+  test('keeps climbing when a test hook or id is duplicated, so the selector still resolves uniquely', () => {
+    // Copy-pasted `data-testid`s across rows and cards are ordinary markup. The
+    // walk used to stop at any standalone segment, returning a selector it had
+    // just proved matched two elements — so every annotation on the second card
+    // re-resolved to the first.
+    mount(`
+      <main>
+        <div class="Card"><button data-testid="delete">x</button></div>
+        <div class="Card"><button data-testid="delete">x</button></div>
+      </main>`);
+    const second = document.querySelectorAll('[data-testid="delete"]')[1];
+    if (!second) throw new Error('fixture missing second button');
+    const sel = getSelector(second);
+    expect(document.querySelectorAll(sel)).toHaveLength(1);
+    expect(document.querySelector(sel)).toBe(second);
+
+    // Same for a duplicated id, which browsers tolerate and templating bugs produce.
+    mount('<main><section id="dup">a</section><section id="dup">b</section></main>');
+    const secondDup = document.querySelectorAll('#dup')[1];
+    if (!secondDup) throw new Error('fixture missing second #dup');
+    const dupSel = getSelector(secondDup);
+    expect(document.querySelectorAll(dupSel)).toHaveLength(1);
+    expect(document.querySelector(dupSel)).toBe(secondDup);
+  });
+
   test('produces a selector that resolves back to the element it described', () => {
     // The whole point of the walk up the tree: whatever comes out must be unique.
     mount(`

@@ -280,18 +280,16 @@ interface Segment {
   selector: string;
   /** True for identifiers that uniquely describe the element regardless of ancestors (id, data-testid). */
   standalone: boolean;
-  /** True if the segment already disambiguates same-tag siblings (no nth-of-type needed). */
-  disambiguated: boolean;
 }
 
 function elementSegment(el: Element): Segment {
   const tag = el.tagName.toLowerCase();
 
   const stable = getStableAttr(el);
-  if (stable) return { selector: tag + stable, standalone: true, disambiguated: true };
+  if (stable) return { selector: tag + stable, standalone: true };
 
   if (isValidId(el.id)) {
-    return { selector: `${tag}#${CSS.escape(el.id)}`, standalone: true, disambiguated: true };
+    return { selector: `${tag}#${CSS.escape(el.id)}`, standalone: true };
   }
 
   // ARIA + form-field attributes — semantically stable, often unique among siblings
@@ -308,7 +306,7 @@ function elementSegment(el: Element): Segment {
       if (type) attrPart += attrSelector('type', type);
     }
   }
-  if (attrPart) return { selector: tag + attrPart, standalone: false, disambiguated: false };
+  if (attrPart) return { selector: tag + attrPart, standalone: false };
 
   const sem = semanticClasses(el);
   if (sem.length > 0) {
@@ -316,10 +314,10 @@ function elementSegment(el: Element): Segment {
       .slice(0, 3)
       .map((c) => CSS.escape(c))
       .join('.');
-    return { selector: `${tag}.${classPart}`, standalone: false, disambiguated: false };
+    return { selector: `${tag}.${classPart}`, standalone: false };
   }
 
-  return { selector: tag, standalone: false, disambiguated: false };
+  return { selector: tag, standalone: false };
 }
 
 const SELECTOR_CACHE = new WeakMap<Element, string>();
@@ -335,6 +333,15 @@ export function getSelector(el: Element): string {
   const result = computeSelector(el);
   SELECTOR_CACHE.set(el, result);
   return result;
+}
+
+/** `querySelectorAll().length`, or -1 for a selector the engine won't parse. */
+function matchCount(doc: Document, selector: string): number {
+  try {
+    return doc.querySelectorAll(selector).length;
+  } catch {
+    return -1;
+  }
 }
 
 function computeSelector(el: Element): string {
@@ -370,8 +377,18 @@ function computeSelector(el: Element): string {
     const seg = elementSegment(current);
     let segment = seg.selector;
 
-    // Add nth-of-type if siblings of the same tag would also match
-    if (!seg.disambiguated) {
+    // A standalone segment (an id or a test hook) roots the chain, so climbing
+    // past it cannot narrow anything — but only when it really is unique.
+    // Duplicated ids and copy-pasted `data-testid`s are ordinary in list, row
+    // and card markup, and treating one as a root returned a selector this
+    // function had just proved ambiguous. `querySelector` then handed every
+    // annotation on the second card to the first one.
+    const rootsChain = seg.standalone && matchCount(doc, seg.selector) === 1;
+
+    // Add nth-of-type if siblings of the same tag would also match. A
+    // standalone segment normally skips this; a duplicated one has to take it,
+    // which is exactly what `rootsChain` being false means here.
+    if (!rootsChain) {
       const parent = current.parentElement;
       if (parent) {
         // Hoisted so the callback doesn't lose `current`'s non-null narrowing.
@@ -393,14 +410,8 @@ function computeSelector(el: Element): string {
 
     parts.unshift(segment);
 
-    const candidate = parts.join(' > ');
-    try {
-      if (doc.querySelectorAll(candidate).length === 1) break;
-    } catch {
-      /* ignore parse errors and keep walking up */
-    }
-
-    if (seg.standalone) break;
+    if (matchCount(doc, parts.join(' > ')) === 1) break;
+    if (rootsChain) break;
     current = current.parentElement;
   }
 
