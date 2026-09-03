@@ -6,6 +6,7 @@ import {
   type SelectionRect,
   type TargetElement,
 } from '@marklayer/types';
+import { scrollOffset } from './scroller';
 import { captureTarget, pickElementAtPoint, textFingerprint } from './selector';
 import { anchorGeneration, pushOp } from './state';
 
@@ -60,8 +61,9 @@ function distanceToCaptured(el: Element, target: TargetElement, win: Window): nu
   const cap = target.rect;
   if (!cap) return Number.POSITIVE_INFINITY;
   const r = el.getBoundingClientRect();
-  const cx = r.x + r.width / 2 + win.scrollX;
-  const cy = r.y + r.height / 2 + win.scrollY;
+  const o = scrollOffset(win);
+  const cx = r.x + r.width / 2 + o.x;
+  const cy = r.y + r.height / 2 + o.y;
   const tx = cap.x + cap.width / 2;
   const ty = cap.y + cap.height / 2;
   const dx = cx - tx;
@@ -145,9 +147,10 @@ function projectAnchor({
   strategy: AnchorStrategy;
 }): ResolvedAnchor {
   const { scaleX, scaleY } = elementScale({ rect, target });
+  const o = scrollOffset(win);
   return {
-    x: rect.x + win.scrollX + offsetX * scaleX,
-    y: rect.y + win.scrollY + offsetY * scaleY,
+    x: rect.x + o.x + offsetX * scaleX,
+    y: rect.y + o.y + offsetY * scaleY,
     scaleX,
     scaleY,
     strategy,
@@ -252,7 +255,8 @@ export function attachTarget(op: DrawOp, ctx?: AnchorContext): void {
   const anchor = opAnchorPoint(op);
   if (!anchor) return;
   const win = ctx?.win ?? window;
-  const el = pickElementAtPoint(anchor.x - win.scrollX, anchor.y - win.scrollY, ctx?.doc);
+  const o = scrollOffset(win);
+  const el = pickElementAtPoint(anchor.x - o.x, anchor.y - o.y, ctx?.doc);
   if (el) op.target = captureTarget({ el, anchor });
 }
 

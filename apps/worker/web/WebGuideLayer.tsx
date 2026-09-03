@@ -8,6 +8,7 @@ import {
 } from '@ext/components/GuideLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { pickGuideAtPoint } from '@ext/lib/measure';
+import { scrollOffset } from '@ext/lib/scroller';
 import {
   activeTool,
   addGuide,
@@ -26,6 +27,9 @@ import { tinykeys } from 'tinykeys';
 import { isElementNode, useIframeOverlay } from './iframeOverlay';
 import { cssScale, iframeScrollY } from './signals';
 
+/** The frame's scroll offset, or none while the frame is not up. */
+const off = (win: Window | null | undefined) => (win ? scrollOffset(win) : { x: 0, y: 0 });
+
 export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const cursor = useSignal<{ x: number; y: number } | null>(null);
   const shift = useSignal(false);
@@ -33,7 +37,7 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
 
   const toIframeDoc = (x: number, y: number) => {
     const win = frameRef.current?.contentWindow;
-    return { x: x + (win?.scrollX ?? 0), y: y + (win?.scrollY ?? 0) };
+    return { x: x + off(win).x, y: y + off(win).y };
   };
 
   const toHostViewport = (x: number, y: number): { x: number; y: number } => {
@@ -205,7 +209,7 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
       const sc = cssScale.value;
       const w = f?.contentWindow;
       if (r) {
-        const pt = { x: (cur2.x - r.left) / sc + (w?.scrollX ?? 0), y: (cur2.y - r.top) / sc + (w?.scrollY ?? 0) };
+        const pt = { x: (cur2.x - r.left) / sc + off(w).x, y: (cur2.y - r.top) / sc + off(w).y };
         target = pickGuideAtPoint(pt, guides.value, GUIDE_HIT_PX) ?? null;
       }
     }
@@ -235,15 +239,10 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
   const fr = frame?.getBoundingClientRect();
   const s = cssScale.value;
   const win = frame?.contentWindow;
-  const docCursor =
-    cur && fr
-      ? { x: (cur.x - fr.left) / s + (win?.scrollX ?? 0), y: (cur.y - fr.top) / s + (win?.scrollY ?? 0) }
-      : null;
+  const docCursor = cur && fr ? { x: (cur.x - fr.left) / s + off(win).x, y: (cur.y - fr.top) / s + off(win).y } : null;
   const docToHost = (ori: Orientation, docPos: number): number => {
     if (!fr) return docPos;
-    return ori === 'vertical'
-      ? fr.left + (docPos - (win?.scrollX ?? 0)) * s
-      : fr.top + (docPos - (win?.scrollY ?? 0)) * s;
+    return ori === 'vertical' ? fr.left + (docPos - off(win).x) * s : fr.top + (docPos - off(win).y) * s;
   };
   const hoveredGuide = docCursor ? pickGuideAtPoint(docCursor, guides.value, GUIDE_HIT_PX) : null;
   const showPreview = isGuideTool && !dragging && cur && !hoveredGuide;
@@ -281,8 +280,7 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
             if (!fr) return;
             const iframeX = (e.clientX - fr.left) / s;
             const iframeY = (e.clientY - fr.top) / s;
-            const newPos =
-              selected.orientation === 'vertical' ? iframeY + (win?.scrollY ?? 0) : iframeX + (win?.scrollX ?? 0);
+            const newPos = selected.orientation === 'vertical' ? iframeY + off(win).y : iframeX + off(win).x;
             flipGuide(selected.id, newPos);
           }}
           onDelete={() => removeGuide(selected.id)}

@@ -7,6 +7,7 @@ import {
 } from '@ext/components/AreaLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
+import { scrollOffset } from '@ext/lib/scroller';
 
 import { activeTool, color, lineWidth, signedBy } from '@ext/lib/state';
 import type { AreaOp } from '@ext/lib/types';
@@ -17,6 +18,12 @@ import { useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { captureAnchors, frameViewport, isElementNode, useIframeOverlay } from './iframeOverlay';
 import { cssScale, iframeScrollY, pushDeviceOp } from './signals';
+
+/** Pointer position in the framed page's document space. */
+const docPoint = (win: Window, e: PointerEvent) => {
+  const o = scrollOffset(win);
+  return { x: e.clientX + o.x, y: e.clientY + o.y };
+};
 
 export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const draft = useSignal<DraftAreaState | null>(null);
@@ -43,8 +50,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       if (e.button !== 0) return;
       e.preventDefault();
       e.stopPropagation();
-      const dx = e.clientX + win.scrollX;
-      const dy = e.clientY + win.scrollY;
+      const { x: dx, y: dy } = docPoint(win, e);
       lastRaw.current = { x: dx, y: dy };
       shiftHeld.current = e.shiftKey;
       draft.value = { startDocX: dx, startDocY: dy, curDocX: dx, curDocY: dy };
@@ -60,7 +66,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       const d = draft.value;
       if (!d) return;
       e.preventDefault();
-      lastRaw.current = { x: e.clientX + win.scrollX, y: e.clientY + win.scrollY };
+      lastRaw.current = docPoint(win, e);
       shiftHeld.current = e.shiftKey;
       applyConstraint();
     };
@@ -71,7 +77,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       e.preventDefault();
       e.stopPropagation();
       shiftHeld.current = e.shiftKey;
-      lastRaw.current = { x: e.clientX + win.scrollX, y: e.clientY + win.scrollY };
+      lastRaw.current = docPoint(win, e);
       const { x, y } = shiftHeld.current
         ? constrainEnd('rectangle', d.startDocX, d.startDocY, lastRaw.current.x, lastRaw.current.y)
         : lastRaw.current;
@@ -147,8 +153,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
     if (!r || !frame) return null;
     const fr = frame.getBoundingClientRect();
     const win = winRef.current;
-    const sx = win?.scrollX ?? 0;
-    const sy = win?.scrollY ?? iframeScrollY.value;
+    const { x: sx, y: sy } = win ? scrollOffset(win) : { x: 0, y: iframeScrollY.value };
     const s = cssScale.value;
     return { x: fr.left + (r.x - sx) * s, y: fr.top + (r.y - sy) * s, w: r.w * s, h: r.h * s };
   };

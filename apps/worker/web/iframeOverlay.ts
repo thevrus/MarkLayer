@@ -1,4 +1,5 @@
 import { type AnchorDelta, applyAnchorDelta } from '@ext/lib/anchor';
+import { scrollOffset } from '@ext/lib/scroller';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
 import type { CaptureViewport, PageAnchor, Point, TargetElement } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
@@ -49,7 +50,8 @@ function pickFrameTarget({ frame, x, y, anchor }: FramePoint): TargetElement | u
   const win = frame?.contentWindow;
   const doc = frame?.contentDocument;
   if (!win || !doc) return undefined;
-  const el = pickElementAtPoint(x - win.scrollX, y - win.scrollY, doc);
+  const o = scrollOffset(win);
+  const el = pickElementAtPoint(x - o.x, y - o.y, doc);
   return el ? captureTarget({ el, anchor: anchor ?? { x, y } }) : undefined;
 }
 
