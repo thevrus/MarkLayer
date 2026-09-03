@@ -18,3 +18,11 @@ export const MARK_PATHS = [
 
 /** Places the paths inside the 512 viewBox. */
 export const MARK_TRANSFORM = 'translate(34.15 0) scale(17.07)';
+
+/**
+ * `--color-ml-accent` — oklch(0.65 0.15 300) — in sRGB.
+ *
+ * The app states the accent in oklch; resvg does not parse CSS Color 4, so the
+ * OG cards carry the same colour as hex. Change one, change the other.
+ */
+export const MARK_ACCENT = '#9e77dc';

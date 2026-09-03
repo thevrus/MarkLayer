@@ -4,7 +4,7 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { breadcrumbSchema, type Crumb } from '../lib/schema';
-import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, sectionFor } from '../lib/site';
+import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, pageOgImage, sectionFor } from '../lib/site';
 
 interface Props {
   title: string;
@@ -13,7 +13,7 @@ interface Props {
   h1: string;
   bottomLine?: string;
   breadcrumbs?: Crumb[];
-  schema?: object[];
+  schema?: (object | null)[];
   /** ISO day (YYYY-MM-DD) of the last content review. Rendered as "April 2026". */
   modified: string;
 }
@@ -21,12 +21,21 @@ interface Props {
 const { title, description, path, h1, bottomLine, breadcrumbs, schema = [], modified } = Astro.props;
 
 const crumbs: Crumb[] = breadcrumbs ?? [{ name: 'MarkLayer', path: '/' }, { name: h1 }];
-const allSchema: object[] = [...schema, breadcrumbSchema(crumbs)];
+// The card carries the h1, not the SEO title: the h1 is what the page calls
+// itself, and the title is written for a search result, tail and all.
+const ogImage = pageOgImage({ heading: h1, path });
+const allSchema: (object | null)[] = [...schema, breadcrumbSchema(crumbs)];
 ---
 
 <html lang="en">
   <head>
-    <BaseHead title={title} description={description} canonical={`${ORIGIN}${path}`} schema={allSchema}>
+    <BaseHead
+      title={title}
+      description={description}
+      canonical={`${ORIGIN}${path}`}
+      schema={allSchema}
+      ogImage={ogImage}
+    >
       <slot name="extra-links" slot="extra-links" />
     </BaseHead>
   </head>

@@ -7,12 +7,22 @@ interface Props {
   description: string;
   canonical: string;
   ogType?: string;
-  schema?: object[];
+  schema?: (object | null)[];
   /** Keep the page out of the index (the 404). Emits a single robots tag, never two. */
   noindex?: boolean;
+  /** This page's own card. Falls back to the static one for pages with no heading. */
+  ogImage?: string;
 }
 
-const { title, description, canonical, ogType = 'article', schema = [], noindex = false } = Astro.props;
+const {
+  title,
+  description,
+  canonical,
+  ogType = 'article',
+  schema = [],
+  noindex = false,
+  ogImage = OG_IMAGE,
+} = Astro.props;
 const robots = noindex ? 'noindex, follow' : 'max-image-preview:large, max-snippet:-1';
 ---
 
@@ -25,12 +35,12 @@ const robots = noindex ? 'noindex, follow' : 'max-image-preview:large, max-snipp
 <meta property="og:url" content={canonical} />
 <meta property="og:title" content={title} />
 <meta property="og:description" content={description} />
-<meta property="og:image" content={OG_IMAGE} />
+<meta property="og:image" content={ogImage} />
 <meta property="og:site_name" content="MarkLayer" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content={title} />
 <meta name="twitter:description" content={description} />
-<meta name="twitter:image" content={OG_IMAGE} />
+<meta name="twitter:image" content={ogImage} />
 <meta name="robots" content={robots} />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary" />
@@ -48,7 +58,7 @@ const robots = noindex ? 'noindex, follow' : 'max-image-preview:large, max-snipp
      cache partition and is simply downloaded twice. -->
 <link rel="preload" href="/fonts/geist-latin.woff2" as="font" type="font/woff2" crossorigin="anonymous" />
 {
-  schema.map((s) => (
+  schema.filter((s): s is object => s !== null).map((s) => (
     <script type="application/ld+json" is:inline set:html={JSON.stringify(s)} />
   ))
 }

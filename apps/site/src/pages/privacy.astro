@@ -3,8 +3,11 @@ import BaseHead from '../components/BaseHead.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import { ORIGIN, REPO_URL } from '../lib/site';
+import { ORIGIN, pageOgImage, REPO_URL } from '../lib/site';
 
+// One string: the card is keyed by a hash of the heading, so an h1 edited
+// without its twin would serve the old wording forever.
+const h1 = 'Privacy Policy';
 const title = 'Privacy Policy · MarkLayer';
 const description =
   'MarkLayer collects no personal information. No account, email, or sign-up. Annotations are stored only when you share them, and are deleted automatically.';
@@ -12,13 +15,19 @@ const description =
 
 <html lang="en">
   <head>
-    <BaseHead title={title} description={description} canonical={`${ORIGIN}/privacy`} ogType="website" />
+    <BaseHead
+      title={title}
+      description={description}
+      canonical={`${ORIGIN}/privacy`}
+      ogType="website"
+      ogImage={pageOgImage({ heading: h1, path: '/privacy' })}
+    />
   </head>
   <body>
     <div class="ml-shell">
       <SiteHeader />
       <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Privacy' }]} />
-      <h1>Privacy Policy</h1>
+      <h1>{h1}</h1>
       {/* Stated review date of the policy itself. It changes when the policy
           changes, not when the page is rebuilt. */}
       <p class="ml-meta mt-0 mb-8">Last updated: March 2026</p>

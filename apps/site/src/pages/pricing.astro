@@ -8,10 +8,13 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { getPublishedPrices } from '../lib/collections';
 import { breadcrumbSchema, faqSchema, type QA } from '../lib/schema';
-import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, REPO_URL } from '../lib/site';
+import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, pageOgImage, REPO_URL } from '../lib/site';
 import dates from '../data/page-dates.json';
 
 const { modified } = dates.pricing;
+// One string: the card is keyed by a hash of the heading, so an h1 edited
+// without its twin would serve the old wording forever.
+const h1 = 'MarkLayer is 100% free.';
 const title = 'MarkLayer Pricing: Free, No Tiers, No Paywall';
 const description =
   'MarkLayer is completely free. No paid plan, no trial, no per-seat pricing. Open source and self-hostable.';
@@ -70,6 +73,7 @@ const qa: QA[] = [
       title={title}
       description={description}
       canonical={`${ORIGIN}/pricing`}
+      ogImage={pageOgImage({ heading: h1, path: '/pricing' })}
       ogType="website"
       schema={[faqSchema(qa), breadcrumbSchema([{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }])]}
     >
@@ -86,7 +90,7 @@ const qa: QA[] = [
     <div class="ml-shell">
       <SiteHeader current="pricing" />
       <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Pricing' }]} />
-      <h1>MarkLayer is 100% free.</h1>
+      <h1>{h1}</h1>
       <p class="ml-meta mt-0 mb-8">
         By <a href="/about">Vadym Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
       </p>

@@ -3,6 +3,7 @@ import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
 import { toBase64 } from './http';
 import { buildOgSvg } from './og-card';
 import { OG_FONTS_BASE64 } from './og-fonts';
+import { buildPageOgSvg } from './og-page-card';
 
 let wasmReady = false;
 
@@ -47,11 +48,8 @@ interface OgParams {
   ops: unknown[];
 }
 
-/** Compose the card and rasterize it. */
-export async function generateOgImage({ domain, ops }: OgParams): Promise<ArrayBuffer> {
-  const [, faviconUri] = await Promise.all([ensureWasm(), fetchFaviconDataUri(domain)]);
-  const svg = buildOgSvg({ domain, ops, faviconUri });
-
+/** Rasterize a composed card. The wasm must already be initialized. */
+function rasterize(svg: string): ArrayBuffer {
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width' as const, value: 1200 },
     font: {
@@ -59,9 +57,23 @@ export async function generateOgImage({ domain, ops }: OgParams): Promise<ArrayB
       fontBuffers: getFonts(),
     },
   });
-  const png = resvg.render();
-  const bytes = png.asPng();
+  const bytes = resvg.render().asPng();
   const copy = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(copy).set(bytes);
   return copy;
+}
+
+/** Compose the share card and rasterize it. */
+export async function generateOgImage({ domain, ops }: OgParams): Promise<ArrayBuffer> {
+  const [, faviconUri] = await Promise.all([ensureWasm(), fetchFaviconDataUri(domain)]);
+  return rasterize(buildOgSvg({ domain, ops, faviconUri }));
+}
+
+/**
+ * Compose a marketing page's card and rasterize it. No favicon fetch and no D1
+ * read: everything the card says comes from the page that asked for it.
+ */
+export async function generatePageOgImage({ heading, path }: { heading: string; path: string }): Promise<ArrayBuffer> {
+  await ensureWasm();
+  return rasterize(buildPageOgSvg({ heading, path }));
 }
