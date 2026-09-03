@@ -34,8 +34,11 @@ export const MONTHLY_COST_USD: number | null = null;
 
 /** Distinct days of use before the tool has earned the right to ask. */
 const DAYS_BEFORE_ASKING = 3;
-/** Share links created — evidence of the tool being used with other people, not just tried. */
-const SHARES_BEFORE_ASKING = 3;
+/**
+ * Share links created — evidence of sharing with someone, not just trying it.
+ * One is the signal: at three, 4 people qualified where 31 had shared at all.
+ */
+const SHARES_BEFORE_ASKING = 1;
 
 const STORAGE_KEY = 'ml-support';
 
@@ -47,7 +50,7 @@ const STORAGE_KEY = 'ml-support';
 export interface SupportRecord {
   /** ISO dates (YYYY-MM-DD) the tool was used on, capped — only the count matters. */
   days: string[];
-  /** Share links this person created. */
+  /** Share links this person created, capped — only clearing the bar matters. */
   shares: number;
   /** They connected the MCP server: a developer wiring this into real work. */
   mcp: boolean;
@@ -87,7 +90,7 @@ export function parseSupportRecord(raw: string | null): SupportRecord {
  *
  * Two independent qualifications, either of which is enough on its own once the
  * day threshold is met: they wired up MCP (a developer using this at work), or
- * they have made real share links (they are using it with other people). Both
+ * they have sent someone a share link (they are using it with other people). Both
  * still require the tool to have been useful across several days, because one
  * enthusiastic afternoon is not a habit.
  */
@@ -110,9 +113,10 @@ export type SupportSignal = 'used' | 'shared' | 'mcp' | 'asked' | 'supported';
  * Fold one signal into the record. Pure, so the decision is testable without a
  * browser and the storage layer stays a thin wrapper around it.
  *
- * `days` keeps at most the threshold: it exists to answer "enough distinct
- * days?", so retaining a growing list of every date someone used the tool would
- * store more about them than the question needs.
+ * `days` and `shares` each stop at their threshold: they exist to answer "enough
+ * distinct days?" and "shared with anyone?", so a growing list of every date
+ * someone used the tool, or a running total of their links, would store more
+ * about them than the question needs.
  */
 export function recordSignal({
   record,
@@ -129,7 +133,7 @@ export function recordSignal({
       if (!next.days.includes(date) && next.days.length < DAYS_BEFORE_ASKING) next.days.push(date);
       break;
     case 'shared':
-      next.shares += 1;
+      if (next.shares < SHARES_BEFORE_ASKING) next.shares += 1;
       break;
     case 'mcp':
       next.mcp = true;
