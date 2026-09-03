@@ -4,10 +4,13 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { breadcrumbSchema, PERSON_SCHEMA } from '../lib/schema';
-import { AUTHOR_EMAIL, formatLastUpdated, ORIGIN, REPO_URL } from '../lib/site';
+import { AUTHOR_EMAIL, formatLastUpdated, ORIGIN, pageOgImage, REPO_URL } from '../lib/site';
 import dates from '../data/page-dates.json';
 
 const { modified } = dates.about;
+// One string: the card is keyed by a hash of the heading, so an h1 edited
+// without its twin would serve the old wording forever.
+const h1 = 'About the author';
 const title = 'About the author · MarkLayer';
 const description =
   'MarkLayer is built and maintained by Vadym Rusin. Background, contact, editorial standards, and corrections policy for the MarkLayer site.';
@@ -19,6 +22,7 @@ const description =
       title={title}
       description={description}
       canonical={`${ORIGIN}/about`}
+      ogImage={pageOgImage({ heading: h1, path: '/about' })}
       ogType="profile"
       schema={[PERSON_SCHEMA, breadcrumbSchema([{ name: 'MarkLayer', path: '/' }, { name: 'About' }])]}
     />
@@ -27,7 +31,7 @@ const description =
     <div class="ml-shell">
       <SiteHeader />
       <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'About' }]} />
-      <h1>About the author</h1>
+      <h1>{h1}</h1>
       <p class="ml-meta mt-0 mb-8">Last reviewed: {formatLastUpdated(modified)}</p>
       <p class="ml-lede">
         MarkLayer is built and maintained by Vadym Rusin, a software engineer who works on browser extensions, real-time

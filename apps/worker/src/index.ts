@@ -10,9 +10,9 @@ import { nanoid } from 'nanoid';
 import { api } from './api';
 import { auth, authStore } from './auth';
 import type { EmailEnv } from './email';
-import { dayCached, once, sha256Hex } from './http';
-import { generateOgImage } from './og';
-import { collectMarks } from './og-marks';
+import { cachedPng, dayCached, once, sha256Hex } from './http';
+import { generateOgImage, generatePageOgImage } from './og';
+import { collectTally, EMPTY_TALLY_LABEL, plural, tallyParts } from './og-tally';
 import { proxy } from './proxy';
 import { annotationStore, nowInSeconds, projectStore, uploadStore } from './store';
 import { extensionFor, isUploadType, sniffUploadType } from './uploads';
@@ -87,15 +87,8 @@ app.use('*', async (c, next) => {
  * product; this says what is actually on the page someone was sent.
  */
 function shareDescription({ domain, ops }: { domain: string; ops: unknown[] }): string {
-  const { tally } = collectMarks(ops);
-  const counts = [
-    { n: tally.comments, word: 'comment' },
-    { n: tally.drawings, word: 'drawing' },
-    { n: tally.notes, word: 'note' },
-  ]
-    .filter((p) => p.n > 0)
-    .map((p) => `${p.n} ${p.word}${p.n > 1 ? 's' : ''}`);
-  const what = counts.length > 0 ? counts.join(', ') : 'Shared annotations';
+  const counts = tallyParts(collectTally(ops)).map((p) => `${p.n} ${plural(p)}`);
+  const what = counts.length > 0 ? counts.join(', ') : EMPTY_TALLY_LABEL;
   return `${what} on ${domain}. Open it in any browser. No extension, no account, no sign-up.`;
 }
 
@@ -183,6 +176,30 @@ app.get('/p/:id', async (c) => {
   });
 });
 
+/**
+ * The marketing pages' OG card. Registered before `/og/:key` so it is not read
+ * as an annotation id.
+ *
+ * The heading arrives as a query param rather than being looked up: those pages
+ * are prerendered in apps/site and the Worker has no copy of their content. That
+ * makes the text caller-supplied, which is the same exposure `?domain=` on the
+ * share card already carries — it is escaped into the SVG, and clamped here so a
+ * long string cannot turn into work.
+ */
+app.get('/og/page.png', async (c) => {
+  const heading = (c.req.query('h') ?? '').slice(0, 200).replace(/\p{C}/gu, ' ').trim();
+  const path = (c.req.query('p') ?? '/').slice(0, 120).replace(/\p{C}/gu, '').trim();
+  if (!heading) return c.notFound();
+
+  const key = `page/${(await sha256Hex(`${heading}|${path}`)).slice(0, 32)}.png`;
+  return cachedPng({
+    bucket: c.env.OG_BUCKET,
+    key,
+    ctx: c.executionCtx,
+    render: () => generatePageOgImage({ heading, path }),
+  });
+});
+
 // Generate OG preview image on-the-fly (cached in R2)
 app.get('/og/:key', async (c) => {
   const key = c.req.param('key');
@@ -190,23 +207,21 @@ app.get('/og/:key', async (c) => {
   const id = key.slice(0, -4);
   const domain = c.req.query('domain') || 'a webpage';
 
-  const cached = await c.env.OG_BUCKET.get(key);
-  if (cached) {
-    return new Response(cached.body, { headers: dayCached('image/png') });
-  }
-
-  const annotations = annotationStore(c.env.DB);
-  let stored = await annotations.getOps(id);
-  if (!stored) {
-    // Fall back to project: render the first page's ops as the preview
-    const firstPageId = (await projectStore(c.env.DB).get(id))?.pageIds[0];
-    if (firstPageId) stored = await annotations.getOps(firstPageId);
-  }
-  const png = await generateOgImage({ domain, ops: stored ?? [] });
-
-  c.executionCtx.waitUntil(c.env.OG_BUCKET.put(key, png, { httpMetadata: { contentType: 'image/png' } }));
-
-  return new Response(png, { headers: dayCached('image/png') });
+  return cachedPng({
+    bucket: c.env.OG_BUCKET,
+    key,
+    ctx: c.executionCtx,
+    render: async () => {
+      const annotations = annotationStore(c.env.DB);
+      let stored = await annotations.getOps(id);
+      if (!stored) {
+        // Fall back to project: render the first page's ops as the preview
+        const firstPageId = (await projectStore(c.env.DB).get(id))?.pageIds[0];
+        if (firstPageId) stored = await annotations.getOps(firstPageId);
+      }
+      return generateOgImage({ domain, ops: stored ?? [] });
+    },
+  });
 });
 
 // WebSocket endpoint for realtime collaboration

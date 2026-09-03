@@ -28,6 +28,33 @@ export function dayCached(contentType: string): Record<string, string> {
 }
 
 /**
+ * Serve a PNG from R2, rendering it only on a miss. Both OG routes are the same
+ * read-through cache over different composers, so the store-and-header half is
+ * written once and `render` is lazy — a hit never touches D1 or the rasterizer.
+ *
+ * The put rides `waitUntil` on purpose: the image is already in hand, so the
+ * response should not wait on the write.
+ */
+export async function cachedPng({
+  bucket,
+  key,
+  ctx,
+  render,
+}: {
+  bucket: R2Bucket;
+  key: string;
+  ctx: { waitUntil(promise: Promise<unknown>): void };
+  render: () => Promise<ArrayBuffer>;
+}): Promise<Response> {
+  const cached = await bucket.get(key);
+  if (cached) return new Response(cached.body, { headers: dayCached('image/png') });
+
+  const png = await render();
+  ctx.waitUntil(bucket.put(key, png, { httpMetadata: { contentType: 'image/png' } }));
+  return new Response(png, { headers: dayCached('image/png') });
+}
+
+/**
  * `btoa` throws on any code point over 255, so the bytes become a binary string
  * first. One definition for the MIME encoder, integration basic-auth and tokens.
  */

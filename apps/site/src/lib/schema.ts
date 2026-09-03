@@ -31,11 +31,14 @@ export function articleSchema(p: {
       logo: { '@type': 'ImageObject', url: `${ORIGIN}/favicon.svg` },
     },
     mainEntityOfPage: { '@type': 'WebPage', '@id': `${ORIGIN}${p.path}` },
-    image: OG_IMAGE,
+    image: { '@type': 'ImageObject', url: OG_IMAGE },
   };
 }
 
-export function faqSchema(qa: QA[]): object {
+// A FAQPage with an empty mainEntity fails validation outright — guard it here
+// instead of trusting every call site to only pass non-empty content.
+export function faqSchema(qa: QA[]): object | null {
+  if (qa.length === 0) return null;
   return {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -59,13 +62,17 @@ export function breadcrumbSchema(items: Crumb[]): object {
   };
 }
 
-export function howToSchema(p: { name: string; description: string; steps: { name: string; text: string }[] }): object {
+export function howToSchema(p: {
+  name: string;
+  description: string;
+  steps: { name: string; text: string }[];
+}): object | null {
+  if (p.steps.length === 0) return null;
   return {
     '@context': 'https://schema.org',
     '@type': 'HowTo',
     name: p.name,
     description: p.description,
-    totalTime: 'PT2M',
     step: p.steps.map((s, i) => ({
       '@type': 'HowToStep',
       position: i + 1,
@@ -124,7 +131,7 @@ export function softwareReleaseSchema(p: {
     datePublished: p.date,
     description: p.summary,
     url: ORIGIN,
-    image: OG_IMAGE,
+    image: { '@type': 'ImageObject', url: OG_IMAGE },
     author: AUTHOR,
     offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   };

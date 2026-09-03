@@ -1,6 +1,22 @@
 export const ORIGIN = 'https://marklayer.app';
 export const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc';
+/** The fallback card, for anything with no heading of its own to draw. */
 export const OG_IMAGE = `${ORIGIN}/og.jpg`;
+
+/**
+ * A card drawn for one page: its own heading, set large, with a stroke under the
+ * operative word and a comment pinned to it.
+ *
+ * Rendered by the Worker (`/og/page.png`) rather than baked at build time, because
+ * that is where the fonts and the rasterizer already live. The heading travels in
+ * the URL for the same reason: these pages are static, so the Worker has no copy
+ * of their content to look up. The result is cached in R2 by the hash of both
+ * params, so a given page renders once.
+ */
+export function pageOgImage({ heading, path }: { heading: string; path: string }): string {
+  const query = new URLSearchParams({ h: heading, p: path });
+  return `${ORIGIN}/og/page.png?${query}`;
+}
 export const REPO_URL = 'https://github.com/thevrus/MarkLayer';
 export const AUTHOR_NAME = 'Vadym Rusin';
 export const AUTHOR_EMAIL = 'rusinvadym@gmail.com';
