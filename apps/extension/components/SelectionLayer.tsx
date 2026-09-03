@@ -362,10 +362,7 @@ export function SelectionLayer() {
   }, [onMouseUp]);
 
   return (
-    <div
-      class="fixed inset-0 z-2147483646 pointer-events-none
-             font-[-apple-system,BlinkMacSystemFont,'Geist',system-ui,sans-serif]"
-    >
+    <div class="fixed inset-0 z-2147483646 pointer-events-none">
       {/* Existing selection highlights */}
       {selections.value.map((s) => (
         <SelectionHighlight key={s.id} op={s} />

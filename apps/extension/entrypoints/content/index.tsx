@@ -26,7 +26,14 @@ export default defineContentScript({
 
     const ui = await createShadowRootUi(ctx, {
       name: 'mark-layer',
-      position: 'overlay',
+      // Both of WXT's styling conveniences are declined: `applyPosition` sets
+      // `position: relative` inline on the host, and an unset `inheritStyles`
+      // prepends `:host{all:initial !important}`. Each silently outranked the
+      // `:host` block in style.css, which owns the host's geometry, z-index and
+      // type — a top-layer popover that is not `fixed` slid by one scroll
+      // offset, and the overlay rendered in the browser's default serif.
+      position: 'inline',
+      inheritStyles: true,
       // Mount on <html>, not <body>. A transform (or filter, or `contain`) on
       // body makes it the containing block for `position: fixed`, so every
       // fixed layer we own — toolbar, tooltips, panels — was laid out against
@@ -35,11 +42,6 @@ export default defineContentScript({
       // an edge case.
       anchor: 'html',
       append: 'last',
-      // Without this the host sits at `z-index: auto`, so it only beat page
-      // content on DOM order — and anything the page appended after we mounted
-      // (lazily-inserted headers, banners) painted straight over the toolbar
-      // while the page was still loading. The overlay owns the top of the page.
-      zIndex: 2147483647,
       onMount(container) {
         // The top layer, via a manual popover: it is laid out against the
         // viewport no matter what ancestors do (a transform on <html> defeats
@@ -57,6 +59,11 @@ export default defineContentScript({
             // below still positions the overlay correctly either way.
           }
         }
+        // Named rather than matched by shape: style.css styles `.ml-root`, and
+        // the container is the only element the app owns directly under the
+        // shadow root. A `:host > :not(style)` rule would key the overlay's
+        // geometry and type on WXT's private structure instead.
+        container.classList.add('ml-root');
         portalContainer.value = container;
         render(<App />, container);
         return container;

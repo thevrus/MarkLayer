@@ -1,15 +1,19 @@
 import { cn } from '@marklayer/types';
-import { signal, useSignalEffect } from '@preact/signals';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
-import { copyText, deleteOp, inspects, openContextMenu, STATUS_LABELS, STATUS_STYLES, setOpStatus } from '../lib/state';
+import {
+  copyText,
+  deleteOp,
+  inspects,
+  openContextMenu,
+  STATUS_LABELS,
+  STATUS_STYLES,
+  scrollTick,
+  setOpStatus,
+} from '../lib/state';
 import type { InspectOp } from '../lib/types';
 import { MentionText } from './MentionText';
-
-// Bumped on window scroll so each marker repositions. Module-level so a single
-// listener serves every marker — same pattern as AreaLayer.
-const scrollTick = signal(0);
 
 function InspectorMarker({ op }: { op: InspectOp }) {
   scrollTick.value; // subscribe — repositions when window scrolls
@@ -122,24 +126,9 @@ function InspectorMarker({ op }: { op: InspectOp }) {
 
 export function InspectorMarkerLayer() {
   const ops = inspects.value;
-  // One window-level scroll listener for the whole layer — each marker subscribes
-  // to the tick rather than registering its own listener. Only attached while
-  // there are markers to avoid waking subscribers on empty pages.
-  useSignalEffect(() => {
-    if (!inspects.value.length) return;
-    const onScroll = () => {
-      scrollTick.value++;
-    };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  });
-
   if (!ops.length) return null;
   return (
-    <div
-      class="fixed inset-0 z-2147483646 pointer-events-none
-             font-[-apple-system,BlinkMacSystemFont,'Geist',system-ui,sans-serif]"
-    >
+    <div class="fixed inset-0 z-2147483646 pointer-events-none">
       {ops.map((op) => (
         <InspectorMarker key={op.id} op={op} />
       ))}

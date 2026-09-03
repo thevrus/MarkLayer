@@ -385,8 +385,7 @@ export function AreaLayer() {
 
   return (
     <div
-      class="fixed inset-0 z-2147483646
-             font-[-apple-system,BlinkMacSystemFont,'Geist',system-ui,sans-serif]"
+      class="fixed inset-0 z-2147483646"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

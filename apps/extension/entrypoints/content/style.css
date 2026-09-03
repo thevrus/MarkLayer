@@ -32,6 +32,7 @@
   --tracking-ui: -0.01em; /* UI titles and labels */
   --tracking-label: 0.011em; /* small mono and meta labels, opened up to read */
   --leading-body: 1.55; /* comment and annotation prose */
+  --leading-ui: 1.4; /* the overlay's default */
 }
 
 @layer base {
@@ -42,28 +43,18 @@
        fit-content box, background, `overflow: auto`). */
     position: fixed;
     inset: 0;
+    display: block; /* also keeps the overlay up if `showPopover()` throws */
     width: auto;
     height: auto;
-    max-width: none;
-    max-height: none;
     margin: 0;
     padding: 0;
     border: 0;
     background: transparent;
     overflow: visible;
     pointer-events: none;
-
-    /* font-family inherits across the shadow boundary, so the overlay used to
-       render in whatever face the annotated page sets. `glass.font` pinned it
-       per-surface, which left the components without that class (Tooltip,
-       PriorityPicker, CommentLayer, QuickGrabLayer) still inheriting the page.
-       Setting it on the root covers every layer. System stack by design: a
-       content script can't rely on the host page's CSP allowing a webfont. */
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif;
-    /* Smoothing inherits too, so pin it or the UI renders differently per site. */
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    font-synthesis: none;
+    /* Ours now that WXT's positioning is declined (see index.tsx). At `auto` the
+       host lost to anything the page appended after we mounted. */
+    z-index: 2147483647;
 
     --ml-glass-bg: oklch(0.96 0.003 280);
     --ml-glass-bg-small: oklch(0.96 0.003 280);
@@ -113,8 +104,43 @@
     --ml-syntax-quote: oklch(0 0 0 / 0.62);
   }
 
+  /* The container div — every layer and every Base UI portal renders into it —
+     and where the overlay's typography lives. A rule on `:host` would lose to
+     the page: for normal declarations the outer tree wins whatever the
+     specificity, and most sites reset `font-family` on `*`. One level in, no
+     page selector can reach it. Matched by shape rather than by tag, because
+     the div is WXT's private structure, not a promise in its types.
+
+     `all: initial` in place of an allowlist: an enumeration cannot see the
+     properties it forgets, and a page reset really does set `tab-size`,
+     `-webkit-text-size-adjust`, `word-break`, `font-feature-settings` and
+     `cursor` — all of which leaked. `all` keeps custom properties, so the
+     --ds-* ladder still inherits from `:host`, but it excludes `direction` and
+     it resets the host's inherited `pointer-events`, so both stay explicit.
+     System font stack because a content script cannot rely on the annotated
+     page's CSP allowing a webfont. */
+  :host > .ml-root {
+    all: initial;
+    box-sizing: border-box;
+    pointer-events: none;
+    direction: ltr;
+    /* Fills the host, and is the containing block for portalled content. */
+    position: absolute;
+    inset: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif;
+    font-size: var(--text-ui);
+    line-height: var(--leading-ui);
+    color: var(--ds-gray-1000);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-synthesis: none;
+  }
+
   @media (prefers-color-scheme: dark) {
-    :host:not(.ml-light) {
+    /* `:host(:not(…))`, never `:host:not(…)`: the host is featureless inside its
+       own shadow tree, so a compound directly on `:host` matches nothing — as
+       written, this whole block was dead and `theme: 'system'` rendered light. */
+    :host(:not(.ml-light)) {
       --color-ml-glass-fg: #fff;
       --color-ml-glass-accent: oklch(1 0 0 / 0.12);
       --color-ml-glass-muted: oklch(1 0 0 / 0.06);
