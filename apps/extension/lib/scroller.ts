@@ -15,6 +15,11 @@
  * layout may still be settling, so it is cheap and may find nothing) and then
  * corrected from live `scroll` events — a capture-phase listener sees the
  * target of an element scroll, which never bubbles to `window`.
+ *
+ * Only the web viewer registers a scroller today. The extension shares the read
+ * path (`scrollOffset`, via anchor.ts and selector.ts) but never calls
+ * `findPageScroller`/`notePageScroller`, so there the offset is still the
+ * window's — adopting it there is the remaining half of this change.
  */
 const SCROLLERS = new WeakMap<Document, Element>();
 

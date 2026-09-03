@@ -307,12 +307,7 @@ export function useRealtimeSync(annotationId: string) {
                 peers.value = map;
                 // An agent in the room means someone wired the MCP server into real work.
                 // Read off the built map, whose keys are typed, rather than the loose wire payload.
-                for (const peerId of map.keys()) {
-                  if (isAgentPeer(peerId)) {
-                    noteSupportSignal('mcp');
-                    break;
-                  }
-                }
+                if ([...map.keys()].some(isAgentPeer)) noteSupportSignal('mcp');
               }
               break;
             }
