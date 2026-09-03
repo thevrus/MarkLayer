@@ -17,6 +17,19 @@ export function pageOgImage({ heading, path }: { heading: string; path: string }
   const query = new URLSearchParams({ h: heading, p: path });
   return `${ORIGIN}/og/page.png?${query}`;
 }
+/**
+ * The cross-tab channel `/thanks` uses to tell an editor still open in another
+ * tab that a payment landed.
+ *
+ * It lives here because both ends read it: the static thank-you page in this
+ * workspace, and the app in apps/worker, which already depends on this module
+ * for `CHROME_STORE_URL`. The checkout opens in a new tab so the tab holding
+ * unsaved annotations is never navigated, which is exactly why the two need a
+ * way to talk. Same-origin only, and it carries no order data — just the fact.
+ */
+export const SUPPORT_CHANNEL = 'marklayer:support';
+export const SUPPORT_PAID = 'paid';
+
 export const REPO_URL = 'https://github.com/thevrus/MarkLayer';
 export const AUTHOR_NAME = 'Vadym Rusin';
 export const AUTHOR_EMAIL = 'rusinvadym@gmail.com';
