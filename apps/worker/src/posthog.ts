@@ -85,6 +85,13 @@ function scrub(props: CaptureProps): CaptureProps {
  */
 let warnedMissingKey = false;
 
+/**
+ * Returns the in-flight POST as well as handing it to `waitUntil`, so a caller
+ * that cannot rely on `waitUntil` can await it instead. A Durable Object is
+ * exactly that caller: once its last WebSocket closes there is no request
+ * keeping it alive, and an unawaited capture races the eviction. Callers on a
+ * real request context can keep ignoring the return value.
+ */
 export function captureServer(
   env: { POSTHOG_KEY?: string; POSTHOG_HOST?: string },
   // Only waitUntil is used — narrowing to it keeps this off the workers-types
@@ -93,14 +100,14 @@ export function captureServer(
   ctx: { waitUntil(promise: Promise<unknown>): void },
   event: string,
   props: CaptureProps,
-) {
+): Promise<void> {
   const key = env.POSTHOG_KEY;
   if (!key) {
     if (!warnedMissingKey) {
       warnedMissingKey = true;
       console.warn('captureServer: POSTHOG_KEY is unset, so no server-side telemetry is being sent.');
     }
-    return;
+    return Promise.resolve();
   }
   const host = env.POSTHOG_HOST || 'https://us.i.posthog.com';
   const body = JSON.stringify({
@@ -113,13 +120,18 @@ export function captureServer(
     properties: { source: 'worker', $process_person_profile: false, ...scrub(props) },
     timestamp: new Date().toISOString(),
   });
-  ctx.waitUntil(
-    fetch(`${host}/capture/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-    }).catch(() => {}),
+  // Swallowed once, then shared: telemetry must never reject into a caller that
+  // awaits it, and a room's teardown is one of those callers.
+  const sent = fetch(`${host}/capture/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  }).then(
+    () => {},
+    () => {},
   );
+  ctx.waitUntil(sent);
+  return sent;
 }
 
 /**

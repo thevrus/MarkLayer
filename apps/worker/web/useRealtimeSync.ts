@@ -14,12 +14,13 @@ import {
   toast,
 } from '@ext/lib/state';
 import type { DrawOp, Peer } from '@ext/lib/types';
-import { type AnnotationOp, applyOpPatch, isAnnotationOp } from '@marklayer/types';
+import { type AnnotationOp, applyOpPatch, isAgentPeer, isAnnotationOp } from '@marklayer/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 import { capture } from './analytics';
 import { followingPeer, onFollowScroll, onPresentChange, presenting } from './signals';
+import { noteSupportSignal } from './support';
 
 export const connected = signal(false);
 /** Unix timestamp (seconds) when the annotation was first created */
@@ -304,6 +305,14 @@ export function useRealtimeSync(annotationId: string) {
                   }
                 }
                 peers.value = map;
+                // An agent in the room means someone wired the MCP server into real work.
+                // Read off the built map, whose keys are typed, rather than the loose wire payload.
+                for (const peerId of map.keys()) {
+                  if (isAgentPeer(peerId)) {
+                    noteSupportSignal('mcp');
+                    break;
+                  }
+                }
               }
               break;
             }
@@ -393,6 +402,7 @@ export function useRealtimeSync(annotationId: string) {
                   toast(`${p.name || 'Someone'} joined`, 'info', 2500);
                   playPeerChime(true);
                 }
+                if (isNew && isAgentPeer(p.id)) noteSupportSignal('mcp');
               }
               break;
             }
