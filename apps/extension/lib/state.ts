@@ -621,6 +621,14 @@ export const isDrawingActive = signal(false);
  * The same coalesced handler also covers `resize`: a pure CSS reflow from a
  * window resize doesn't move `scrollX/scrollY` and never fires a `scroll`
  * event, so anchored pins would otherwise go stale until the next scroll.
+ *
+ * `capture: true` is load-bearing, not a style choice. A `scroll` event fired
+ * at an ELEMENT does not bubble, so a bubble-phase listener on `window` sees
+ * only the document's own scrolling. Any page that scrolls an inner container
+ * instead — an app shell, a dashboard, most docs layouts — ticked never, and
+ * every subscriber (the canvas, comment pins, area shapes, selection
+ * highlights) kept painting at stale coordinates while the content moved out
+ * from under them. Capture runs window → target, so it sees all of them.
  */
 export const scrollTick = signal(0);
 let _scrollListenerAttached = false;
@@ -635,7 +643,7 @@ export function ensureScrollTickListener() {
       scrollTick.value++;
     });
   };
-  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('scroll', onScroll, { passive: true, capture: true });
   window.addEventListener('resize', onScroll, { passive: true });
 }
 

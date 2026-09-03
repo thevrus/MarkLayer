@@ -1,6 +1,7 @@
 import {
   type CaptureViewport,
   type DrawOp,
+  isAnchorableOp,
   opAnchorPoint,
   type SelectionRect,
   type TargetElement,
@@ -206,6 +207,12 @@ export function resolveAnchorPoint(
 export interface AnchorDelta {
   x: number;
   y: number;
+  /**
+   * The anchor keeps its relative position inside the element's box, so it
+   * scales with a resize. Every consumer is an op that scales its whole extent
+   * alongside it (`reprojectRects`, `reprojectBox`) — a selection or an area
+   * marks a region of content, so it grows and shrinks with that content.
+   */
   dx: number;
   dy: number;
   /** Element-relative size scale since capture (X axis). 1 when unresolved. */
@@ -241,7 +248,7 @@ export function applyAnchorDelta(
 // but renders the annotated page inside an iframe, so resolving against the
 // top-level document there would anchor ops to the viewer chrome.
 export function attachTarget(op: DrawOp, ctx?: AnchorContext): void {
-  if (!('target' in op) || op.target) return;
+  if (!isAnchorableOp(op) || op.target) return;
   const anchor = opAnchorPoint(op);
   if (!anchor) return;
   const win = ctx?.win ?? window;

@@ -1,6 +1,6 @@
-import { arrowHeadBarbs, arrowHeadLength, opAnchorPoint } from '@marklayer/types';
+import { arrowHeadBarbs, arrowHeadLength } from '@marklayer/types';
 import getStroke from 'perfect-freehand';
-import { applyAnchorDelta, captureScale } from './anchor';
+import { captureScale } from './anchor';
 import { FREEHAND } from './state';
 import type { DrawOp, Point, Tool } from './types';
 
@@ -281,24 +281,15 @@ export function redrawCanvas(canvas: HTMLCanvasElement, ops: DrawOp[]) {
   const [vx, vy, vw, vh] = [scrollX, scrollY, innerWidth, innerHeight];
   for (const op of ops) {
     const scale = captureScale(op.captureViewport);
-
-    // Element-anchored ops: reproject against the target's current rect and
-    // shift both the cull bounds and the render origin by the same delta, so
-    // the whole op moves with the page reflow without renderOp itself needing
-    // to know about anchoring.
-    let dx = 0;
-    let dy = 0;
-    if ('target' in op && op.target) {
-      const anchor = opAnchorPoint(op);
-      if (anchor) ({ dx, dy } = applyAnchorDelta(op.target, { docX: anchor.x, docY: anchor.y }));
-    }
-
+    // No anchor reprojection here: `isAnchorableOp` is true only for comment,
+    // selection and area, and all three render as DOM. Every op the canvas
+    // actually paints sits in document coordinates.
     const bounds = opBounds(op);
     const culled =
-      bounds && (scale !== 1 || dx || dy)
-        ? { x: bounds.x * scale + dx, y: bounds.y * scale + dy, w: bounds.w * scale, h: bounds.h * scale }
+      bounds && scale !== 1
+        ? { x: bounds.x * scale, y: bounds.y * scale, w: bounds.w * scale, h: bounds.h * scale }
         : bounds;
 
-    if (inView(culled, vx, vy, vw, vh)) renderOp(ctx, op, vx - dx, vy - dy, scale);
+    if (inView(culled, vx, vy, vw, vh)) renderOp(ctx, op, vx, vy, scale);
   }
 }

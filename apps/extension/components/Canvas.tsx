@@ -19,7 +19,6 @@ import {
   comments,
   deleteOp,
   FREEHAND,
-  hostMutationTick,
   inspects,
   isDrawingActive,
   lineWidth,
@@ -409,15 +408,13 @@ export function Canvas() {
 
   useSignalEffect(() => {
     const ops = operations.value;
-    // scrollTick/hostMutationTick are the sole scroll-driven redraw path:
-    // anchored ops (`target` set) need a repaint whenever the host page
-    // scrolls, reflows or mutates, and both ticks are already rAF-coalesced
-    // by the shared listeners in state.ts. Mutations can only move anchored
-    // ops, so the tick is subscribed only while one exists — otherwise a host
-    // page with constant DOM churn (carousels, live regions) forces full
-    // redraws that repaint identical pixels.
+    // scrollTick is the sole scroll-driven redraw path, and it is already
+    // rAF-coalesced by the shared listener in state.ts. hostMutationTick is
+    // deliberately not subscribed: only comment, selection and area ops anchor
+    // to an element (`isAnchorableOp`), and all three render as DOM, so a host
+    // mutation can never move a canvas pixel. Subscribing would make any page
+    // with one comment repaint identical pixels on every DOM change.
     scrollTick.value;
-    if (ops.some((op) => 'target' in op && op.target)) hostMutationTick.value;
     // Subscribe to isDrawingActive so the redraw fires once on release —
     // mid-stroke remote ops/undo would otherwise clobber the snapshot
     // preview. The trailing redraw replays everything including the

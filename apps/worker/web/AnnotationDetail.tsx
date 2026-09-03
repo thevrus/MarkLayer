@@ -19,7 +19,7 @@ import {
 } from '@ext/lib/state';
 import { timeAgo } from '@ext/lib/time';
 import type { AnnotationOp, CommentPriority, DrawOp } from '@ext/lib/types';
-import { cn, isAnnotationOp } from '@marklayer/types';
+import { cn, isAnchorableOp, isAnnotationOp } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { ClipboardCopy, Crosshair, Minus } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
@@ -151,7 +151,7 @@ function ContextSection({ op }: { op: DrawOp }) {
   if (meta?.os) env.push(meta.os);
   if (op.device) env.push(DEVICE_LABELS[op.device]);
   if (viewport) env.push(`${Math.round(viewport.width)} × ${Math.round(viewport.height)}`);
-  const selector = 'target' in op ? op.target?.selector : undefined;
+  const selector = isAnchorableOp(op) ? op.target?.selector : undefined;
   if (!meta?.url && !env.length && !selector) return null;
 
   return (
