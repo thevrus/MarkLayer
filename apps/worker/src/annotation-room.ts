@@ -128,9 +128,27 @@ export class AnnotationRoom extends DurableObject<Env> {
     return this.ops;
   }
 
+  /**
+   * Parsed attachments, keyed by socket. The attachment is the source of truth
+   * (it survives hibernation), but deserializing and re-validating it on every
+   * message would tax every peer's every stroke, so the parse is memoized and a
+   * fresh isolate simply refills it on first read.
+   */
+  private peerInfo = new WeakMap<WebSocket, PeerInfo>();
+
   /** Read peer metadata from the socket attachment — survives DO hibernation. */
   private getPeerInfo(ws: WebSocket): PeerInfo | null {
-    return readPeerInfo(ws.deserializeAttachment());
+    const cached = this.peerInfo.get(ws);
+    if (cached) return cached;
+    const info = readPeerInfo(ws.deserializeAttachment());
+    if (info) this.peerInfo.set(ws, info);
+    return info;
+  }
+
+  /** Write peer metadata, keeping the memoized copy in step with the attachment. */
+  private setPeerInfo(ws: WebSocket, info: PeerInfo) {
+    ws.serializeAttachment(info);
+    this.peerInfo.set(ws, info);
   }
 
   /**
@@ -141,7 +159,7 @@ export class AnnotationRoom extends DurableObject<Env> {
   private countAgentWork(ws: WebSocket, field: 'ops' | 'updates') {
     const info = this.getPeerInfo(ws);
     if (!info || !isAgentPeer(info.id)) return;
-    ws.serializeAttachment({ ...info, [field]: (info[field] ?? 0) + 1 });
+    this.setPeerInfo(ws, { ...info, [field]: (info[field] ?? 0) + 1 });
   }
 
   /**
@@ -206,7 +224,7 @@ export class AnnotationRoom extends DurableObject<Env> {
 
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1], [id]);
-    pair[1].serializeAttachment({ id: peerId, uid: peerUid, name: peerName, color: peerColor, joinedAt: Date.now() });
+    this.setPeerInfo(pair[1], { id: peerId, uid: peerUid, name: peerName, color: peerColor, joinedAt: Date.now() });
 
     if (this.sessionStartedAt === 0) this.sessionStartedAt = Date.now();
     // The MCP bridge joins as an ordinary peer under an `mcp-` id (apps/mcp/src/room.ts),
@@ -396,7 +414,7 @@ export class AnnotationRoom extends DurableObject<Env> {
           name: sanitizeName(msg.name, info.name),
           color: sanitizeColor(msg.color, info.color),
         };
-        ws.serializeAttachment(next);
+        this.setPeerInfo(ws, next);
         this.broadcast(JSON.stringify({ type: 'profile', peerId: next.id, name: next.name, color: next.color }), ws);
         return;
       }
