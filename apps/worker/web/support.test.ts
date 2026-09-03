@@ -12,7 +12,7 @@ describe('shouldOfferSupport — who never sees it', () => {
   });
 
   test('somebody who came back but has not used it with anyone', () => {
-    expect(offer({ ...veteran, shares: 2 })).toBe(false);
+    expect(offer({ ...veteran, shares: 0 })).toBe(false);
   });
 
   test('somebody already asked, no matter how much they use it', () => {
@@ -33,8 +33,8 @@ describe('shouldOfferSupport — who does', () => {
     expect(offer({ ...veteran, mcp: true })).toBe(true);
   });
 
-  test('somebody sharing with other people across several days', () => {
-    expect(offer({ ...veteran, shares: 3 })).toBe(true);
+  test('somebody who sent one share link, across several days of use', () => {
+    expect(offer({ ...veteran, shares: 1 })).toBe(true);
   });
 });
 
@@ -43,6 +43,13 @@ describe('recordSignal', () => {
     let r = fresh;
     for (let i = 0; i < 20; i++) r = recordSignal({ record: r, signal: 'used', date: '2026-08-01' });
     expect(r.days).toEqual(['2026-08-01']);
+  });
+
+  test('stops counting shares once the bar is cleared', () => {
+    let r = fresh;
+    for (let i = 0; i < 20; i++) r = recordSignal({ record: r, signal: 'shared' });
+    // A bar to clear, not a tally of what somebody sent.
+    expect(r.shares).toBe(1);
   });
 
   test('stops collecting dates once it has enough to answer the question', () => {
