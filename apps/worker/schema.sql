@@ -22,6 +22,15 @@ CREATE TABLE IF NOT EXISTS annotations (
 -- this once by hand and expect "duplicate column name" if it already ran:
 --   wrangler d1 execute <db> --remote --command \
 --     "ALTER TABLE annotations ADD COLUMN integrations TEXT DEFAULT NULL"
+--
+-- Applied to the production DB (marklayer) on 2026-09-03. Until then every
+-- query naming the column threw: GET/POST/DELETE /api/{id}/integrations were a
+-- blanket 500, so no room could be wired to a destination at all. Annotations
+-- were unaffected — the room's notification flush shares a `Promise.allSettled`
+-- with the ops write, so the throw was swallowed rather than losing anyone's
+-- marks. A shipped feature depending on a hand-run migration is the bug here;
+-- the next schema change of this kind wants a real migration step, not a
+-- comment.
 
 -- Projects bundle multiple annotation pages under a single shareable id.
 -- page_ids is a JSON array of annotation ids, in display order.
