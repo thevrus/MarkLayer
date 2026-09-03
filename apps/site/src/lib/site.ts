@@ -32,7 +32,7 @@ export const SUPPORT_PAID = 'paid';
 
 export const REPO_URL = 'https://github.com/thevrus/MarkLayer';
 export const AUTHOR_NAME = 'Vadym Rusin';
-export const AUTHOR_EMAIL = 'rusinvadym@gmail.com';
+export const AUTHOR_EMAIL = 'hello@marklayer.app';
 
 /** apps/worker's Vite dev server, started alongside this one by `turbo run dev`. */
 export const WORKER_DEV = 'http://localhost:5173';
