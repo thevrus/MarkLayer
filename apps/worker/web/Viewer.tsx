@@ -79,7 +79,7 @@ import {
   viewerZoom,
 } from './signals';
 import { noteSupportSignal } from './support';
-import { maybeOfferSupport, openSupportCard } from './support-ui';
+import { maybeOfferSupport, openSupportCard, watchSupportPaid } from './support-ui';
 import { connected, emitRipple, localPeerId, serverUrl, serverWidth, useRealtimeSync } from './useRealtimeSync';
 import { ViewerTopBar } from './ViewerChrome';
 import {
@@ -113,8 +113,13 @@ function AuthoringChrome() {
   // honest: it exists exactly as long as there is something for it to open.
   useEffect(() => {
     onSupport.value = () => openSupportCard('menu');
+    // The thank-you is watched for on the same lifecycle, and for the same
+    // reason: only somebody who could be asked can have paid, so a read-only
+    // guest neither sees the card nor hears back about one.
+    const stopWatchingPaid = watchSupportPaid();
     return () => {
       onSupport.value = null;
+      stopWatchingPaid();
     };
   }, []);
 

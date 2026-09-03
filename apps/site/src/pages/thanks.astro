@@ -1,0 +1,110 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { ORIGIN, SUPPORT_CHANNEL, SUPPORT_PAID } from '../lib/site';
+
+// Where Polar sends someone after they pay — the "Success URL" on the checkout
+// product. It lives here, in the static site, rather than in the app: the
+// checkout opens in a new tab (the original one holds unsaved annotations), so
+// this page is only ever a full-page ending, never something rendered over work.
+// Astro prerenders it, so a thank-you costs no Worker invocation.
+//
+// Polar appends `?checkout_id=…` on the redirect. Nothing here reads it: the
+// page has no claim to make about the order that the receipt does not make
+// better, and a static page could not verify an ID anyway.
+const title = 'Thank you · MarkLayer';
+const description = 'Your support for MarkLayer came through. It pays for the servers the free tools run on.';
+---
+
+<html lang="en">
+  <head>
+    <BaseHead title={title} description={description} canonical={`${ORIGIN}/thanks`} ogType="website" noindex />
+  </head>
+  <body>
+    <div class="ml-shell">
+      <SiteHeader />
+      {/* The same painting the support card opened with: the last thing seen
+          before paying is the first thing seen after, so the two read as one
+          moment. A background rather than an `<img>` because it is decoration
+          with nothing to say to a screen reader, and a missing file then
+          degrades to the sky tone instead of a broken-image glyph. */}
+      <div class="ml-park rounded-xl mb-10"></div>
+      {/* The heading wears the product's own mark: one pen stroke under the
+          words, the same gesture the page cards draw under a heading's
+          operative word. It is the one flourish on the page — a hand on an
+          otherwise exact surface — and it is drawn, not a rule. */}
+      <h1 class="ml-thanks-head"><span class="ml-drawn">Thank you</span>.</h1>
+      <p class="ml-lede">Your support pays for the servers. That is what keeps every MarkLayer tool free for everyone.</p>
+      <p>Polar emails your receipt. There is nothing to set up, and nothing to sign in to.</p>
+      <p>You can close this tab. The page you were annotating is still open, with your work on it.</p>
+      <p class="mt-10">
+        <a class="ml-cta" href="/">Back to MarkLayer</a>
+      </p>
+    </div>
+    <SiteFooter />
+
+    {/* The one script in this workspace, which otherwise ships zero client JS.
+        It tells an editor still open in another tab that the payment landed, so
+        the thank-you can happen where the person actually is instead of only on
+        the page they are about to close. Same-origin, no order data, and
+        entirely best-effort: no BroadcastChannel (old Safari) or no editor tab
+        open costs a toast and nothing else. */}
+    <script is:inline define:vars={{ channel: SUPPORT_CHANNEL, paid: SUPPORT_PAID }}>
+      try {
+        // Deliberately never closed: `postMessage` is asynchronous, and closing
+        // the channel in the same tick can drop the message before it is sent.
+        // Unloading the page closes it.
+        new BroadcastChannel(channel).postMessage(paid);
+      } catch {
+        // No BroadcastChannel, or a context that refuses it. The page is the
+        // ending either way.
+      }
+    </script>
+  </body>
+</html>
+
+<style>
+  .ml-park {
+    aspect-ratio: 760 / 279;
+    /* The prose measure exactly: 560px is where every paragraph on this site
+       caps, so the picture shares its right-hand edge instead of running the
+       full column while the copy stops halfway. */
+    max-width: 560px;
+    /* The painting's own averaged sky, so the wait (or a missing file) reads as
+       a picture arriving rather than a hole in the page. */
+    background-color: #9bc8e4;
+    background-image: url('/support-park.webp');
+    background-position: center;
+    background-size: cover;
+  }
+
+  /* Room for the stroke to sit under the words without the paragraph below
+     crowding it, and without the heading's own box clipping it. */
+  .ml-thanks-head {
+    padding-bottom: 0.14em;
+  }
+
+  .ml-drawn {
+    position: relative;
+    display: inline-block;
+  }
+
+  /* The stroke is placed on the word, not in the text flow, so it cannot change
+     where anything sits. `overflow: visible` on the span plus the heading's
+     padding is what clears the cut at both ends of the overshoot. */
+  .ml-drawn::after {
+    content: '';
+    position: absolute;
+    inset-inline: -0.04em -0.05em;
+    bottom: -0.16em;
+    height: 0.16em;
+    /* One pass of a pen: bowed away from the letters through the middle and off
+       level end to end, exactly the way the OG page cards draw it. The stroke
+       keeps its own weight while the path stretches to the word, so a wide
+       viewport does not fatten it. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M2.4 5.2C28 10 52 11.6 84 10.9 128 10 160 8 197.6 4.2' fill='none' stroke='%239e77dc' stroke-width='3.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+  }
+</style>
