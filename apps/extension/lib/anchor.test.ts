@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import type { GuideOp, RectOp, TargetElement } from '@marklayer/types';
+import type { AreaOp, GuideOp, RectOp, TargetElement } from '@marklayer/types';
 import {
   type AnchorContext,
   applyAnchorDelta,
@@ -272,72 +272,73 @@ describe('attachTarget', () => {
     Object.defineProperty(document, 'elementsFromPoint', { value: () => els, configurable: true });
 
   /**
-   * No `target` key, matching what the tools actually build: `Canvas`'s `base`
-   * is `{ id, color, lineWidth, captureViewport }`. The fixture used to add
-   * `target: undefined` to satisfy an `'target' in op` gate, which is precisely
-   * how that gate came to reject every real op unnoticed.
+   * An area, because only comment, selection and area ops anchor to an element
+   * (`isAnchorableOp`) — a canvas mark like a rectangle is deliberately left in
+   * document coordinates. No `target` key, matching what `AreaLayer` actually
+   * builds: the fixture used to add `target: undefined` to satisfy an
+   * `'target' in op` gate, which is precisely how that gate came to reject every
+   * real op unnoticed.
    */
-  const rectOp = (over: Partial<RectOp> = {}): RectOp => ({
-    id: 'r1',
+  const areaOp = (over: Partial<AreaOp> = {}): AreaOp => ({
+    id: 'a1',
     color: '#000',
     lineWidth: 2,
-    tool: 'rectangle',
+    tool: 'area',
     startX: 140,
     startY: 220,
     endX: 240,
     endY: 320,
+    ts: 0,
     ...over,
   });
 
-  test('binds an op that never carried a `target` key, as every tool builds them', () => {
+  test('leaves a canvas mark unbound: it renders in document coordinates', () => {
     mount('<h1 id="hero">Pricing</h1>');
     layout(pick('#hero'), { x: 100, y: 200, width: 400, height: 100 });
     stack([pick('#hero')]);
 
-    const op = rectOp();
-    expect('target' in op).toBe(false); // the shape the tools really commit
+    const op: RectOp = {
+      id: 'r1',
+      color: '#000',
+      lineWidth: 2,
+      tool: 'rectangle',
+      startX: 140,
+      startY: 220,
+      endX: 240,
+      endY: 320,
+    };
     attachTarget(op, ctx);
-    expect(op.target?.selector).toBe('#hero');
+    expect(op.target).toBeUndefined();
   });
 
-  test('binds a fresh op to the element under its anchor point', () => {
+  test('does not bind an anchorable op either: those layers capture their own target', () => {
+    // `opAnchorPoint` has no point for comment, selection or area — each layer
+    // calls `captureTarget` itself at placement time — so with canvas marks now
+    // excluded there is nothing left for `attachTarget` to bind. This pins that
+    // down rather than leaving a hit test that never runs.
     mount('<h1 id="hero">Pricing</h1>');
     layout(pick('#hero'), { x: 100, y: 200, width: 400, height: 100 });
-    stack([pick('#hero')]);
-
-    const op = rectOp();
-    attachTarget(op, ctx);
-    expect(op.target?.selector).toBe('#hero');
-    // The offset is measured from the element origin to the op's anchor.
-    expect(op.target?.offsetX).toBe(40);
-    expect(op.target?.offsetY).toBe(20);
-  });
-
-  test('resolves the anchor against the scrolled viewport, not the document origin', () => {
-    // `elementsFromPoint` takes viewport coords while the op is stored in doc
-    // coords, so the scroll offset has to come off before the hit test.
-    mount('<h1 id="hero">Pricing</h1>');
-    layout(pick('#hero'), { x: 0, y: 0, width: 100, height: 100 });
-    const probed: Array<[number, number]> = [];
+    let probed = 0;
     Object.defineProperty(document, 'elementsFromPoint', {
-      value: (x: number, y: number) => {
-        probed.push([x, y]);
+      value: () => {
+        probed++;
         return [pick('#hero')];
       },
       configurable: true,
     });
-    window.scrollTo(0, 500);
 
-    attachTarget(rectOp({ startX: 140, startY: 720 }), ctx);
-    expect(probed).toEqual([[140, 220]]);
-    window.scrollTo(0, 0);
+    const op = areaOp();
+    expect('target' in op).toBe(false); // the shape the tools really commit
+    attachTarget(op, ctx);
+    expect(op.target).toBeUndefined();
+    expect(probed).toBe(0);
   });
 
   test('leaves an op that already carries a target alone', () => {
     mount('<h1 id="hero">Pricing</h1>');
     stack([pick('#hero')]);
     const existing = { selector: '#kept', tag: 'h1', markdown: '' };
-    const op = rectOp({ target: existing });
+    const op = areaOp({ target: existing });
     attachTarget(op, ctx);
     expect(op.target).toBe(existing);
   });
@@ -345,7 +346,7 @@ describe('attachTarget', () => {
   test('leaves the op unbound when nothing real sits under it', () => {
     mount('<main></main>');
     stack([document.body, document.documentElement]);
-    const op = rectOp();
+    const op = areaOp();
     attachTarget(op, ctx);
     expect(op.target).toBeUndefined();
   });
@@ -367,26 +368,27 @@ describe('attachTarget', () => {
 });
 
 describe('commitOp', () => {
-  test('binds the op and pushes it in one step', () => {
+  test('pushes the op through the shared store', () => {
     mount('<h1 id="hero">Pricing</h1>');
     layout(pick('#hero'), { x: 100, y: 200, width: 400, height: 100 });
     Object.defineProperty(document, 'elementsFromPoint', { value: () => [pick('#hero')], configurable: true });
 
     operations.value = [];
-    const op: RectOp = {
-      id: 'r1',
+    const op: AreaOp = {
+      id: 'a1',
       color: '#000',
       lineWidth: 2,
-      tool: 'rectangle',
+      tool: 'area',
       startX: 140,
       startY: 220,
       endX: 240,
       endY: 320,
-      target: undefined,
+      ts: 0,
     };
     commitOp(op, ctx);
 
     expect(operations.value).toEqual([op]);
-    expect(operations.value[0]).toMatchObject({ target: { selector: '#hero' } });
+    // Binding is `attachTarget`'s job, and it currently binds nothing (see above).
+    expect(op.target).toBeUndefined();
   });
 });
