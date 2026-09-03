@@ -102,7 +102,7 @@ export const selectionPopover = signal<{
  * Web-app only by design (see support.ts), so it lives here rather than in the
  * shared extension state.
  */
-export type SupportTrigger = 'auto' | 'bar' | 'menu';
+export type SupportTrigger = 'auto' | 'bar' | 'menu' | 'panel';
 export const showSupportDialog = signal<SupportTrigger | null>(null);
 export const isReadonly = signal(false);
 // Mirror read-only into the telemetry label (see setRole). Nothing demotes a
