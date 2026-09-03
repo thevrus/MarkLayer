@@ -1,9 +1,9 @@
+import { Select } from '@base-ui/react/select';
 import { PanelSection } from '@ext/components/PanelSection';
-import { ScrollTrack } from '@ext/components/ScrollTrack';
 import { geist } from '@ext/lib/geist';
 import { toast } from '@ext/lib/state';
 import { cn } from '@marklayer/types';
-import { Send } from 'lucide-preact';
+import { Check, ChevronDown, Send } from 'lucide-preact';
 import { useEffect, useState } from 'preact/hooks';
 import { capture } from './analytics';
 import { Help, helpFor, Input, LabelledField } from './IntegrationFields';
@@ -47,7 +47,7 @@ export function IntegrationsSection({ id }: { id: string }) {
   }, [id]);
 
   // Defaulted here rather than at load, so the catalogue arriving after this
-  // panel mounts still lands on a selected tab instead of an empty form.
+  // panel mounts still lands on a chosen destination instead of an empty form.
   const active = picked || (providers[0]?.id ?? '');
 
   const provider = providers.find((p) => p.id === active);
@@ -172,31 +172,76 @@ export function IntegrationsSection({ id }: { id: string }) {
             </ul>
           )}
 
-          {/* Four labels of very different widths wrapped raggedly, orphaning the
-              last one on its own line. One track that scrolls holds the row on a
-              single line at any panel width. */}
+          {/* A select, not a row of tabs: the labels are of very different widths
+              and the catalogue is a list that grows server-side, so a horizontal
+              track either wrapped raggedly or scrolled the later destinations out
+              of sight. A closed select names the current one and promises the
+              rest, at any panel width and any catalogue length. */}
           {providers.length > 1 && (
-            <ScrollTrack activeKey={active} class="-mx-1 px-1">
-              <div class={geist.track} role="tablist">
-                {providers.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={p.id === active}
-                    data-pressed={p.id === active ? '' : undefined}
-                    onClick={() => {
-                      setPicked(p.id);
-                      // Nothing typed for Slack belongs in Linear's token box.
-                      setValues({});
-                    }}
-                    class={geist.segmentText}
+            <Select.Root
+              value={active}
+              items={providers.map((p) => ({ label: p.label, value: p.id }))}
+              onValueChange={(next: string | null) => {
+                if (!next) return;
+                setPicked(next);
+                // Nothing typed for Slack belongs in Linear's token box.
+                setValues({});
+              }}
+            >
+              <Select.Trigger
+                aria-label="Destination"
+                className={cn(
+                  geist.field,
+                  `flex w-full items-center justify-between gap-2 px-2.5 text-ui text-(--ds-gray-1000)
+                   cursor-pointer appearance-none text-left outline-none
+                   hover:border-(--ds-gray-600) data-popup-open:border-(--ds-gray-700)
+                   focus-visible:border-(--ds-gray-700)`,
+                )}
+              >
+                <Select.Value className="min-w-0 truncate" />
+                <Select.Icon className="shrink-0 inline-flex text-(--ds-gray-900)">
+                  <ChevronDown size={14} strokeWidth={1.5} aria-hidden="true" />
+                </Select.Icon>
+              </Select.Trigger>
+
+              <Select.Portal>
+                {/* Anchored under the trigger rather than over it: this select sits
+                    inside a scrolling panel, and the overlap mode lifts the popup
+                    off the control it belongs to. */}
+                <Select.Positioner
+                  side="bottom"
+                  align="start"
+                  sideOffset={6}
+                  alignItemWithTrigger={false}
+                  className="z-2147483647"
+                >
+                  {/* Height is the smaller of a comfortable list and what the
+                      viewport actually has left, which Base UI measures for us —
+                      a catalogue that grows scrolls rather than running off screen. */}
+                  <Select.Popup
+                    className={cn(
+                      geist.surface,
+                      'min-w-(--anchor-width) max-h-[min(16rem,var(--available-height))] overflow-y-auto p-1 text-ui',
+                    )}
                   >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-            </ScrollTrack>
+                    {providers.map((p) => (
+                      <Select.Item
+                        key={p.id}
+                        value={p.id}
+                        className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-md cursor-pointer border-none transition-colors
+                               bg-transparent text-(--ds-gray-1000) data-highlighted:bg-(--ds-gray-alpha-100)
+                               data-selected:bg-(--ds-gray-alpha-100) data-selected:font-medium"
+                      >
+                        <Select.ItemText className="truncate leading-tight">{p.label}</Select.ItemText>
+                        <Select.ItemIndicator className="shrink-0 inline-flex text-(--ds-gray-900)">
+                          <Check size={14} strokeWidth={1.5} aria-hidden="true" />
+                        </Select.ItemIndicator>
+                      </Select.Item>
+                    ))}
+                  </Select.Popup>
+                </Select.Positioner>
+              </Select.Portal>
+            </Select.Root>
           )}
 
           {/* The catalogue already describes each destination in one line; the
