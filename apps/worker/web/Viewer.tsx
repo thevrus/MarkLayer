@@ -5,6 +5,7 @@ import { captureScale } from '@ext/lib/anchor';
 import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze';
 import { glass } from '@ext/lib/glass';
 import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify, strokeArrowHead } from '@ext/lib/renderer';
+import { findPageScroller, notePageScroller, scrollOffset, scrollPageBy, scrollPageTo } from '@ext/lib/scroller';
 import { captureTarget } from '@ext/lib/selector';
 import { isLikelyEmbedHostile } from '@ext/lib/share';
 import {
@@ -163,7 +164,7 @@ export default function Viewer() {
   const scrollToAnnotation = useCallback((_x: number, y: number) => {
     try {
       const win = frameRef.current?.contentWindow;
-      if (win) win.scrollTo({ top: Math.max(0, y - 200), behavior: 'smooth' });
+      if (win) scrollPageTo(win, { top: Math.max(0, y - 200), behavior: 'smooth' });
     } catch {
       /* cross-origin */
     }
@@ -355,35 +356,44 @@ export default function Viewer() {
         // teardown to release the closure-held RAF state too.
         detachMutationObserver?.();
         detachMutationObserver = attachIframeMutationObserver(win.document);
-        win.addEventListener('scroll', () => {
-          iframeScrollY.value = win.scrollY || 0;
-          // Break follow mode on user-initiated scroll. The programmatic flag is
-          // held open until scrolling actually stops rather than for a fixed
-          // window: a smooth scroll across a long page outlives any timer started
-          // when it began, and the late events would read as the user taking over
-          // and break the follow that caused them.
-          if (programmaticScroll.current) {
-            if (scrollSettle.current) clearTimeout(scrollSettle.current);
-            scrollSettle.current = setTimeout(() => {
-              programmaticScroll.current = false;
-              scrollSettle.current = null;
-            }, 150);
-          } else if (followingPeer.value) {
-            followingPeer.value = null;
-          }
-          // Followers ride the presenter's cursor Y, and the cursor only emits on
-          // mousemove — so a presenter who scrolls without moving the mouse would
-          // move nobody. Emit the viewport centre instead, which is where
-          // `onFollowScroll` lands them, so the two viewports show the same content.
-          if (presenting.value) {
-            onCursorMove.value?.(lastCursorX.current, (win.scrollY || 0) + win.innerHeight / 2, activeTool.value);
-          }
-        });
+        // Capture phase, because a page that scrolls an inner container instead
+        // of its document fires `scroll` at that element and it never bubbles to
+        // the window — the drawings then sat still while the content moved.
+        findPageScroller(win.document);
+        win.addEventListener(
+          'scroll',
+          (e) => {
+            notePageScroller(win.document, e.target);
+            iframeScrollY.value = scrollOffset(win).y;
+            // Break follow mode on user-initiated scroll. The programmatic flag is
+            // held open until scrolling actually stops rather than for a fixed
+            // window: a smooth scroll across a long page outlives any timer started
+            // when it began, and the late events would read as the user taking over
+            // and break the follow that caused them.
+            if (programmaticScroll.current) {
+              if (scrollSettle.current) clearTimeout(scrollSettle.current);
+              scrollSettle.current = setTimeout(() => {
+                programmaticScroll.current = false;
+                scrollSettle.current = null;
+              }, 150);
+            } else if (followingPeer.value) {
+              followingPeer.value = null;
+            }
+            // Followers ride the presenter's cursor Y, and the cursor only emits on
+            // mousemove — so a presenter who scrolls without moving the mouse would
+            // move nobody. Emit the viewport centre instead, which is where
+            // `onFollowScroll` lands them, so the two viewports show the same content.
+            if (presenting.value) {
+              onCursorMove.value?.(lastCursorX.current, scrollOffset(win).y + win.innerHeight / 2, activeTool.value);
+            }
+          },
+          { capture: true, passive: true },
+        );
         // Break follow mode on user interaction in iframe + ripple on click
         win.addEventListener('mousedown', (e) => {
           if (followingPeer.value) followingPeer.value = null;
           if (e.button !== 0) return;
-          emitRipple.value?.(e.clientX, e.clientY + (win.scrollY || 0));
+          emitRipple.value?.(e.clientX, e.clientY + scrollOffset(win).y);
         });
         win.addEventListener(
           'wheel',
@@ -409,19 +419,19 @@ export default function Viewer() {
         // Forward cursor position from iframe so peers see it even when navigate tool is active
         win.addEventListener('mousemove', (e) => {
           lastCursorX.current = e.clientX;
-          onCursorMove.value?.(e.clientX, e.clientY + (win.scrollY || 0), activeTool.value);
+          onCursorMove.value?.(e.clientX, e.clientY + scrollOffset(win).y, activeTool.value);
         });
         // Hand tool: the framed page is its own scroller, and it sits behind a CSS
         // scale, so a screen-space drag delta has to be divided back out.
         panScrollBy.value = (dx: number, dy: number) => {
           const s = cssScale.value || 1;
-          win.scrollBy(dx / s, dy / s);
+          scrollPageBy(win, dx / s, dy / s);
         };
         // Follow mode: scroll iframe to followed peer's Y
         onFollowScroll.value = (y: number) => {
           programmaticScroll.current = true;
           if (scrollSettle.current) clearTimeout(scrollSettle.current);
-          win.scrollTo({ top: Math.max(0, y - win.innerHeight / 2), behavior: 'smooth' });
+          scrollPageTo(win, { top: Math.max(0, y - win.innerHeight / 2), behavior: 'smooth' });
           // The flag is cleared by the scroll handler once the events stop, so a
           // scroll of any length stays recognised as ours for its whole duration.
         };

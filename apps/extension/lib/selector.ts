@@ -1,5 +1,6 @@
 import type { TargetElement } from '@marklayer/types';
 import { detectFrameworkComponent, type FrameworkComponent } from './fiber-bridge';
+import { scrollOffset } from './scroller';
 
 export type { FrameworkComponent } from './fiber-bridge';
 
@@ -78,8 +79,9 @@ export function captureTarget({
   const selector = getSelector(el);
   const rect = el.getBoundingClientRect();
   const win = el.ownerDocument.defaultView ?? window;
-  const docX = rect.x + win.scrollX;
-  const docY = rect.y + win.scrollY;
+  const o = scrollOffset(win);
+  const docX = rect.x + o.x;
+  const docY = rect.y + o.y;
   return {
     selector,
     tag: el.tagName.toLowerCase(),
