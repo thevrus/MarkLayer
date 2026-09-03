@@ -272,8 +272,10 @@ describe('attachTarget', () => {
     Object.defineProperty(document, 'elementsFromPoint', { value: () => els, configurable: true });
 
   /**
-   * `target: undefined` is present deliberately: `attachTarget` gates on
-   * `'target' in op`, so an op that omits the key entirely is never bound.
+   * No `target` key, matching what the tools actually build: `Canvas`'s `base`
+   * is `{ id, color, lineWidth, captureViewport }`. The fixture used to add
+   * `target: undefined` to satisfy an `'target' in op` gate, which is precisely
+   * how that gate came to reject every real op unnoticed.
    */
   const rectOp = (over: Partial<RectOp> = {}): RectOp => ({
     id: 'r1',
@@ -284,8 +286,18 @@ describe('attachTarget', () => {
     startY: 220,
     endX: 240,
     endY: 320,
-    target: undefined,
     ...over,
+  });
+
+  test('binds an op that never carried a `target` key, as every tool builds them', () => {
+    mount('<h1 id="hero">Pricing</h1>');
+    layout(pick('#hero'), { x: 100, y: 200, width: 400, height: 100 });
+    stack([pick('#hero')]);
+
+    const op = rectOp();
+    expect('target' in op).toBe(false); // the shape the tools really commit
+    attachTarget(op, ctx);
+    expect(op.target?.selector).toBe('#hero');
   });
 
   test('binds a fresh op to the element under its anchor point', () => {
