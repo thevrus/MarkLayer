@@ -535,6 +535,32 @@ export const drawOpSchema = z.discriminatedUnion('tool', [
 ]);
 export type DrawOp = z.infer<typeof drawOpSchema>;
 
+/**
+ * Ops that bind to a page element, and the ones that deliberately do not.
+ *
+ * Only the DOM-rendered marks are anchored — a comment pin, a text selection,
+ * an area box. Each of those is reprojected as a whole: `reprojectRects` and
+ * `reprojectBox` move AND scale their full extent with the element, so the
+ * mark keeps covering the content it was put on.
+ *
+ * The canvas marks — pen, highlight, eraser, line, arrow, rectangle, circle,
+ * text — stay in document coordinates on purpose. `renderOp` paints their
+ * geometry unscaled, so an element anchor could only ever move their origin:
+ * one point would track the element while the rest of the shape was dragged
+ * along behind it, tearing the mark off its own content by
+ * `length * (1 - scale)` on any reflow. A stroke is a gesture, not a region.
+ * Until the renderer can reproject a whole shape, not anchoring them is the
+ * accurate choice, and it is what the tool shipped for its first seven
+ * minor versions.
+ *
+ * The predicate is on `tool` rather than `'target' in op`: `target` is
+ * optional, so a freshly drawn op has no such key and an instance check
+ * silently answers for the shape of the object instead of the kind of mark.
+ */
+export type AnchorableOp = Extract<DrawOp, { tool: 'comment' | 'selection' | 'area' }>;
+export const isAnchorableOp = (op: DrawOp): op is AnchorableOp =>
+  op.tool === 'comment' || op.tool === 'selection' || op.tool === 'area';
+
 export const opsArraySchema = z.array(drawOpSchema);
 
 /**
@@ -706,6 +732,9 @@ export interface Peer {
   tool?: string;
   lastSeen: number;
 }
+
+/** MCP agents connect as peers under this prefix (apps/mcp/src/room.ts). */
+export const isAgentPeer = (peerId: string) => peerId.startsWith('mcp-');
 
 // === Wire protocol ===
 
