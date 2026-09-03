@@ -61,6 +61,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
       { href: '/changelog', label: "What's new" },
       { href: REPO_URL, label: 'GitHub', external: true },
       { href: 'https://www.producthunt.com/products/marklayer', label: 'Product Hunt', external: true },
+      { href: '/llms-full.txt', label: 'llms-full.txt' },
     ],
   },
   {

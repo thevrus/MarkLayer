@@ -21,7 +21,7 @@
       "applicationCategory": "DesignApplication",
       "applicationSubCategory": "Visual Feedback and Annotation",
       "operatingSystem": "Any web browser (no installation or extension required)",
-      "browserRequirements": "Any modern browser",
+      "softwareRequirements": "Any modern browser",
       "isAccessibleForFree": true,
       "url": "https://marklayer.app",
       "screenshot": "https://marklayer.app/og.jpg",
@@ -52,11 +52,16 @@
       "applicationCategory": "BrowserApplication",
       "applicationSubCategory": "Browser Extension",
       "operatingSystem": "Chrome",
-      "browserRequirements": "Requires Chrome or Chromium-based browser",
+      "softwareRequirements": "Requires Chrome or Chromium-based browser",
       "isAccessibleForFree": true,
       "url": "https://marklayer.app",
       "downloadUrl": "https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc",
       "disambiguatingDescription": "An optional companion to the MarkLayer web app, not the primary way to use MarkLayer. Annotating and viewing shared annotations both work with no extension installed.",
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "5.0",
+        "ratingCount": "3"
+      },
       "offers": {
         "@type": "Offer",
         "price": "0",
