@@ -33,6 +33,12 @@ const softwareVersion = (await getReleases()).at(0)?.data.version;
 if (!softwareVersion) throw new Error('home-schema: no releases to take softwareVersion from');
 const dateModified = dates.home.modified;
 
+/* home-schema.json's Chrome Extension node carries a real aggregateRating (5.0,
+   3 ratings) read off the Chrome Web Store listing on 2026-09-03 — not invented,
+   and not copied onto the WebApplication node, which has no review mechanism of
+   its own. Re-check the CWS listing occasionally and update the JSON by hand;
+   nothing here re-fetches it. */
+
 const ld = {
   ...schema,
   '@graph': schema['@graph'].map((node) => {
@@ -63,6 +69,7 @@ const ld = {
     <meta name="robots" content="max-image-preview:large, max-snippet:-1" />
     <link rel="canonical" href={`${ORIGIN}/`} />
     <link rel="alternate" type="text/plain" href="/llms.txt" title="LLM-readable summary" />
+    <link rel="alternate" type="text/plain" href="/llms-full.txt" title="LLM-readable full text" />
 
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
