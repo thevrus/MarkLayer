@@ -90,20 +90,24 @@ export function SupportDialog() {
           <div class="p-6">
             {/* Short words and short sentences, on purpose: plenty of people
                 reading this are not reading in their first language, and an
-                idiom is the fastest way to lose them. Two halves that mirror
-                each other, so the point lands before the list explains it.
+                idiom is the fastest way to lose them.
+
+                Thanks first, and the ask last. Opening on what the reader has
+                already given — their use of the thing — is the difference
+                between a thank-you they can ignore and a bill they cannot.
 
                 `text-title` + `tracking-display` is the project's own headline
                 recipe, the one ViewerHud sets "Desktop only" in — not a size
                 invented for this card. */}
             {/* One notch tighter than `tracking-display`'s -0.02em: that value is
-                tuned for the landing page's much larger steps, and at 24px the
-                two sentences want to read as one tight block. */}
+                tuned for the landing page's much larger steps, and wants pulling
+                in at this 24px headline. */}
             <Dialog.Title className="m-0 text-title font-semibold tracking-[-0.032em] leading-tight text-balance text-(--ds-gray-1000)">
-              Free to use. Not free to run.
+              Thanks for using MarkLayer
             </Dialog.Title>
             <Dialog.Description className="mt-2.5 mb-0 text-ui leading-normal text-(--ds-gray-900)">
-              I pay for the servers myself.{cost} MarkLayer earns nothing:
+              It is free for everyone, and it will stay free. I pay for the servers myself.{cost} MarkLayer makes no
+              money, on purpose:
             </Dialog.Description>
 
             <PromiseList />
@@ -128,14 +132,18 @@ export function SupportDialog() {
                 // same focus ring, one place to change.
                 class={cn(submitBtn, 'mt-5 h-10 w-full rounded-lg text-ui-lg no-underline')}
               >
-                Support project
+                Support MarkLayer
               </a>
             ) : null}
 
             {/* The escape route is a text link, never a second button: most
-                people will not pay, and a review is worth real money here. */}
+                people will not pay, and a review is worth real money here.
+
+                The closing promise is load-bearing, and it is true: dismissing
+                writes `asked`, so the unprompted card never comes back. Saying
+                so is what makes this a single ask, not the start of a campaign. */}
             <p class="mt-3 mb-0 text-meta leading-snug text-(--ds-gray-900)">
-              {canCheckout ? "Can't pay? A " : 'Free way to help: a '}
+              {canCheckout ? 'Or help for free: a ' : 'Free way to help: a '}
               <a
                 href={CHROME_STORE_URL}
                 target="_blank"
@@ -148,7 +156,7 @@ export function SupportDialog() {
               >
                 Web Store review
               </a>{' '}
-              helps just as much.
+              helps just as much. Either way, I will only ask this once.
             </p>
           </div>
         </Dialog.Popup>
@@ -168,7 +176,7 @@ export function SupportDialog() {
 const PROMISES = [
   { label: 'No ads', detail: 'Nobody pays to track you.' },
   { label: 'No accounts', detail: 'You never sign up or log in.' },
-  { label: 'No paid plan', detail: 'Every tool is free for everyone.' },
+  { label: 'No paid plan', detail: 'Every feature is free.' },
 ];
 
 function PromiseList() {
