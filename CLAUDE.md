@@ -6,16 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MarkLayer — free annotation/collaboration tool for any webpage. Monorepo with a Chrome extension, a Cloudflare Worker backend + web app, a static Astro marketing/SEO site, and an MCP server that bridges annotations to AI coding agents.
 
-## Tech Stack
-
-- **UI:** Preact + Preact Signals, Base UI (`@base-ui/react` via `preact/compat`), Tailwind CSS v4, Lucide icons
-- **Extension:** WXT framework
-- **Backend:** Cloudflare Workers, Hono (`hono/tiny`), D1 (SQLite), Durable Objects (WebSocket), R2
-- **Marketing site:** Astro 7, static output, zero client JS (no integrations)
-- **Validation:** Zod (shared client/server)
-- **Build:** Bun workspaces, Turborepo, Vite
-- **Lint/Format:** Biome (sole tool — no ESLint/Prettier)
-
 ## Commands
 
 ```bash
