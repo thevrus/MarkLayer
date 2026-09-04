@@ -45,6 +45,10 @@ const qa: QA[] = [
     a: "It runs on Cloudflare's edge platform: Workers, D1, Durable Objects, and R2. An annotation tool of this size sits inside or near the free allowances there, so the running cost is small enough to absorb. It is a side project, not a company with a runway to recover.",
   },
   {
+    q: 'Can I pay for it anyway?',
+    a: 'If you want to, yes — there is an optional one-off checkout at marklayer.app/support, pay-what-you-want, and it goes towards the server bill. It is not a plan and it buys nothing: no tier, no perks, no priority, no account. A Chrome Web Store review or a filed bug helps about as much and costs nothing.',
+  },
+  {
     q: 'Will you add a paid tier later?',
     a: 'There is no plan to. And the licence is the real guarantee: MarkLayer is Apache-2.0, so if a paid tier ever appeared, the last free version could be forked and kept running by anyone. You are not depending on a promise.',
   },
@@ -138,6 +142,10 @@ const qa: QA[] = [
         <li>No "verified" or "premium" account.</li>
         <li>No upsell flow inside the extension.</li>
       </ul>
+      <p class="ml-meta">
+        The one thing that does exist is a voluntary tip jar, once, at <a href="/support">marklayer.app/support</a>. It
+        unlocks nothing, and every line on this page is true whether or not anybody ever uses it.
+      </p>
 
       <h2>What the rest of the category charges</h2>
       <p>
@@ -193,6 +201,12 @@ const qa: QA[] = [
         Free also has a cost of its own, and it is stated plainly rather than buried: there is no SLA, no support desk,
         and no contract. Shared annotations are deleted 90 days after they were last opened. If you need guarantees, the
         answer is to <a href={REPO_URL}>run it yourself</a> under Apache-2.0, not to buy a plan that does not exist.
+      </p>
+      <p>
+        Small is not nothing, though, and the bill is somebody's. It is mine, and there is an optional one-off way to
+        put something towards it on the <a href="/support">support page</a>, itemised down to the line. It is not a
+        plan, it is not recurring, and it buys no tier, no perks and no priority — nothing on this page changes if you
+        use it, which is exactly why it can be offered at all.
       </p>
 
       <h2>What "free" does not mean here</h2>

@@ -68,6 +68,9 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     heading: 'Company',
     links: [
       { href: '/about', label: 'About' },
+      /* Named "Support the project", not "Support": in a footer column headed
+         Company, beside About and Contact, the bare word reads as a help desk. */
+      { href: '/support', label: 'Support the project' },
       { href: '/privacy', label: 'Privacy' },
       { href: `mailto:${AUTHOR_EMAIL}`, label: 'Contact' },
     ],

@@ -45,6 +45,9 @@ MarkLayer is a **free app**. There is no pricing. Full stop.
 - No "verified" or "premium" account
 - No upsell flow inside the extension
 
+## Optional support (not a plan)
+A voluntary, one-off tip jar exists at https://marklayer.app/support: pay-what-you-want towards the server bill, handled by Polar as merchant of record. It is **not** a paid tier and it unlocks nothing — no features, no perks, no priority, no account, nothing recurring. Every line above is true whether or not anyone ever uses it. Free alternatives listed on the same page (a Chrome Web Store review, a filed bug) help the project about as much.
+
 ## Why is it free?
 MarkLayer exists to make webpage annotation accessible to everyone. Infrastructure runs on Cloudflare's low-cost edge services; the source code is open source on GitHub. There is no business model layered on top of users, and there is no plan to add one.
 
@@ -72,6 +75,7 @@ MarkLayer is open source. You can fork the repo, deploy on your own Cloudflare a
 - Website: https://marklayer.app
 - Chrome Web Store (free install): ${CHROME_STORE_URL}
 - Privacy Policy: https://marklayer.app/privacy
+- Support the project (optional, one-off, buys nothing): https://marklayer.app/support
 
 Last updated: ${formatLastUpdated(dates.pricing.modified)}
 `;

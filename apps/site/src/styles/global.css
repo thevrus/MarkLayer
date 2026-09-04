@@ -529,6 +529,67 @@
     @apply bg-ink-press;
   }
 
+  /* ── The support pair ──
+     `/support` and `/thanks` are one moment split across a payment: the last
+     thing seen before paying is the first thing seen after. So they share the
+     painting and they share the gesture, from here, rather than each carrying
+     its own copy of the CSS.
+
+     The painting is a public park, and it is the argument rather than
+     decoration: a park is free to walk into and expensive to keep open, which is
+     the whole case the copy makes. It is a background rather than an <img>
+     because it has nothing to say to a screen reader, and a missing file then
+     degrades to the sky tone instead of a broken-image glyph. */
+  .ml-park {
+    aspect-ratio: 760 / 279;
+    /* The prose measure exactly: 560px is where every paragraph on this site
+       caps, so the picture shares its right-hand edge instead of running the
+       full column while the copy stops halfway. */
+    max-width: 560px;
+    /* The painting's own averaged sky, so the wait (or a missing file) reads as
+       a picture arriving rather than a hole in the page. */
+    background-color: #9bc8e4;
+    /* The file ships from BOTH public dirs — apps/site/public for this workspace
+       and its standalone Pages deploy, apps/worker/static for the app's own
+       support card and the Worker's dev server — the same way the favicons do.
+       It is a finished painting and will not change. */
+    background-image: url("/support-park.webp");
+    background-position: center;
+    background-size: cover;
+    @apply mb-10 rounded-xl;
+  }
+
+  /* One pen stroke under a word — the same mark the OG page cards draw under a
+     heading's operative word, and the one flourish either page carries. Put it
+     on the word, never on the whole heading: an underline under a full line is a
+     rule, and a rule beside or under a label is the decorative tic this site
+     avoids everywhere else. */
+  .ml-drawn {
+    position: relative;
+    display: inline-block;
+  }
+  /* Placed on the word rather than in the text flow, so it cannot move anything.
+     The heading's own bottom padding is what clears the cut at the overshoot. */
+  .ml-drawn::after {
+    content: "";
+    position: absolute;
+    inset-inline: -0.04em -0.05em;
+    bottom: -0.16em;
+    height: 0.16em;
+    /* Bowed away from the letters through the middle and off level end to end,
+       exactly the way the OG page cards draw it. The stroke keeps its own weight
+       while the path stretches to the word, so a wide viewport does not fatten
+       it. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M2.4 5.2C28 10 52 11.6 84 10.9 128 10 160 8 197.6 4.2' fill='none' stroke='%239e77dc' stroke-width='3.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+  }
+  /* Room for the stroke under the words without the paragraph below crowding it,
+     and without the heading's own box clipping it. */
+  .ml-drawn-head {
+    padding-bottom: 0.14em;
+  }
+
   /* Row list, not a card grid: a hairline per row and a diagonal that travels
      on hover. Nothing lifts and nothing glows. */
   /* Two columns once the page container has the room for them. One column of

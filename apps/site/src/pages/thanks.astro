@@ -24,22 +24,23 @@ const description = 'Your support for MarkLayer came through. It pays for the se
   <body>
     <div class="ml-shell">
       <SiteHeader />
-      {/* The same painting the support card opened with: the last thing seen
-          before paying is the first thing seen after, so the two read as one
-          moment. A background rather than an `<img>` because it is decoration
-          with nothing to say to a screen reader, and a missing file then
-          degrades to the sky tone instead of a broken-image glyph. */}
-      <div class="ml-park rounded-xl mb-10"></div>
+      {/* The same painting `/support` opened with: the last thing seen before
+          paying is the first thing seen after, so the two read as one moment.
+          Both classes are shared with that page from global.css. */}
+      <div class="ml-park"></div>
       {/* The heading wears the product's own mark: one pen stroke under the
           words, the same gesture the page cards draw under a heading's
           operative word. It is the one flourish on the page — a hand on an
           otherwise exact surface — and it is drawn, not a rule. */}
-      <h1 class="ml-thanks-head"><span class="ml-drawn">Thank you</span>.</h1>
+      <h1 class="ml-drawn-head"><span class="ml-drawn">Thank you</span>.</h1>
       <p class="ml-lede">Your support pays for the servers. That is what keeps every MarkLayer tool free for everyone.</p>
       <p>Polar emails your receipt. There is nothing to set up, and nothing to sign in to.</p>
       <p>You can close this tab. The page you were annotating is still open, with your work on it.</p>
       <p class="mt-10">
         <a class="ml-cta" href="/">Back to MarkLayer</a>
+      </p>
+      <p class="ml-meta mt-6">
+        What this pays for, and the free ways to help instead: <a href="/support">the support page</a>.
       </p>
     </div>
     <SiteFooter />
@@ -63,48 +64,3 @@ const description = 'Your support for MarkLayer came through. It pays for the se
     </script>
   </body>
 </html>
-
-<style>
-  .ml-park {
-    aspect-ratio: 760 / 279;
-    /* The prose measure exactly: 560px is where every paragraph on this site
-       caps, so the picture shares its right-hand edge instead of running the
-       full column while the copy stops halfway. */
-    max-width: 560px;
-    /* The painting's own averaged sky, so the wait (or a missing file) reads as
-       a picture arriving rather than a hole in the page. */
-    background-color: #9bc8e4;
-    background-image: url('/support-park.webp');
-    background-position: center;
-    background-size: cover;
-  }
-
-  /* Room for the stroke to sit under the words without the paragraph below
-     crowding it, and without the heading's own box clipping it. */
-  .ml-thanks-head {
-    padding-bottom: 0.14em;
-  }
-
-  .ml-drawn {
-    position: relative;
-    display: inline-block;
-  }
-
-  /* The stroke is placed on the word, not in the text flow, so it cannot change
-     where anything sits. `overflow: visible` on the span plus the heading's
-     padding is what clears the cut at both ends of the overshoot. */
-  .ml-drawn::after {
-    content: '';
-    position: absolute;
-    inset-inline: -0.04em -0.05em;
-    bottom: -0.16em;
-    height: 0.16em;
-    /* One pass of a pen: bowed away from the letters through the middle and off
-       level end to end, exactly the way the OG page cards draw it. The stroke
-       keeps its own weight while the path stretches to the word, so a wide
-       viewport does not fatten it. */
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 14' preserveAspectRatio='none'%3E%3Cpath d='M2.4 5.2C28 10 52 11.6 84 10.9 128 10 160 8 197.6 4.2' fill='none' stroke='%239e77dc' stroke-width='3.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-  }
-</style>
