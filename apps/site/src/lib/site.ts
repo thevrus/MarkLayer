@@ -30,6 +30,26 @@ export function pageOgImage({ heading, path }: { heading: string; path: string }
 export const SUPPORT_CHANNEL = 'marklayer:support';
 export const SUPPORT_PAID = 'paid';
 
+/**
+ * The Polar checkout every support surface opens — the "Support MarkLayer"
+ * product, pay-what-you-want with a $3 floor and $5 prefilled.
+ *
+ * It lives here for the same reason `SUPPORT_CHANNEL` does: three renderers open
+ * it now (the app's support card, `/support`, and the footer link that points at
+ * it), and a URL duplicated across two workspaces is a URL that goes stale in
+ * one of them. apps/worker re-exports it from `web/support.ts`.
+ *
+ * No surface names the $5 in a button label: Polar is merchant of record and
+ * adds VAT on top, so an EU supporter is charged $6.15. A button promising a
+ * price the checkout then contradicts is a small lie. `/support` states the
+ * floor and the VAT in prose instead, where there is room to be exact.
+ *
+ * Left empty and every surface degrades to its no-payment form rather than
+ * offering a button that goes nowhere, which is also what should happen if the
+ * product is ever retired.
+ */
+export const POLAR_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_DBsDl9Ufd2O0mOEodJrcrIDpuOu2iEc0UqG4w4cXdk2';
+
 export const REPO_URL = 'https://github.com/thevrus/MarkLayer';
 export const AUTHOR_NAME = 'Vadym Rusin';
 export const AUTHOR_EMAIL = 'hello@marklayer.app';
@@ -65,6 +85,11 @@ export const SECTIONS = [
   { key: 'guides', label: 'Guides', href: '/guides', prefixes: ['/guides'] },
   { key: 'changelog', label: 'Changelog', href: '/changelog', prefixes: ['/changelog'] },
   { key: 'pricing', label: 'Pricing', href: '/pricing', prefixes: ['/pricing'] },
+  /* Last in the row on purpose, and it reads off the one before it: "Pricing"
+     answers what it costs, "Support" answers who pays for it. Reversed, or set
+     anywhere earlier, the word is ambiguous with a help desk — which this
+     project explicitly does not run. */
+  { key: 'support', label: 'Support', href: '/support', prefixes: ['/support'] },
 ] as const;
 
 export type Section = (typeof SECTIONS)[number]['key'];

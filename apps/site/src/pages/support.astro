@@ -1,0 +1,235 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Related from '../components/Related.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import {
+  AUTHOR_EMAIL,
+  CHROME_STORE_URL,
+  formatLastUpdated,
+  ORIGIN,
+  pageOgImage,
+  POLAR_CHECKOUT_URL,
+  REPO_URL,
+} from '../lib/site';
+import dates from '../data/page-dates.json';
+
+const { modified } = dates.support;
+// One string: the card is keyed by a hash of the heading, so an h1 edited
+// without its twin would serve the old wording forever.
+const h1 = 'Support MarkLayer';
+// Split from that same string rather than retyped in the markup: the pen stroke
+// goes on the first word, and the OG card is keyed by a hash of `h1`, so a
+// hand-written heading would let the two drift apart silently.
+const [operative, ...restOfH1] = h1.split(' ');
+const title = 'Support MarkLayer · Optional, One-Off, Buys Nothing';
+const description =
+  'MarkLayer is free and stays free. If it saved you time you can pay what you like, once. It buys no tier, no perks and no priority: it pays the server bill.';
+
+// Empty means the product was retired. The page then makes its case and offers
+// only the free ways to help, rather than a button that goes nowhere.
+const canCheckout = POLAR_CHECKOUT_URL.length > 0;
+
+/**
+ * The bill, itemised. Every line is checkable against the repo rather than
+ * asserted: the bindings are in apps/worker/wrangler.jsonc and the relay is
+ * apps/fetcher. No total is claimed — a guessed figure would be worse than
+ * none, which is the same reason the app's support card drops the number.
+ */
+const COSTS: [label: string, detail: string][] = [
+  [
+    'Cloudflare Workers Paid',
+    'A Durable Object is what holds a live annotation room together, and Durable Objects only exist on the paid plan. So there is a bill every month before the first annotation is drawn.',
+  ],
+  [
+    'D1, R2 and the room hours',
+    'Shared annotations are rows in D1, share cards are objects in R2, and every collaboration session is a Durable Object awake for as long as somebody is in it. This is the part that grows with use.',
+  ],
+  [
+    'A relay on a fixed address',
+    'A few hosts refuse traffic from Cloudflare’s shared egress outright. The proxy falls back to a small relay on one address I own, so those pages still load. It is a second host, so it is a second bill.',
+  ],
+  ['The domain', 'marklayer.app, renewed yearly. Small, and the only cost here that would exist even with no users.'],
+];
+
+/** What paying does not get you. The point of the page, and the reason it can be asked at all. */
+const REFUSALS = [
+  'No paid tier, and no plan to add one. There is nothing above the version everybody already has.',
+  'No perks: no badge, no supporter list, no priority in the issue tracker, no vote on the roadmap.',
+  'No support contract, no SLA and no faster answer than anyone else gets. There is no support desk to jump the queue on.',
+  'No account, so nothing to log into afterwards and nothing to cancel.',
+  'No mailing list. There is no email field anywhere in the product, and this does not add one.',
+];
+---
+
+<html lang="en">
+  <head>
+    <BaseHead
+      title={title}
+      description={description}
+      canonical={`${ORIGIN}/support`}
+      ogImage={pageOgImage({ heading: h1, path: '/support' })}
+      ogType="website"
+    />
+  </head>
+  <body>
+    <div class="ml-shell">
+      <SiteHeader current="support" />
+      <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Support' }]} />
+      {/* The same painting `/thanks` closes with — the argument for the park
+          metaphor lives once, in global.css. */}
+      <div class="ml-park"></div>
+      {/* The operative word carries the pen stroke, the same gesture the OG page
+          cards draw. One flourish, and it is the product's own mark. */}
+      <h1 class="ml-drawn-head"><span class="ml-drawn">{operative}</span> {restOfH1.join(' ')}</h1>
+      <p class="ml-meta mt-0 mb-8">
+        By <a href="/about">Vadym Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
+      </p>
+      <p class="ml-lede">
+        MarkLayer is free for everyone and it will stay free. I pay for the servers myself. If the tool has saved you an
+        hour of screenshots and Slack threads, you can pay what you like towards that bill, once. It buys you nothing.
+        That is the point, and it is what makes it fair to ask.
+      </p>
+
+      {
+        canCheckout ? (
+          <>
+            <p class="mb-3">
+              {/* The one new tab on this page, matching the app's own support
+                  card: over there the tab being left behind holds unsaved
+                  annotations, and a checkout that behaves differently depending
+                  on where it was opened from is a worse thing than a new tab. */}
+              <a class="ml-cta" href={POLAR_CHECKOUT_URL} target="_blank" rel="noopener noreferrer">
+                Support MarkLayer
+              </a>
+            </p>
+            {/* The escape route is a text link, never a second button. Most
+                people will not pay, a Web Store review is worth real money
+                here, and a filled-plus-outlined pair would put the two at the
+                same weight while pretending otherwise. */}
+            <p class="ml-meta">
+              Or help for free: a{' '}
+              <a href={CHROME_STORE_URL}>Web Store review</a>{' '}
+              helps just as much.
+            </p>
+          </>
+        ) : (
+          <p>
+            There is nothing to pay right now: the checkout is closed. The free ways to help below are the ones that
+            were always worth the most anyway.
+          </p>
+        )
+      }
+
+      <h2>What the money actually pays for</h2>
+      <p>
+        Running this is cheap, and that is on purpose: an annotation is a small JSON payload, a share link is a row in a
+        database, and a collaboration room only exists while someone is standing in it. There is no video to transcode
+        and no per-user storage tier to fund. But cheap is not free, and the bill has four lines.
+      </p>
+      {/* A list with a bold lead-in, not a two-column table: the second column
+          is a sentence, and at 390px a 34%/66% split wraps both halves to a
+          ragged 640px-tall block. The site's tables are for values that line
+          up. */}
+      <ul>
+        {
+          COSTS.map(([label, detail]) => (
+            <li>
+              <strong>{label}.</strong> {detail}
+            </li>
+          ))
+        }
+      </ul>
+      <p class="ml-meta">
+        No total is stated here because I am not going to invent one. The honest version is that it is small enough that
+        I absorb it, and that I would rather say so than print a figure I cannot back. Every line above is checkable in
+        the <a href={REPO_URL}>source</a>.
+      </p>
+
+      <h2>What it does not buy</h2>
+      <p>
+        This is the part most "support us" pages leave vague, so it is the part stated first and in full. Paying changes
+        nothing about your MarkLayer, or anyone else's.
+      </p>
+      <ul>
+        {REFUSALS.map((line) => <li>{line}</li>)}
+      </ul>
+      <p>
+        The reason there is nothing to sell is structural rather than generous. MarkLayer is Apache-2.0, so if a paid
+        tier ever appeared, the last free version could be forked and kept running by anybody. See
+        <a href="/pricing">the pricing page</a> for that argument in full. A supporter tier would be the first crack in
+        it, so there isn't one.
+      </p>
+
+      <h2>Free ways to help, which are worth as much</h2>
+      <p>
+        Money is the least interesting thing you can give a project like this. In rough order of how much each one
+        actually moves:
+      </p>
+      <ul>
+        <li>
+          <a href={CHROME_STORE_URL}>Leave a Chrome Web Store review</a>. The listing is how people find the extension
+          at all, and a handful of honest reviews change that more than anything on this site does.
+        </li>
+        <li>
+          <a href={REPO_URL}>Star the repository</a>, or read it. A star is the cheapest signal that a free tool is worth
+          trusting.
+        </li>
+        <li>
+          <a href={`${REPO_URL}/issues`}>File the bug you just worked around</a>. A reproducible report is worth more
+          than a donation, because it fixes the thing for everybody.
+        </li>
+        <li>
+          Correct a page. The <a href="/compare">comparisons</a> and <a href="/alternatives">alternatives</a> make
+          factual claims about other companies' products, and when one goes out of date I want to know. The{' '}
+          <a href="/about">corrections policy</a> is on the about page.
+        </li>
+        <li>
+          Send it to the one person you know who is still emailing screenshots with red arrows drawn in Preview. That is
+          how nearly everybody here arrived.
+        </li>
+      </ul>
+
+      {
+        canCheckout ? (
+          <>
+            <h2>How the payment works</h2>
+            <p>
+              The checkout is pay-what-you-want with a $3 floor, and $5 filled in. It is one payment, not a
+              subscription, so there is nothing recurring and nothing to cancel.
+            </p>
+            <p>
+              <a href="https://polar.sh">Polar</a>{' '}
+              is the merchant of record and handles the payment, the tax and the receipt. None of it touches
+              MarkLayer's servers, and I never see a card number. Polar adds VAT on top where it applies, so the total
+              at $5 is $6.15 in the EU. That is why no button on this page names a price: quoting one the checkout then
+              contradicts would be a small lie.
+            </p>
+            <p>
+              The receipt arrives by email from Polar. If something is wrong with a payment, write to{' '}
+              <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a> and I will sort it out.
+            </p>
+          </>
+        ) : null
+      }
+
+      {/* Internal only: LinkGrid renders a plain `<a>` with no `target`, and the
+          off-origin links on this page (the store, the repo, Polar) are each
+          already in the paragraph that has something to say about them. Six, so
+          the two-column grid at `lg` closes with a full row. */}
+      <Related
+        title="Where to go next"
+        links={[
+          { href: '/pricing', label: 'Why MarkLayer is free, in detail' },
+          { href: '/about', label: 'Who builds MarkLayer' },
+          { href: '/guides', label: 'Guides' },
+          { href: '/compare', label: 'All MarkLayer comparisons' },
+          { href: '/changelog', label: "What's new" },
+          { href: '/privacy', label: 'Privacy policy' },
+        ]}
+      />
+    </div>
+    <SiteFooter />
+  </body>
+</html>

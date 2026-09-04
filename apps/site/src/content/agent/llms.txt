@@ -12,6 +12,8 @@ MarkLayer is the only visual feedback tool where an AI coding agent can close th
 
 Free. There is no paid plan. There is no trial. There is no per-seat pricing. Everything is included. See https://marklayer.app/pricing or https://marklayer.app/pricing.md for the machine-readable version.
 
+There is one optional, voluntary, one-off tip jar at https://marklayer.app/support, pay-what-you-want towards the server bill. It is not a plan and it unlocks nothing: no tier, no perks, no priority, no account. Every claim above is true whether or not anyone uses it.
+
 ## Anonymous by design
 
 - No sign-up, no email verification, no login
@@ -178,6 +180,7 @@ visual feedback layer, not a project management system.
 - Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
 - GitHub: https://github.com/thevrus/MarkLayer
 - Privacy Policy: https://marklayer.app/privacy
+- Support the project (optional, one-off, buys nothing): https://marklayer.app/support
 
 ## How It Works
 

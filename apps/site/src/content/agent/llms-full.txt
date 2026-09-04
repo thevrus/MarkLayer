@@ -283,6 +283,9 @@ A: No. Anyone can view annotations via the share link. No install required. The 
 Q: Is it really free?
 A: Yes. No account, no paywall, no trial period. MarkLayer is open source.
 
+Q: Is there any way to pay for MarkLayer?
+A: Only voluntarily. There is a one-off tip jar at https://marklayer.app/support, pay-what-you-want towards the server bill, with Polar as merchant of record. It is not a paid tier and it unlocks nothing: no features, no perks, no priority, no account, nothing recurring. The same page lists free ways to help (a Chrome Web Store review, a filed bug) that are worth about as much.
+
 Q: Does it work on any website?
 A: Yes, MarkLayer works on any webpage. The extension injects a transparent overlay on top of any page content.
 
@@ -312,7 +315,8 @@ A: Yes. There is a public, unauthenticated POST endpoint at https://marklayer.ap
 - MCP server (npm): https://www.npmjs.com/package/marklayer-mcp
 - MCP server (source): https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
 - Privacy Policy: https://marklayer.app/privacy
+- Support the project (optional, one-off, buys nothing): https://marklayer.app/support
 
 ## Contact
 
-Email: rusinvadym@gmail.com
+Email: hello@marklayer.app

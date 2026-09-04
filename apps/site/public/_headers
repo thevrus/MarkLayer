@@ -48,6 +48,9 @@
 /about
   Cache-Control: public, max-age=3600
 
+/support
+  Cache-Control: public, max-age=3600
+
 /privacy
   Cache-Control: public, max-age=3600
 
