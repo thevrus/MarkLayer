@@ -3,7 +3,7 @@ import { geist } from '@ext/lib/geist';
 import { claudeMcpCommand, HOW_IT_WORKS_URL, npxMcpCommand } from '@ext/lib/share';
 import { annotationPanelOpen, copyText, operations, peerCount } from '@ext/lib/state';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
-import { cn, type DrawOp, RETENTION_DAYS } from '@marklayer/types';
+import { cn, type DrawOp, deletionDeadline } from '@marklayer/types';
 import {
   ArrowUpRight,
   BookOpen,
@@ -260,12 +260,20 @@ function ToolTally() {
 const formatStamp = (seconds: number) =>
   `${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(seconds * 1000)} (${timeAgo(seconds)})`;
 
+const formatDate = (seconds: number) =>
+  new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(seconds * 1000);
+
 function InfoPanelBody() {
   const created = createdAt.value;
   const expires = expiresAt.value;
   const readonly = isReadonly.value;
   const url = pageUrl.value;
   const id = annotationId.value;
+
+  // Opening this panel just touched `last_accessed_at`, so `now` stands in for it.
+  const deadline = deletionDeadline({ lastAccessedAt: Math.floor(Date.now() / 1000), expiresAt: expires });
+  const expiresValue =
+    deadline * 1000 < Date.now() ? 'Expired' : `${formatDate(deadline)}${expires == null ? ' · resets on view' : ''}`;
 
   return (
     <>
@@ -274,17 +282,7 @@ function InfoPanelBody() {
           so the last rows can always be scrolled out from under it. */}
       <div class="flex-1 overflow-y-auto px-4 pt-2 pb-16">
         {created != null && <InfoRow icon={Calendar} label="Created" value={formatStamp(created)} />}
-        <InfoRow
-          icon={Timer}
-          label="Expires"
-          value={
-            expires == null
-              ? `${RETENTION_DAYS} days after last view`
-              : expires * 1000 < Date.now()
-                ? 'Expired'
-                : formatStamp(expires)
-          }
-        />
+        <InfoRow icon={Timer} label="Expires" value={expiresValue} />
         <SessionRow />
         <InfoRow icon={readonly ? Lock : Upload} label="Access" value={readonly ? 'Read-only' : 'Editable'} />
         {url && <PageUrlRow url={url} />}
