@@ -6,7 +6,7 @@ h1: "MCP servers for bug reports and visual feedback, compared"
 intro: "An MCP server lets an AI coding agent read your bug reports and annotations directly, instead of you pasting screenshots into a chat. Five visual-feedback tools ship one as of August 2026. They differ on the question that matters: can the agent only read the feedback, or can it work the feedback?"
 bottomLine: "All five tools let an agent read feedback over MCP. Marker.io exposes the richest report data (console and network logs) but keeps the agent read-only. Jam is a one-way link handoff. BugHerd allows task triage in beta. MarkLayer is the only one with a live two-way loop: the agent watches a room, marks annotations in progress, resolves them, and replies, with every status change visible to the humans watching."
 published: 2026-08-15
-modified: 2026-08-15
+modified: 2026-09-04
 faq:
   - q: "What is an MCP server for bug tracking?"
     a: "MCP (Model Context Protocol) is the open standard AI assistants use to call external tools. A bug tracker's MCP server exposes its reports as tools an agent can call, so Claude Code or Cursor can pull a bug's details, screenshots, selectors, or logs directly instead of a human copy-pasting them into the chat."
@@ -45,6 +45,8 @@ claude mcp add marklayer -- npx -y marklayer-mcp --room <room-id>
 ```
 
 Cursor, Codex, Windsurf, and other MCP clients take the same `npx -y marklayer-mcp` command in their MCP configuration. The server is published on npm as `marklayer-mcp`, and each MarkLayer share page shows the command with the room id filled in.
+
+For the step-by-step setup, the full tool reference, and troubleshooting the first connection, see [the Claude Code MCP setup guide](/guides/claude-code-visual-feedback).
 
 ## Which to pick
 

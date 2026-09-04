@@ -7,7 +7,7 @@ audience: "developers running a local dev server alongside an AI coding agent"
 bottomLine: "Install the MarkLayer extension, open your localhost dev server, drop a pin or inspect an element, and run one \"claude mcp add\" command. The agent reads the annotation with its selector and component name, fixes the code, and resolves the pin in place. Free, no account. Share links need a publicly reachable URL, so use staging or a tunnel when you want someone else to see the page too."
 problem: "The gap is that your coding agent cannot see your screen. You know exactly which element is wrong, because you are looking at it, but conveying that costs a paragraph of prose, a screenshot the agent reads imprecisely, or a hand-copied selector from devtools. Then the agent goes quiet, and you have no idea whether it understood which element you meant until the diff lands."
 published: 2026-01-23
-modified: 2026-03-13
+modified: 2026-09-04
 why:
   - "The extension annotates localhost directly. It draws on the page in your browser, so there is no proxy or tunnel involved and your dev server never has to be reachable from the internet."
   - "The inspector captures a CSS selector, a text fingerprint, computed styles, and the detected React, Vue, or Svelte component: the context an agent needs to find the code, not just the pixel."
@@ -40,7 +40,7 @@ faq:
   - q: "Which agents can connect?"
     a: "Anything that speaks MCP. Claude Code has a one-line install; Cursor, Codex, Windsurf, and other MCP clients take the same \"npx -y marklayer-mcp --room <id>\" command in their MCP config. The server is published on npm as marklayer-mcp."
   - q: "Can the agent close annotations on its own?"
-    a: "Yes. The MCP server exposes acknowledge, resolve, dismiss, and reply, so the agent can mark work in progress, resolve a pin with a summary, dismiss one with a reason, or ask a question without changing status. Every change shows up live for the humans in the room."
+    a: "Yes. The MCP server exposes acknowledge, resolve, dismiss, and reply, so the agent can mark work in progress, resolve a pin with a summary, dismiss one with a reason, or ask a question without changing status. Every change shows up live for the humans in the room. There's a fifth status, approved, reserved for the human confirming the fix; see the [full MCP setup guide](/guides/claude-code-visual-feedback) for the complete tool reference."
 ---
 
 Describing a UI problem to a coding agent in words is the slow path. "The spacing under the third card is wrong" sends the agent hunting through your components. MarkLayer lets you click the element on your running localhost page and hand the agent the exact selector, computed styles, and framework component name, then watch it mark the annotation in progress and resolve it without leaving the page.
