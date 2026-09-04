@@ -67,17 +67,11 @@ function Section({ label, children }: { label: string; children: ComponentChildr
   );
 }
 
-/**
- * Priority as a row of levels rather than the composer's click-through cycle:
- * on an annotation that already exists you are usually correcting a level, and a
- * cycle makes you walk past three wrong ones to get there. Muted at rest so the
- * four signal colours don't all shout at once — only the chosen level is tinted.
- */
+/** A row of levels, not the composer's click-through cycle: correcting an existing priority shouldn't mean walking past three wrong ones first. */
 function PriorityRow({ op }: { op: AnnotationOp }) {
   const current = op.priority ?? null;
   const name = `priority-${op.id}`;
-  // Real radios rather than buttons wearing role="radio": the group then gets
-  // arrow-key traversal and single-selection semantics from the platform.
+  // Real radios, not buttons wearing role="radio": arrow-key traversal comes free from the platform.
   const option = ({
     value,
     label,

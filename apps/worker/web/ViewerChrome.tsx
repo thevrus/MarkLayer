@@ -61,8 +61,7 @@ import { videoActive, voiceActive, voiceMuted } from './voiceSignals';
 // Only fetched when a user joins voice/video or opens the device picker.
 const DeviceMenu = lazy(() => import('./DeviceMenu').then((m) => ({ default: m.DeviceMenu })));
 
-// Peers shown before collapsing the rest into a "+N" badge. The local user sits
-// at index 0, so the overflow badge lands at MAX_VISIBLE_PEERS + 1 in the group.
+// Local user sits at index 0, so the overflow badge lands at MAX_VISIBLE_PEERS + 1.
 const MAX_VISIBLE_PEERS = 3;
 
 /* ── Top bar ──

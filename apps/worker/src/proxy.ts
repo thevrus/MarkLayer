@@ -10,7 +10,6 @@ const BROWSER_UA =
 // URL schemes that must never be routed through the proxy (non-fetchable or in-page).
 const SKIP_SCHEME = /^(data:|blob:|javascript:|mailto:|tel:|about:|#)/i;
 
-/** Escape a string for safe insertion into a <script> block */
 function escapeForScript(s: string): string {
   return JSON.stringify(s).slice(1, -1);
 }
@@ -346,14 +345,11 @@ const URL_ERRORS = {
 
 /**
  * A document `/doc` can render and the viewer can annotate: a PDF, or a raster
- * image. SVG is excluded on purpose — it is markup with script in it, and the
- * viewer would be pointing an `<img>` at bytes we would rather never serve as a
- * document at all.
- */
-/**
+ * image. SVG is excluded — it is markup with script in it, and the viewer would
+ * be pointing an `<img>` at bytes we'd rather never serve as a document at all.
  * Deliberately broader than `UPLOAD_FORMATS`: this asks whether the *browser* can
- * draw the bytes, not whether we would store them. A remote BMP or TIFF renders
- * fine in the doc viewer even though it is not an accepted upload.
+ * draw the bytes, not whether we would store them — a remote BMP or TIFF renders
+ * fine here even though it is not an accepted upload.
  */
 function isViewableDocument(contentType: string): boolean {
   const type = contentType.split(';')[0]?.trim().toLowerCase() ?? '';
@@ -408,13 +404,10 @@ proxy.get('/proxy', async (c) => {
       });
     }
 
-    // For non-HTML resources, pass through as-is
     if (!resp.contentType.includes('text/html')) {
-      // The viewer fetches the raw bytes itself via ?raw=1; that request must always
-      // fall through to the plain pass-through below, whatever the content type is.
+      // ?raw=1 must always fall through to the plain pass-through below, whatever the content type.
       if (reqUrl.searchParams.get('raw') !== '1' && isViewableDocument(resp.contentType)) {
-        // The viewer page fetches the bytes itself; this body is never read, so
-        // release the upstream connection instead of leaving it open.
+        // Body is never read here — the viewer fetches the bytes itself via the redirect below.
         void resp.stream?.cancel();
         // Redirect rather than inline a shell, so Vite owns the viewer's script tag
         // and its content hash. `/doc`, not `/doc.html`: the asset layer redirects
@@ -508,7 +501,6 @@ proxy.get('/proxy', async (c) => {
           injected = true;
         },
       })
-      // Rewrite same-origin absolute URLs in common attributes + inline style url()
       .on('*', {
         element(el) {
           // Leave anchor/area hrefs on the target origin — link clicks flow through
@@ -527,7 +519,6 @@ proxy.get('/proxy', async (c) => {
           }
         },
       })
-      // Rewrite srcset URLs
       .on('[srcset]', {
         element(el) {
           const srcset = el.getAttribute('srcset');
@@ -572,13 +563,11 @@ proxy.get('/proxy', async (c) => {
           if (CHALLENGE_PATH.test(el.getAttribute('content') || '')) el.remove();
         },
       })
-      // Strip external Cloudflare CDN scripts
       .on('script[src*="/cdn-cgi/"]', {
         element(el) {
           el.remove();
         },
       })
-      // Strip inline Cloudflare CDN scripts
       .on('script:not([src])', {
         text(chunk) {
           scriptParts.push(chunk.text);
@@ -591,7 +580,6 @@ proxy.get('/proxy', async (c) => {
           }
         },
       })
-      // Rewrite CSS url() in inline <style> to route through proxy
       .on('style', {
         text(chunk) {
           styleParts.push(chunk.text);
@@ -631,7 +619,6 @@ proxy.get('/proxy', async (c) => {
   }
 });
 
-// CORS preflight for sub-resource proxy
 proxy.options('/px/*', (c) => {
   return new Response(null, {
     status: 204,

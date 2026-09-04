@@ -116,8 +116,6 @@ export const isUploadId = (id: string): boolean => UPLOAD_ID.test(id);
 export const uploadPath = (id: string): string => `/f/${id}`;
 export const isUploadPath = (url: string): boolean => url.startsWith('/f/') && isUploadId(url.slice(3));
 
-// === Ops: schemas + inferred types (single source of truth) ===
-
 export const pointSchema = z.object({ x: z.number(), y: z.number() });
 export type Point = z.infer<typeof pointSchema>;
 
@@ -536,26 +534,12 @@ export const drawOpSchema = z.discriminatedUnion('tool', [
 export type DrawOp = z.infer<typeof drawOpSchema>;
 
 /**
- * Ops that bind to a page element, and the ones that deliberately do not.
- *
- * Only the DOM-rendered marks are anchored — a comment pin, a text selection,
- * an area box. Each of those is reprojected as a whole: `reprojectRects` and
- * `reprojectBox` move AND scale their full extent with the element, so the
- * mark keeps covering the content it was put on.
- *
- * The canvas marks — pen, highlight, eraser, line, arrow, rectangle, circle,
- * text — stay in document coordinates on purpose. `renderOp` paints their
- * geometry unscaled, so an element anchor could only ever move their origin:
- * one point would track the element while the rest of the shape was dragged
- * along behind it, tearing the mark off its own content by
- * `length * (1 - scale)` on any reflow. A stroke is a gesture, not a region.
- * Until the renderer can reproject a whole shape, not anchoring them is the
- * accurate choice, and it is what the tool shipped for its first seven
- * minor versions.
- *
- * The predicate is on `tool` rather than `'target' in op`: `target` is
- * optional, so a freshly drawn op has no such key and an instance check
- * silently answers for the shape of the object instead of the kind of mark.
+ * Ops that bind to a page element (comment/selection/area — reprojected whole)
+ * vs. canvas marks (pen/line/circle/etc.) that stay in document coordinates
+ * because anchoring just their origin would tear the shape off its own
+ * geometry on reflow — a stroke is a gesture, not a region. Checked on `tool`
+ * rather than `'target' in op` since `target` is optional and a freshly drawn
+ * op has no such key yet.
  */
 export type AnchorableOp = Extract<DrawOp, { tool: 'comment' | 'selection' | 'area' }>;
 export const isAnchorableOp = (op: DrawOp): op is AnchorableOp =>
@@ -736,8 +720,6 @@ export interface Peer {
 /** MCP agents connect as peers under this prefix (apps/mcp/src/room.ts). */
 export const isAgentPeer = (peerId: string) => peerId.startsWith('mcp-');
 
-// === Wire protocol ===
-
 /**
  * RTC signaling carries arbitrary SDP/ICE blobs that we forward verbatim.
  * Match these types separately and pass through; do not run them through `clientMsgSchema`.
@@ -787,8 +769,6 @@ export const clientMsgSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('flock'), on: z.boolean() }),
 ]);
 export type ClientMsg = z.infer<typeof clientMsgSchema>;
-
-// === Outbound integrations ===
 
 /**
  * Destinations a room can post to. Each one is rendered by a pure provider module
@@ -861,8 +841,6 @@ export const destinationSummarySchema = z.object({ provider: z.string(), hint: z
 export type DestinationSummary = z.infer<typeof destinationSummarySchema>;
 
 export const destinationListSchema = z.object({ integrations: z.array(destinationSummarySchema) });
-
-// === Accounts: the `/auth` wire shapes, parsed on both sides ===
 
 /** A signed-in person, as the server holds them and as `/auth/me` returns them. */
 export const sessionUserSchema = z.object({ id: z.string(), email: z.string() });

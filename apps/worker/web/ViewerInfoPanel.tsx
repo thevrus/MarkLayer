@@ -102,8 +102,7 @@ function CommandField({ label, value }: { label: string; value: string }) {
              focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1
              focus-visible:outline-(--ds-focus-color)"
     >
-      {/* Wrap at spaces, never mid-token: `break-all` split "npx" across lines,
-          which makes the command unreadable and unverifiable before pasting. */}
+      {/* Wrap at spaces, never mid-token: `break-all` split "npx" across lines. */}
       <code class="flex-1 min-w-0 font-mono text-meta leading-normal whitespace-pre-wrap wrap-break-word">{value}</code>
       {/* mt centers the 11px glyph on the 16.5px first line box, not on the block */}
       {/* Opacity here multiplies the parent's muted colour, so it has to stay

@@ -219,8 +219,6 @@ export class RoomClient {
     return this.appendReply(opId, text);
   }
 
-  // ---------- internal ----------
-
   private toWebSocketUrl(): string {
     const base = new URL(this.apiBase);
     const protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
