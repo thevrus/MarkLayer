@@ -7,7 +7,7 @@ audience: "designers and design teams"
 bottomLine: "For design review, MarkLayer replaces the screenshot-and-annotate dance with a single share link to the actual live page. Reviewers see your drawings, arrows, and threaded comments overlaid on the real product. No install, no account, no per-seat fee for clients."
 problem: "Most design review tools force you out of the live product. You screenshot, paste, annotate, then explain what changed. Context lost at every step. Stakeholders argue about which version they're looking at. Comments get stranded in tools nobody opens twice."
 published: 2026-02-02
-modified: 2026-03-22
+modified: 2026-09-03
 why:
   - "Annotate the actual live page. Staging URL, production, or local dev."
   - "Real-time live cursors mean async and sync review work the same way."
@@ -33,7 +33,7 @@ faq:
   - q: "Does it work on staging environments behind auth?"
     a: "Yes. The extension annotates whatever page you're viewing in Chrome, including authed pages. The share link, however, opens the page via a public URL, so private staging URLs need the recipient to also be authed."
   - q: "How is this different from Figma comments?"
-    a: "Figma comments live in Figma. MarkLayer comments live on the actual rendered page. So you can review the real product, with real fonts, real interactions, and real bugs, not just the design file."
+    a: "Figma comments live in Figma. MarkLayer comments live on the actual rendered page. So you can review the real product, with real fonts, real interactions, and real bugs, not just the design file. See the [full comparison](/vs/figma) for where each tool fits."
 ---
 
 Design review usually means screenshots in Figma comments, Slack threads with annotated PNGs, or copy-pasted URLs with vague feedback. MarkLayer collapses that loop: open the live page, draw on it, share a link. Reviewers see the actual page with your annotations on top. No screenshots, no app switching.
