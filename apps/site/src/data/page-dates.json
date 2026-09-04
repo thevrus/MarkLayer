@@ -5,7 +5,7 @@
   },
   "hub-compare": {
     "published": "2026-01-16",
-    "modified": "2026-03-07"
+    "modified": "2026-09-03"
   },
   "hub-alternatives": {
     "published": "2026-02-05",
@@ -17,11 +17,15 @@
   },
   "hub-guides": {
     "published": "2026-08-15",
-    "modified": "2026-08-15"
+    "modified": "2026-09-04"
   },
   "pricing": {
     "published": "2026-01-28",
     "modified": "2026-08-28"
+  },
+  "support": {
+    "published": "2026-09-04",
+    "modified": "2026-09-04"
   },
   "about": {
     "published": "2026-02-01",
