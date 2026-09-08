@@ -10,6 +10,7 @@ import {
   isLikelyEmbedHostile,
   isShareableUrl,
   loadAnnotations,
+  mcpEndpoint,
   npxMcpCommand,
   parseShareRef,
   parseUrlHash,
@@ -78,8 +79,14 @@ describe('isLikelyEmbedHostile', () => {
 describe('MCP connect commands', () => {
   // Both surfaces offer these verbatim for copy-paste; a dropped flag or a room
   // id that never reaches the string hands the user a command that just fails.
-  test('carry the room id and the non-interactive npx flag', () => {
-    expect(claudeMcpCommand('room-42')).toBe('claude mcp add marklayer -- npx -y marklayer-mcp --room room-42');
+  test('point at the room’s own endpoint, so nothing has to be installed', () => {
+    expect(mcpEndpoint('room-42')).toBe('https://marklayer.app/s/room-42/mcp');
+    expect(claudeMcpCommand('room-42')).toBe(
+      'claude mcp add --transport http marklayer https://marklayer.app/s/room-42/mcp',
+    );
+  });
+
+  test('keep the npx fallback intact, non-interactive flag and all', () => {
     expect(npxMcpCommand('room-42')).toBe('npx -y marklayer-mcp --room room-42');
   });
 });

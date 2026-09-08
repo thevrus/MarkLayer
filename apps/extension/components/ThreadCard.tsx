@@ -1,4 +1,5 @@
 import { type CommentPriority, cn } from '@marklayer/types';
+import { Trash2 } from 'lucide-preact';
 import { useCallback, useRef, useState } from 'preact/hooks';
 import { composerCls, textareaBareCls, trim } from '../lib/buttons';
 import { geist } from '../lib/geist';
@@ -61,6 +62,7 @@ export function ThreadHeader({
   author,
   ts,
   priority,
+  onDelete,
 }: {
   /** What sits in the disc — a comment's number, or an author's initial. */
   label: string;
@@ -68,6 +70,7 @@ export function ThreadHeader({
   author: string | undefined;
   ts: number;
   priority: CommentPriority | null | undefined;
+  onDelete?: () => void;
 }) {
   return (
     <div class="flex items-center gap-2.5 px-3.5 pt-3 pb-2">
@@ -75,6 +78,16 @@ export function ThreadHeader({
       <span class="text-meta text-(--ds-gray-1000) font-semibold flex-1 truncate">{author || 'Anonymous'}</span>
       {priority && <PriorityBadge priority={priority} />}
       <span class="text-meta text-(--ds-gray-900) font-medium tabular-nums">{timeAgo(ts)}</span>
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          aria-label="Delete"
+          class="text-(--ds-gray-900) hover:text-(--ds-red-700) transition-colors duration-150 ease-out cursor-pointer shrink-0"
+        >
+          <Trash2 size={14} strokeWidth={2} aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

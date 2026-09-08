@@ -158,6 +158,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
               author={op.author}
               ts={op.ts}
               priority={op.priority}
+              onDelete={() => deleteOp(op.id)}
             />
 
             <div class={cn(geist.divider, 'mx-3')} />

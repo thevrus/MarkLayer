@@ -14,6 +14,7 @@ import {
   HOW_IT_WORKS_URL,
   isLikelyEmbedHostile,
   isShareableUrl,
+  mcpEndpoint,
   npxMcpCommand,
   saveAnnotations,
 } from '../lib/share';
@@ -139,6 +140,7 @@ export function ShareDialog() {
 
   const roomId = getRoomId();
   const claudeCommand = claudeMcpCommand(roomId);
+  const endpoint = mcpEndpoint(roomId);
   const npxCommand = npxMcpCommand(roomId);
   const shareable = isShareableUrl();
   const embedHostile = shareable && isLikelyEmbedHostile();
@@ -224,7 +226,7 @@ export function ShareDialog() {
               Connect an AI agent
             </div>
             <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
-              Let an agent read and resolve your annotations. Run once in any project:
+              Let an agent read this page and resolve your annotations. Run once in any project:
             </p>
             <div class="flex items-center gap-1.5">
               <code
@@ -241,12 +243,24 @@ export function ShareDialog() {
                   class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
                          text-meta text-(--ds-gray-1000) font-mono truncate"
                 >
+                  {endpoint}
+                </code>
+                <CopyButton value={endpoint} label="Copy MCP config entry" />
+              </div>
+              <p class="mt-1.5 text-meta text-(--ds-gray-900) leading-snug m-0">
+                Add as an HTTP MCP server named "marklayer". Nothing to install — the link is the server.
+              </p>
+              <div class="mt-1.5 flex items-center gap-1.5">
+                <code
+                  class="flex-1 px-2.5 py-1.5 rounded-md bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
+                         text-meta text-(--ds-gray-1000) font-mono truncate"
+                >
                   {npxCommand}
                 </code>
                 <CopyButton value={npxCommand} label="Copy npx command" />
               </div>
               <p class="mt-1.5 text-meta text-(--ds-gray-900) leading-snug m-0">
-                Paste the npx command into your MCP config under a "marklayer" entry.
+                The npx command is for a client that cannot reach a remote MCP server yet.
               </p>
             </PanelSection>
           </div>
