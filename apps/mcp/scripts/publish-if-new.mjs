@@ -136,14 +136,22 @@ if (!npmNeeded && !mcpNeeded) {
   process.exit(0);
 }
 
+/**
+ * Trusted publishing mints a short-lived OIDC token at publish time, so there is
+ * no identity to ask for beforehand — `npm whoami` answers 401 and would abort a
+ * run that was about to succeed. This env var is set by GitHub Actions only when
+ * `id-token: write` is granted, which is exactly the condition.
+ */
+const trusted = Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+
 // Only an npm publish needs credentials, so only ask for them when one is due.
-let publisher = null;
-if (npmNeeded) {
+let publisher = trusted ? 'trusted publishing' : null;
+if (npmNeeded && !trusted) {
   const whoami = spawnSync('npm', ['whoami'], { encoding: 'utf8' });
   if (whoami.status !== 0) {
     abort(
       `${pkg.name} ${pkg.version} is ready to publish, but npm is not authenticated`,
-      'Run `npm login`, or set NPM_TOKEN, then run this again.',
+      'Run `npm login`, or push to main and let the release workflow publish it.',
     );
   }
   publisher = whoami.stdout.trim();
