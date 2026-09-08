@@ -1,5 +1,5 @@
 import type { PageReading, RoomMeta, WatchEvent } from '@marklayer/agent-tools';
-import { classifyOp, isWatchableOp as isWatchable } from '@marklayer/agent-tools';
+import { classifyOp, isWatchableOp as isWatchable, WATCH_DEFAULT_SECONDS } from '@marklayer/agent-tools';
 import {
   type AnnotationOp,
   agentColor,
@@ -193,7 +193,7 @@ export class RoomClient {
    * or when the timeout expires (returning whatever has accumulated, possibly empty).
    */
   async watch({
-    timeoutSeconds = 60,
+    timeoutSeconds = WATCH_DEFAULT_SECONDS,
     batchMs = 750,
   }: {
     timeoutSeconds?: number;
