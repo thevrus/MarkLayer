@@ -6,8 +6,8 @@ import {
   isWatchableOp as isWatchable,
   type RoomMeta,
   type RoomOps,
+  TOOLS,
   type ToolContent,
-  toolsFor,
   type WatchEvent,
 } from '@marklayer/agent-tools';
 import {
@@ -39,6 +39,29 @@ import { fetchPage } from './proxy';
  * nothing is held between calls here, because the Durable Object already holds
  * it — a Worker request loads a snapshot, acts, and goes away.
  */
+/**
+ * Read the page a room annotates. Fetched through the proxy's own path, so it
+ * inherits the SSRF guard and the fixed-IP relay a WAF-blocked host needs —
+ * the reason this cannot be a fetch from wherever an agent happens to run.
+ */
+export async function readRoomPage({
+  stub,
+  roomId,
+  env,
+  url,
+}: {
+  stub: DurableObjectStub<AnnotationRoom>;
+  roomId: string;
+  env: Parameters<typeof fetchPage>[0]['env'];
+  url?: string | null;
+}): Promise<PageReading | null> {
+  const target = url ?? (await stub.agentSnapshot(roomId)).url;
+  if (!target) return null;
+  const page = await fetchPage({ url: target, env });
+  if (!page.stream || page.status >= 400 || !page.contentType.includes('html')) return null;
+  return outlinePage({ html: await new Response(page.stream).text(), url: page.finalUrl });
+}
+
 export class WorkerRoom implements RoomOps {
   private ops: DrawOp[] = [];
   private meta: RoomMeta = { url: null, width: null, createdAt: null, expiresAt: null };
@@ -79,17 +102,8 @@ export class WorkerRoom implements RoomOps {
     return null;
   }
 
-  /**
-   * Fetched through the proxy's own path, so this inherits the SSRF guard and
-   * the fixed-IP relay that a WAF-blocked host needs — the two reasons this
-   * cannot simply be a fetch from wherever the agent happens to run.
-   */
-  async readPage(): Promise<PageReading | null> {
-    const url = this.meta.url;
-    if (!url) return null;
-    const page = await fetchPage({ url, env: this.env });
-    if (!page.stream || page.status >= 400 || !page.contentType.includes('html')) return null;
-    return outlinePage({ html: await new Response(page.stream).text(), url: page.finalUrl });
+  readPage(): Promise<PageReading | null> {
+    return readRoomPage({ stub: this.stub, roomId: this.roomId, env: this.env, url: this.meta.url });
   }
 
   getMeta(): RoomMeta {
@@ -247,7 +261,7 @@ export class WorkerRoom implements RoomOps {
  */
 function buildServer({ room, apiBase }: { room: WorkerRoom; apiBase: string }): McpServer {
   const server = new McpServer({ name: 'marklayer', version: '1.0.0' });
-  for (const tool of toolsFor({ remote: true })) {
+  for (const tool of TOOLS) {
     // connect_room has no meaning here: the room is named in the URL.
     if (tool.name === 'marklayer_connect_room') continue;
     server.registerTool(

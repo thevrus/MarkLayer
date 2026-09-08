@@ -33,11 +33,6 @@ import { z } from 'zod/mini';
 export interface ToolSpec {
   name: string;
   description: string;
-  /**
-   * Only the Worker can serve this one. Advertising it over stdio would offer a
-   * tool that always answers with an error, which is worse than not offering it.
-   */
-  remoteOnly?: boolean;
   inputSchema: {
     type: 'object';
     properties?: Record<string, unknown>;
@@ -234,7 +229,6 @@ export function fail(parseError: { issues: { path: PropertyKey[]; message: strin
 export const TOOLS: ToolSpec[] = [
   {
     name: 'marklayer_read_page',
-    remoteOnly: true,
     description:
       'Read the page this room annotates — its headings, paragraphs, links, buttons and labels, each with the CSS ' +
       'selector and tag that locate it. Call this FIRST when asked to review, audit or improve a page and no ' +
@@ -530,11 +524,12 @@ export interface RoomOps {
   readonly roomId: string;
   /**
    * The page's own copy, so an agent can review it rather than only react to
-   * annotations someone already left. `null` when this transport cannot fetch —
-   * the SSRF guard and the blocked-host relay live in the Worker, and neither
-   * belongs in a CLI on someone's laptop.
+   * annotations someone already left. Both transports ask the Worker for it:
+   * the fetch belongs behind the SSRF guard and the blocked-host relay, not in
+   * a CLI on someone's laptop — but that is a reason to route it there, not a
+   * reason to withhold the tool from stdio.
    */
-  readPage?(): Promise<PageReading | null>;
+  readPage(): Promise<PageReading | null>;
   readonly viewOnly: boolean;
   getMeta(): RoomMeta;
   /** An error to return instead of acting, when the connection cannot carry a write. */
@@ -588,7 +583,6 @@ export async function callRoomTool({
 
   switch (name) {
     case 'marklayer_read_page': {
-      if (!room.readPage) return err('this connection cannot read the page — use the remote MCP endpoint');
       const page = await room.readPage();
       if (!page) return err('could not read the page — it may be unreachable or not HTML');
       if (page.clientRendered) {
@@ -757,7 +751,3 @@ export function classifyOp({
   const mine = parent.author === agentId || parent.assignedAgent === agentId || parent.assignee === agentId;
   return named || mine ? { kind: 'handoff', op: parent, reply } : null;
 }
-
-/** What a transport should advertise. stdio cannot fetch a page; the Worker can. */
-export const toolsFor = ({ remote }: { remote: boolean }): ToolSpec[] =>
-  remote ? TOOLS : TOOLS.filter((tool) => !tool.remoteOnly);

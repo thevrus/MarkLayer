@@ -12,7 +12,7 @@ import { api } from './api';
 import { auth, authStore } from './auth';
 import type { EmailEnv } from './email';
 import { cachedPng, dayCached, once, sha256Hex } from './http';
-import { handleMcpRequest } from './mcp';
+import { handleMcpRequest, readRoomPage } from './mcp';
 import { generateOgImage, generatePageOgImage } from './og';
 import { collectTally, EMPTY_TALLY_LABEL, plural, tallyParts } from './og-tally';
 import { proxy } from './proxy';
@@ -224,6 +224,19 @@ app.get('/og/:key', async (c) => {
       return generateOgImage({ domain, ops: stored ?? [] });
     },
   });
+});
+
+/**
+ * The page an annotation room points at, read into an outline.
+ *
+ * Exists as its own route because the stdio server needs it too: fetching the
+ * page has to happen here, behind the SSRF guard and the fixed-IP relay a
+ * WAF-blocked host needs, not from wherever someone happens to run a CLI.
+ */
+app.get('/s/:id/page.json', async (c) => {
+  const stub = c.env.ANNOTATION_ROOM.get(c.env.ANNOTATION_ROOM.idFromName(c.req.param('id')));
+  const reading = await readRoomPage({ stub, roomId: c.req.param('id'), env: c.env });
+  return reading ? c.json(reading) : c.json({ error: 'could not read the page' }, 502);
 });
 
 /**
