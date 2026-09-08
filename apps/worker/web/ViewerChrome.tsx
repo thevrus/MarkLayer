@@ -37,6 +37,7 @@ import type { ComponentChildren } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
 import { useRef, useState } from 'preact/hooks';
 import { isUploadPath } from './docSource';
+import { PresenceMenu } from './PresenceMenu';
 import { SharePopover } from './SharePopover';
 import { DEVICE_ICONS, Logo } from './shared';
 import {
@@ -66,23 +67,6 @@ const MAX_VISIBLE_PEERS = 3;
 /* ── Top bar ──
    Each control below owns the signals it reads, so the bar itself is a
    composition rather than a render with a dozen flags threaded through it. */
-
-/** Presence: a solid dot in a ring of its own colour, never a glow. */
-export function PresenceDot({ live }: { live: boolean }) {
-  return (
-    <span
-      class="w-1.5 h-1.5 rounded-full shrink-0"
-      style={
-        live
-          ? {
-              background: 'var(--ds-green-700)',
-              boxShadow: '0 0 0 3px color-mix(in oklab, var(--ds-green-700) 20%, transparent)',
-            }
-          : { background: 'var(--ds-gray-700)' }
-      }
-    />
-  );
-}
 
 /** Icon control in the bar. `on` is the control's state, not a style variant. */
 export function BarButton({
@@ -411,15 +395,7 @@ function InCallControls() {
 }
 
 function ConnectionStatus() {
-  const live = connected.value;
-  return (
-    <div class="flex items-center gap-2 h-8 px-1.5 shrink-0">
-      <PresenceDot live={live} />
-      <span class={cn(geist.meta, 'text-meta font-medium tabular-nums whitespace-nowrap')}>
-        {live ? `${peerCount.value} online` : 'offline'}
-      </span>
-    </div>
-  );
+  return <PresenceMenu live={connected.value} count={peerCount.value} />;
 }
 
 /**

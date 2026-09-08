@@ -10,6 +10,23 @@ import { MARK_PATHS, MARK_TRANSFORM } from '../src/brand';
 export const DEVICE_ICONS = { desktop: Monitor, tablet: Tablet, mobile: Smartphone } as const;
 export const DEVICE_LABELS: Record<DeviceMode, string> = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' };
 
+/** Presence: a solid dot in a ring of its own colour, never a glow. */
+export function PresenceDot({ live }: { live: boolean }) {
+  return (
+    <span
+      class="w-1.5 h-1.5 rounded-full shrink-0"
+      style={
+        live
+          ? {
+              background: 'var(--ds-green-700)',
+              boxShadow: '0 0 0 3px color-mix(in oklab, var(--ds-green-700) 20%, transparent)',
+            }
+          : { background: 'var(--ds-gray-700)' }
+      }
+    />
+  );
+}
+
 export function Spinner() {
   return <Loader2 size={16} class="animate-spin" aria-hidden="true" />;
 }

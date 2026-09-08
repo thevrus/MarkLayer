@@ -1,8 +1,10 @@
 import {
+  clearDeparture,
   connectionStatus,
   localUser,
   lsGet,
   lsSet,
+  noteDeparture,
   onCleared,
   onCursorMove,
   onOpPushed,
@@ -308,6 +310,7 @@ export function useRealtimeSync(annotationId: string) {
                   }
                 }
                 peers.value = map;
+                for (const id of map.keys()) clearDeparture(id);
                 // An agent in the room means someone wired the MCP server into real work.
                 // Read off the built map, whose keys are typed, rather than the loose wire payload.
                 if ([...map.keys()].some(isAgentPeer)) noteSupportSignal('mcp');
@@ -414,6 +417,7 @@ export function useRealtimeSync(annotationId: string) {
                   lastSeen: Date.now(),
                 });
                 peers.value = map;
+                clearDeparture(p.id);
                 if (isNew) {
                   toast(`${p.name || 'Someone'} joined`, 'info', 2500);
                   playPeerChime(true);
@@ -443,6 +447,7 @@ export function useRealtimeSync(annotationId: string) {
               peers.value = map;
               peerCursorSamples.delete(msg.peerId);
               if (leaving) {
+                noteDeparture({ id: leaving.id, name: leaving.name, color: leaving.color, leftAt: Date.now() });
                 toast(`${leaving.name} left`, 'info', 2500);
                 playPeerChime(false);
               }
