@@ -58,21 +58,6 @@ export const AUTHOR_EMAIL = 'hello@marklayer.app';
 export const WORKER_DEV = 'http://localhost:5173';
 
 /**
- * The app shell at `/` only. The marketing pages self-host Geist from /fonts
- * (see the @font-face block in styles/global.css) and preload it in BaseHead;
- * the shell can't share that, because its styles come from apps/worker's bundle
- * rather than from global.css. Self-hosting it there too is a follow-up: the
- * files already ship to this origin via embed:site, so it needs only the
- * @font-face block in apps/worker/web/style.css and a preload here.
- *
- * Italic is requested, not synthesized: the shell sets `italic` on placeholder
- * and quoted text, so a roman-only request left the browser slanting the upright
- * face. The `400..700` range serves one variable file per subset instead of four
- * static weights.
- */
-export const FONTS_HREF = 'https://fonts.googleapis.com/css2?family=Geist:ital,wght@0,400..700;1,400..700&display=swap';
-
-/**
  * The nav sections, in the order the header renders them. One entry per section:
  * the label, the hub it links to, and every path prefix that counts as being
  * inside it — `/vs/pastel` is a comparison, `/for/qa` is a use case. A page in a
