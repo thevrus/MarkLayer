@@ -12,7 +12,15 @@ import type { ReactNode } from 'react';
 export function Layout({ preview, children }: { preview: string; children: ReactNode }) {
   return (
     <Html lang="en">
-      <Head />
+      <Head>
+        {/* Without this, Gmail/Apple Mail auto-dark-mode inverts every color:
+            the near-black button and white label flip to a washed-out light
+            button with black text, and the white page turns charcoal. This
+            template has no dark palette to offer instead, so it opts out and
+            renders identically everywhere. */}
+        <meta name="color-scheme" content="light" />
+        <meta name="supported-color-schemes" content="light" />
+      </Head>
       {/* The line a client shows next to the subject. Left out, it fills with whatever text comes first. */}
       <Preview>{preview}</Preview>
       <Body className="bg-white font-sans text-ml-fg m-0 p-0">
