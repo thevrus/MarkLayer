@@ -1,6 +1,6 @@
 import { PanelSection } from '@ext/components/PanelSection';
 import { geist } from '@ext/lib/geist';
-import { claudeMcpCommand, HOW_IT_WORKS_URL, npxMcpCommand } from '@ext/lib/share';
+import { claudeMcpCommand, HOW_IT_WORKS_URL, mcpEndpoint, npxMcpCommand } from '@ext/lib/share';
 import { annotationPanelOpen, copyText, operations, peerCount } from '@ext/lib/state';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
 import { cn, type DrawOp, deletionDeadline } from '@marklayer/types';
@@ -203,14 +203,22 @@ function AgentSection({ id }: { id: string }) {
       <PanelSection icon={Bot} label="Connect an AI agent">
         <div class="flex flex-col gap-1.5">
           <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
-            An agent can work these annotations and resolve them here, live. Run once in your project:
+            An agent can read this page, work these annotations and resolve them here, live. Run once in your project:
           </p>
           <CommandField label="Claude Code command" value={claudeMcpCommand(id)} />
           <PanelSection label="Cursor, Codex, Windsurf…">
             <div class="flex flex-col gap-1.5">
+              <CommandField label="MCP server URL" value={mcpEndpoint(id)} />
+              <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
+                Add as an HTTP MCP server named "marklayer". Nothing to install — the link is the server.
+              </p>
+            </div>
+          </PanelSection>
+          <PanelSection label="Older clients">
+            <div class="flex flex-col gap-1.5">
               <CommandField label="npx command" value={npxMcpCommand(id)} />
               <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
-                Paste into your MCP config under a "marklayer" entry.
+                For a client that cannot reach a remote MCP server yet.
               </p>
             </div>
           </PanelSection>
