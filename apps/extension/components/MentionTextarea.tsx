@@ -182,6 +182,10 @@ export function MentionTextarea({ taRef, onMentionsChange, onKeyDown, onInput, o
             <Popover.Popup
               initialFocus={false}
               finalFocus={false}
+              // A hover sets `highlighted` on enter but nothing ever cleared it on
+              // exit, so the last-hovered row stayed lit after the pointer left —
+              // reset to the keyboard default once the pointer leaves the list.
+              onMouseLeave={() => setHighlighted(0)}
               // Exactly as wide as the field it belongs to, so both edges line up
               // with the textarea above instead of stopping short of the card.
               className={cn(

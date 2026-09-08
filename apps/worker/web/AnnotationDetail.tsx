@@ -1,11 +1,11 @@
-import { AttachmentGallery, AttachmentRow, useAttachments } from '@ext/components/AttachmentPicker';
+import { AttachButton, AttachmentGallery, AttachmentThumbs, useAttachments } from '@ext/components/AttachmentPicker';
 import { Avatar } from '@ext/components/Avatar';
 import { TriageSection } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
 import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
 import { PRIORITY_LEVELS, PRIORITY_META } from '@ext/components/PriorityPicker';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
-import { submitBtn, textareaCls } from '@ext/lib/buttons';
+import { composerCls, textareaBareCls } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -212,48 +212,57 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
         <div class="flex gap-2 mt-1">
           <Avatar name={localUser.name} color={color.value} size="sm" style={{ marginTop: 6 }} />
           <div class="flex-1">
-            <MentionTextarea
-              name="reply"
-              taRef={replyRef}
-              {...mentionProps}
-              placeholder="Write a reply…"
-              rows={1}
-              class={cn(textareaCls, glass.font, 'w-full min-h-8 max-h-[140px]')}
-              style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
-                } else if (e.key === 'Escape') {
-                  // Closes the composer only — the panel's own Escape still steps
-                  // back to the list, so this stops here rather than bubbling.
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setReplying(false);
-                }
-              }}
-              onPaste={(e) => attachments.onPaste(e)}
-            />
-            <AttachmentRow attachments={attachments} resolveUrl={fileUrl} />
-            <div class="flex items-center justify-end gap-2 mt-1.5">
-              <button
-                type="button"
-                onClick={() => {
-                  attachments.reset();
-                  setReplying(false);
+            <div class={composerCls}>
+              <MentionTextarea
+                name="reply"
+                taRef={replyRef}
+                {...mentionProps}
+                placeholder="Write a reply…"
+                rows={1}
+                class={cn(textareaBareCls, glass.font, 'w-full min-h-7 max-h-[140px] px-2.5 pt-1.5')}
+                style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submit();
+                  } else if (e.key === 'Escape') {
+                    // Closes the composer only — the panel's own Escape still steps
+                    // back to the list, so this stops here rather than bubbling.
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setReplying(false);
+                  }
                 }}
-                class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-ui font-medium')}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={attachments.uploading}
-                class={cn(submitBtn, 'disabled:pointer-events-none disabled:opacity-50')}
-              >
-                Reply
-              </button>
+                onPaste={(e) => attachments.onPaste(e)}
+              />
+              <AttachmentThumbs attachments={attachments} resolveUrl={fileUrl} class="px-2.5" />
+              <div class="flex items-center justify-between gap-1 px-1.5 pb-1.5 pt-0.5">
+                <AttachButton attachments={attachments} />
+                <div class="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      attachments.reset();
+                      setReplying(false);
+                    }}
+                    class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium h-6 px-2')}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={submit}
+                    disabled={attachments.uploading}
+                    class={cn(
+                      geist.ctlOn,
+                      'inline-flex items-center justify-center h-6 px-2.5 rounded-md border-none cursor-pointer outline-none',
+                      'text-meta font-medium disabled:pointer-events-none disabled:opacity-50',
+                    )}
+                  >
+                    Reply
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

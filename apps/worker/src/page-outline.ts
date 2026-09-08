@@ -10,8 +10,14 @@
  *
  * Built on HTMLRewriter rather than a DOM parser: it is native to Workers,
  * streams, and costs no bundle. The price is that there is no tree to query, so
- * the element path is tracked by hand as the stream opens and closes tags.
+ * the element path is tracked by hand as the stream opens and closes tags — and
+ * `selectorFor` below is therefore a plainer algorithm than the client's
+ * `lib/selector.ts`, which can weigh test ids and filter utility classes against
+ * a live DOM. Re-anchoring leans on the shared `text` fingerprint for that
+ * reason, so keep the two agreeing on `FINGERPRINT_LEN` rather than on selectors.
  */
+
+import { FINGERPRINT_LEN, normalizeText } from '@marklayer/types';
 
 /** Elements that carry copy worth auditing. Layout containers are skipped. */
 const COPY_TAGS = new Set([
@@ -59,8 +65,6 @@ const VOID_TAGS = new Set([
 
 /** Enough of an element's copy to judge it; the whole page is the caller's budget, not one node's. */
 const MAX_TEXT = 300;
-/** The fingerprint `anchor.ts` re-resolves against — first ~50 chars, same as the client captures. */
-const FINGERPRINT = 50;
 
 export interface OutlineEntry {
   /** A `nth-of-type` path, rooted at the nearest ancestor with an id. */
@@ -97,9 +101,6 @@ interface Frame {
 
 /** Ids that are safe unescaped in a selector. Anything odd falls back to the path. */
 const SIMPLE_ID = /^[A-Za-z][\w-]*$/;
-
-/** Collapse whitespace the way a browser's innerText does, so fingerprints match the client's. */
-const normalize = (raw: string) => raw.replace(/\s+/g, ' ').trim();
 
 function selectorFor(stack: Frame[]): string {
   const self = stack[stack.length - 1];
@@ -187,7 +188,7 @@ export async function outlinePage({
       el.onEndTag(() => {
         const done = stack.pop();
         if (!done?.wanted) return;
-        const text = normalize(done.text).slice(0, MAX_TEXT);
+        const text = normalizeText(done.text).slice(0, MAX_TEXT);
         if (!text) return;
         if (entries.length >= maxEntries) {
           truncated = true;
@@ -205,7 +206,7 @@ export async function outlinePage({
     },
     text(chunk) {
       if (inTitle) {
-        title = normalize((title ?? '') + chunk.text) || null;
+        title = normalizeText((title ?? '') + chunk.text) || null;
         return;
       }
       if (opaqueDepth > 0) return;
@@ -232,4 +233,4 @@ export async function outlinePage({
 }
 
 /** The `text` an anchor re-resolves against when a selector stops matching. */
-export const fingerprint = (text: string) => text.slice(0, FINGERPRINT);
+export const fingerprint = (text: string) => text.slice(0, FINGERPRINT_LEN);
