@@ -4,6 +4,7 @@ import {
   type ClientMsg,
   canEditLink,
   clientMsgSchema,
+  type DrawOp,
   effectiveExpiresAt,
   type LinkAccess,
   RTC_MESSAGE_TYPES,
@@ -76,6 +77,24 @@ async function getIceServers(env: Env): Promise<RTCIceServer[]> {
  * first, so a new mutating type is guarded by default, not by someone remembering. */
 const READ_ONLY_SAFE_TYPES = new Set<ClientMsg['type']>(['ping', 'cursor', 'ripple', 'profile', 'flock']);
 
+/**
+ * How long an agent stays in the peer list without calling again. Longer than
+ * the longest `agentWatch`, so an agent parked in a watch is never dropped
+ * mid-wait and then re-announced as if it had rejoined.
+ */
+const AGENT_PRESENCE_TTL_MS = 15 * 60_000;
+
+/** What the remote MCP endpoint needs to answer any tool call, in one round trip. */
+export interface AgentSnapshot {
+  ops: unknown[];
+  url: string | null;
+  width: number | null;
+  createdAt: number | null;
+  expiresAt: number | null;
+  /** False on a view-only link, so a mutator can say why rather than report a missing id. */
+  canEdit: boolean;
+}
+
 export class AnnotationRoom extends DurableObject<Env> {
   private ops: unknown[] | null = null;
   /** In-flight load promise — coalesces concurrent first-message reads. */
@@ -121,6 +140,19 @@ export class AnnotationRoom extends DurableObject<Env> {
   private deliveryFailures = 0;
   /** Public origin of the request that opened this room, for the "open the room" link. */
   private origin: string | null = null;
+
+  /**
+   * Agents attached over the remote MCP endpoint, which is HTTP and so holds no
+   * socket to keep them present. They are kept here with a last-seen stamp and
+   * folded into the peer list, so a person watching the room sees the agent the
+   * same way they see anyone else. Every RPC call refreshes the stamp; one that
+   * goes quiet for `AGENT_PRESENCE_TTL_MS` drops out on the next read. Losing
+   * this map to hibernation is correct rather than a bug: nothing was holding
+   * the room open, so nobody was there to see the agent anyway.
+   */
+  private httpAgents = new Map<string, { peer: Omit<PeerInfo, 'canEdit' | 'userId'>; lastSeen: number }>();
+  /** Parked `agentWatch` calls, woken by the next op from any source. */
+  private opWaiters: ((ops: unknown[]) => void)[] = [];
 
   private async getOps(id: string): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
@@ -237,6 +269,103 @@ export class AnnotationRoom extends DurableObject<Env> {
 
   /** Strips `canEdit`/`userId` before peers see each other — bookkeeping for this
    * room, not something one peer should read off another. */
+
+  // ---------------------------------------------------------------------------
+  // Remote MCP surface. Called by RPC from the Worker's `/s/:id/mcp` handler,
+  // which is stateless by design: the session lives here, in the room that
+  // already owns the ops, the peers and the broadcast, rather than in a second
+  // Durable Object standing beside it.
+  // ---------------------------------------------------------------------------
+
+  /** Keep an HTTP-attached agent in the peer list; announce it the first time. */
+  async agentHeartbeat(id: string, peer: { id: string; name: string; color: string }): Promise<void> {
+    await this.getOps(id);
+    const known = this.httpAgents.has(peer.id);
+    this.httpAgents.set(peer.id, { peer: { id: peer.id, name: peer.name, color: peer.color }, lastSeen: Date.now() });
+    if (!known) {
+      this.sessionHadAgent = true;
+      this.broadcast(JSON.stringify({ type: 'peer_join', peer: { id: peer.id, name: peer.name, color: peer.color } }));
+    }
+  }
+
+  async agentSnapshot(id: string): Promise<AgentSnapshot> {
+    const ops = await this.getOps(id);
+    // The owner may have flipped the link since this isolate loaded it, and an
+    // HTTP agent has no `init` message to carry a later value to it.
+    await this.refreshAccess(id);
+    return {
+      ops,
+      url: this.url,
+      width: this.width,
+      createdAt: this.createdAt,
+      expiresAt: effectiveExpiresAt({ expiresAt: this.expiresAt, ownerExpiresAt: this.ownerExpiresAt }),
+      canEdit: this.canEditFor(undefined),
+    };
+  }
+
+  /** Append one op. `false` means the link is view-only — never that the write failed silently. */
+  async agentPushOp(id: string, op: DrawOp): Promise<boolean> {
+    const ops = await this.getOps(id);
+    await this.refreshAccess(id);
+    if (!this.canEditFor(undefined)) return false;
+    ops.push(op);
+    this.sessionOps++;
+    this.sessionTools.set(op.tool, (this.sessionTools.get(op.tool) ?? 0) + 1);
+    this.broadcast(JSON.stringify({ type: 'op', op }));
+    this.wakeWatchers([op]);
+    const notifiable = notifiableFrom(op);
+    if (notifiable) this.pendingNotifications.push(notifiable);
+    await this.scheduleFlush();
+    return true;
+  }
+
+  /** Patch an op. `false` is view-only or no such op; the caller tells those apart from the snapshot. */
+  async agentPatchOp(id: string, opId: string, patch: Record<string, unknown>): Promise<boolean> {
+    const ops = await this.getOps(id);
+    await this.refreshAccess(id);
+    if (!this.canEditFor(undefined)) return false;
+    const idx = ops.findIndex((o) => typeof o === 'object' && o !== null && 'id' in o && o.id === opId);
+    if (idx === -1) return false;
+    const current = ops[idx];
+    if (!current) return false;
+    const merged = applyOpPatch({ op: current, patch });
+    if (!merged) return false;
+    ops[idx] = merged;
+    this.sessionUpdates++;
+    this.broadcast(JSON.stringify({ type: 'update_op', opId, patch }));
+    await this.scheduleFlush();
+    return true;
+  }
+
+  /**
+   * Park until ops arrive, or the timeout expires. A promise held here rather
+   * than a poll from the handler: the request keeps this object resident for its
+   * duration, so there is nothing to hibernate out from under it, and a watching
+   * agent costs one call instead of one per second.
+   */
+  async agentWatch(id: string, { timeoutMs }: { timeoutMs: number }): Promise<unknown[]> {
+    await this.getOps(id);
+    return new Promise<unknown[]>((resolve) => {
+      let done = false;
+      const finish = (ops: unknown[]) => {
+        if (done) return;
+        done = true;
+        this.opWaiters = this.opWaiters.filter((w) => w !== waiter);
+        resolve(ops);
+      };
+      const waiter = (ops: unknown[]) => finish(ops);
+      this.opWaiters.push(waiter);
+      setTimeout(() => finish([]), timeoutMs);
+    });
+  }
+
+  private wakeWatchers(ops: unknown[]): void {
+    if (this.opWaiters.length === 0) return;
+    const waiters = this.opWaiters;
+    this.opWaiters = [];
+    for (const wake of waiters) wake(ops);
+  }
+
   private getPeerList(): Omit<PeerInfo, 'canEdit' | 'userId'>[] {
     const list: Omit<PeerInfo, 'canEdit' | 'userId'>[] = [];
     for (const ws of this.ctx.getWebSockets()) {
@@ -245,6 +374,15 @@ export class AnnotationRoom extends DurableObject<Env> {
         const { canEdit: _canEdit, userId: _userId, ...peer } = info;
         list.push(peer);
       }
+    }
+    const cutoff = Date.now() - AGENT_PRESENCE_TTL_MS;
+    for (const [peerId, entry] of this.httpAgents) {
+      if (entry.lastSeen < cutoff) {
+        this.httpAgents.delete(peerId);
+        this.broadcast(JSON.stringify({ type: 'peer_leave', peerId }));
+        continue;
+      }
+      list.push(entry.peer);
     }
     return list;
   }
@@ -429,6 +567,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         this.countAgentWork(ws, 'ops');
         this.sessionTools.set(msg.op.tool, (this.sessionTools.get(msg.op.tool) ?? 0) + 1);
         this.broadcast(JSON.stringify({ type: 'op', op: msg.op }), ws);
+        this.wakeWatchers([msg.op]);
         const notifiable = notifiableFrom(msg.op);
         if (notifiable) this.pendingNotifications.push(notifiable);
         await this.scheduleFlush();
