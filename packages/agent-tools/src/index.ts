@@ -12,10 +12,12 @@ import { z } from 'zod/mini';
  * Everything about MarkLayer's agent tools that is not a transport.
  *
  * The schemas, the annotation projection and the validation used to live inside
- * `marklayer-mcp`, the stdio server published to npm — which put them out of
- * reach of the Worker, where the same tools are now served over Streamable HTTP.
- * Neither MCP SDK appears here on purpose: the two sides bind this to different
- * libraries, so what is shared is the contract, not the wiring.
+ * `marklayer-mcp`, the stdio server published to npm, which put them out of reach
+ * of the Worker. Lifting them here is what lets a second runtime serve the same
+ * tools over Streamable HTTP; that endpoint is not built yet, so `apps/mcp` is
+ * still the only consumer. No MCP SDK appears here on purpose: the two sides
+ * would bind this to different libraries, so what is shared is the contract,
+ * not the wiring.
  */
 
 /** The JSON Schema a client is shown. Structurally the SDK's `Tool`, without depending on one. */
@@ -115,25 +117,19 @@ export function err(message: string): ToolContent {
 export const STATUS_FILTERS = ['open', 'in_progress', 'resolved', 'approved', 'dismissed', 'all'] as const;
 export const StatusFilter = z.enum(STATUS_FILTERS);
 
+/** The annotation id every per-annotation tool takes, spread the way `targetParts` below is. */
+const idPart = { id: z.string().check(z.minLength(1)) };
+
 export const ConnectInput = z.object({ room: z.string().check(z.minLength(1)) });
 export const ListInput = z.object({ status: z.optional(StatusFilter) });
-export const IdInput = z.object({ id: z.string().check(z.minLength(1)) });
+export const IdInput = z.object({ ...idPart });
 export const WatchInput = z.object({
   timeoutSeconds: z.optional(z.number().check(z.int(), z.gte(1), z.lte(600))),
   batchMs: z.optional(z.number().check(z.int(), z.gte(0), z.lte(10000))),
 });
-export const ResolveInput = z.object({
-  id: z.string().check(z.minLength(1)),
-  summary: z.optional(z.string()),
-});
-export const DismissInput = z.object({
-  id: z.string().check(z.minLength(1)),
-  reason: z.string().check(z.minLength(1)),
-});
-export const ReplyInput = z.object({
-  id: z.string().check(z.minLength(1)),
-  text: z.string().check(z.minLength(1)),
-});
+export const ResolveInput = z.object({ ...idPart, summary: z.optional(z.string()) });
+export const DismissInput = z.object({ ...idPart, reason: z.string().check(z.minLength(1)) });
+export const ReplyInput = z.object({ ...idPart, text: z.string().check(z.minLength(1)) });
 /**
  * Shared by every tool that lets an agent anchor a new annotation to an
  * element: `selector`/`tag`/`markdown` must arrive all three or none, never a
@@ -141,7 +137,7 @@ export const ReplyInput = z.object({
  * the wire boundary. A schema-level refine, so it is rejected before the
  * handler ever runs — the same way every other tool's input is validated.
  */
-export const targetTripleCheck = z.refine<{ selector?: string; tag?: string; markdown?: string }>(
+const targetTripleCheck = z.refine<{ selector?: string; tag?: string; markdown?: string }>(
   ({ selector, tag, markdown }) => {
     const given = [selector, tag, markdown].filter((v) => v !== undefined).length;
     return given === 0 || given === 3;
@@ -150,7 +146,7 @@ export const targetTripleCheck = z.refine<{ selector?: string; tag?: string; mar
 );
 
 /** The element-anchor triple itself, spread into every schema that carries `targetTripleCheck`. */
-export const targetParts = {
+const targetParts = {
   selector: z.optional(z.string()),
   tag: z.optional(z.string()),
   markdown: z.optional(z.string()),
@@ -418,3 +414,26 @@ export const TOOLS: ToolSpec[] = [
     },
   },
 ];
+
+/**
+ * Present a `zod/mini` schema the way MCP's SDK v2 wants it.
+ *
+ * `registerTool` takes a Standard Schema that can both validate a call and
+ * describe itself for `tools/list`. Zod implements the validate half in every
+ * build, but only the full `zod` package carries `~standard.jsonSchema` — mini
+ * does not, and mini is what ships here (see CLAUDE.md: it is meaningfully
+ * smaller in the content script and the Worker). `z.toJSONSchema` closes the
+ * gap, so the schema stays the one written in Zod rather than becoming a second
+ * hand-maintained shape.
+ *
+ * `describedBy` wins when given: the tool schemas carry per-field descriptions
+ * that are written for an agent to read, and Zod has no record of them yet.
+ */
+export function standardSchema<T extends { '~standard': object }>(schema: T, describedBy?: ToolSpec['inputSchema']): T {
+  const jsonSchema = () => describedBy ?? z.toJSONSchema(schema as never);
+  return { ...schema, '~standard': { ...schema['~standard'], jsonSchema } };
+}
+
+/** The JSON Schema a tool advertises, by name. */
+export const toolSchemaFor = (name: string): ToolSpec['inputSchema'] | undefined =>
+  TOOLS.find((tool) => tool.name === name)?.inputSchema;
