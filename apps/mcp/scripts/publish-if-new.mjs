@@ -49,6 +49,17 @@ if (drifted.length > 0) {
   );
 }
 
+// The registry caps `description` at 100 characters and answers a 422 that the
+// publisher reports as a generic failure, which reads as an auth problem. Cheaper
+// to measure it here than to find out after npm has already shipped the version.
+const DESCRIPTION_MAX = 100;
+if (server.description.length > DESCRIPTION_MAX) {
+  abort(
+    `server.json description is ${server.description.length} characters; the MCP registry allows ${DESCRIPTION_MAX}`,
+    'Shorten it, then re-run — npm is skipped once the version is already published.',
+  );
+}
+
 /** -1 / 0 / 1 over x.y.z releases. */
 const compare = (a, b) => {
   const [left, right] = [a.split('.').map(Number), b.split('.').map(Number)];
