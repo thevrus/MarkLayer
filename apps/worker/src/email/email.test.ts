@@ -1,37 +1,54 @@
 import { describe, expect, test } from 'bun:test';
-import { buildMimeMessage } from './mime';
+import { mailerFor } from './providers';
 import { signInTemplate } from './templates';
 
-describe('buildMimeMessage', () => {
-  const message = { to: 'someone@example.com', subject: 'Sign in', text: 'plain', html: '<p>rich</p>' };
+describe('mailerFor', () => {
+  const binding = {
+    async send() {
+      return { messageId: 'x' };
+    },
+  };
 
-  test('uses CRLF line endings, which SMTP requires', () => {
-    const raw = buildMimeMessage({ from: 'login@marklayer.app', message });
-    expect(raw).toContain('\r\n');
-    expect(raw.split('\r\n').some((line) => line.endsWith('\n'))).toBe(false);
+  test('picks the configured provider when MAIL_PROVIDER is unset', () => {
+    expect(mailerFor({}).id).toBe('console');
+    expect(mailerFor({ RESEND_API_KEY: 'k' }).id).toBe('resend');
+    expect(mailerFor({ EMAIL: binding, RESEND_API_KEY: 'k' }).id).toBe('cloudflare');
   });
 
-  test('carries both alternatives, so HTML-only spam scoring cannot bury a login link', () => {
-    const raw = buildMimeMessage({ from: 'login@marklayer.app', message });
-    expect(raw).toContain('multipart/alternative');
-    expect(raw).toContain('text/plain; charset=utf-8');
-    expect(raw).toContain('text/html; charset=utf-8');
+  test('MAIL_PROVIDER overrides that order, so a switch is one variable', () => {
+    expect(mailerFor({ MAIL_PROVIDER: 'resend', EMAIL: binding, RESEND_API_KEY: 'k' }).id).toBe('resend');
+    expect(mailerFor({ MAIL_PROVIDER: 'console', EMAIL: binding }).id).toBe('console');
   });
 
-  test('closes the multipart with the terminating boundary', () => {
-    const raw = buildMimeMessage({ from: 'login@marklayer.app', message });
-    const boundary = raw.match(/boundary="([^"]+)"/)?.[1];
-    expect(boundary).toBeDefined();
-    expect(raw).toContain(`--${boundary}--`);
+  test('throws rather than degrading to the console when the pinned provider is unconfigured', () => {
+    // The whole point of pinning: a deploy that loses its binding must fail the
+    // send, not print login links to the log while answering 200.
+    expect(() => mailerFor({ MAIL_PROVIDER: 'cloudflare' })).toThrow();
+    expect(() => mailerFor({ MAIL_PROVIDER: 'resend' })).toThrow();
+    expect(() => mailerFor({ MAIL_PROVIDER: 'sendgrid', EMAIL: binding })).toThrow();
   });
 
-  test('wraps base64 inside SMTP line limits and encodes a non-ASCII subject', () => {
-    const raw = buildMimeMessage({
-      from: 'login@marklayer.app',
-      message: { ...message, subject: 'Zaloguj się', text: 'x'.repeat(500) },
+  test('sends through the binding with a named from address', async () => {
+    const sent: unknown[] = [];
+    const capture = {
+      async send(message: unknown) {
+        sent.push(message);
+        return { messageId: 'x' };
+      },
+    };
+    await mailerFor({ EMAIL: capture, MAIL_FROM: 'login@marklayer.app' }).send({
+      to: 'someone@example.com',
+      subject: 'Sign in',
+      text: 'plain',
+      html: '<p>rich</p>',
     });
-    expect(raw).toContain('=?utf-8?B?');
-    expect(raw.split('\r\n').every((line) => line.length <= 998)).toBe(true);
+    expect(sent[0]).toEqual({
+      from: { email: 'login@marklayer.app', name: 'MarkLayer' },
+      to: 'someone@example.com',
+      subject: 'Sign in',
+      text: 'plain',
+      html: '<p>rich</p>',
+    });
   });
 });
 
