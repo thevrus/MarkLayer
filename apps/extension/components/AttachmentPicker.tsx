@@ -151,6 +151,53 @@ export function AttachButton({ attachments }: { attachments: Attachments }) {
   );
 }
 
+/**
+ * A reply composer's action row: attach on the left, Cancel and Reply on the
+ * right. Shared for the same reason the attach controls above are — the
+ * extension's `ThreadCard` and the web app's `AnnotationDetail` are the same
+ * composer twice, and a restyle here has to land on both. `onCancel` need not
+ * clear the queue; that is this row's job either way.
+ */
+export function ComposerActions({
+  attachments,
+  onCancel,
+  onSubmit,
+}: {
+  attachments: Attachments;
+  onCancel: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div class="flex items-center justify-between gap-1 px-1.5 pb-1.5 pt-0.5">
+      <AttachButton attachments={attachments} />
+      <div class="flex items-center gap-0.5">
+        <button
+          type="button"
+          onClick={() => {
+            attachments.reset();
+            onCancel();
+          }}
+          class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium h-6 px-2')}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={attachments.uploading}
+          class={cn(
+            geist.ctlOn,
+            'inline-flex items-center justify-center h-6 px-2.5 rounded-md border-none cursor-pointer outline-none',
+            'text-meta font-medium disabled:pointer-events-none disabled:opacity-50',
+          )}
+        >
+          Reply
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** The add-image button plus the thumbnail row it fills, as one unit — for composers that keep it on its own line (`CommentPopover`). */
 export function AttachmentRow({
   attachments,

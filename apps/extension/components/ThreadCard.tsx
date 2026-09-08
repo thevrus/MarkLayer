@@ -6,7 +6,7 @@ import { glass } from '../lib/glass';
 import { pushReply } from '../lib/state';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
-import { AttachButton, AttachmentGallery, AttachmentThumbs, useAttachments } from './AttachmentPicker';
+import { AttachmentGallery, AttachmentThumbs, ComposerActions, useAttachments } from './AttachmentPicker';
 import { MentionText } from './MentionText';
 import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityBadge } from './PriorityPicker';
@@ -183,33 +183,7 @@ export function ReplyComposer({
           onPaste={(e) => attachments.onPaste(e)}
         />
         <AttachmentThumbs attachments={attachments} resolveUrl={resolveUrl} class="px-2.5" />
-        <div class="flex items-center justify-between gap-1 px-1.5 pb-1.5 pt-0.5">
-          <AttachButton attachments={attachments} />
-          <div class="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => {
-                attachments.reset();
-                setOpen(false);
-              }}
-              class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium h-6 px-2')}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={attachments.uploading}
-              class={cn(
-                geist.ctlOn,
-                'inline-flex items-center justify-center h-6 px-2.5 rounded-md border-none cursor-pointer outline-none',
-                'text-meta font-medium disabled:pointer-events-none disabled:opacity-50',
-              )}
-            >
-              Reply
-            </button>
-          </div>
-        </div>
+        <ComposerActions attachments={attachments} onCancel={() => setOpen(false)} onSubmit={submit} />
       </div>
     </div>
   );

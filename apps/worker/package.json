@@ -21,6 +21,7 @@
     "@marklayer/emails": "workspace:*",
     "@marklayer/site": "workspace:*",
     "@marklayer/types": "workspace:*",
+    "@modelcontextprotocol/hono": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "@posthog/react": "^1.10.5",
     "@preact/signals": "^2.11.1",
