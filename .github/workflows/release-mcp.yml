@@ -42,7 +42,12 @@ jobs:
         with:
           bun-version-file: package.json
 
-      - uses: actions/setup-node@v5
+      # v7 or newer is load-bearing: every earlier version writes
+      # `_authToken=${NODE_AUTH_TOKEN}` into .npmrc whenever `registry-url` is
+      # set, and with no token to expand it npm reads that as "auth is already
+      # configured" and never starts the OIDC exchange — publishing as nobody
+      # and getting a 404 that reads like a missing package (actions/setup-node#1551).
+      - uses: actions/setup-node@v7
         with:
           node-version: '24' # trusted publishing needs >= 22.14.0
           registry-url: 'https://registry.npmjs.org'
