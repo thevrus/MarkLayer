@@ -1,6 +1,6 @@
 {
   "name": "marklayer-mcp",
-  "version": "0.1.6",
+  "version": "0.4.0",
   "mcpName": "io.github.thevrus/marklayer",
   "description": "MCP server that bridges MarkLayer annotations to AI coding agents.",
   "type": "module",
