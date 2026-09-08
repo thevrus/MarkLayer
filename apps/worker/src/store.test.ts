@@ -11,6 +11,9 @@ describe('annotationStore.get', () => {
         width: 1280,
         created_at: 10,
         expires_at: null,
+        access: 'view',
+        owner_id: 'u1',
+        owner_expires_at: 999,
       },
     });
     const row = await annotationStore(asDb(db)).get('abc');
@@ -20,11 +23,34 @@ describe('annotationStore.get', () => {
       width: 1280,
       createdAt: 10,
       expiresAt: null,
+      access: 'view',
+      ownerId: 'u1',
+      ownerExpiresAt: 999,
     });
   });
 
   test('returns null when the row is missing', async () => {
     expect(await annotationStore(asDb(fakeDb({ first: null }))).get('nope')).toBeNull();
+  });
+
+  // A row from before `access` existed has no such column at all — the same
+  // shape a corrupt value would parse as, so both fall back to today's only mode.
+  test('falls back to edit access for a pre-migration row with no access column', async () => {
+    const db = fakeDb({
+      first: {
+        ops: '[]',
+        url: null,
+        width: null,
+        created_at: null,
+        expires_at: null,
+        owner_id: null,
+        owner_expires_at: null,
+      },
+    });
+    const row = await annotationStore(asDb(db)).get('abc');
+    expect(row?.access).toBe('edit');
+    expect(row?.ownerId).toBeNull();
+    expect(row?.ownerExpiresAt).toBeNull();
   });
 
   // Two call sites used to JSON.parse this unguarded, so a corrupt row was a 500.

@@ -129,6 +129,18 @@ const ReplyInput = z.object({
   text: z.string().check(z.minLength(1)),
 });
 
+/**
+ * A mutator returned false. It has two causes worth telling apart: the room
+ * refuses this peer's writes, or the id genuinely is not there. Reporting the
+ * first as "not found" sent an agent hunting for a missing annotation when the
+ * real answer was that the owner made the link view-only.
+ */
+export function mutationErr({ room, id }: { room: { viewOnly: boolean }; id: string }): ToolContent {
+  return room.viewOnly
+    ? err(`this link is view-only, so nothing can be changed through it: ${id}`)
+    : err(`annotation not found: ${id}`);
+}
+
 function fail(parseError: { issues: { path: PropertyKey[]; message: string }[] }): ToolContent {
   const flat = parseError.issues
     .map((i) => `${i.path.length ? i.path.map(String).join('.') : '<root>'}: ${i.message}`)
@@ -375,7 +387,7 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const r = ensureRoom();
           const dead = ensureLive(r);
           if (dead) return dead;
-          if (!r.acknowledge(parsed.data.id)) return err(`annotation not found: ${parsed.data.id}`);
+          if (!r.acknowledge(parsed.data.id)) return mutationErr({ room: r, id: parsed.data.id });
           return ok({ id: parsed.data.id, status: 'in_progress', assignedAgent: opts.agentId });
         }
 
@@ -385,7 +397,7 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const r = ensureRoom();
           const dead = ensureLive(r);
           if (dead) return dead;
-          if (!r.resolve(parsed.data.id, parsed.data.summary)) return err(`annotation not found: ${parsed.data.id}`);
+          if (!r.resolve(parsed.data.id, parsed.data.summary)) return mutationErr({ room: r, id: parsed.data.id });
           return ok({ id: parsed.data.id, status: 'resolved' });
         }
 
@@ -395,7 +407,7 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const r = ensureRoom();
           const dead = ensureLive(r);
           if (dead) return dead;
-          if (!r.dismiss(parsed.data.id, parsed.data.reason)) return err(`annotation not found: ${parsed.data.id}`);
+          if (!r.dismiss(parsed.data.id, parsed.data.reason)) return mutationErr({ room: r, id: parsed.data.id });
           return ok({ id: parsed.data.id, status: 'dismissed', reason: parsed.data.reason });
         }
 
@@ -405,7 +417,7 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const r = ensureRoom();
           const dead = ensureLive(r);
           if (dead) return dead;
-          if (!r.reply(parsed.data.id, parsed.data.text)) return err(`annotation not found: ${parsed.data.id}`);
+          if (!r.reply(parsed.data.id, parsed.data.text)) return mutationErr({ room: r, id: parsed.data.id });
           return ok({ id: parsed.data.id, replied: true });
         }
 

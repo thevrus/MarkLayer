@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { areaOpSchema, commentOpSchema, inspectOpSchema, opAnchor, selectionOpSchema } from '@marklayer/types';
-import { parseRoomRef, projectAnnotation } from './server';
+import { mutationErr, parseRoomRef, projectAnnotation } from './server';
 
 describe('parseRoomRef', () => {
   test('passes a bare room id through untouched', () => {
@@ -275,5 +275,25 @@ describe('opAnchor', () => {
       rect: { x: 3, y: 4, width: 10, height: 10 },
     });
     expect(opAnchor(op)).toEqual({ x: 3, y: 4 });
+  });
+});
+
+describe('mutationErr', () => {
+  // The bug this guards: every mutator reported a refused write as "annotation
+  // not found", sending an agent to look for something that was there all along.
+  /** Joined rather than indexed: `content[0]` is optional to the checker. */
+  const textOf = (res: ReturnType<typeof mutationErr>) => res.content.map((c) => c.text).join('');
+
+  test('names the view-only link when the room refuses writes', () => {
+    const res = mutationErr({ room: { viewOnly: true }, id: 'op1' });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toContain('view-only');
+    expect(textOf(res)).not.toContain('not found');
+  });
+
+  test('still reports a genuinely missing id as not found', () => {
+    const res = mutationErr({ room: { viewOnly: false }, id: 'op1' });
+    expect(res.isError).toBe(true);
+    expect(textOf(res)).toContain('annotation not found');
   });
 });

@@ -1,6 +1,14 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { drawOpSchema, MAX_INTEGRATIONS_PER_ROOM, opsArraySchema } from '@marklayer/types';
+import {
+  canEditLink,
+  drawOpSchema,
+  effectiveExpiresAt,
+  MAX_EXPIRES_IN_SECONDS,
+  MAX_INTEGRATIONS_PER_ROOM,
+  opsArraySchema,
+} from '@marklayer/types';
 import { cors } from 'hono/cors';
+import { userFromCookieHeader } from './auth';
 import { dayCached, once } from './http';
 import type { Env } from './index';
 import {
@@ -123,6 +131,13 @@ api.openapi(listProviders, (c) =>
 
 // ---------- Annotations ----------
 
+/** Both annotations and projects take the same optional retention override. */
+const expiresInField = z
+  .int()
+  .max(MAX_EXPIRES_IN_SECONDS)
+  .optional()
+  .openapi({ description: `Seconds until cleanup (max ${MAX_EXPIRES_IN_SECONDS} = 30 days)` });
+
 // Accepts `{ ops, url?, width?, expires_in? }` or a raw ops array (backwards compat).
 const StoreAnnotationBody = z
   .union([
@@ -134,7 +149,7 @@ const StoreAnnotationBody = z
         .optional()
         .openapi({ format: 'uri', description: 'Page the share link overlays annotations onto' }),
       width: z.int().optional().openapi({ description: 'Reference viewport width in CSS pixels (e.g. 1440)' }),
-      expires_in: z.int().optional().openapi({ description: 'Seconds until cleanup (max 2592000 = 30 days)' }),
+      expires_in: expiresInField,
     }),
   ])
   .openapi('StoreAnnotation');
@@ -186,6 +201,7 @@ const storeAnnotation = createRoute({
   responses: {
     200: jsonRes(OkResponse, 'Stored'),
     400: jsonRes(ErrorResponse, 'Invalid operations data'),
+    403: jsonRes(ErrorResponse, 'Link is view-only'),
   },
 });
 
@@ -211,7 +227,22 @@ api.openapi(storeAnnotation, async (c) => {
     return c.json({ error: 'Invalid operations data' }, 400);
   }
 
-  await annotationStore(c.env.DB).put({ id, ops: result.data, url, width, expiresAt });
+  // The DO's websocket gate isn't the only writer: this REST route is the one
+  // real-time sync falls back to when the socket is down, and the one thing
+  // anonymous API callers hit directly. Both must respect a link the owner set
+  // to view-only, so the check lives here too rather than only in the DO.
+  const store = annotationStore(c.env.DB);
+  const current = await store.getAccess(id);
+  // `canEditLink` is the rule, shared with the room's own gate. The `view` test
+  // in front of it only skips a session lookup on a link where it cannot say no.
+  if (current?.access === 'view') {
+    const user = await userFromCookieHeader({ header: c.req.header('cookie') ?? null, db: c.env.DB });
+    if (!canEditLink({ ...current, userId: user?.id })) {
+      return c.json({ error: 'This link is view-only.' }, 403);
+    }
+  }
+
+  await store.put({ id, ops: result.data, url, width, expiresAt });
 
   // The web app autosaves a bare ops array every few seconds (useRealtimeSync);
   // the extension and API callers send the object form only when someone
@@ -245,7 +276,7 @@ api.openapi(getAnnotation, async (c) => {
 
   if (!row) return c.json({ error: 'not found' }, 404);
 
-  if (isExpired(row.expiresAt)) {
+  if (isExpired(effectiveExpiresAt(row))) {
     c.executionCtx.waitUntil(store.remove(id));
     return c.json({ error: 'expired' }, 410);
   }
@@ -452,7 +483,7 @@ api.openapi(pushAnnotation, async (c) => {
   const store = annotationStore(c.env.DB);
   const [row, destinations] = await Promise.all([store.get(id), store.getIntegrations(id)]);
   if (!row) return c.json({ error: 'not found' }, 404);
-  if (isExpired(row.expiresAt)) {
+  if (isExpired(effectiveExpiresAt(row))) {
     c.executionCtx.waitUntil(store.remove(id));
     return c.json({ error: 'expired' }, 410);
   }
@@ -501,7 +532,7 @@ const MAX_PAGES_PER_PROJECT = 50;
 const StoreProjectBody = z
   .object({
     pageIds: z.array(z.string()).openapi({ description: 'Ids of annotation pages in this bundle' }),
-    expires_in: z.int().optional().openapi({ description: 'Seconds until cleanup (max 2592000 = 30 days)' }),
+    expires_in: expiresInField,
   })
   .openapi('StoreProject');
 

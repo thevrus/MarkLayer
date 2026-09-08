@@ -232,7 +232,7 @@ describe('saveAnnotations and loadAnnotations', () => {
         return new Response('{}', { status: 200 });
       },
       async () => {
-        expect(await saveAnnotations([op])).toBe(true);
+        expect(await saveAnnotations([op])).toEqual({ ok: true });
       },
     );
 
@@ -247,8 +247,20 @@ describe('saveAnnotations and loadAnnotations', () => {
     await withFetch(
       async () => new Response('nope', { status: 500 }),
       async (logged) => {
-        expect(await saveAnnotations([op])).toBe(false);
+        expect(await saveAnnotations([op])).toEqual({ ok: false, reason: 'error' });
         expect(logged.join()).toContain('Error saving annotations');
+      },
+    );
+  });
+
+  // The bug this guards: a 403 came back as the same generic failure as a 500,
+  // so an owner who set their link view-only was told it "may not work".
+  test('separates a view-only refusal from a broken save, and does not log it', async () => {
+    await withFetch(
+      async () => new Response('{"error":"This link is view-only."}', { status: 403 }),
+      async (logged) => {
+        expect(await saveAnnotations([op])).toEqual({ ok: false, reason: 'view-only' });
+        expect(logged).toEqual([]);
       },
     );
   });
@@ -259,7 +271,7 @@ describe('saveAnnotations and loadAnnotations', () => {
         throw new Error('offline');
       },
       async (logged) => {
-        expect(await saveAnnotations([op])).toBe(false);
+        expect(await saveAnnotations([op])).toEqual({ ok: false, reason: 'error' });
         expect(logged.join()).toContain('Error saving annotations');
       },
     );

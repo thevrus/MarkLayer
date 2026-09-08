@@ -49,6 +49,14 @@ export class RoomClient {
   private closedReason: string | null = null;
   private pending: PendingNew | null = null;
   private peerId = `mcp-${nanoid()}`;
+  /**
+   * Whether the room accepts this peer's writes. The bridge sends no session
+   * cookie, so on a link its owner set to view-only every op is discarded — and
+   * `op`/`update_op` are fire-and-forget, so nothing but this flag would ever
+   * tell us. Defaults true: `edit` is every link's default and a room that
+   * predates the access message says nothing about it.
+   */
+  private canEdit = true;
 
   constructor(
     private readonly apiBase: string,
@@ -230,7 +238,20 @@ export class RoomClient {
     return `${protocol}//${base.host}/ws/${this.roomId}?${params}`;
   }
 
+  /** True when the room has told us it refuses this peer's writes, so a failed
+   *  mutation can say why instead of blaming a missing annotation. */
+  get viewOnly(): boolean {
+    return !this.canEdit;
+  }
+
+  /**
+   * Every message this client sends is a mutation (`op`, `update_op`), so one
+   * check here covers all of them. Refusing before the send is the point: the
+   * callers record the change locally once `send` succeeds, and an op the room
+   * discarded would make every later read lie about what the human sees.
+   */
   private send(msg: unknown): boolean {
+    if (!this.canEdit) return false;
     if (this.ws?.readyState !== WebSocket.OPEN) return false;
     this.ws.send(JSON.stringify(msg));
     return true;
@@ -294,6 +315,7 @@ export class RoomClient {
           createdAt: typeof msg.createdAt === 'number' ? msg.createdAt : null,
           expiresAt: typeof msg.expiresAt === 'number' ? msg.expiresAt : null,
         };
+        if (typeof msg.canEdit === 'boolean') this.canEdit = msg.canEdit;
         this.initResolve?.();
         this.initResolve = null;
         this.initReject = null;
@@ -325,6 +347,15 @@ export class RoomClient {
       }
       case 'clear':
         this.ops = [];
+        return;
+      // The owner changed who may edit while this bridge was attached.
+      case 'access':
+        if (typeof msg.canEdit === 'boolean') this.canEdit = msg.canEdit;
+        return;
+      // A write was rejected. Latching the flag here matters even though `init`
+      // already carries it: this is what catches a flip that raced our own op.
+      case 'error':
+        if (msg.code === 'read_only') this.canEdit = false;
         return;
     }
   }

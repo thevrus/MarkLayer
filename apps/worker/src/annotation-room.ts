@@ -1,5 +1,15 @@
 import { DurableObject } from 'cloudflare:workers';
-import { applyOpPatch, clientMsgSchema, RTC_MESSAGE_TYPES, type RtcMessageType } from '@marklayer/types';
+import {
+  applyOpPatch,
+  type ClientMsg,
+  canEditLink,
+  clientMsgSchema,
+  effectiveExpiresAt,
+  type LinkAccess,
+  RTC_MESSAGE_TYPES,
+  type RtcMessageType,
+} from '@marklayer/types';
+import { userFromCookieHeader } from './auth';
 import { STUN_ONLY, stripPort53 } from './ice';
 import { deliver, parseIntegrations } from './integrations/deliver';
 import { type Notifiable, notifiableFrom } from './integrations/types';
@@ -62,6 +72,10 @@ async function getIceServers(env: Env): Promise<RTCIceServer[]> {
   }
 }
 
+/** Non-mutating types — always allowed. Everything else hits `rejectIfReadOnly`
+ * first, so a new mutating type is guarded by default, not by someone remembering. */
+const READ_ONLY_SAFE_TYPES = new Set<ClientMsg['type']>(['ping', 'cursor', 'ripple', 'profile', 'flock']);
+
 export class AnnotationRoom extends DurableObject<Env> {
   private ops: unknown[] | null = null;
   /** In-flight load promise — coalesces concurrent first-message reads. */
@@ -72,6 +86,10 @@ export class AnnotationRoom extends DurableObject<Env> {
   private expiresAt: number | null = null;
   private url: string | null = null;
   private width: number | null = null;
+  /** Who may edit. 'edit' is every link's default; 'view' is set only by the owner's Settings PATCH. */
+  private access: LinkAccess = 'edit';
+  private ownerId: string | null = null;
+  private ownerExpiresAt: number | null = null;
 
   // Aggregate telemetry for one room session, emitted once when the last peer
   // leaves (see webSocketClose). Counting in memory rather than per-op keeps
@@ -124,8 +142,18 @@ export class AnnotationRoom extends DurableObject<Env> {
     this.expiresAt = row?.expiresAt ?? null;
     this.url = row?.url ?? null;
     this.width = row?.width ?? null;
+    this.applyAccessRow(row);
     store.touch(id);
     return this.ops;
+  }
+
+  /** Sets `access`/`ownerId`/`ownerExpiresAt` from a row — shared by `loadOps` and `refreshAccess`. */
+  private applyAccessRow(
+    row: { access: LinkAccess; ownerId: string | null; ownerExpiresAt: number | null } | null,
+  ): void {
+    this.access = row?.access ?? 'edit';
+    this.ownerId = row?.ownerId ?? null;
+    this.ownerExpiresAt = row?.ownerExpiresAt ?? null;
   }
 
   /**
@@ -162,6 +190,26 @@ export class AnnotationRoom extends DurableObject<Env> {
     this.setPeerInfo(ws, { ...info, [field]: (info[field] ?? 0) + 1 });
   }
 
+  /** This room's access row applied to one socket's user. The rule itself is shared. */
+  private canEditFor(userId: string | undefined): boolean {
+    return canEditLink({ access: this.access, ownerId: this.ownerId, userId });
+  }
+
+  /**
+   * Rejects a mutation from a peer whose own attachment says it may not edit.
+   * `canEdit === false` only, never `!info`: a socket with no parsed info yet
+   * (or one from before this shipped) defaults to allowed, matching `'edit'`
+   * being every link's default.
+   */
+  private rejectIfReadOnly(ws: WebSocket): boolean {
+    const info = this.getPeerInfo(ws);
+    if (info?.canEdit === false) {
+      ws.send(JSON.stringify({ type: 'error', code: 'read_only' }));
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Live human peers, ignoring one socket.
    *
@@ -187,11 +235,16 @@ export class AnnotationRoom extends DurableObject<Env> {
    */
   private readonly closed = new WeakSet<WebSocket>();
 
-  private getPeerList(): PeerInfo[] {
-    const list: PeerInfo[] = [];
+  /** Strips `canEdit`/`userId` before peers see each other — bookkeeping for this
+   * room, not something one peer should read off another. */
+  private getPeerList(): Omit<PeerInfo, 'canEdit' | 'userId'>[] {
+    const list: Omit<PeerInfo, 'canEdit' | 'userId'>[] = [];
     for (const ws of this.ctx.getWebSockets()) {
       const info = this.getPeerInfo(ws);
-      if (info) list.push(info);
+      if (info) {
+        const { canEdit: _canEdit, userId: _userId, ...peer } = info;
+        list.push(peer);
+      }
     }
     return list;
   }
@@ -210,10 +263,35 @@ export class AnnotationRoom extends DurableObject<Env> {
     await this.ctx.storage.setAlarm(Date.now() + 3000);
   }
 
+  /**
+   * The owner changed who may edit while this room may be warm. `loadOps` runs
+   * once per isolate, so without this a flip to view-only would bite only after
+   * the next eviction — and the owner's own tab keeps the room resident.
+   */
+  private async refreshAccess(id: string): Promise<void> {
+    const row = await annotationStore(this.env.DB).getAccess(id);
+    this.applyAccessRow(row);
+    for (const ws of this.ctx.getWebSockets()) {
+      const info = this.getPeerInfo(ws);
+      if (!info) continue;
+      const canEdit = this.canEditFor(info.userId);
+      if (canEdit === (info.canEdit ?? true)) continue;
+      this.setPeerInfo(ws, { ...info, canEdit });
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'access', canEdit }));
+    }
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
     if (!id) return new Response('Missing id', { status: 400 });
+
+    // Not a peer: the settings route poking a warm room. Checked before `origin`
+    // is recorded, since this request's origin is not one a person can open.
+    if (request.method === 'POST' && url.pathname === '/refresh-access') {
+      await this.refreshAccess(id);
+      return new Response(null, { status: 204 });
+    }
 
     this.origin = url.origin;
 
@@ -224,7 +302,27 @@ export class AnnotationRoom extends DurableObject<Env> {
 
     const pair = new WebSocketPair();
     this.ctx.acceptWebSocket(pair[1], [id]);
-    this.setPeerInfo(pair[1], { id: peerId, uid: peerUid, name: peerName, color: peerColor, joinedAt: Date.now() });
+
+    // Run getOps, the TURN fetch and the connecting user's session lookup
+    // concurrently — all three are network-bound and independent, so this
+    // hides their latency behind each other instead of stacking round trips.
+    // getOps is what fills in this.access/this.ownerId (via loadOps), so canEdit
+    // can only be resolved once this resolves.
+    const [ops, iceServers, user] = await Promise.all([
+      this.getOps(id),
+      getIceServers(this.env),
+      userFromCookieHeader({ header: request.headers.get('Cookie'), db: this.env.DB }),
+    ]);
+    const canEdit = this.canEditFor(user?.id);
+    this.setPeerInfo(pair[1], {
+      id: peerId,
+      uid: peerUid,
+      name: peerName,
+      color: peerColor,
+      joinedAt: Date.now(),
+      canEdit,
+      userId: user?.id,
+    });
 
     if (this.sessionStartedAt === 0) this.sessionStartedAt = Date.now();
     // The MCP bridge joins as an ordinary peer under an `mcp-` id (apps/mcp/src/room.ts),
@@ -236,9 +334,6 @@ export class AnnotationRoom extends DurableObject<Env> {
     const humans = this.countHumans();
     this.peakHumanPeers = Math.max(this.peakHumanPeers, humans);
 
-    // Run getOps and the TURN fetch concurrently — both are network-bound and
-    // independent, so this hides the TURN latency behind D1's read RTT.
-    const [ops, iceServers] = await Promise.all([this.getOps(id), getIceServers(this.env)]);
     const peerList = this.getPeerList();
     pair[1].send(
       JSON.stringify({
@@ -246,9 +341,14 @@ export class AnnotationRoom extends DurableObject<Env> {
         ops,
         peers: peerList,
         createdAt: this.createdAt,
-        expiresAt: this.expiresAt,
+        // The tighter of the two deadlines: the client has one `expiresAt`
+        // concept and must not learn about a link's own expiry while missing
+        // its owner's, or the info panel counts down to the wrong date.
+        expiresAt: effectiveExpiresAt({ expiresAt: this.expiresAt, ownerExpiresAt: this.ownerExpiresAt }),
         url: this.url,
         width: this.width,
+        access: this.access,
+        canEdit,
         iceServers,
       }),
     );
@@ -318,6 +418,8 @@ export class AnnotationRoom extends DurableObject<Env> {
     const tags = this.ctx.getTags(ws);
     const id = tags[0] || this.annotationId;
     if (!id && msg.type !== 'ping') return;
+
+    if (!READ_ONLY_SAFE_TYPES.has(msg.type) && this.rejectIfReadOnly(ws)) return;
 
     switch (msg.type) {
       case 'op': {

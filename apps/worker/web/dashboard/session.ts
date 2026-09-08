@@ -2,8 +2,11 @@ import {
   errorResponseSchema,
   type OwnedLink,
   ownedLinksResponseSchema,
+  resolveOwnerExpiresAt,
   type SessionUser,
   sessionResponseSchema,
+  type UpdateLinkSettings,
+  updateLinkResponseSchema,
 } from '@marklayer/types';
 import { signal } from '@preact/signals';
 
@@ -78,4 +81,31 @@ export async function releaseLink(id: string): Promise<void> {
   // resurfaces on the next load rather than blocking the click.
   links.value = links.value.filter((link) => link.id !== id);
   await fetch(`/auth/links/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+export async function updateLinkSettings({ id, patch }: { id: string; patch: UpdateLinkSettings }): Promise<boolean> {
+  // Optimistic, like releaseLink: the settings panel reflects the choice right
+  // away, and a failed PATCH resyncs from the server rather than blocking the click.
+  links.value = links.value.map((link) =>
+    link.id === id
+      ? {
+          ...link,
+          access: patch.access ?? link.access,
+          ownerExpiresAt: resolveOwnerExpiresAt({
+            ownerExpiresIn: patch.ownerExpiresIn,
+            current: link.ownerExpiresAt,
+            now: Math.floor(Date.now() / 1000),
+          }),
+        }
+      : link,
+  );
+  const res = await fetch(`/auth/links/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  const parsed = updateLinkResponseSchema.safeParse(await readJson(res));
+  const updated = parsed.success && parsed.data.updated;
+  if (!updated) await loadLinks();
+  return updated;
 }

@@ -30,7 +30,6 @@ import {
   MonitorPlay,
   Moon,
   Sun,
-  Upload,
   Video,
   VideoOff,
 } from 'lucide-preact';
@@ -38,6 +37,7 @@ import type { ComponentChildren } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
 import { useRef, useState } from 'preact/hooks';
 import { isUploadPath } from './docSource';
+import { SharePopover } from './SharePopover';
 import { DEVICE_ICONS, Logo } from './shared';
 import {
   deviceMode,
@@ -47,7 +47,6 @@ import {
   pageUrl,
   presenting,
   setPresenting,
-  sharing,
   showInfoPanel,
   type ViewerZoom,
   viewerZoom,
@@ -219,7 +218,10 @@ function ZoomMenu() {
       >
         {zoomLabel(viewerZoom.value)}
         <ChevronDown size={12} strokeWidth={1.5} aria-hidden="true" />
-        <Tooltip text="Zoom" placement="bottom" />
+        {/* Same reason as the share card's: tooltip and menu open on the same
+            side from the same anchor, so the tooltip surface would sit behind
+            the menu and peek out from under it. */}
+        <Tooltip text="Zoom" placement="bottom" disabled={state.zoomMenuOpen.value} />
       </Menu.Trigger>
       <Menu.Portal>
         <Menu.Positioner
@@ -437,20 +439,6 @@ function PresentButton() {
   );
 }
 
-function ShareButton() {
-  const {
-    actions: { share },
-  } = useViewerFrame();
-  return (
-    <BarButton
-      icon={<Upload size={16} strokeWidth={1.5} aria-hidden="true" />}
-      tip="Copy editable link"
-      onClick={share}
-      disabled={sharing.value}
-    />
-  );
-}
-
 /**
  * Paired with the card's own gate — a read-only visitor never renders the dialog,
  * so they must never get a button that opens nothing.
@@ -516,7 +504,7 @@ export function ViewerTopBar() {
           on={showAnnotationPanel.value}
           onClick={() => (showAnnotationPanel.value = !showAnnotationPanel.value)}
         />
-        {!isReadonly.value && <ShareButton />}
+        {!isReadonly.value && <SharePopover />}
         {!isReadonly.value && <SupportButton />}
         <ThemeButton />
       </div>

@@ -19,7 +19,7 @@ import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 import { capture } from './analytics';
-import { followingPeer, onFollowScroll, onPresentChange, presenting } from './signals';
+import { canEditFromRoom, followingPeer, isReadonly, onFollowScroll, onPresentChange, presenting } from './signals';
 import { noteSupportSignal } from './support';
 
 export const connected = signal(false);
@@ -293,6 +293,9 @@ export function useRealtimeSync(annotationId: string) {
               if (arriving) announceMissedMentions({ ops: msg.ops, room: annotationId });
               if (msg.createdAt != null) createdAt.value = msg.createdAt;
               if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
+              // `isReadonly` ORs this with `?readonly=1` in signals.ts, so the
+              // room's own view of canEdit can't clear a URL-forced one.
+              if (typeof msg.canEdit === 'boolean') canEditFromRoom.value = msg.canEdit;
               if (msg.url) serverUrl.value = msg.url;
               if (msg.width) serverWidth.value = msg.width;
               if (isIceServerArray(msg.iceServers)) turnIceServers.value = msg.iceServers;
@@ -337,6 +340,24 @@ export function useRealtimeSync(annotationId: string) {
             case 'clear':
               operations.value = [];
               break;
+            case 'error':
+              // The room rejected an edit rather than trusting the toolbar to stay
+              // hidden — a stale client, or a race with the owner flipping access.
+              if (msg.code === 'read_only') {
+                canEditFromRoom.value = false;
+                toast('This link is view-only', 'info');
+              }
+              break;
+            case 'access': {
+              // The owner flipped the link while this tab was open. `isReadonly`
+              // still ORs in `?readonly=1`, so a URL-forced session stays read-only.
+              const wasReadonly = isReadonly.value;
+              canEditFromRoom.value = msg.canEdit;
+              if (isReadonly.value !== wasReadonly) {
+                toast(isReadonly.value ? 'This link is now view-only' : 'You can edit this link again', 'info');
+              }
+              break;
+            }
             case 'pong':
               if (pongTimeout) {
                 clearTimeout(pongTimeout);

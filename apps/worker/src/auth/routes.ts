@@ -1,8 +1,9 @@
-import { signInRequestSchema } from '@marklayer/types';
+import { resolveOwnerExpiresAt, signInRequestSchema, updateLinkSettingsSchema } from '@marklayer/types';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { Hono } from 'hono/tiny';
 import { sendEmail, signInTemplate } from '../email';
+import { nowInSeconds } from '../store';
 import { type AuthVariables, withUser } from './middleware';
 import { authStore, ownedStore } from './store';
 import { mintToken } from './tokens';
@@ -25,6 +26,30 @@ function sessionCookieOptions(secure: boolean) {
 
 /** `session` is set only by the guard below, so a handler that reads it has one. */
 type AuthApp = { Bindings: AuthEnv; Variables: AuthVariables & { session: User } };
+
+/**
+ * Tells a warm room to re-read its access row. A room caches `access` from its
+ * first load, so without this an owner's change bites only after the next
+ * eviction — and the owner's own tab keeps the room resident. Off the response
+ * path: the row is already written, so a lost ping only leaves the room stale.
+ */
+function pingRoomRefreshAccess({
+  env,
+  ctx,
+  id,
+}: {
+  env: AuthEnv;
+  // Just `waitUntil`, so both Hono's `ExecutionContext<unknown>` and a test double fit.
+  ctx: { waitUntil(promise: Promise<unknown>): void };
+  id: string;
+}): void {
+  const room = env.ANNOTATION_ROOM.get(env.ANNOTATION_ROOM.idFromName(id));
+  ctx.waitUntil(
+    room
+      .fetch(new Request(`https://room/refresh-access?id=${encodeURIComponent(id)}`, { method: 'POST' }))
+      .catch(() => undefined),
+  );
+}
 
 export const auth = new Hono<AuthApp>();
 
@@ -106,8 +131,35 @@ auth.post('/links/:id', async (c) => {
 
 auth.delete('/links/:id', async (c) => {
   const ownerId = c.get('session').id;
-  const released = await ownedStore(c.env.DB).releaseAnnotation({ id: c.req.param('id'), ownerId });
+  const id = c.req.param('id');
+  const released = await ownedStore(c.env.DB).releaseAnnotation({ id, ownerId });
+  // Release reopened editing to everyone, which a warm room would not notice.
+  if (released) pingRoomRefreshAccess({ env: c.env, ctx: c.executionCtx, id });
   return c.json({ released }, 200);
+});
+
+auth.patch('/links/:id', async (c) => {
+  const body = updateLinkSettingsSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: 'Invalid link settings.' }, 400);
+
+  const ownerId = c.get('session').id;
+  const id = c.req.param('id');
+  const store = ownedStore(c.env.DB);
+  const current = await store.getSettings({ id, ownerId });
+  // Same silent no-op convention as releaseAnnotation: the common cause is a
+  // non-owner poking at an id they don't hold, not worth a 403.
+  if (!current) return c.json({ updated: false }, 200);
+
+  const access = body.data.access ?? current.access;
+  const ownerExpiresAt = resolveOwnerExpiresAt({
+    ownerExpiresIn: body.data.ownerExpiresIn,
+    current: current.ownerExpiresAt,
+    now: nowInSeconds(),
+  });
+
+  const updated = await store.updateSettings({ id, ownerId, access, ownerExpiresAt });
+  if (updated) pingRoomRefreshAccess({ env: c.env, ctx: c.executionCtx, id });
+  return c.json({ updated }, 200);
 });
 
 auth.post('/logout', async (c) => {

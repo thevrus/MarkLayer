@@ -9,14 +9,22 @@
  */
 export function fakeDb({
   first = null,
+  firstQueue,
   all = [],
   changes = 1,
 }: {
   first?: unknown;
+  /**
+   * Answers for `.first()` in call order, one request touching several tables
+   * (a session lookup, then a settings read) needs a different row per call.
+   * `first` answers once the queue is empty, so single-call tests need not set it.
+   */
+  firstQueue?: unknown[];
   all?: unknown[];
   changes?: number;
 } = {}) {
   const calls: { sql: string; bindings: unknown[] }[] = [];
+  const queue = firstQueue ? [...firstQueue] : null;
   const db = {
     calls,
     prepare(sql: string) {
@@ -27,7 +35,7 @@ export function fakeDb({
           call.bindings = bindings;
           return stmt;
         },
-        first: async () => first,
+        first: async () => (queue && queue.length > 0 ? queue.shift() : first),
         all: async () => ({ results: all }),
         run: async () => ({ success: true, meta: { changes } }),
       };

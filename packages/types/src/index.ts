@@ -842,9 +842,64 @@ export type DestinationSummary = z.infer<typeof destinationSummarySchema>;
 
 export const destinationListSchema = z.object({ integrations: z.array(destinationSummarySchema) });
 
+/** Seconds in a day. Every expiry here and in the dashboard is a multiple of it. */
+export const DAY_SECONDS = 24 * 60 * 60;
+
+/**
+ * The longest expiry anyone can set, 30 days. One ceiling for both ways of
+ * asking: the owner's `ownerExpiresIn` below, and the share API's anonymous
+ * `expires_in` (`apps/worker/src/api.ts`), which advertised this number in its
+ * OpenAPI description long before anything enforced it. Declared above the
+ * schema that uses it: `zod/mini` evaluates the bound at definition time.
+ */
+export const MAX_EXPIRES_IN_SECONDS = 30 * DAY_SECONDS;
+
 /** A signed-in person, as the server holds them and as `/auth/me` returns them. */
 export const sessionUserSchema = z.object({ id: z.string(), email: z.string() });
 export type SessionUser = z.infer<typeof sessionUserSchema>;
+
+/**
+ * Who a link lets edit. `edit` is the pre-settings behaviour: everyone holding the
+ * id may draw. `view` leaves only the owner's own session able to; the room
+ * rejects everyone else's ops rather than trusting the toolbar to stay hidden.
+ */
+export const linkAccessSchema = z.enum(['edit', 'view']);
+export type LinkAccess = z.infer<typeof linkAccessSchema>;
+
+/**
+ * May this session edit? Two independent enforcement points ask — the realtime
+ * room per socket, and the REST write path per request — so the rule itself is
+ * one definition rather than one per gate.
+ */
+export function canEditLink({
+  access,
+  ownerId,
+  userId,
+}: {
+  access: LinkAccess;
+  ownerId: string | null;
+  userId: string | null | undefined;
+}): boolean {
+  return access !== 'view' || (userId != null && userId === ownerId);
+}
+
+/**
+ * The earlier of a link's own expiry and its owner's — whichever deletes it
+ * first. Every read/write gate must check this, not `expiresAt` alone, or an
+ * owner-set deadline is silently ignored until the next retention sweep.
+ * `deletionDeadline` folds the idle window on top of the same answer.
+ */
+export function effectiveExpiresAt({
+  expiresAt,
+  ownerExpiresAt,
+}: {
+  expiresAt: number | null;
+  ownerExpiresAt: number | null;
+}): number | null {
+  if (expiresAt === null) return ownerExpiresAt;
+  if (ownerExpiresAt === null) return expiresAt;
+  return Math.min(expiresAt, ownerExpiresAt);
+}
 
 /** A share link someone has claimed. `url` is null for an upload with no source page. */
 export const ownedLinkSchema = z.object({
@@ -853,8 +908,38 @@ export const ownedLinkSchema = z.object({
   createdAt: z.number(),
   lastAccessedAt: z.number(),
   expiresAt: z.nullable(z.number()),
+  access: linkAccessSchema,
+  /** Set by the owner in Settings; separate from `expiresAt`, which anonymous re-saves overwrite. */
+  ownerExpiresAt: z.nullable(z.number()),
 });
 export type OwnedLink = z.infer<typeof ownedLinkSchema>;
+
+/**
+ * `PATCH /auth/links/:id`. Omitted fields stay as they are; `ownerExpiresIn: null`
+ * clears the owner's expiry. Seconds from now, like the share API's `expires_in`.
+ */
+export const updateLinkSettingsSchema = z.object({
+  access: z.optional(linkAccessSchema),
+  ownerExpiresIn: z.optional(z.nullable(z.int().check(z.gte(1), z.lte(MAX_EXPIRES_IN_SECONDS)))),
+});
+export type UpdateLinkSettings = z.infer<typeof updateLinkSettingsSchema>;
+export const updateLinkResponseSchema = z.object({ updated: z.boolean() });
+
+/** Resolves `ownerExpiresIn` against the current value (omitted keeps it, `null`
+ * clears it, a number sets `now + n`) — shared so server and dashboard agree. */
+export function resolveOwnerExpiresAt({
+  ownerExpiresIn,
+  current,
+  now,
+}: {
+  ownerExpiresIn: UpdateLinkSettings['ownerExpiresIn'];
+  current: number | null;
+  now: number;
+}): number | null {
+  if (ownerExpiresIn === undefined) return current;
+  if (ownerExpiresIn === null) return null;
+  return now + ownerExpiresIn;
+}
 
 export const sessionResponseSchema = z.object({ user: z.nullable(sessionUserSchema) });
 export const ownedLinksResponseSchema = z.object({ links: z.array(ownedLinkSchema) });
@@ -879,17 +964,21 @@ export const RETENTION_DAYS = 90;
 /**
  * When the retention cron will delete a link.
  *
- * The cron's condition is `last_accessed_at < cutoff OR expires_at < now`, so an
- * explicit expiry brings the date forward — it does not replace the idle window.
- * One definition, so a countdown shown to a person cannot outlive the row.
+ * The cron's condition is `last_accessed_at < cutoff OR expires_at < now OR
+ * owner_expires_at < now`, so an explicit expiry brings the date forward — it
+ * does not replace the idle window. One definition, so a countdown shown to a
+ * person cannot outlive the row. `ownerExpiresAt` is optional because the
+ * viewer's own countdown only knows the anonymous expiry.
  */
 export function deletionDeadline({
   lastAccessedAt,
   expiresAt,
+  ownerExpiresAt = null,
 }: {
   lastAccessedAt: number;
   expiresAt: number | null;
+  ownerExpiresAt?: number | null;
 }): number {
-  const idleUntil = lastAccessedAt + RETENTION_DAYS * 24 * 60 * 60;
-  return expiresAt === null ? idleUntil : Math.min(idleUntil, expiresAt);
+  const idleUntil = lastAccessedAt + RETENTION_DAYS * DAY_SECONDS;
+  return Math.min(idleUntil, effectiveExpiresAt({ expiresAt, ownerExpiresAt }) ?? idleUntil);
 }

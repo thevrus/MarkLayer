@@ -104,7 +104,14 @@ export const selectionPopover = signal<{
  */
 export type SupportTrigger = 'auto' | 'bar' | 'menu' | 'panel';
 export const showSupportDialog = signal<SupportTrigger | null>(null);
-export const isReadonly = signal(false);
+/** `?readonly=1` — the URL's own way to ask for a view-only session, independent
+ * of whatever the room says about who may edit. Read once, like `parseViewParam`:
+ * the flag arrives with the page and `replaceState` here always preserves it. */
+const URL_FORCES_READONLY = new URLSearchParams(location.search).get('readonly') === '1';
+/** What the room last said about this session, or `undefined` before it has said anything. */
+export const canEditFromRoom = signal<boolean | undefined>(undefined);
+/** The URL flag always wins over the room, in one place — not by convention at every writer. */
+export const isReadonly = computed(() => URL_FORCES_READONLY || canEditFromRoom.value === false);
 // Mirror read-only into the telemetry label (see setRole). Nothing demotes a
 // session after `parseViewParam` today, so an effect buys only that this keeps
 // holding if something ever does.
@@ -239,7 +246,6 @@ function parseViewParam(): boolean {
   const projectMatch = location.pathname.match(/^\/p\/([A-Za-z0-9_-]+)$/);
   if (!viewParam && projectMatch) {
     projectId.value = projectMatch[1];
-    isReadonly.value = params.get('readonly') === '1';
     const pageParam = parseInt(params.get('page') ?? '0', 10);
     currentPageIdx.value = Number.isFinite(pageParam) && pageParam >= 0 ? pageParam : 0;
     return true;
@@ -249,7 +255,6 @@ function parseViewParam(): boolean {
   const pathMatch = location.pathname.match(/^\/s\/([A-Za-z0-9_-]+)$/);
   if (!viewParam && pathMatch) {
     annotationId.value = pathMatch[1];
-    isReadonly.value = params.get('readonly') === '1';
     // url + width will be filled by server init (useRealtimeSync → serverUrl/serverWidth)
     return true;
   }
@@ -268,7 +273,6 @@ function parseViewParam(): boolean {
     if (!originalWidth.value || originalWidth.value <= 0 || Number.isNaN(originalWidth.value))
       originalWidth.value = 1280;
     annotationId.value = meta.substring(eqIdx + 1);
-    isReadonly.value = params.get('readonly') === '1';
     return !!(pageUrl.value && annotationId.value);
   } catch {
     return false;

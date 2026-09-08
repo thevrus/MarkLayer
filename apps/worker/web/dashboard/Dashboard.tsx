@@ -1,13 +1,15 @@
 import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
-import { cn, deletionDeadline, type OwnedLink, RETENTION_DAYS } from '@marklayer/types';
+import { shareUrl } from '@ext/lib/share';
+import { useCopyToClipboard } from '@ext/lib/useCopy';
+import { cn, DAY_SECONDS, deletionDeadline, type OwnedLink, RETENTION_DAYS } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
-import { Check, Copy, Link2, Trash2 } from 'lucide-preact';
-import { useRef } from 'preact/hooks';
+import { Link2, Settings2, Trash2 } from 'lucide-preact';
+import { CopyControl } from '../shared';
 import { APP_MEASURE } from './AppBar';
+import { LinkSettings } from './LinkSettings';
 import { links, linksLoading, releaseLink, user } from './session';
 
-const DAY_SECONDS = 24 * 60 * 60;
 /** Where the expiry stops being background information and starts being news. */
 const SOON_DAYS = 7;
 /** And where it stops being news and becomes the last thing you can do about it. */
@@ -72,103 +74,117 @@ const CONFIRM_LAST = 'mx-0 -mr-1.5';
 /** 44px on touch, back to the 28px row control from `sm` up. Mirrors `shared.tsx`. */
 const ROW_CTL = 'size-11 sm:size-7';
 
-/** Copy, and say so. Without a toast anywhere in the app, the control confirms itself. */
+/** Copy, and say so: the flash is the confirmation, and a failed write toasts instead. */
 function CopyButton({ id }: { id: string }) {
-  const copied = useSignal(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const { copied, copy } = useCopyToClipboard({ resetMs: 1600 });
   return (
-    <button
-      type="button"
-      aria-label={copied.value ? 'Link copied' : 'Copy link'}
-      class={cn(
-        geist.ctlSm,
-        geist.ctlIdle,
-        ROW_CTL,
-        copied.value && 'text-(--ds-green-700) hover:text-(--ds-green-700)',
-      )}
-      onClick={() => {
-        void navigator.clipboard.writeText(`${location.origin}/s/${id}`);
-        copied.value = true;
-        clearTimeout(timer.current);
-        timer.current = setTimeout(() => {
-          copied.value = false;
-        }, 1600);
-      }}
-    >
-      {copied.value ? (
-        <Check size={14} strokeWidth={1.5} aria-hidden="true" />
-      ) : (
-        <Copy size={14} strokeWidth={1.5} aria-hidden="true" />
-      )}
-      <span role="status" class="sr-only">
-        {copied.value ? 'Link copied' : ''}
-      </span>
-    </button>
+    <CopyControl
+      copied={copied.value}
+      onClick={() => copy(shareUrl({ origin: location.origin, kind: 'page', id, ref: 'dash' }))}
+      size={14}
+      strokeWidth={1.5}
+      class={cn(geist.ctlSm, ROW_CTL)}
+    />
   );
 }
 
 function LinkRow({ link }: { link: OwnedLink }) {
-  const confirming = useSignal(false);
+  // One signal, not two booleans — the states were already mutually exclusive
+  // by convention; this makes it structural.
+  const mode = useSignal<'idle' | 'confirming' | 'settings'>('idle');
   const left = daysLeft(link);
   const path = pathOf(link.url);
   return (
-    <li class="group relative flex items-center gap-3 px-4 py-3.5 transition-colors duration-150 hover:bg-(--ds-gray-alpha-100)">
-      <div class="min-w-0 flex-1">
-        {/* The stretched pseudo-element makes the whole row the link, which is
-            why the actions beside it are positioned: later in the DOM and also
-            positioned, so they stack above the overlay without a z-index. */}
-        <a
-          href={`/s/${link.id}`}
-          class="text-ui tracking-ui block truncate font-medium text-(--ds-gray-1000) no-underline after:absolute after:inset-0 group-hover:underline"
-        >
-          {hostOf(link.url)}
-          {path ? <span class="font-normal text-(--ds-gray-900)">{path}</span> : null}
-        </a>
-        {/* Wraps on a narrow screen rather than truncating: the row already
-            gives the title the ellipsis, and an expiry cut to "in 89 da…" is
-            the one number on the line worth reading. */}
-        <p class="text-meta mt-1 text-(--ds-gray-900) sm:truncate">
-          <span class="tabular-nums whitespace-nowrap">Opened {whenText(link.lastAccessedAt)}</span>
-          <span class="px-1.5" aria-hidden="true">
-            ·
-          </span>
-          <span class={cn('tabular-nums whitespace-nowrap', expiryTone(left))}>
-            {left === 0 ? 'Expires today' : `Expires in ${left} ${left === 1 ? 'day' : 'days'}`}
-          </span>
-        </p>
+    <li class="px-4 py-3.5 transition-colors duration-150 hover:bg-(--ds-gray-alpha-100)">
+      {/* `group` sits on the title row, not the <li>: hovering a toggle in the
+          settings panel below should not underline the link above it. */}
+      <div class="group relative flex items-center gap-3">
+        <div class="min-w-0 flex-1">
+          {/* The stretched pseudo-element makes the whole row the link, which is
+              why the actions beside it are positioned: later in the DOM and also
+              positioned, so they stack above the overlay without a z-index. */}
+          <a
+            href={`/s/${link.id}`}
+            class="text-ui tracking-ui block truncate font-medium text-(--ds-gray-1000) no-underline after:absolute after:inset-0 group-hover:underline"
+          >
+            {hostOf(link.url)}
+            {path ? <span class="font-normal text-(--ds-gray-900)">{path}</span> : null}
+          </a>
+          {/* Wraps on a narrow screen rather than truncating: the row already
+              gives the title the ellipsis, and an expiry cut to "in 89 da…" is
+              the one number on the line worth reading. */}
+          <p class="text-meta mt-1 text-(--ds-gray-900) sm:truncate">
+            <span class="tabular-nums whitespace-nowrap">Opened {whenText(link.lastAccessedAt)}</span>
+            <span class="px-1.5" aria-hidden="true">
+              ·
+            </span>
+            <span class={cn('tabular-nums whitespace-nowrap', expiryTone(left))}>
+              {left === 0 ? 'Expires today' : `Expires in ${left} ${left === 1 ? 'day' : 'days'}`}
+            </span>
+            {link.access === 'view' && (
+              <>
+                <span class="px-1.5" aria-hidden="true">
+                  ·
+                </span>
+                <span class="whitespace-nowrap">View only</span>
+              </>
+            )}
+          </p>
+        </div>
+        <div class="relative flex shrink-0 items-center gap-1">
+          {mode.value === 'confirming' ? (
+            <>
+              <button type="button" class={cn(geist.actionBtn, CONFIRM_BTN)} onClick={() => void releaseLink(link.id)}>
+                Remove
+              </button>
+              <button
+                type="button"
+                class={cn(geist.actionBtn, geist.ctlIdle, CONFIRM_LAST)}
+                onClick={() => {
+                  mode.value = 'idle';
+                }}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <CopyButton id={link.id} />
+              <button
+                type="button"
+                aria-label="Link settings"
+                aria-expanded={mode.value === 'settings'}
+                class={cn(
+                  geist.ctlSm,
+                  geist.ctlIdle,
+                  ROW_CTL,
+                  mode.value === 'settings' && 'bg-(--ds-gray-alpha-100) text-(--ds-gray-1000)',
+                )}
+                onClick={() => {
+                  mode.value = mode.value === 'settings' ? 'idle' : 'settings';
+                }}
+              >
+                <Settings2 size={14} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Remove from your links"
+                class={cn(geist.ctlSm, geist.ctlIdle, ROW_CTL, 'hover:text-(--ds-red-700)')}
+                onClick={() => {
+                  mode.value = 'confirming';
+                }}
+              >
+                <Trash2 size={14} strokeWidth={1.5} aria-hidden="true" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
-      <div class="relative flex shrink-0 items-center gap-1">
-        {confirming.value ? (
-          <>
-            <button type="button" class={cn(geist.actionBtn, CONFIRM_BTN)} onClick={() => void releaseLink(link.id)}>
-              Remove
-            </button>
-            <button
-              type="button"
-              class={cn(geist.actionBtn, geist.ctlIdle, CONFIRM_LAST)}
-              onClick={() => {
-                confirming.value = false;
-              }}
-            >
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            <CopyButton id={link.id} />
-            <button
-              type="button"
-              aria-label="Remove from your links"
-              class={cn(geist.ctlSm, geist.ctlIdle, ROW_CTL, 'hover:text-(--ds-red-700)')}
-              onClick={() => {
-                confirming.value = true;
-              }}
-            >
-              <Trash2 size={14} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-          </>
-        )}
-      </div>
+      {mode.value === 'settings' && (
+        <div class="border-t border-(--ds-gray-alpha-400) pt-3">
+          <LinkSettings link={link} />
+        </div>
+      )}
     </li>
   );
 }

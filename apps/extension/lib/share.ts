@@ -140,8 +140,16 @@ export function isLikelyEmbedHostile(url: string = window.location.href): boolea
   }
 }
 
-/** Save ops to server. Returns true on success. */
-export async function saveAnnotations(ops: DrawOp[]): Promise<boolean> {
+/**
+ * Why a save failed, because the two need different words. `view-only` is the
+ * owner having set the link so only they may write (the API answers 403); it is
+ * a settled state no retry fixes, unlike a network blip or a 500.
+ */
+export type SaveFailure = 'view-only' | 'error';
+export type SaveResult = { ok: true } | { ok: false; reason: SaveFailure };
+
+/** Save ops to server. */
+export async function saveAnnotations(ops: DrawOp[]): Promise<SaveResult> {
   const id = getRoomId();
   try {
     const url = window.location.href.split('#')[0];
@@ -151,11 +159,14 @@ export async function saveAnnotations(ops: DrawOp[]): Promise<boolean> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ops, url, width }),
     });
+    // Not an error worth logging: the server did answer, and it answered that
+    // this link does not take writes.
+    if (res.status === 403) return { ok: false, reason: 'view-only' };
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return true;
+    return { ok: true };
   } catch (e) {
     console.error('Error saving annotations:', e);
-    return false;
+    return { ok: false, reason: 'error' };
   }
 }
 
