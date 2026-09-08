@@ -245,6 +245,7 @@ app.all('/s/:id/mcp', async (c) => {
     roomId: id,
     apiBase: new URL(c.req.url).origin,
     agentId: c.req.query('agent') ?? 'agent',
+    env: c.env,
   });
 });
 

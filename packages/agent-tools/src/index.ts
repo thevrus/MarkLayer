@@ -33,6 +33,11 @@ import { z } from 'zod/mini';
 export interface ToolSpec {
   name: string;
   description: string;
+  /**
+   * Only the Worker can serve this one. Advertising it over stdio would offer a
+   * tool that always answers with an error, which is worse than not offering it.
+   */
+  remoteOnly?: boolean;
   inputSchema: {
     type: 'object';
     properties?: Record<string, unknown>;
@@ -227,6 +232,19 @@ export function fail(parseError: { issues: { path: PropertyKey[]; message: strin
 }
 
 export const TOOLS: ToolSpec[] = [
+  {
+    name: 'marklayer_read_page',
+    remoteOnly: true,
+    description:
+      'Read the page this room annotates — its headings, paragraphs, links, buttons and labels, each with the CSS ' +
+      'selector and tag that locate it. Call this FIRST when asked to review, audit or improve a page and no ' +
+      'annotations exist yet: without it you can only answer feedback someone else left, never find anything ' +
+      'yourself. Every entry is already in the shape marklayer_suggest_edit and marklayer_create_annotation take, ' +
+      'so pass `selector`, `tag` and `markdown` straight through to anchor a mark to the element you are talking ' +
+      'about. If the answer says the page renders client-side, the copy is not in the HTML and you should say so ' +
+      'rather than review an empty shell.',
+    inputSchema: { type: 'object', additionalProperties: false, properties: {} },
+  },
   {
     name: 'marklayer_connect_room',
     description: 'Connect to a MarkLayer room (annotation session) by URL or bare room id. Disconnects any prior room.',
@@ -456,6 +474,25 @@ export const toolSchemaFor = (name: string): ToolSpec['inputSchema'] | undefined
 
 type Awaitable<T> = T | Promise<T>;
 
+/** One text-bearing element, in the shape the write tools already take. */
+export interface PageEntry {
+  selector: string;
+  tag: string;
+  text: string;
+  /** The same snapshot a human's Inspect comment carries — pass it straight to a write tool. */
+  markdown: string;
+}
+
+/** What `marklayer_read_page` answers with. */
+export interface PageReading {
+  url: string;
+  title: string | null;
+  entries: PageEntry[];
+  /** The document rendered client-side: this is the shell, not the copy. Say so rather than audit nothing. */
+  clientRendered: boolean;
+  truncated: boolean;
+}
+
 /** Room facts an agent asks for before doing anything else. */
 export interface RoomMeta {
   url: string | null;
@@ -491,6 +528,13 @@ export interface WatchEvent {
  */
 export interface RoomOps {
   readonly roomId: string;
+  /**
+   * The page's own copy, so an agent can review it rather than only react to
+   * annotations someone already left. `null` when this transport cannot fetch —
+   * the SSRF guard and the blocked-host relay live in the Worker, and neither
+   * belongs in a CLI on someone's laptop.
+   */
+  readPage?(): Promise<PageReading | null>;
   readonly viewOnly: boolean;
   getMeta(): RoomMeta;
   /** An error to return instead of acting, when the connection cannot carry a write. */
@@ -543,6 +587,19 @@ export async function callRoomTool({
   };
 
   switch (name) {
+    case 'marklayer_read_page': {
+      if (!room.readPage) return err('this connection cannot read the page — use the remote MCP endpoint');
+      const page = await room.readPage();
+      if (!page) return err('could not read the page — it may be unreachable or not HTML');
+      if (page.clientRendered) {
+        return ok({
+          ...page,
+          note: 'This page renders client-side, so only its shell was served. The copy is not in the HTML — ask a human to annotate the parts you should review, or use a browser tool if you have one.',
+        });
+      }
+      return ok(page);
+    }
+
     case 'marklayer_room_info':
       return ok({ roomId: room.roomId, ...room.getMeta() });
 
@@ -700,3 +757,7 @@ export function classifyOp({
   const mine = parent.author === agentId || parent.assignedAgent === agentId || parent.assignee === agentId;
   return named || mine ? { kind: 'handoff', op: parent, reply } : null;
 }
+
+/** What a transport should advertise. stdio cannot fetch a page; the Worker can. */
+export const toolsFor = ({ remote }: { remote: boolean }): ToolSpec[] =>
+  remote ? TOOLS : TOOLS.filter((tool) => !tool.remoteOnly);

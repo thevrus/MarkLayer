@@ -133,3 +133,35 @@ describe('describedSchema', () => {
     expect(schema['~standard'].validate({ anything: true })).toEqual({ value: { anything: true } });
   });
 });
+
+describe('marklayer_read_page', () => {
+  const page = {
+    url: 'https://example.com',
+    title: 'Pets',
+    entries: [{ selector: '#root > h1:nth-of-type(1)', tag: 'h1', text: 'Your pets', markdown: '`<h1>` Your pets' }],
+    truncated: false,
+  };
+
+  test('says so plainly when the transport cannot fetch', async () => {
+    const result = await run('marklayer_read_page', {});
+    expect(result?.isError).toBe(true);
+    expect(body(result).error).toContain('remote MCP endpoint');
+  });
+
+  test('hands back entries shaped for the write tools', async () => {
+    const room = fakeRoom({ readPage: async () => ({ ...page, clientRendered: false }) });
+    const read = body(await run('marklayer_read_page', {}, room));
+    expect(read.entries[0]).toMatchObject({ selector: '#root > h1:nth-of-type(1)', tag: 'h1', text: 'Your pets' });
+    expect(read.note).toBeUndefined();
+  });
+
+  test('warns rather than lets an agent audit an empty shell', async () => {
+    const room = fakeRoom({ readPage: async () => ({ ...page, entries: [], clientRendered: true }) });
+    expect(body(await run('marklayer_read_page', {}, room)).note).toContain('renders client-side');
+  });
+
+  test('reports an unreadable page instead of returning nothing', async () => {
+    const room = fakeRoom({ readPage: async () => null });
+    expect((await run('marklayer_read_page', {}, room))?.isError).toBe(true);
+  });
+});

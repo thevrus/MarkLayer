@@ -214,9 +214,31 @@ export const targetElementSchema = z.object({
 });
 export type TargetElement = z.infer<typeof targetElementSchema>;
 
-/** Collapse runs of whitespace to a single space and trim. */
+/** The handful of entities that actually turn up in copy. */
+const ENTITIES: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&apos;': "'",
+  '&nbsp;': ' ',
+};
+
+/**
+ * Collapse runs of whitespace to a single space, trim, and decode entities.
+ *
+ * The decode matters for the same reason `FINGERPRINT_LEN` is shared: a browser
+ * hands the client `Terms & Conditions`, while the server reads the raw HTML and
+ * would keep `Terms &amp; Conditions`. Two spellings of one label means the text
+ * fallback never resolves the element it was captured from — and an agent gets
+ * asked to review `&amp;`.
+ */
 export function normalizeText(s: string): string {
-  return s.replace(/\s+/g, ' ').trim();
+  return s
+    .replace(/&(?:amp|lt|gt|quot|apos|nbsp|#39);/g, (entity) => ENTITIES[entity] ?? entity)
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
