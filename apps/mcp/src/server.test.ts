@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { areaOpSchema, commentOpSchema, inspectOpSchema, opAnchor, selectionOpSchema } from '@marklayer/types';
-import { mutationErr, parseRoomRef, projectAnnotation } from './server';
+import { mutationErr, parseRoomRef, projectAnnotation, targetFromParts } from './server';
+
+const API_BASE = 'https://marklayer.app';
 
 describe('parseRoomRef', () => {
   test('passes a bare room id through untouched', () => {
@@ -54,7 +56,7 @@ describe('projectAnnotation — comment', () => {
   });
 
   test('carries the position, page url, and target through', () => {
-    expect(projectAnnotation(comment)).toEqual({
+    expect(projectAnnotation(comment, API_BASE)).toEqual({
       id: 'op-1',
       kind: 'comment',
       status: 'open',
@@ -67,6 +69,7 @@ describe('projectAnnotation — comment', () => {
       position: { x: 10, y: 20 },
       url: 'https://example.com/page',
       target: { selector: '#hero button', tag: 'button', markdown: '<button>Buy now</button>' },
+      attachments: [],
     });
   });
 
@@ -82,7 +85,7 @@ describe('projectAnnotation — comment', () => {
       lineWidth: 1,
       ts: 1_700_000_000_000,
     });
-    expect(projectAnnotation(bare)).toEqual({
+    expect(projectAnnotation(bare, API_BASE)).toEqual({
       id: 'op-2',
       kind: 'comment',
       status: 'open',
@@ -95,6 +98,37 @@ describe('projectAnnotation — comment', () => {
       position: { x: 0, y: 0 },
       url: null,
       target: null,
+      attachments: [],
+    });
+  });
+
+  test('resolves attachment ids to fetchable URLs on the room’s own origin', () => {
+    const withAttachments = commentOpSchema.parse({
+      id: 'op-2b',
+      tool: 'comment',
+      num: 3,
+      text: 'see the screenshot',
+      x: 0,
+      y: 0,
+      color: '#000',
+      lineWidth: 1,
+      ts: 1_700_000_000_000,
+      attachments: ['abc123def456ghi789jkl'],
+    });
+    expect(projectAnnotation(withAttachments, API_BASE)).toEqual({
+      id: 'op-2b',
+      kind: 'comment',
+      status: 'open',
+      author: null,
+      assignee: null,
+      assignedAgent: null,
+      mentions: [],
+      ts: 1_700_000_000_000,
+      text: 'see the screenshot',
+      position: { x: 0, y: 0 },
+      url: null,
+      target: null,
+      attachments: ['https://marklayer.app/f/abc123def456ghi789jkl'],
     });
   });
 });
@@ -114,7 +148,7 @@ describe('projectAnnotation — area', () => {
       comment: 'this whole section feels off',
       target: { selector: '.hero', tag: 'section', markdown: '<section>hero</section>' },
     });
-    expect(projectAnnotation(area)).toEqual({
+    expect(projectAnnotation(area, API_BASE)).toEqual({
       id: 'op-3',
       kind: 'area',
       status: 'open',
@@ -144,7 +178,7 @@ describe('projectAnnotation — selection', () => {
       lineWidth: 1,
       target: { selector: 'h1', tag: 'h1', markdown: '<h1>welcome too our site</h1>' },
     });
-    expect(projectAnnotation(selection)).toEqual({
+    expect(projectAnnotation(selection, API_BASE)).toEqual({
       id: 'op-4',
       kind: 'selection',
       status: 'open',
@@ -171,7 +205,7 @@ describe('projectAnnotation — selection', () => {
       color: '#0000ff',
       lineWidth: 1,
     });
-    expect(projectAnnotation(selection)).toEqual({
+    expect(projectAnnotation(selection, API_BASE)).toEqual({
       id: 'op-5',
       kind: 'selection',
       status: 'open',
@@ -205,7 +239,7 @@ describe('projectAnnotation — inspect', () => {
       color: '#000000',
       lineWidth: 1,
     });
-    const projected = projectAnnotation(inspect);
+    const projected = projectAnnotation(inspect, API_BASE);
     expect(projected).toEqual({
       id: 'op-6',
       kind: 'inspect',
@@ -275,6 +309,26 @@ describe('opAnchor', () => {
       rect: { x: 3, y: 4, width: 10, height: 10 },
     });
     expect(opAnchor(op)).toEqual({ x: 3, y: 4 });
+  });
+});
+
+describe('targetFromParts', () => {
+  test('builds a target when all three parts are given', () => {
+    expect(targetFromParts({ selector: '.card', tag: 'div', markdown: '<div class="card">' })).toEqual({
+      selector: '.card',
+      tag: 'div',
+      markdown: '<div class="card">',
+    });
+  });
+
+  test('is undefined when none are given', () => {
+    expect(targetFromParts({})).toBeUndefined();
+  });
+
+  // CreateInput's schema-level refine is what actually rejects a partial triple
+  // at the tool boundary; this only covers the builder's own fallback.
+  test('is undefined given only a partial triple', () => {
+    expect(targetFromParts({ selector: '.card' })).toBeUndefined();
   });
 });
 

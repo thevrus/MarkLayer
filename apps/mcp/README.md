@@ -2,17 +2,35 @@
 
 MCP (Model Context Protocol) server that bridges [MarkLayer](https://marklayer.app) annotations to AI coding agents.
 
-When users annotate any webpage with MarkLayer, your agent receives the comments as a structured work queue: it can acknowledge, resolve, dismiss, and reply to each one — and the human sees the status updates live.
+When users annotate any webpage with MarkLayer, your agent receives the comments as a structured work queue: it can acknowledge, resolve, dismiss, and reply to each one — and the human sees the status updates live. It also works the other way: point an agent at a room and ask it to review the page, and it can leave its own comments and copy-edit suggestions for the human to triage.
 
 ## Install
 
+A standard stdio MCP server — no Claude-specific wiring, works with any MCP client (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, etc.).
+
 ```bash
-# Add to Claude Code:
+# Claude Code:
 claude mcp add marklayer -- npx -y marklayer-mcp
 
 # Or pre-connect to a specific room:
 claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123
 ```
+
+For any other MCP client, add a stdio server entry pointing at the same command (adjust the config file/key to your client — Cursor's `~/.cursor/mcp.json`, Windsurf's `mcp_config.json`, VS Code's `.vscode/mcp.json`, etc.):
+
+```json
+{
+  "mcpServers": {
+    "marklayer": {
+      "command": "npx",
+      "args": ["-y", "marklayer-mcp"],
+      "env": { "MARKLAYER_AGENT": "cursor" }
+    }
+  }
+}
+```
+
+Set `MARKLAYER_AGENT` (or `--agent`) to identify which agent this is — it's what humans see as the comment author and the "assigned to" badge, so a non-Claude client should not leave it at the default.
 
 ## Usage
 
@@ -35,6 +53,8 @@ The agent will call `marklayer_watch_annotations` in a loop and process incoming
 | `marklayer_resolve` | Mark resolved, optionally posting a reply with the summary. |
 | `marklayer_dismiss` | Mark dismissed with a reason the human will see. |
 | `marklayer_reply` | Post a reply without changing status (e.g. clarifying questions). |
+| `marklayer_create_annotation` | Leave a new comment yourself — proactive feedback rather than a response. |
+| `marklayer_suggest_edit` | Propose an exact copy/grammar fix for a piece of text, as a diff the human can accept. |
 
 ## Options
 

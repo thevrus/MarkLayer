@@ -298,7 +298,8 @@ export type CommentStatus = z.infer<typeof commentStatusSchema>;
  * notes, selection notes, element-inspector handoffs). Absent = no priority set.
  * Ordered low → urgent; the renderer maps each level to a color + signal icon.
  */
-export const commentPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent']);
+export const COMMENT_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+export const commentPrioritySchema = z.enum(COMMENT_PRIORITIES);
 export type CommentPriority = z.infer<typeof commentPrioritySchema>;
 
 export const commentMetaSchema = z.object({
