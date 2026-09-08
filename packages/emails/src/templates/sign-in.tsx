@@ -21,7 +21,7 @@ export default function SignIn() {
       <Text className="m-0 mt-8 text-[13px] leading-[20px] text-[#8f8f8f]">
         Or paste this address into your browser:
         <br />
-        <span className="break-all text-[#4d4d4d]">{PLACEHOLDER.link}</span>
+        <span className="break-all font-mono text-[12px] text-[#4d4d4d]">{PLACEHOLDER.link}</span>
       </Text>
       <Text className="m-0 mt-5 text-[13px] leading-[20px] text-[#8f8f8f]">
         If you did not ask to sign in, ignore this email and nothing will happen.
