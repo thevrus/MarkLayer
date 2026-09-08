@@ -1,6 +1,7 @@
 {
   "name": "marklayer-mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
+  "mcpName": "io.github.thevrus/marklayer",
   "description": "MCP server that bridges MarkLayer annotations to AI coding agents.",
   "type": "module",
   "license": "MIT",
@@ -19,7 +20,7 @@
     "coding-agent"
   ],
   "bin": {
-    "marklayer-mcp": "./dist/cli.js"
+    "marklayer-mcp": "dist/cli.js"
   },
   "files": [
     "dist",
