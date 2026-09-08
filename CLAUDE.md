@@ -36,6 +36,17 @@ cd apps/worker && bun dev          # Vite + Wrangler together
 cd apps/worker && bun run build    # vite build, then `embed:site` copies apps/site/dist into public/client
 cd apps/worker && bun run deploy   # Build + `wrangler deploy`
 
+# D1 schema changes — write a new file in apps/worker/migrations/, then:
+cd apps/worker && bunx wrangler d1 migrations apply marklayer --local   # dev DB
+cd apps/worker && bun run migrations:bootstrap -- --remote               # prod, ONCE, BEFORE the first apply:
+                                                                         # records the migrations prod already
+                                                                         # has by hand. Dry run; add --apply to
+                                                                         # write. See the migrations note below
+cd apps/worker && bunx wrangler d1 migrations apply marklayer --remote  # prod — `migrations` subcommands
+                                                                         # resolve via wrangler.jsonc's
+                                                                         # database_name, unlike `d1 execute`
+                                                                         # (see below), so "marklayer" is right here
+
 # Marketing site only
 cd apps/site && bun dev            # astro dev
 cd apps/site && bun run build      # astro build → dist/
@@ -70,7 +81,7 @@ apps/worker/        # CF Worker API + web app (Hono + Vite + Preact)
                     # og.ts + og-card.ts + og-marks.ts (share cards), posthog.ts
   web/              # Web app UI (Landing, Viewer, Web* layer components,
                     # useRealtimeSync, useVoiceRoom, signals)
-  schema.sql        # D1 database schema
+  migrations/       # D1 schema, as ordered `wrangler d1 migrations` files
   wrangler.jsonc    # Worker bindings (D1, DO, R2) + `assets.run_worker_first`
 apps/site/          # Astro static marketing/SEO site (marklayer.app content pages)
   src/content/      # Markdown collections: compare/, alternatives/, use-cases/
@@ -132,3 +143,4 @@ packages/types/     # Shared types & Zod schemas (DrawOp union incl. guide/inspe
 - **Marketing page cards**: `/og/page.png?h=<heading>&p=<path>` draws a card for one content page — its h1 set large, with a pen stroke under the operative word and a comment pinned to it, which is the product performed on the page's own words. `og-page-card.ts` is pure like `og-card.ts`; `og-svg.ts` holds what both share (the mark, the axes, the tones, the separator). The heading travels in the query because `apps/site` is prerendered and the Worker has no copy of its content, so the text is caller-supplied and escaped — the same exposure `?domain=` already carries. Wired in via `pageOgImage()` in `apps/site/src/lib/site.ts` and the `ogImage` prop on `BaseHead`; `ArticleLayout` covers all 55 content pages, and `/` keeps its bespoke `og.jpg`. The heading is measured, not estimated: `build-og-fonts.py` emits Geist bold's real advance widths beside the TTFs, because a guessed width puts the stroke under the wrong word.
 - **MCP integration**: `apps/mcp` exposes annotation rooms as MCP tools (`marklayer_watch_annotations`, `acknowledge`, `resolve`, `reply`, …) so an agent can poll a room and act on comments while the human sees live status.
 - **Cleanup**: daily cron (3 AM UTC, configured in `wrangler.jsonc`) deletes annotations 90 days after their last access, plus any past an explicit `expires_at`.
+- **D1 migrations, and the one-time bootstrap prod still needs**: `migrations/` replaced a hand-maintained `schema.sql` whose `ALTER TABLE`s were applied to production by hand — the deleted file recorded `integrations` as done on 2026-09-03 and carried copy-paste instructions for `owner_id`, so prod holds at least the first and possibly the second; nothing records which. It has never held wrangler's `d1_migrations` bookkeeping table, so a first `migrations apply --remote` would treat 0001–0006 as unapplied and die on 0002 with "duplicate column name": SQLite has no `ADD COLUMN IF NOT EXISTS`, which is why only 0001 is safe to re-run. `scripts/bootstrap-migrations.mjs` (`bun run migrations:bootstrap -- --remote`) closes that gap once — it reads the live schema, decides which files are already satisfied from the columns and tables that exist rather than from those dates, refuses to act if the schema looks inconsistent, prints a plan, and writes only with `--apply`. Run it before the first remote apply; it is idempotent, so a second run is a no-op. Two names for one database: `d1 execute` needs Cloudflare's registered name `annotateweb` (what the script defaults to for `--remote`), while every `d1 migrations` subcommand resolves `database_name` from `wrangler.jsonc` and so wants `marklayer`.

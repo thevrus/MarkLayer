@@ -11,6 +11,7 @@
     "deploy": "wrangler deploy",
     "check": "tsc --noEmit",
     "sync:shell": "node scripts/sync-shell.mjs",
+    "migrations:bootstrap": "node scripts/bootstrap-migrations.mjs",
     "test": "bun test src web"
   },
   "dependencies": {
