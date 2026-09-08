@@ -540,22 +540,6 @@
      the whole case the copy makes. It is a background rather than an <img>
      because it has nothing to say to a screen reader, and a missing file then
      degrades to the sky tone instead of a broken-image glyph. */
-  /* A comparison page's optional embedded demo. Same aspect-ratio-plus-max-width
-     shape as .ml-park, at the prose measure so it never outgrows the copy around
-     it — the video is evidence for the page's claim, not a hero graphic, and it
-     gets no fake browser chrome (see the CLAUDE anti-slop notes on faux app
-     windows). The iframe fills the ratio box rather than carrying its own
-     width/height so a missing id degrades to an empty rounded frame, not a
-     0-height gap. */
-  .ml-video {
-    @apply mb-10 overflow-hidden rounded-xl bg-sunken;
-    aspect-ratio: 16 / 9;
-    max-width: var(--container-column);
-  }
-  .ml-video iframe {
-    @apply size-full border-0;
-  }
-
   .ml-park {
     aspect-ratio: 760 / 279;
     /* The prose measure exactly: 560px is where every paragraph on this site
