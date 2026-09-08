@@ -43,6 +43,7 @@ export const cn = createCn({
     },
   },
 });
+export { postBody, postJson } from './http';
 export type { FetchableUrl, UnfetchableReason } from './net';
 export { isBlockedHost, isPrivateAddress, parseFetchableUrl } from './net';
 
