@@ -969,6 +969,14 @@ export const errorResponseSchema = z.object({ error: z.string() });
  */
 export const signInRequestSchema = z.object({ email: z.string() });
 
+/**
+ * What `POST /auth/links/:id/invite` takes. `url` is the exact link the
+ * popover already shows for copying, so `z.url()` only proves it parses —
+ * the route still checks it shares the request's own origin before mailing
+ * it, since that part depends on runtime request state Zod has no access to.
+ */
+export const inviteRequestSchema = z.object({ email: z.string(), url: z.url() });
+
 /** What `POST /f` answers with, parsed by the caller rather than read field by field. */
 export const uploadResponseSchema = z.object({ id: z.string(), url: z.string() });
 

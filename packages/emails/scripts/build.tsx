@@ -12,6 +12,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pixelBasedPreset, Tailwind } from '@react-email/components';
 import { render } from '@react-email/render';
+import Invite from '../src/templates/invite';
+import * as inviteMeta from '../src/templates/invite.meta';
 import SignIn from '../src/templates/sign-in';
 import * as signInMeta from '../src/templates/sign-in.meta';
 
@@ -59,7 +61,10 @@ async function appColors(): Promise<Record<string, string>> {
   return colors;
 }
 
-const templates = [{ meta: signInMeta, component: SignIn, constant: 'SIGN_IN_HTML' }];
+const templates = [
+  { meta: signInMeta, component: SignIn, constant: 'SIGN_IN_HTML' },
+  { meta: inviteMeta, component: Invite, constant: 'INVITE_HTML' },
+];
 
 const colors = await appColors();
 

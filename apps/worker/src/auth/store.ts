@@ -1,6 +1,6 @@
 import type { LinkAccess, OwnedLink } from '@marklayer/types';
 import { nanoid } from 'nanoid';
-import { isExpired, nowInSeconds, parseLinkAccess } from '../store';
+import { isExpired, nowInSeconds, parseLinkAccess, throttleRemaining } from '../store';
 import { hashToken } from './tokens';
 import { LOGIN_TOKEN_TTL_SECONDS, SESSION_TTL_SECONDS, type User } from './types';
 
@@ -14,7 +14,7 @@ export function authStore(db: D1Database) {
     /**
      * Records a pending sign-in. Returns the seconds until the caller may ask
      * again, or 0 when the request should proceed: one unredeemed link per
-     * address per minute, so a form left on repeat cannot drain the send quota
+     * address per window, so a form left on repeat cannot drain the send quota
      * or bury someone's inbox.
      */
     async throttleSeconds(email: string): Promise<number> {
@@ -24,9 +24,7 @@ export function authStore(db: D1Database) {
         )
         .bind(email)
         .first<{ created_at: number }>();
-      if (!row) return 0;
-      const elapsed = nowInSeconds() - row.created_at;
-      return elapsed >= 60 ? 0 : 60 - elapsed;
+      return throttleRemaining(row?.created_at);
     },
 
     async createLoginToken({ email, token }: { email: string; token: string }): Promise<void> {

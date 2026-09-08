@@ -2,6 +2,7 @@ import {
   errorResponseSchema,
   type OwnedLink,
   ownedLinksResponseSchema,
+  postJson,
   resolveOwnerExpiresAt,
   type SessionUser,
   sessionResponseSchema,
@@ -53,16 +54,29 @@ export async function loadLinks(): Promise<void> {
   linksLoading.value = false;
 }
 
+/** The message to show for a POST that failed or never left, or null when it succeeded. */
+async function errorFrom(res: Response | null): Promise<string | null> {
+  if (res?.ok) return null;
+  const parsed = errorResponseSchema.safeParse(res ? await readJson(res) : null);
+  return parsed.success ? parsed.data.error : 'Something went wrong. Try again.';
+}
+
 /** Returns an error message, or null when the link is on its way. */
 export async function requestSignIn(email: string): Promise<string | null> {
-  const res = await fetch('/auth/request', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
-  });
-  if (res.ok) return null;
-  const parsed = errorResponseSchema.safeParse(await readJson(res));
-  return parsed.success ? parsed.data.error : 'Something went wrong. Try again.';
+  return errorFrom(await postJson('/auth/request', { email }));
+}
+
+/** Returns an error message, or null when the invite is on its way. */
+export async function inviteToLink({
+  id,
+  email,
+  url,
+}: {
+  id: string;
+  email: string;
+  url: string;
+}): Promise<string | null> {
+  return errorFrom(await postJson(`/auth/links/${encodeURIComponent(id)}/invite`, { email, url }));
 }
 
 export async function signOut(): Promise<void> {

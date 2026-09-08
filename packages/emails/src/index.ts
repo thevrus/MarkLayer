@@ -1,4 +1,5 @@
-import { SIGN_IN_HTML } from './generated';
+import { INVITE_HTML, SIGN_IN_HTML } from './generated';
+import * as invite from './templates/invite.meta';
 import * as signIn from './templates/sign-in.meta';
 
 /**
@@ -23,6 +24,14 @@ export const signInEmail: RenderedTemplate<'link'> = {
   html: SIGN_IN_HTML,
   text: signIn.text,
   placeholders: signIn.PLACEHOLDER,
+};
+
+export const inviteEmail: RenderedTemplate<'link'> = {
+  id: invite.id,
+  subject: invite.subject,
+  html: INVITE_HTML,
+  text: invite.text,
+  placeholders: invite.PLACEHOLDER,
 };
 
 function escapeHtml(value: string): string {
