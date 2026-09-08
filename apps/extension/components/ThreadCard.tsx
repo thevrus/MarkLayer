@@ -1,12 +1,12 @@
 import { type CommentPriority, cn } from '@marklayer/types';
 import { useCallback, useRef, useState } from 'preact/hooks';
-import { submitBtn, textareaCls, trim } from '../lib/buttons';
+import { composerCls, textareaBareCls, trim } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { pushReply } from '../lib/state';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
-import { AttachmentGallery, AttachmentRow, useAttachments } from './AttachmentPicker';
+import { AttachButton, AttachmentGallery, AttachmentThumbs, useAttachments } from './AttachmentPicker';
 import { MentionText } from './MentionText';
 import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityBadge } from './PriorityPicker';
@@ -162,45 +162,54 @@ export function ReplyComposer({
 
   return (
     <div class="px-3 pt-2 pb-2.5">
-      <MentionTextarea
-        name="reply"
-        taRef={mount}
-        {...mentionProps}
-        placeholder="Reply…"
-        rows={1}
-        class={cn(textareaCls, 'w-full min-h-8 max-h-20', glass.font)}
-        style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            submit();
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            setOpen(false);
-          }
-        }}
-        onPaste={(e) => attachments.onPaste(e)}
-      />
-      <AttachmentRow attachments={attachments} resolveUrl={resolveUrl} />
-      <div class="flex items-center justify-end gap-2 mt-1.5">
-        <button
-          type="button"
-          onClick={() => {
-            attachments.reset();
-            setOpen(false);
+      <div class={composerCls}>
+        <MentionTextarea
+          name="reply"
+          taRef={mount}
+          {...mentionProps}
+          placeholder="Reply…"
+          rows={1}
+          class={cn(textareaBareCls, 'w-full min-h-7 max-h-20 px-2.5 pt-1.5', glass.font)}
+          style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              setOpen(false);
+            }
           }}
-          class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium px-1')}
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={attachments.uploading}
-          class={cn(submitBtn, 'disabled:pointer-events-none disabled:opacity-50')}
-        >
-          Reply
-        </button>
+          onPaste={(e) => attachments.onPaste(e)}
+        />
+        <AttachmentThumbs attachments={attachments} resolveUrl={resolveUrl} class="px-2.5" />
+        <div class="flex items-center justify-between gap-1 px-1.5 pb-1.5 pt-0.5">
+          <AttachButton attachments={attachments} />
+          <div class="flex items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => {
+                attachments.reset();
+                setOpen(false);
+              }}
+              class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium h-6 px-2')}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={submit}
+              disabled={attachments.uploading}
+              class={cn(
+                geist.ctlOn,
+                'inline-flex items-center justify-center h-6 px-2.5 rounded-md border-none cursor-pointer outline-none',
+                'text-meta font-medium disabled:pointer-events-none disabled:opacity-50',
+              )}
+            >
+              Reply
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -59,22 +59,13 @@ export function useAttachments(upload: (file: File | Blob) => Promise<string | n
 
 export type Attachments = ReturnType<typeof useAttachments>;
 
-/**
- * The add-image button plus the thumbnail row it fills. Sits under a composer's
- * textarea; `resolveUrl` turns an upload id into a servable `src`, same
- * extension/web split as `upload` above.
- */
-export function AttachmentRow({
-  attachments,
-  resolveUrl,
-}: {
-  attachments: Attachments;
-  resolveUrl: (id: string) => string;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
+/** The strip both composer layouts lay their thumbs out on. */
+const STRIP = 'flex items-center gap-1.5 flex-wrap mt-1.5';
 
+/** Unwrapped thumbs, so the strip and the strip-plus-button share one copy of the markup. */
+function Thumbs({ attachments, resolveUrl }: { attachments: Attachments; resolveUrl: (id: string) => string }) {
   return (
-    <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+    <>
       {attachments.ids.map((id) => (
         <div key={id} class="relative shrink-0">
           <img
@@ -101,6 +92,40 @@ export function AttachmentRow({
           <Loader2 size={14} class="animate-spin text-(--ds-gray-700)" aria-hidden="true" />
         </div>
       )}
+    </>
+  );
+}
+
+/**
+ * Thumbnail strip for a composer's in-progress attachments. Renders nothing
+ * when there is nothing to show, so a plain-text reply costs it no vertical
+ * space. `resolveUrl` turns an upload id into a servable `src`, same
+ * extension/web split as `upload` above.
+ */
+export function AttachmentThumbs({
+  attachments,
+  resolveUrl,
+  class: className,
+}: {
+  attachments: Attachments;
+  resolveUrl: (id: string) => string;
+  /** Aligns the strip with whatever horizontal inset the surrounding composer uses. */
+  class?: string;
+}) {
+  if (attachments.ids.length === 0 && !attachments.uploading) return null;
+  return (
+    <div class={cn(STRIP, className)}>
+      <Thumbs attachments={attachments} resolveUrl={resolveUrl} />
+    </div>
+  );
+}
+
+/** Bare add-image icon button. Meant to sit inline in a composer's action row, next to Cancel/Reply. */
+export function AttachButton({ attachments }: { attachments: Attachments }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <>
       <button
         type="button"
         disabled={attachments.full}
@@ -122,6 +147,22 @@ export function AttachmentRow({
           input.value = '';
         }}
       />
+    </>
+  );
+}
+
+/** The add-image button plus the thumbnail row it fills, as one unit — for composers that keep it on its own line (`CommentPopover`). */
+export function AttachmentRow({
+  attachments,
+  resolveUrl,
+}: {
+  attachments: Attachments;
+  resolveUrl: (id: string) => string;
+}) {
+  return (
+    <div class={STRIP}>
+      <Thumbs attachments={attachments} resolveUrl={resolveUrl} />
+      <AttachButton attachments={attachments} />
     </div>
   );
 }
@@ -130,7 +171,7 @@ export function AttachmentRow({
 export function AttachmentGallery({ ids, resolveUrl }: { ids: string[]; resolveUrl: (id: string) => string }) {
   if (ids.length === 0) return null;
   return (
-    <div class="flex items-center gap-1.5 flex-wrap mt-1.5">
+    <div class={STRIP}>
       {ids.map((id) => (
         <a key={id} href={resolveUrl(id)} target="_blank" rel="noreferrer" class="shrink-0">
           <img

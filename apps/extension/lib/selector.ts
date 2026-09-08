@@ -1,8 +1,12 @@
-import type { TargetElement } from '@marklayer/types';
+import { FINGERPRINT_LEN, normalizeText, type TargetElement } from '@marklayer/types';
 import { detectFrameworkComponent, type FrameworkComponent } from './fiber-bridge';
 import { scrollOffset } from './scroller';
 
 export type { FrameworkComponent } from './fiber-bridge';
+// Re-exported so every caller keeps reaching the fingerprint pieces through
+// the selector module; they live in @marklayer/types because the Worker
+// builds the same fingerprint server-side and cannot import this file.
+export { FINGERPRINT_LEN, normalizeText };
 
 /**
  * True for any element belonging to MarkLayer's own injected UI. Used by every
@@ -32,13 +36,7 @@ export function pickElementAtPoint(x: number, y: number, doc: Document = documen
   return null;
 }
 
-/** Collapse runs of whitespace to a single space and trim. */
-export function normalizeText(s: string): string {
-  return s.replace(/\s+/g, ' ').trim();
-}
-
 /** Normalized short text fingerprint for fallback element resolution. */
-export const FINGERPRINT_LEN = 50;
 export function textFingerprint(el: Element): string | undefined {
   const raw = el instanceof HTMLElement ? el.innerText : (el.textContent ?? '');
   if (!raw) return undefined;

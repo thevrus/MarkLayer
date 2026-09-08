@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
+import { mutationErr, projectAnnotation, targetFromParts } from '@marklayer/agent-tools';
 import { areaOpSchema, commentOpSchema, inspectOpSchema, opAnchor, selectionOpSchema } from '@marklayer/types';
-import { mutationErr, parseRoomRef, projectAnnotation, targetFromParts } from './server';
+import { parseRoomRef } from './server';
 
 const API_BASE = 'https://marklayer.app';
 
