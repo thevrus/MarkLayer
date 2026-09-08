@@ -3,7 +3,7 @@
   "name": "io.github.thevrus/marklayer",
   "title": "MarkLayer",
   "description": "Work visual annotations on a live webpage: watch, acknowledge, resolve, reply, or leave your own.",
-  "version": "0.1.6",
+  "version": "0.4.0",
   "websiteUrl": "https://marklayer.app",
   "repository": {
     "url": "https://github.com/thevrus/MarkLayer",
@@ -15,7 +15,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "marklayer-mcp",
-      "version": "0.1.6",
+      "version": "0.4.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
