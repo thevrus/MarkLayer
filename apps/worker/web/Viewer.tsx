@@ -7,7 +7,7 @@ import { glass } from '@ext/lib/glass';
 import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify, strokeArrowHead } from '@ext/lib/renderer';
 import { findPageScroller, notePageScroller, scrollOffset, scrollPageBy, scrollPageTo } from '@ext/lib/scroller';
 import { captureTarget } from '@ext/lib/selector';
-import { isLikelyEmbedHostile } from '@ext/lib/share';
+import { isLikelyEmbedHostile, shareUrl } from '@ext/lib/share';
 import {
   activeTool,
   bindFigmaKeys,
@@ -596,10 +596,15 @@ export default function Viewer() {
     // Project share: just copy the /p/:id link — pages are already persisted as the user added them
     const pid = projectId.value;
     if (pid) {
-      let shareUrl = `${location.origin}/p/${pid}`;
-      if (opts?.readonly) shareUrl += '?readonly=1';
+      const link = shareUrl({
+        origin: location.origin,
+        kind: 'project',
+        id: pid,
+        readonly: opts?.readonly,
+        ref: 'web',
+      });
       try {
-        await navigator.clipboard.writeText(shareUrl);
+        await navigator.clipboard.writeText(link);
         toast('Project link copied', 'success');
       } catch {
         toast('Failed to copy link', 'error');
@@ -615,9 +620,8 @@ export default function Viewer() {
     const ow = originalWidth.value || window.innerWidth;
 
     // Copy link immediately so the user gets instant feedback
-    let shareUrl = `${location.origin}/s/${id}`;
-    if (opts?.readonly) shareUrl += '?readonly=1';
-    await navigator.clipboard.writeText(shareUrl);
+    const link = shareUrl({ origin: location.origin, kind: 'page', id, readonly: opts?.readonly, ref: 'web' });
+    await navigator.clipboard.writeText(link);
     toast('Link copied', 'success');
 
     // Save to server in the background
