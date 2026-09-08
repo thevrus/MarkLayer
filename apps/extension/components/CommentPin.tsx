@@ -4,6 +4,7 @@ import { applyAnchorDelta } from '../lib/anchor';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { type ParsedInspectorComment, parseInspectorComment } from '../lib/selector';
+import { fileUrl, uploadFile } from '../lib/share';
 import {
   copyText,
   deleteOp,
@@ -17,6 +18,7 @@ import {
   setOpStatus,
 } from '../lib/state';
 import type { CommentOp } from '../lib/types';
+import { AttachmentGallery } from './AttachmentPicker';
 import { TriageSection, useTriageHold } from './CommentTriage';
 import { MentionText } from './MentionText';
 import { PriorityPin } from './PriorityPicker';
@@ -198,9 +200,10 @@ export function CommentPin({ op }: { op: CommentOp }) {
                   <MentionText text={op.text} mentions={op.mentions} />
                 </p>
               )}
+              {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
             </div>
 
-            <ThreadReplies replies={replies} />
+            <ThreadReplies replies={replies} resolveUrl={fileUrl} />
 
             <div class={cn(geist.divider, 'mx-3')} />
 
@@ -213,7 +216,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
 
             <div class={cn(geist.divider, 'mx-3')} />
 
-            <ReplyComposer parent={op} />
+            <ReplyComposer parent={op} upload={uploadFile} resolveUrl={fileUrl} />
           </div>
         </div>
       </div>

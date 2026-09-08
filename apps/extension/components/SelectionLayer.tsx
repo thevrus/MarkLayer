@@ -8,6 +8,7 @@ import { glass } from '../lib/glass';
 import { useEdgeClamp, useSelectionDismiss } from '../lib/popover';
 import { hexToRgba } from '../lib/renderer';
 import { captureTarget, isExtensionElement } from '../lib/selector';
+import { fileUrl, uploadFile } from '../lib/share';
 import {
   activeTool,
   color,
@@ -177,7 +178,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
               )}
             </div>
 
-            <ThreadReplies replies={getReplies(op.id)} />
+            <ThreadReplies replies={getReplies(op.id)} resolveUrl={fileUrl} />
 
             <div class={cn(geist.divider, 'mx-3')} />
 
@@ -190,7 +191,13 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
 
             <div class={cn(geist.divider, 'mx-3')} />
 
-            {replyAnchor && <ReplyComposer parent={{ id: op.id, x: replyAnchor.x, y: replyAnchor.y }} />}
+            {replyAnchor && (
+              <ReplyComposer
+                parent={{ id: op.id, x: replyAnchor.x, y: replyAnchor.y }}
+                upload={uploadFile}
+                resolveUrl={fileUrl}
+              />
+            )}
           </div>
         </div>
       </div>

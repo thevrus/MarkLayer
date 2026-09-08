@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'preact/hooks';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
+import { fileUrl, uploadFile } from '../lib/share';
 import { activeTool, pushOp, rootComments } from '../lib/state';
 import { CommentPin } from './CommentPin';
 import { CommentPopover } from './CommentPopover';
@@ -45,6 +46,8 @@ export function CommentLayer() {
           })}
           push={pushOp}
           onClose={() => setPopover(null)}
+          upload={uploadFile}
+          resolveUrl={fileUrl}
         />
       )}
     </div>

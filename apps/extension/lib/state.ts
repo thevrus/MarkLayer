@@ -1002,11 +1002,14 @@ export function pushReply({
   parent,
   text,
   mentions,
+  attachments,
 }: {
   /** What the reply hangs off: its id, plus the document point it inherits. */
   parent: { id: string; x: number; y: number };
   text: string;
   mentions?: Mention[];
+  /** Upload ids of screenshots attached to this reply. */
+  attachments?: string[];
 }) {
   const op: CommentOp = {
     id: nanoid(),
@@ -1021,6 +1024,7 @@ export function pushReply({
     parentId: parent.id,
     ...signedBy(),
     mentions: mentions?.length ? mentions : undefined,
+    attachments: attachments?.length ? attachments : undefined,
     meta: getCommentMeta(),
   };
   pushOp(op);

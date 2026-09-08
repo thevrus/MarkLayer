@@ -113,6 +113,11 @@ export const UPLOAD_FORMATS: UploadFormat[] = [
 /** What a file picker offers, derived so it cannot drift from what the sniffer takes. */
 export const UPLOAD_ACCEPT = UPLOAD_FORMATS.map((format) => format.contentType).join(',');
 
+/** The same list narrowed to images, for the pickers that take screenshots rather than documents. */
+export const UPLOAD_IMAGE_ACCEPT = UPLOAD_FORMATS.filter((format) => format.contentType.startsWith('image/'))
+  .map((format) => format.contentType)
+  .join(',');
+
 export const isUploadId = (id: string): boolean => UPLOAD_ID.test(id);
 export const uploadPath = (id: string): string => `/f/${id}`;
 export const isUploadPath = (url: string): boolean => url.startsWith('/f/') && isUploadId(url.slice(3));
@@ -331,6 +336,17 @@ const mentioned = {
   mentions: z.optional(z.array(mentionSchema)),
 };
 
+/** A handful of screenshots makes the point; more than that belongs in a doc, not a reply. */
+export const MAX_ATTACHMENTS = 4;
+
+/**
+ * Upload ids (see `isUploadId`/`uploadPath`) of images attached to a comment or reply.
+ * Capped here, not only in the picker: this is what the Durable Object validates every op against.
+ */
+const attachable = {
+  attachments: z.optional(z.array(z.string().check(z.refine(isUploadId))).check(z.maxLength(MAX_ATTACHMENTS))),
+};
+
 /** A run of comment text, either plain or one resolved `@mention`. */
 export interface MentionSegment {
   text: string;
@@ -399,6 +415,7 @@ export const commentOpSchema = z.object({
   ...anchorable,
   ...triageable,
   ...mentioned,
+  ...attachable,
   tool: z.literal('comment'),
   num: z.number(),
   text: z.string(),

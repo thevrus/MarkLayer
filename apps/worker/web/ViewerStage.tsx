@@ -19,6 +19,7 @@ import {
   deviceComments,
   deviceMode,
   deviceSelections,
+  fileUrl,
   iframeScrollY,
   isReadonly,
   originalWidth,
@@ -26,6 +27,7 @@ import {
   pushDeviceOp,
   selectionPopover,
   textInput,
+  uploadFile,
 } from './signals';
 import { DockedInfoPanel, InfoPanel } from './ViewerInfoPanel';
 import { useViewerFrame } from './viewerFrame';
@@ -383,6 +385,8 @@ function PendingComment({ frameRef }: { frameRef: { current: HTMLIFrameElement |
       onClose={() => {
         commentPopover.value = null;
       }}
+      upload={uploadFile}
+      resolveUrl={fileUrl}
     />
   );
 }

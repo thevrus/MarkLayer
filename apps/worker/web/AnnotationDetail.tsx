@@ -1,3 +1,4 @@
+import { AttachmentGallery, AttachmentRow, useAttachments } from '@ext/components/AttachmentPicker';
 import { Avatar } from '@ext/components/Avatar';
 import { TriageSection } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
@@ -36,7 +37,7 @@ import {
   stringField,
 } from './integrations';
 import { DEVICE_LABELS } from './shared';
-import { API_BASE, annotationId } from './signals';
+import { API_BASE, annotationId, fileUrl, uploadFile } from './signals';
 
 /** Local time, spelled out — the detail view has the room the list row does not. */
 const stamp = (ts: number) =>
@@ -170,12 +171,14 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
   const replyRef = useRef<HTMLTextAreaElement>(null);
   const { mentionProps, mentions } = useMentions();
   const replies = getReplies(op.id);
+  const attachments = useAttachments(uploadFile);
 
   const submit = () => {
     const text = replyRef.current?.value.trim();
-    if (!text) return;
-    pushReply({ parent: op, text, mentions: mentions() });
+    if (!text || attachments.uploading) return;
+    pushReply({ parent: op, text, mentions: mentions(), attachments: attachments.ids });
     if (replyRef.current) replyRef.current.value = '';
+    attachments.reset();
     setReplying(false);
   };
 
@@ -200,6 +203,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
             >
               <MentionText text={reply.text} mentions={reply.mentions} />
             </p>
+            {reply.attachments && <AttachmentGallery ids={reply.attachments} resolveUrl={fileUrl} />}
           </div>
         </div>
       ))}
@@ -228,16 +232,26 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
                   setReplying(false);
                 }
               }}
+              onPaste={(e) => attachments.onPaste(e)}
             />
+            <AttachmentRow attachments={attachments} resolveUrl={fileUrl} />
             <div class="flex items-center justify-end gap-2 mt-1.5">
               <button
                 type="button"
-                onClick={() => setReplying(false)}
+                onClick={() => {
+                  attachments.reset();
+                  setReplying(false);
+                }}
                 class={cn(geist.ctlSm, geist.ctlIdle, 'w-auto px-2.5 text-ui font-medium')}
               >
                 Cancel
               </button>
-              <button type="button" onClick={submit} class={submitBtn}>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={attachments.uploading}
+                class={cn(submitBtn, 'disabled:pointer-events-none disabled:opacity-50')}
+              >
                 Reply
               </button>
             </div>
@@ -267,12 +281,15 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
 function DetailBody({ item }: { item: AnnotationItem }) {
   if (item.kind === 'comment') {
     return (
-      <p
-        class="text-body text-(--ds-gray-1000) leading-body m-0"
-        style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-      >
-        <MentionText text={item.op.text} mentions={item.op.mentions} />
-      </p>
+      <>
+        <p
+          class="text-body text-(--ds-gray-1000) leading-body m-0"
+          style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+        >
+          <MentionText text={item.op.text} mentions={item.op.mentions} />
+        </p>
+        {item.op.attachments && <AttachmentGallery ids={item.op.attachments} resolveUrl={fileUrl} />}
+      </>
     );
   }
 

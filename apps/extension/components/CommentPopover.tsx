@@ -8,6 +8,7 @@ import { glass } from '../lib/glass';
 import { useEdgeClamp } from '../lib/popover';
 import { color, commentCounter, getCommentMeta, lineWidth, signedBy } from '../lib/state';
 import type { CommentOp } from '../lib/types';
+import { AttachmentRow, useAttachments } from './AttachmentPicker';
 import { CancelButton } from './CancelButton';
 import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityPicker } from './PriorityPicker';
@@ -23,13 +24,19 @@ interface Props {
   capture: () => { target?: TargetElement; captureViewport: CaptureViewport };
   push: (op: CommentOp) => void;
   onClose: () => void;
+  /** Omitted where screenshot attachments shouldn't be offered — the marketing
+   *  page's live demo, which stays text-only rather than opening an anonymous
+   *  upload endpoint to public traffic. */
+  upload?: (file: File | Blob) => Promise<string | null>;
+  resolveUrl?: (id: string) => string;
 }
 
-export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) {
+export function CommentPopover({ at, anchorAt, capture, push, onClose, upload, resolveUrl }: Props) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const num = commentCounter.value + 1;
   const priority = useSignal<CommentPriority | undefined>(undefined);
   const { mentionProps, mentions } = useMentions();
+  const attachments = useAttachments(upload ?? (async () => null));
 
   useEffect(() => {
     taRef.current?.focus();
@@ -38,6 +45,7 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) 
   const commit = (save: boolean) => {
     const txt = taRef.current?.value.trim();
     if (save && txt) {
+      if (attachments.uploading) return;
       push({
         id: nanoid(),
         tool: 'comment' as const,
@@ -52,6 +60,7 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) 
         status: 'open',
         priority: priority.value,
         mentions: mentions(),
+        attachments: attachments.ids.length ? attachments.ids : undefined,
         meta: getCommentMeta(),
         ...capture(),
       });
@@ -106,7 +115,9 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) 
           }}
           class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
+          onPaste={upload ? (e) => attachments.onPaste(e) : undefined}
         />
+        {upload && resolveUrl && <AttachmentRow attachments={attachments} resolveUrl={resolveUrl} />}
         <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
       </div>
 
@@ -114,7 +125,12 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose }: Props) 
 
       <div class="flex items-center justify-between px-4 py-2.5">
         <CancelButton onClick={() => commit(false)} />
-        <button type="button" onClick={() => commit(true)} class={submitBtn}>
+        <button
+          type="button"
+          onClick={() => commit(true)}
+          disabled={attachments.uploading}
+          class={cn(submitBtn, 'disabled:pointer-events-none disabled:opacity-50')}
+        >
           Post ↵
         </button>
       </div>
