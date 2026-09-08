@@ -84,6 +84,21 @@
       "bucket_name": "marklayer-files"
     }
   ],
+  // Cloudflare Email Service. Unrestricted on purpose — a magic link goes to
+  // whatever address someone typed, so an `allowed_destination_addresses` list
+  // would only work for the team. Needs the sending domain onboarded (Compute >
+  // Email Service > Email Sending) and a Workers Paid plan; without both, only
+  // verified destination addresses on the account can receive anything.
+  "send_email": [{ "name": "EMAIL" }],
+  "vars": {
+    "MAIL_FROM": "login@marklayer.app"
+    // MAIL_PROVIDER ("cloudflare" | "resend" | "console") pins the mailer and is
+    // deliberately unset: with no pin, `mailerFor` takes the EMAIL binding above,
+    // and a dev run with no binding falls to the console so the link prints in
+    // the terminal. To move off Cloudflare: `wrangler secret put RESEND_API_KEY`,
+    // add "MAIL_PROVIDER": "resend" here, deploy. A pin that names a provider
+    // with nothing configured throws rather than quietly logging the link.
+  },
   "triggers": {
     "crons": ["0 3 * * *"]
   },

@@ -1,5 +1,4 @@
-import { buildMimeMessage } from './mime';
-import type { EmailEnv, Mailer } from './types';
+import type { EmailEnv, EmailSendBinding, Mailer } from './types';
 
 /**
  * Where a message actually goes. Same shape as `integrations/providers.ts`: a
@@ -7,30 +6,26 @@ import type { EmailEnv, Mailer } from './types';
  * configuration rather than by an import at the call site.
  */
 
+/** The display name on every outgoing message, whichever provider carries it. */
+const FROM_NAME = 'MarkLayer';
+
 /**
  * Cloudflare Email Service. Sending to an address that is not a verified
- * destination on the account requires an onboarded sending domain (SPF, DKIM,
- * DMARC and bounce records on marklayer.app) — without that step every send to
- * a real signup fails, so treat a delivery error here as configuration.
+ * destination on the account needs an onboarded sending domain (Compute > Email
+ * Service > Email Sending adds the SPF, DKIM, DMARC and bounce records) and a
+ * Workers Paid plan — without both, every send to a real signup fails, so treat
+ * a delivery error here as configuration.
  */
-export function cloudflareMailer({
-  binding,
-  from,
-}: {
-  binding: { send(message: unknown): Promise<void> };
-  from: string;
-}): Mailer {
+export function cloudflareMailer({ binding, from }: { binding: EmailSendBinding; from: string }): Mailer {
   return {
     id: 'cloudflare',
     async send(message) {
-      // Imported lazily so a fork without the binding never pulls the module.
-      const { EmailMessage } = await import('cloudflare:email');
-      await binding.send(new EmailMessage(from, message.to, buildMimeMessage({ from, message })));
+      await binding.send({ from: { email: from, name: FROM_NAME }, ...message });
     },
   };
 }
 
-/** The swap if Cloudflare's unpublished daily quota bites. Plain fetch, no SDK. */
+/** The swap if Cloudflare's daily quota bites. Plain fetch, no SDK. */
 export function resendMailer({ apiKey, from }: { apiKey: string; from: string }): Mailer {
   return {
     id: 'resend',
@@ -39,7 +34,7 @@ export function resendMailer({ apiKey, from }: { apiKey: string; from: string })
         method: 'POST',
         headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: `MarkLayer <${from}>`,
+          from: `${FROM_NAME} <${from}>`,
           to: [message.to],
           subject: message.subject,
           text: message.text,
@@ -62,13 +57,31 @@ export function consoleMailer(): Mailer {
 }
 
 /**
- * Picks a provider from what is configured, in preference order. A fork with
- * neither binding still boots and still signs people in — the link goes to the
- * log instead of an inbox, which is what `bun dev` wants.
+ * Picks a provider. Unset `MAIL_PROVIDER` takes whatever is configured — the
+ * EMAIL binding first, then Resend, console last — which is what `bun dev` and a
+ * fork with no provider at all want.
+ *
+ * Setting it pins the choice, and a pin naming a provider with no binding or key
+ * throws rather than falling through to the console: production answered 200 to
+ * every sign-in for weeks while printing the links to the log, and a switch that
+ * can fail that quietly is not a switch worth having.
  */
 export function mailerFor(env: EmailEnv): Mailer {
   const from = env.MAIL_FROM ?? 'login@marklayer.app';
-  if (env.EMAIL) return cloudflareMailer({ binding: env.EMAIL, from });
-  if (env.RESEND_API_KEY) return resendMailer({ apiKey: env.RESEND_API_KEY, from });
-  return consoleMailer();
+  // Auto-detect resolves to a name, so a pin and an unset variable then take the
+  // same validated branch instead of each building the mailers separately.
+  const provider = env.MAIL_PROVIDER || (env.EMAIL ? 'cloudflare' : env.RESEND_API_KEY ? 'resend' : 'console');
+  switch (provider) {
+    case 'cloudflare':
+      if (!env.EMAIL) throw new Error('MAIL_PROVIDER=cloudflare but no EMAIL binding is bound');
+      return cloudflareMailer({ binding: env.EMAIL, from });
+    case 'resend':
+      if (!env.RESEND_API_KEY) throw new Error('MAIL_PROVIDER=resend but RESEND_API_KEY is unset');
+      return resendMailer({ apiKey: env.RESEND_API_KEY, from });
+    case 'console':
+      return consoleMailer();
+    // A typo here would otherwise fall through to the console and look fine.
+    default:
+      throw new Error(`unknown MAIL_PROVIDER "${env.MAIL_PROVIDER}"`);
+  }
 }

@@ -34,9 +34,24 @@ export interface EmailTemplate<Data> {
   render(data: Data): { subject: string; html: string; text: string };
 }
 
+/**
+ * Cloudflare Email Service's structured send binding, narrowed to the fields we
+ * actually pass. Declared here rather than taken from the runtime types so the
+ * folder still compiles in a checkout with no `send_email` binding configured.
+ */
+export interface EmailSendBinding {
+  send(message: MailerMessage & { from: { email: string; name?: string } }): Promise<{ messageId: string }>;
+}
+
 export interface EmailEnv {
   /** Cloudflare Email Service send binding. Absent in dev and in a fork with no sending domain. */
-  EMAIL?: { send(message: unknown): Promise<void> };
+  EMAIL?: EmailSendBinding;
   RESEND_API_KEY?: string;
   MAIL_FROM?: string;
+  /**
+   * Pins the provider: 'cloudflare' | 'resend' | 'console'. Unset picks whatever
+   * is configured, which is what `bun dev` wants; a deployment sets it so a
+   * missing binding fails the send instead of quietly logging it.
+   */
+  MAIL_PROVIDER?: string;
 }
