@@ -1,3 +1,4 @@
+import { AttachmentGallery } from '@ext/components/AttachmentPicker';
 import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
 import { PriorityPin } from '@ext/components/PriorityPicker';
@@ -18,7 +19,7 @@ import type { CommentOp } from '@ext/lib/types';
 import { cn, isSettled } from '@marklayer/types';
 import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
 import { resolveAnchors } from './iframeOverlay';
-import { cssScale, iframeMutationTick } from './signals';
+import { cssScale, fileUrl, iframeMutationTick, uploadFile } from './signals';
 
 interface Props {
   op: CommentOp;
@@ -172,9 +173,10 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
               <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">
                 <MentionText text={op.text} mentions={op.mentions} />
               </p>
+              {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
             </div>
 
-            <ThreadReplies replies={replies} />
+            <ThreadReplies replies={replies} resolveUrl={fileUrl} />
 
             {/* Divider */}
             <div class={cn(geist.divider, 'mx-3')} />
@@ -188,7 +190,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
 
             <div class={cn(geist.divider, 'mx-3')} />
 
-            <ReplyComposer parent={op} />
+            <ReplyComposer parent={op} upload={uploadFile} resolveUrl={fileUrl} />
           </div>
         </div>
       </div>

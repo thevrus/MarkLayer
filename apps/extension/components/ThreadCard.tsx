@@ -6,6 +6,7 @@ import { glass } from '../lib/glass';
 import { pushReply } from '../lib/state';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
+import { AttachmentGallery, AttachmentRow, useAttachments } from './AttachmentPicker';
 import { MentionText } from './MentionText';
 import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityBadge } from './PriorityPicker';
@@ -79,7 +80,14 @@ export function ThreadHeader({
 }
 
 /** The thread's replies, indented under the root annotation. */
-export function ThreadReplies({ replies }: { replies: CommentOp[] }) {
+export function ThreadReplies({
+  replies,
+  resolveUrl,
+}: {
+  replies: CommentOp[];
+  /** Turns an attachment's upload id into a servable `src` — extension/web split, see `AttachmentPicker`. */
+  resolveUrl: (id: string) => string;
+}) {
   if (replies.length === 0) return null;
   return (
     <>
@@ -94,6 +102,7 @@ export function ThreadReplies({ replies }: { replies: CommentOp[] }) {
           <p class="m-0 text-(--ds-gray-1000) text-ui leading-body wrap-break-word whitespace-pre-wrap">
             <MentionText text={reply.text} mentions={reply.mentions} />
           </p>
+          {reply.attachments && <AttachmentGallery ids={reply.attachments} resolveUrl={resolveUrl} />}
         </div>
       ))}
     </>
@@ -112,10 +121,20 @@ const replyBtn = trim(`
  * document point the reply inherits, so a selection's replies land on the
  * selection's own text rather than at the top of the page.
  */
-export function ReplyComposer({ parent }: { parent: { id: string; x: number; y: number } }) {
+export function ReplyComposer({
+  parent,
+  upload,
+  resolveUrl,
+}: {
+  parent: { id: string; x: number; y: number };
+  /** Uploads a file for an attachment and resolves its id back to a `src` — extension/web split, see `AttachmentPicker`. */
+  upload: (file: File | Blob) => Promise<string | null>;
+  resolveUrl: (id: string) => string;
+}) {
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLTextAreaElement | null>(null);
   const { mentionProps, mentions } = useMentions();
+  const attachments = useAttachments(upload);
 
   // Focus from the ref callback rather than an effect: the textarea only exists
   // once `open` flips, so there is nothing to focus at the click that opens it.
@@ -126,8 +145,9 @@ export function ReplyComposer({ parent }: { parent: { id: string; x: number; y: 
 
   const submit = () => {
     const text = boxRef.current?.value.trim();
-    if (!text) return;
-    pushReply({ parent, text, mentions: mentions() });
+    if (!text || attachments.uploading) return;
+    pushReply({ parent, text, mentions: mentions(), attachments: attachments.ids });
+    attachments.reset();
     setOpen(false);
   };
 
@@ -159,16 +179,26 @@ export function ReplyComposer({ parent }: { parent: { id: string; x: number; y: 
             setOpen(false);
           }
         }}
+        onPaste={(e) => attachments.onPaste(e)}
       />
+      <AttachmentRow attachments={attachments} resolveUrl={resolveUrl} />
       <div class="flex items-center justify-end gap-2 mt-1.5">
         <button
           type="button"
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            attachments.reset();
+            setOpen(false);
+          }}
           class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium px-1')}
         >
           Cancel
         </button>
-        <button type="button" onClick={submit} class={submitBtn}>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={attachments.uploading}
+          class={cn(submitBtn, 'disabled:pointer-events-none disabled:opacity-50')}
+        >
           Reply
         </button>
       </div>

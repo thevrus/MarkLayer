@@ -22,6 +22,7 @@ export {
   annotationId,
   createAnnotationFor,
   currentPageIdx,
+  fileUrl,
   loadProject,
   navigateTo,
   originalWidth,
@@ -31,6 +32,7 @@ export {
   projectLoading,
   projectPages,
   saveProject,
+  uploadFile,
 } from './projects';
 
 // Every path that frames a page writes `pageUrl` — the legacy view param, the

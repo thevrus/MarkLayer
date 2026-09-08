@@ -1,4 +1,6 @@
+import { postBody, postJson, uploadPath, uploadResponseSchema } from '@marklayer/types';
 import { nanoid } from 'nanoid';
+import { track } from './analytics';
 import type { DrawOp } from './types';
 
 const APP_ORIGIN = 'https://marklayer.app';
@@ -151,23 +153,21 @@ export type SaveResult = { ok: true } | { ok: false; reason: SaveFailure };
 /** Save ops to server. */
 export async function saveAnnotations(ops: DrawOp[]): Promise<SaveResult> {
   const id = getRoomId();
-  try {
-    const url = window.location.href.split('#')[0];
-    const width = window.innerWidth;
-    const res = await fetch(`${API_BASE}${id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ops, url, width }),
-    });
-    // Not an error worth logging: the server did answer, and it answered that
-    // this link does not take writes.
-    if (res.status === 403) return { ok: false, reason: 'view-only' };
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return { ok: true };
-  } catch (e) {
-    console.error('Error saving annotations:', e);
+  const url = window.location.href.split('#')[0];
+  const width = window.innerWidth;
+  const res = await postJson(`${API_BASE}${id}`, { ops, url, width });
+  if (!res) {
+    console.error('Error saving annotations: network failure');
     return { ok: false, reason: 'error' };
   }
+  // Not an error worth logging: the server did answer, and it answered that
+  // this link does not take writes.
+  if (res.status === 403) return { ok: false, reason: 'view-only' };
+  if (!res.ok) {
+    console.error(`Error saving annotations: HTTP ${res.status}`);
+    return { ok: false, reason: 'error' };
+  }
+  return { ok: true };
 }
 
 export async function loadAnnotations(id: string): Promise<DrawOp[] | null> {
@@ -179,6 +179,30 @@ export async function loadAnnotations(id: string): Promise<DrawOp[] | null> {
     console.error('Error loading annotations:', e);
     return null;
   }
+}
+
+/** Uploads a screenshot (or other supported file) for a comment attachment. Returns its upload id, or null on failure. */
+export async function uploadFile(file: File | Blob): Promise<string | null> {
+  const res = await postBody(`${APP_ORIGIN}/f`, file, file.type || 'application/octet-stream');
+  if (!res?.ok) {
+    // Same reason values as the web app's `uploadFile`, so one funnel covers both surfaces.
+    const reason = res ? `http_${res.status}` : 'network';
+    console.error(`Error uploading file: ${reason}`);
+    track('attachment_upload_failed', { reason });
+    return null;
+  }
+  const parsed = uploadResponseSchema.safeParse(await res.json());
+  if (!parsed.success) {
+    console.error('Error uploading file: malformed response');
+    track('attachment_upload_failed', { reason: 'malformed_response' });
+    return null;
+  }
+  return parsed.data.id;
+}
+
+/** Where `uploadFile`'s id serves back from, in this browser's own origin. */
+export function fileUrl(id: string): string {
+  return `${APP_ORIGIN}${uploadPath(id)}`;
 }
 
 export function parseUrlHash(): { width: number; id: string } | null {

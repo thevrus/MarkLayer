@@ -1,5 +1,6 @@
 import { operations, toast as showToast } from '@ext/lib/state';
 import type { DrawOp } from '@ext/lib/types';
+import { postBody, postJson, uploadPath, uploadResponseSchema } from '@marklayer/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { capture } from './analytics';
@@ -50,31 +51,35 @@ export async function loadProject(
 
 /** Persist a project's page-id list. */
 export async function saveProject(id: string, pageIds: string[]): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}p/${id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageIds }),
-    });
-    return res.ok;
-  } catch {
-    return false;
+  const res = await postJson(`${API_BASE}p/${id}`, { pageIds });
+  return res?.ok ?? false;
+}
+
+/** Uploads a screenshot (or other supported file) for a comment attachment. Returns its upload id, or null on failure. */
+export async function uploadFile(file: File | Blob): Promise<string | null> {
+  const res = await postBody('/f', file, file.type || 'application/octet-stream');
+  if (!res?.ok) {
+    capture('attachment_upload_failed', { reason: res ? `http_${res.status}` : 'network' });
+    return null;
   }
+  const parsed = uploadResponseSchema.safeParse(await res.json());
+  if (!parsed.success) {
+    capture('attachment_upload_failed', { reason: 'malformed_response' });
+    return null;
+  }
+  return parsed.data.id;
+}
+
+/** Where `uploadFile`'s id serves back from — relative, since the web app already runs on that origin. */
+export function fileUrl(id: string): string {
+  return uploadPath(id);
 }
 
 /** Create an empty annotation row for a URL and return its id. */
 export async function createAnnotationFor(url: string): Promise<string | null> {
   const id = nanoid();
-  try {
-    const res = await fetch(`${API_BASE}${id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ops: [], url, width: window.innerWidth }),
-    });
-    return res.ok ? id : null;
-  } catch {
-    return null;
-  }
+  const res = await postJson(`${API_BASE}${id}`, { ops: [], url, width: window.innerWidth });
+  return res?.ok ? id : null;
 }
 
 /**
@@ -129,19 +134,11 @@ export async function navigateTo({ url, source = 'viewer' }: { url: string; sour
   if (currentId && currentUrl) {
     projectLoading.value = true;
     // Best-effort flush of current ops so the project's first page has them on first read
-    try {
-      await fetch(`${API_BASE}${currentId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ops: operations.value,
-          url: currentUrl,
-          width: originalWidth.value || window.innerWidth,
-        }),
-      });
-    } catch {
-      /* */
-    }
+    await postJson(`${API_BASE}${currentId}`, {
+      ops: operations.value,
+      url: currentUrl,
+      width: originalWidth.value || window.innerWidth,
+    });
     const newPageId = await createAnnotationFor(url);
     if (!newPageId) {
       projectLoading.value = false;
@@ -164,14 +161,8 @@ export async function navigateTo({ url, source = 'viewer' }: { url: string; sour
   // Landing fallback: fresh single-page share
   const w = window.innerWidth;
   const id = nanoid();
-  try {
-    const res = await fetch(`${API_BASE}${id}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ops: [], url, width: w }),
-    });
-    if (!res.ok) throw new Error();
-  } catch {
+  const res = await postJson(`${API_BASE}${id}`, { ops: [], url, width: w });
+  if (!res?.ok) {
     // Instrumented like the other two modes, so a drop at the top of the funnel
     // is a number rather than a mystery. The redirect still runs: the viewer
     // re-creates the row on save, and stranding someone on the landing page is worse.

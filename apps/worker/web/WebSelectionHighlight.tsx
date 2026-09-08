@@ -16,7 +16,7 @@ import {
 } from '@ext/lib/state';
 import type { SelectionOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
-import { cssScale, iframeMutationTick } from './signals';
+import { cssScale, fileUrl, iframeMutationTick, uploadFile } from './signals';
 
 interface Props {
   op: SelectionOp;
@@ -153,7 +153,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
               )}
             </div>
 
-            <ThreadReplies replies={getReplies(op.id)} />
+            <ThreadReplies replies={getReplies(op.id)} resolveUrl={fileUrl} />
 
             <div class={cn(geist.divider, 'mx-3')} />
 
@@ -166,7 +166,13 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
 
             <div class={cn(geist.divider, 'mx-3')} />
 
-            {replyAnchor && <ReplyComposer parent={{ id: op.id, x: replyAnchor.x, y: replyAnchor.y }} />}
+            {replyAnchor && (
+              <ReplyComposer
+                parent={{ id: op.id, x: replyAnchor.x, y: replyAnchor.y }}
+                upload={uploadFile}
+                resolveUrl={fileUrl}
+              />
+            )}
           </div>
         </div>
       </div>
