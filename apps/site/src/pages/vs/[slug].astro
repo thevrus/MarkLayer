@@ -53,22 +53,6 @@ const breadcrumbs: Crumb[] = [
 >
   <Content slot="intro" />
 
-  {
-    c.video && (
-      <div class="ml-video">
-        <iframe
-          src={`https://www.youtube-nocookie.com/embed/${c.video.youtubeId}`}
-          title={c.video.title}
-          lang="en"
-          loading="lazy"
-          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          referrerpolicy="strict-origin-when-cross-origin"
-          allowfullscreen
-        />
-      </div>
-    )
-  }
-
   {/* Both value columns are ink. The competitor's used to be set in the grey
       metadata step, which dimmed half the data in a table whose entire job is
       side-by-side comparison — and on a page arguing our own case, greying out
