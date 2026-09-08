@@ -1,7 +1,6 @@
 import {
-  AGENT_FALLBACK_COLOR,
-  agentColor,
   type AnnotationOp,
+  agentColor,
   applyOpPatch,
   type CommentOp,
   type CommentPriority,
@@ -87,11 +86,22 @@ export class RoomClient {
    */
   private canEdit = true;
 
+  /**
+   * Identity stamped on every op the agent writes itself. `authorId` is stable
+   * across sessions, unlike the per-connection peer id: without it the roster
+   * forgets the agent the moment it disconnects, so nobody can assign or
+   * @mention it afterwards — its own annotations name it and nothing else.
+   */
+  private get authorship() {
+    return { author: this.agentId, authorId: this.agentId, assignedAgent: this.agentId };
+  }
+
   constructor(
     private readonly apiBase: string,
     public readonly roomId: string,
     private readonly agentId: string,
   ) {
+    this.color = agentColor(agentId);
     this.initPromise = new Promise((resolve, reject) => {
       this.initResolve = resolve;
       this.initReject = reject;
@@ -285,12 +295,7 @@ export class RoomClient {
       color: this.color,
       lineWidth: 2,
       ts: Date.now(),
-      author: this.agentId,
-      // Stable across sessions, unlike the per-connection peer id. Without it the
-      // roster forgets the agent the moment it disconnects, so nobody can assign
-      // or @mention it afterwards — its own annotations name it and nothing else.
-      authorId: this.agentId,
-      assignedAgent: this.agentId,
+      ...this.authorship,
       ...(priority ? { priority } : {}),
       ...(target ? { target } : {}),
     };
@@ -329,12 +334,7 @@ export class RoomClient {
       ts: Date.now(),
       color: this.color,
       lineWidth: 2,
-      author: this.agentId,
-      // Stable across sessions, unlike the per-connection peer id. Without it the
-      // roster forgets the agent the moment it disconnects, so nobody can assign
-      // or @mention it afterwards — its own annotations name it and nothing else.
-      authorId: this.agentId,
-      assignedAgent: this.agentId,
+      ...this.authorship,
       ...(comment ? { comment } : {}),
       ...(priority ? { priority } : {}),
       ...(target ? { target } : {}),
@@ -347,6 +347,10 @@ export class RoomClient {
     const protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
     const params = new URLSearchParams({
       peerId: this.peerId,
+      // The roster keys a live peer on `uid` and only falls back to the random
+      // per-connection `peerId` without one, so an @mention of a *connected*
+      // agent would carry that socket id and never match `agentId`.
+      uid: this.agentId,
       name: this.agentId,
       color: this.color,
     });
@@ -410,12 +414,7 @@ export class RoomClient {
       lineWidth: parent.lineWidth,
       ts: Date.now(),
       parentId,
-      author: this.agentId,
-      // Stable across sessions, unlike the per-connection peer id. Without it the
-      // roster forgets the agent the moment it disconnects, so nobody can assign
-      // or @mention it afterwards — its own annotations name it and nothing else.
-      authorId: this.agentId,
-      assignedAgent: this.agentId,
+      ...this.authorship,
     };
     return this.commit(op);
   }
