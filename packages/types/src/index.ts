@@ -214,6 +214,19 @@ export const targetElementSchema = z.object({
 });
 export type TargetElement = z.infer<typeof targetElementSchema>;
 
+/** Collapse runs of whitespace to a single space and trim. */
+export function normalizeText(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Length of `text` above. Shared because both ends must agree: the client
+ * captures the fingerprint and the server builds one for the same element in
+ * `page-outline.ts`, and a server fingerprint cut to a different length simply
+ * stops resolving.
+ */
+export const FINGERPRINT_LEN = 50;
+
 /**
  * Anchor for an annotation drawn on a document we render ourselves — a PDF, or
  * an image — as a fraction of the box of one of its pages. Such a document has
@@ -735,6 +748,57 @@ export interface Peer {
   tool?: string;
   lastSeen: number;
 }
+
+/**
+ * The agents that connect to a room, with the name and colour to show for each.
+ *
+ * An MCP client announces itself as a bare id (`MARKLAYER_AGENT`, default
+ * `claude-code`), which is what people saw: a lowercase slug in the presence
+ * list and on every annotation the agent left. Colours are the brands' own.
+ * Where a brand is black — Cursor, Copilot, Windsurf and Cline all publish
+ * #000000 — it is lifted one step to #3F3F46, because these colours are also op
+ * colours: a pin drawn in pure black disappears against dark page furniture, and
+ * the value has to survive being handed straight to a canvas paint (which is why
+ * none of these can be a CSS variable). An agent we do not know gets graphite,
+ * never a stock violet: an unrecognised tool has no brand to borrow.
+ */
+const AGENT_BRANDS: Record<string, { label: string; color: string }> = {
+  'claude-code': { label: 'Claude', color: '#D97757' },
+  claude: { label: 'Claude', color: '#D97757' },
+  gemini: { label: 'Gemini', color: '#8E75B2' },
+  'gemini-cli': { label: 'Gemini', color: '#8E75B2' },
+  zed: { label: 'Zed', color: '#084CCF' },
+  cursor: { label: 'Cursor', color: '#3F3F46' },
+  copilot: { label: 'Copilot', color: '#3F3F46' },
+  'github-copilot': { label: 'Copilot', color: '#3F3F46' },
+  windsurf: { label: 'Windsurf', color: '#3F3F46' },
+  cline: { label: 'Cline', color: '#3F3F46' },
+  codex: { label: 'Codex', color: '#3F3F46' },
+  openai: { label: 'OpenAI', color: '#3F3F46' },
+  grok: { label: 'Grok', color: '#3F3F46' },
+  aider: { label: 'Aider', color: '#6b7280' },
+  devin: { label: 'Devin', color: '#6b7280' },
+};
+
+/** What an unrecognised agent gets. Graphite, so nothing is claiming a brand it is not. */
+export const AGENT_FALLBACK_COLOR = '#6b7280';
+
+/** `claude-code` → `Claude`. An unknown id is title-cased rather than shown raw. */
+export function agentLabel(id: string): string {
+  const known = AGENT_BRANDS[id.toLowerCase()];
+  if (known) return known.label;
+  return id
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+export const agentColor = (id: string): string => AGENT_BRANDS[id.toLowerCase()]?.color ?? AGENT_FALLBACK_COLOR;
+
+/** An annotation the agent wrote itself, not one it was handed — it stamps both fields only on its own. */
+export const isAgentAuthored = (op: { author?: string; assignedAgent?: string }) =>
+  !!op.assignedAgent && op.assignedAgent === op.author;
 
 /** MCP agents connect as peers under this prefix (apps/mcp/src/room.ts). */
 export const isAgentPeer = (peerId: string) => peerId.startsWith('mcp-');
