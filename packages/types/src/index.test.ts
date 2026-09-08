@@ -6,6 +6,7 @@ import {
   cn,
   type DrawOp,
   deletionDeadline,
+  effectiveExpiresAt,
   type Mention,
   mentionSegments,
   normalizeSuggestion,
@@ -249,6 +250,24 @@ describe('mentionSegments', () => {
   test('returns the whole body untouched when nothing is tagged', () => {
     expect(mentionSegments({ text: 'plain note', mentions: [] })).toEqual([{ text: 'plain note' }]);
     expect(mentionSegments({ text: 'plain note' })).toEqual([{ text: 'plain note' }]);
+  });
+});
+
+describe('effectiveExpiresAt', () => {
+  test('is null when neither the link nor its owner set a deadline', () => {
+    expect(effectiveExpiresAt({ expiresAt: null, ownerExpiresAt: null })).toBeNull();
+  });
+
+  test('falls back to whichever one is set', () => {
+    expect(effectiveExpiresAt({ expiresAt: 100, ownerExpiresAt: null })).toBe(100);
+    expect(effectiveExpiresAt({ expiresAt: null, ownerExpiresAt: 200 })).toBe(200);
+  });
+
+  // The bug this guards: a route that read only `expiresAt` kept an owner-expired
+  // link fully live until the retention cron's next sweep.
+  test('takes the earlier of the two when both are set', () => {
+    expect(effectiveExpiresAt({ expiresAt: 200, ownerExpiresAt: 100 })).toBe(100);
+    expect(effectiveExpiresAt({ expiresAt: 100, ownerExpiresAt: 200 })).toBe(100);
   });
 });
 

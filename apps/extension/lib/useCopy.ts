@@ -20,18 +20,18 @@ export function useCopyToClipboard({ resetMs = 1400 }: { resetMs?: number } = {}
     [],
   );
 
-  const copy = (value: string) => {
-    navigator.clipboard.writeText(value).then(
-      () => {
-        copied.value = true;
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => {
-          copied.value = false;
-        }, resetMs);
-      },
-      () => toast('Failed to copy', 'error'),
-    );
+  /** Flash `copied` without writing — for a caller whose own action does the write. */
+  const flash = () => {
+    copied.value = true;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      copied.value = false;
+    }, resetMs);
   };
 
-  return { copied, copy };
+  const copy = (value: string) => {
+    navigator.clipboard.writeText(value).then(flash, () => toast('Failed to copy', 'error'));
+  };
+
+  return { copied, copy, flash };
 }

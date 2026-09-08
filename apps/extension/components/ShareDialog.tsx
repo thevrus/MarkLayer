@@ -123,8 +123,14 @@ export function ShareDialog() {
     setShareUrl(url);
     const ops = operations.value;
     if (ops.length) {
-      saveAnnotations(ops).then((ok) => {
-        if (!ok) toast('Failed to save — link may not work', 'error');
+      saveAnnotations(ops).then((res) => {
+        if (res.ok) return;
+        toast(
+          res.reason === 'view-only'
+            ? 'This link is view-only — your marks were not saved'
+            : 'Failed to save — link may not work',
+          'error',
+        );
       });
     }
   });

@@ -1,6 +1,6 @@
-import type { OwnedLink } from '@marklayer/types';
+import type { LinkAccess, OwnedLink } from '@marklayer/types';
 import { nanoid } from 'nanoid';
-import { isExpired, nowInSeconds } from '../store';
+import { isExpired, nowInSeconds, parseLinkAccess } from '../store';
 import { hashToken } from './tokens';
 import { LOGIN_TOKEN_TTL_SECONDS, SESSION_TTL_SECONDS, type User } from './types';
 
@@ -114,7 +114,7 @@ export function ownedStore(db: D1Database) {
     async listAnnotations(ownerId: string): Promise<OwnedLink[]> {
       const res = await db
         .prepare(
-          'SELECT id, url, created_at, last_accessed_at, expires_at FROM annotations WHERE owner_id = ? ORDER BY last_accessed_at DESC LIMIT 200',
+          'SELECT id, url, created_at, last_accessed_at, expires_at, access, owner_expires_at FROM annotations WHERE owner_id = ? ORDER BY last_accessed_at DESC LIMIT 200',
         )
         .bind(ownerId)
         .all<{
@@ -123,6 +123,8 @@ export function ownedStore(db: D1Database) {
           created_at: number;
           last_accessed_at: number;
           expires_at: number | null;
+          access: string;
+          owner_expires_at: number | null;
         }>();
       // Mapped here, not at the caller: snake_case is D1's shape and it should
       // stop at this boundary, the way it does in `store.ts`.
@@ -132,7 +134,44 @@ export function ownedStore(db: D1Database) {
         createdAt: row.created_at,
         lastAccessedAt: row.last_accessed_at,
         expiresAt: row.expires_at,
+        access: parseLinkAccess(row.access),
+        ownerExpiresAt: row.owner_expires_at,
       }));
+    },
+
+    /** A claimed link's settings, or null when this session does not own it. */
+    async getSettings({
+      id,
+      ownerId,
+    }: {
+      id: string;
+      ownerId: string;
+    }): Promise<{ access: LinkAccess; ownerExpiresAt: number | null } | null> {
+      const row = await db
+        .prepare('SELECT access, owner_expires_at FROM annotations WHERE id = ? AND owner_id = ?')
+        .bind(id, ownerId)
+        .first<{ access: string; owner_expires_at: number | null }>();
+      if (!row) return null;
+      return { access: parseLinkAccess(row.access), ownerExpiresAt: row.owner_expires_at };
+    },
+
+    /** Takes resolved values — the route decides what a partial PATCH means. */
+    async updateSettings({
+      id,
+      ownerId,
+      access,
+      ownerExpiresAt,
+    }: {
+      id: string;
+      ownerId: string;
+      access: LinkAccess;
+      ownerExpiresAt: number | null;
+    }): Promise<boolean> {
+      const res = await db
+        .prepare('UPDATE annotations SET access = ?, owner_expires_at = ? WHERE id = ? AND owner_id = ?')
+        .bind(access, ownerExpiresAt, id, ownerId)
+        .run();
+      return (res.meta.changes ?? 0) > 0;
     },
 
     /**
@@ -148,9 +187,17 @@ export function ownedStore(db: D1Database) {
       return (res.meta.changes ?? 0) > 0;
     },
 
+    /**
+     * Also resets `access` and `owner_expires_at`: view-only and an owner
+     * expiry are both owner-managed settings, and with `owner_id` gone
+     * `getSettings`'s `AND owner_id = ?` guard would make either permanent —
+     * nobody could ever reach the PATCH that undoes them.
+     */
     async releaseAnnotation({ id, ownerId }: { id: string; ownerId: string }): Promise<boolean> {
       const res = await db
-        .prepare('UPDATE annotations SET owner_id = NULL WHERE id = ? AND owner_id = ?')
+        .prepare(
+          "UPDATE annotations SET owner_id = NULL, access = 'edit', owner_expires_at = NULL WHERE id = ? AND owner_id = ?",
+        )
         .bind(id, ownerId)
         .run();
       return (res.meta.changes ?? 0) > 0;

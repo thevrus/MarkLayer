@@ -1,8 +1,11 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import { MAX_EXPIRES_IN_SECONDS } from '@marklayer/types';
+import { nowInSeconds } from '../store';
 import { asDb, fakeDb } from '../test-d1';
+import { auth } from './routes';
 import { authStore, ownedStore } from './store';
 import { hashToken, mintToken } from './tokens';
-import { normalizeEmail } from './types';
+import { normalizeEmail, SESSION_COOKIE } from './types';
 
 describe('normalizeEmail', () => {
   test('lower-cases and trims so one person is one account', () => {
@@ -87,5 +90,162 @@ describe('ownedStore.claimAnnotation', () => {
 
   test('reports failure when the row is already owned', async () => {
     expect(await ownedStore(asDb(fakeDb({ changes: 0 }))).claimAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
+  });
+});
+
+describe('ownedStore.releaseAnnotation', () => {
+  // The bug this guards: release used to clear only owner_id, so a link left
+  // view-only had no owner left to ever flip it back — permanently locked.
+  test('also resets access and the owner expiry, not just owner_id', async () => {
+    const db = fakeDb({ changes: 1 });
+    expect(await ownedStore(asDb(db)).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(true);
+    expect(db.calls[0].sql).toContain("access = 'edit'");
+    expect(db.calls[0].sql).toContain('owner_expires_at = NULL');
+    expect(db.calls[0].sql).toContain('owner_id = NULL');
+  });
+
+  test('reports failure when the session does not own the link', async () => {
+    expect(await ownedStore(asDb(fakeDb({ changes: 0 }))).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
+  });
+});
+
+/** The slice of the room namespace the settings route touches: it records which room ids it was told to refresh. */
+function fakeRoom() {
+  const pings: string[] = [];
+  return {
+    pings,
+    idFromName: (name: string) => name,
+    get: () => ({
+      fetch: async (req: Request) => {
+        pings.push(new URL(req.url).searchParams.get('id') ?? '');
+        return new Response(null, { status: 204 });
+      },
+    }),
+  };
+}
+// biome-ignore lint/suspicious/noExplicitAny: same reason as asDb — a fake of only the methods the route calls.
+const asRoom = (ns: ReturnType<typeof fakeRoom>) => ns as any;
+
+/** The route hands the room ping to `waitUntil`; nothing here needs to await it. */
+// biome-ignore lint/suspicious/noExplicitAny: same reason as asRoom.
+const testCtx = { waitUntil: (p: Promise<unknown>) => void p, passThroughOnException: () => {} } as any;
+
+describe('PATCH /links/:id', () => {
+  const room = fakeRoom();
+  beforeEach(() => {
+    room.pings.length = 0;
+  });
+  const cookie = `${SESSION_COOKIE}=tok`;
+  const jsonHeaders = { Cookie: cookie, 'Content-Type': 'application/json' };
+  // What `authStore.userForSession`'s join returns for a live session.
+  const sessionRow = { id: 'owner1', email: 'owner@example.com', expires_at: nowInSeconds() + 1000 };
+
+  test('the owner flips access and the write carries the resolved values', async () => {
+    const db = fakeDb({ firstQueue: [sessionRow, { access: 'edit', owner_expires_at: null }] });
+    const res = await auth.request(
+      '/links/abc',
+      { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ access: 'view' }) },
+      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      testCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json<{ updated: boolean }>()).toEqual({ updated: true });
+    const update = db.calls.at(-1);
+    expect(update?.sql).toContain('UPDATE annotations SET access');
+    // access from the body, ownerExpiresAt untouched from the current row.
+    expect(update?.bindings).toEqual(['view', null, 'abc', 'owner1']);
+    // The warm room hears about it, so the flip bites before the next eviction.
+    expect(room.pings).toEqual(['abc']);
+  });
+
+  test('a signed-in non-owner gets updated: false and no write is issued', async () => {
+    // getSettings' `AND owner_id = ?` matches nothing for someone else's link.
+    const db = fakeDb({ firstQueue: [sessionRow, null] });
+    const res = await auth.request(
+      '/links/abc',
+      { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ access: 'view' }) },
+      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      testCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json<{ updated: boolean }>()).toEqual({ updated: false });
+    expect(db.calls).toHaveLength(2);
+    expect(room.pings).toEqual([]);
+  });
+
+  test('an unauthenticated request is rejected before the store is touched', async () => {
+    const db = fakeDb();
+    const res = await auth.request(
+      '/links/abc',
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access: 'view' }) },
+      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      testCtx,
+    );
+    expect(res.status).toBe(401);
+    expect(db.calls).toHaveLength(0);
+  });
+
+  test('an ownerExpiresIn past the ceiling is a 400 before any settings read', async () => {
+    const db = fakeDb({ firstQueue: [sessionRow] });
+    const res = await auth.request(
+      '/links/abc',
+      {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        body: JSON.stringify({ ownerExpiresIn: MAX_EXPIRES_IN_SECONDS + 1 }),
+      },
+      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      testCtx,
+    );
+    expect(res.status).toBe(400);
+    // Only the session lookup ran — the invalid body never reached ownedStore.
+    expect(db.calls).toHaveLength(1);
+  });
+
+  test('ownerExpiresIn: null clears the owner expiry and leaves access alone', async () => {
+    const db = fakeDb({ firstQueue: [sessionRow, { access: 'view', owner_expires_at: 12345 }] });
+    const res = await auth.request(
+      '/links/abc',
+      { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ ownerExpiresIn: null }) },
+      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      testCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json<{ updated: boolean }>()).toEqual({ updated: true });
+    expect(db.calls.at(-1)?.bindings).toEqual(['view', null, 'abc', 'owner1']);
+  });
+});
+
+describe('DELETE /links/:id', () => {
+  const room = fakeRoom();
+  beforeEach(() => {
+    room.pings.length = 0;
+  });
+  const cookie = `${SESSION_COOKIE}=tok`;
+  const sessionRow = { id: 'owner1', email: 'owner@example.com', expires_at: nowInSeconds() + 1000 };
+
+  test('releasing pings the warm room, so a cached view-only lock lifts immediately', async () => {
+    const db = fakeDb({ firstQueue: [sessionRow], changes: 1 });
+    const res = await auth.request(
+      '/links/abc',
+      { method: 'DELETE', headers: { Cookie: cookie } },
+      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      testCtx,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json<{ released: boolean }>()).toEqual({ released: true });
+    expect(room.pings).toEqual(['abc']);
+  });
+
+  test('a no-op release (not the owner) does not ping the room', async () => {
+    const db = fakeDb({ firstQueue: [sessionRow], changes: 0 });
+    const res = await auth.request(
+      '/links/abc',
+      { method: 'DELETE', headers: { Cookie: cookie } },
+      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      testCtx,
+    );
+    expect(await res.json<{ released: boolean }>()).toEqual({ released: false });
+    expect(room.pings).toEqual([]);
   });
 });

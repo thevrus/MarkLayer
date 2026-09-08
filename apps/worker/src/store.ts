@@ -1,3 +1,5 @@
+import { type LinkAccess, linkAccessSchema } from '@marklayer/types';
+
 /**
  * Every read and write of the `annotations`, `projects` and `uploads` tables.
  *
@@ -14,6 +16,18 @@ export interface StoredAnnotation {
   width: number | null;
   createdAt: number | null;
   expiresAt: number | null;
+  access: LinkAccess;
+  ownerId: string | null;
+  ownerExpiresAt: number | null;
+}
+
+/**
+ * A row's `access` column, degraded to `'edit'` rather than thrown — a row from
+ * before the column existed, or garbage, behaves like today's only mode.
+ */
+export function parseLinkAccess(raw: unknown): LinkAccess {
+  const parsed = linkAccessSchema.safeParse(raw);
+  return parsed.success ? parsed.data : 'edit';
 }
 
 export interface StoredProject {
@@ -60,7 +74,9 @@ export function annotationStore(db: D1Database) {
   return {
     async get(id: string): Promise<StoredAnnotation | null> {
       const row = await db
-        .prepare('SELECT ops, url, width, created_at, expires_at FROM annotations WHERE id = ?')
+        .prepare(
+          'SELECT ops, url, width, created_at, expires_at, access, owner_id, owner_expires_at FROM annotations WHERE id = ?',
+        )
         .bind(id)
         .first<{
           ops: string;
@@ -68,6 +84,9 @@ export function annotationStore(db: D1Database) {
           width: number | null;
           created_at: number | null;
           expires_at: number | null;
+          access: string;
+          owner_id: string | null;
+          owner_expires_at: number | null;
         }>();
       if (!row) return null;
       return {
@@ -76,7 +95,23 @@ export function annotationStore(db: D1Database) {
         width: row.width,
         createdAt: row.created_at,
         expiresAt: row.expires_at,
+        access: parseLinkAccess(row.access),
+        ownerId: row.owner_id,
+        ownerExpiresAt: row.owner_expires_at,
       };
+    },
+
+    /** Who may edit, who owns it, and their expiry — what a warm room re-reads after the owner's Settings PATCH. */
+    async getAccess(
+      id: string,
+    ): Promise<{ access: LinkAccess; ownerId: string | null; ownerExpiresAt: number | null } | null> {
+      const row = await db
+        .prepare('SELECT access, owner_id, owner_expires_at FROM annotations WHERE id = ?')
+        .bind(id)
+        .first<{ access: string; owner_id: string | null; owner_expires_at: number | null }>();
+      return row
+        ? { access: parseLinkAccess(row.access), ownerId: row.owner_id, ownerExpiresAt: row.owner_expires_at }
+        : null;
     },
 
     /** Just the annotated page's URL — the only column the OG routes need. */
@@ -173,13 +208,17 @@ export function annotationStore(db: D1Database) {
       return db.prepare('DELETE FROM annotations WHERE id = ?').bind(id).run();
     },
 
-    /** Ids of everything past retention or its own expiry, now deleted. */
+    /** Ids of everything past retention, its own expiry, or the owner's, now deleted. */
     async deleteExpired({ unusedSince }: { unusedSince: number }): Promise<string[]> {
+      const now = nowInSeconds();
       const deleted = await db
         .prepare(
-          'DELETE FROM annotations WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
+          `DELETE FROM annotations WHERE last_accessed_at < ?
+           OR (expires_at IS NOT NULL AND expires_at < ?)
+           OR (owner_expires_at IS NOT NULL AND owner_expires_at < ?)
+           RETURNING id`,
         )
-        .bind(unusedSince, nowInSeconds())
+        .bind(unusedSince, now, now)
         .all<{ id: string }>();
       return deleted.results.map((r) => r.id);
     },

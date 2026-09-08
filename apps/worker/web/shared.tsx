@@ -1,6 +1,8 @@
+import { geist } from '@ext/lib/geist';
 import { color, lineWidth } from '@ext/lib/state';
 import type { DeviceMode } from '@ext/lib/types';
-import { Loader2, Monitor, Smartphone, Tablet } from 'lucide-preact';
+import { cn } from '@marklayer/types';
+import { Check, Copy, Loader2, Monitor, Smartphone, Tablet } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { MARK_PATHS, MARK_TRANSFORM } from '../src/brand';
 
@@ -10,6 +12,51 @@ export const DEVICE_LABELS: Record<DeviceMode, string> = { desktop: 'Desktop', t
 
 export function Spinner() {
   return <Loader2 size={16} class="animate-spin" aria-hidden="true" />;
+}
+
+/**
+ * Click-to-copy, confirmed in place. Both places a person meets it — a dashboard
+ * row and the share card — swap the same glyph and announce through the same live
+ * region, which is only visible otherwise; the caller brings the chrome that differs.
+ */
+export function CopyControl({
+  copied,
+  onClick,
+  size,
+  strokeWidth,
+  class: className,
+  disabled,
+}: {
+  copied: boolean;
+  onClick: () => void;
+  size: number;
+  strokeWidth: number;
+  class?: string;
+  disabled?: boolean;
+}) {
+  // One weight across the swap: a check drawn heavier than the copy glyph it
+  // replaces reads as the button changing size, not state.
+  const Glyph = copied ? Check : Copy;
+  return (
+    <button
+      type="button"
+      aria-label={copied ? 'Link copied' : 'Copy link'}
+      disabled={disabled}
+      class={cn(
+        geist.ctlIdle,
+        className,
+        // Holds through hover so the confirmation does not flicker back to grey
+        // under a pointer that never left the button.
+        copied && 'text-(--ds-green-700) hover:text-(--ds-green-700)',
+      )}
+      onClick={onClick}
+    >
+      <Glyph size={size} strokeWidth={strokeWidth} aria-hidden="true" />
+      <span role="status" class="sr-only">
+        {copied ? 'Link copied' : ''}
+      </span>
+    </button>
+  );
 }
 
 let logoIdx = 0;

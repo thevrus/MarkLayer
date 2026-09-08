@@ -1,7 +1,6 @@
-import { getCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
-import { authStore } from './store';
-import { type AuthEnv, SESSION_COOKIE, type User } from './types';
+import { userFromCookieHeader } from './session';
+import type { AuthEnv, User } from './types';
 
 export interface AuthVariables {
   user: User | null;
@@ -13,7 +12,6 @@ export interface AuthVariables {
  * gating is each route's decision, not the middleware's.
  */
 export const withUser = createMiddleware<{ Bindings: AuthEnv; Variables: AuthVariables }>(async (c, next) => {
-  const token = getCookie(c, SESSION_COOKIE);
-  c.set('user', token ? await authStore(c.env.DB).userForSession(token) : null);
+  c.set('user', await userFromCookieHeader({ header: c.req.header('cookie') ?? null, db: c.env.DB }));
   await next();
 });

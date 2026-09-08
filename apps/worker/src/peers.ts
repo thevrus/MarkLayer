@@ -30,6 +30,10 @@ export const peerInfoSchema = z.object({
   joinedAt: z.optional(z.number()),
   ops: z.optional(z.number()),
   updates: z.optional(z.number()),
+  /** Optional so an attachment written before per-link access shipped still parses; readers treat `undefined` as `true`. */
+  canEdit: z.optional(z.boolean()),
+  /** The signed-in account behind the socket, kept so `canEdit` can be recomputed when the owner flips access. */
+  userId: z.optional(z.string()),
 });
 
 export type PeerInfo = z.infer<typeof peerInfoSchema>;

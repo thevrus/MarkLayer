@@ -1,8 +1,12 @@
 import type { SessionUser } from '@marklayer/types';
 import type { EmailEnv } from '../email';
 
-/** Auth needs a database and whatever the email engine needs; it defines neither itself. */
-export type AuthEnv = EmailEnv & { DB: D1Database };
+/**
+ * Auth needs a database and whatever the email engine needs; it defines neither
+ * itself. The room namespace is for one thing: telling a warm room its owner
+ * changed who may edit.
+ */
+export type AuthEnv = EmailEnv & { DB: D1Database; ANNOTATION_ROOM: DurableObjectNamespace };
 
 /**
  * The same shape `/auth/me` returns, inferred from the schema both sides parse

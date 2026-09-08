@@ -10,6 +10,17 @@
 
 import { trim } from './buttons';
 
+/** Shared recipe behind `ctl`/`ctlSm`/`ctlXs` — only the footprint and radius vary per size. */
+const ctlShape = (size: string, radius: string) =>
+  trim(`
+    relative inline-flex items-center justify-center shrink-0
+    ${size} p-0 ${radius} appearance-none border-none bg-transparent
+    cursor-pointer outline-none
+    transition-[background-color,color] duration-150 ease-out
+    focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1
+    focus-visible:outline-(--ds-focus-color)
+  `);
+
 export const geist = {
   /** Floating shell. `shadow-menu` opens with a 1px ring, so no border here. */
   surface: trim(`
@@ -29,14 +40,7 @@ export const geist = {
    * 32px square icon control. Concentric with the shell: its 12px radius less
    * the 4px gutter is 8px, so the button corner follows the curve it sits in.
    */
-  ctl: trim(`
-    relative inline-flex items-center justify-center shrink-0
-    h-8 w-8 p-0 rounded-lg appearance-none border-none bg-transparent
-    cursor-pointer touch-none outline-none
-    transition-[background-color,color] duration-150 ease-out
-    focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1
-    focus-visible:outline-(--ds-focus-color)
-  `),
+  ctl: `${ctlShape('h-8 w-8', 'rounded-lg')} touch-none`,
 
   /** Resting control: muted glyph, tonal fill on hover, one step darker on press. */
   ctlIdle: trim(`
@@ -55,14 +59,13 @@ export const geist = {
    * A compact 28px control, for the inside of a panel where a row is 36px tall
    * and a full 32px button would crowd it.
    */
-  ctlSm: trim(`
-    relative inline-flex items-center justify-center shrink-0
-    h-7 w-7 p-0 rounded-md appearance-none border-none bg-transparent
-    cursor-pointer outline-none
-    transition-[background-color,color] duration-150 ease-out
-    focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-1
-    focus-visible:outline-(--ds-focus-color)
-  `),
+  ctlSm: ctlShape('h-7 w-7', 'rounded-md'),
+
+  /**
+   * A 24px control, for the inside of a field or chip where even `ctlSm` leaves
+   * no gutter. Its 4px radius against a field's 6px keeps the two concentric.
+   */
+  ctlXs: ctlShape('h-6 w-6', 'rounded-sm'),
 
   /**
    * App bar. A hairline, never a shadow: a bar is welded to the page it sits on,
