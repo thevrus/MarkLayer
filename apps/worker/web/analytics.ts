@@ -11,6 +11,7 @@
 // aggregate counters, not visitors — and honour Do Not Track.
 
 import { type AnalyticsProps, type Surface, setAnalytics } from '@ext/lib/analytics';
+import { parseShareRef, type ShareRef } from '@ext/lib/share';
 
 type Props = AnalyticsProps;
 type Role = 'editor' | 'viewer';
@@ -36,6 +37,35 @@ let role: Role = 'editor';
 /** Called from signals.ts, which cannot be imported here — it imports `capture`. */
 export function setRole(next: Role): void {
   role = next;
+}
+
+/**
+ * Which share surface produced the link this session arrived on, off `?ref=`.
+ * Ambient like `role` for the same reason: `sanitize` is the only hook that also
+ * reaches the `$pageview` posthog-js sends itself, and that pageview is the
+ * middle step of the share → view → first mark funnel.
+ */
+let shareRef: ShareRef | null = null;
+
+/**
+ * Read `?ref=` and take it off the address bar.
+ *
+ * Removing it matters as much as reading it: a viewer who copies the URL out of
+ * the address bar would otherwise pass on the attribution that brought them
+ * here, and every downstream open would be credited to the first sender's surface.
+ */
+function takeShareRef(): ShareRef | null {
+  const params = new URLSearchParams(location.search);
+  if (!params.has('ref')) return null;
+  const ref = parseShareRef(params.get('ref'));
+  params.delete('ref');
+  const search = params.toString();
+  try {
+    history.replaceState(null, '', `${location.pathname}${search ? `?${search}` : ''}${location.hash}`);
+  } catch {
+    // No session history to rewrite (sandboxed frame). The label still counts.
+  }
+  return ref;
 }
 
 /**
@@ -89,6 +119,7 @@ function sanitize(props: Props): Props {
   // themselves keeps a surface added later opted out until someone decides.
   out.surface ??= surface;
   if (surface === 'viewer') out.role = role;
+  if (shareRef) out.ref ??= shareRef;
   return out;
 }
 
@@ -122,6 +153,9 @@ export function captureOnce(event: string, props?: Props): void {
 
 export function initAnalytics({ key, host, surface: from }: { key?: string; host?: string; surface: Surface }): void {
   surface = from;
+  // Ahead of the opt-out return below: the URL gets cleaned whether or not
+  // anything is ever reported from this page.
+  shareRef = takeShareRef();
   // Nothing will ever drain the buffer without a key (dev, and any self-host
   // that leaves telemetry off), so say so rather than queueing for the page's life.
   if (!key || hasOptedOut()) {

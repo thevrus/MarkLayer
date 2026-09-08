@@ -30,9 +30,60 @@ export function getRoomId(): string {
   return currentAnnotationId;
 }
 
+/**
+ * Where a share link was made, carried on the link itself as `?ref=`.
+ *
+ * A link created, a viewer opened and a first mark drawn were three counters
+ * with nothing joining them, so "did anyone act on what I sent" had no answer.
+ * The label rides the link and the viewer stamps it on every event it reports.
+ */
+export const SHARE_REFS = ['web', 'ext', 'dash'] as const;
+export type ShareRef = (typeof SHARE_REFS)[number];
+
+/**
+ * An allow-list, because the value arrives from the address bar: anything wider
+ * lets a stranger write free text into our telemetry.
+ */
+export function parseShareRef(value: string | null): ShareRef | null {
+  return SHARE_REFS.find((ref) => ref === value) ?? null;
+}
+
+/**
+ * Params rather than string concatenation: these links already carry
+ * `?readonly=1` and `?page=`, and a `readonly` silently dropped here is a
+ * view-only link handed out as editable.
+ */
+export function withShareRef({ url, ref }: { url: string; ref: ShareRef }): string {
+  const stamped = new URL(url);
+  stamped.searchParams.set('ref', ref);
+  return stamped.toString();
+}
+
+/**
+ * The route a share link takes. Built in one place because `share()` copies this
+ * string while the share popover displays it: two spellings means a field can
+ * show a different link than the clipboard holds.
+ */
+export function shareUrl({
+  origin,
+  kind,
+  id,
+  readonly = false,
+  ref,
+}: {
+  origin: string;
+  kind: 'project' | 'page';
+  id: string;
+  readonly?: boolean;
+  ref: ShareRef;
+}): string {
+  const path = kind === 'project' ? `/p/${id}` : `/s/${id}`;
+  return withShareRef({ url: `${origin}${path}${readonly ? '?readonly=1' : ''}`, ref });
+}
+
 /** Get share URL synchronously (generates ID if needed) */
 export function getShareUrl(): string {
-  return `${APP_ORIGIN}/s/${getRoomId()}`;
+  return shareUrl({ origin: APP_ORIGIN, kind: 'page', id: getRoomId(), ref: 'ext' });
 }
 
 /**

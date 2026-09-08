@@ -11,9 +11,12 @@ import {
   isShareableUrl,
   loadAnnotations,
   npxMcpCommand,
+  parseShareRef,
   parseUrlHash,
   saveAnnotations,
   setAnnotationId,
+  shareUrl,
+  withShareRef,
 } from './share';
 
 describe('isShareableUrl', () => {
@@ -85,13 +88,63 @@ describe('room identity', () => {
   test('reuses one id across share surfaces so collaborators land on one canvas', () => {
     const first = getRoomId();
     expect(getRoomId()).toBe(first);
-    expect(getShareUrl()).toBe(`https://marklayer.app/s/${first}`);
+    expect(getShareUrl()).toBe(`https://marklayer.app/s/${first}?ref=ext`);
   });
 
   test('adopting an existing id repoints the share url at it', () => {
     setAnnotationId('adopted-id');
     expect(getRoomId()).toBe('adopted-id');
-    expect(getShareUrl()).toBe('https://marklayer.app/s/adopted-id');
+    expect(getShareUrl()).toBe('https://marklayer.app/s/adopted-id?ref=ext');
+  });
+});
+
+describe('share attribution', () => {
+  test('accepts only the surfaces we name', () => {
+    // The value arrives from the address bar, so whatever is accepted here is a
+    // stranger choosing a property value in our analytics.
+    expect(parseShareRef('web')).toBe('web');
+    expect(parseShareRef('ext')).toBe('ext');
+    expect(parseShareRef('dash')).toBe('dash');
+    expect(parseShareRef('WEB')).toBeNull();
+    expect(parseShareRef('<script>')).toBeNull();
+    expect(parseShareRef(null)).toBeNull();
+  });
+
+  test('keeps the params a share link already carries', () => {
+    // A `readonly` dropped here is a view-only link handed out as editable.
+    expect(withShareRef({ url: 'https://marklayer.app/s/abc?readonly=1', ref: 'web' })).toBe(
+      'https://marklayer.app/s/abc?readonly=1&ref=web',
+    );
+    expect(withShareRef({ url: 'https://marklayer.app/p/xyz?page=2', ref: 'dash' })).toBe(
+      'https://marklayer.app/p/xyz?page=2&ref=dash',
+    );
+  });
+
+  test('replaces an existing ref rather than appending a second', () => {
+    // Re-sharing a link that arrived from somewhere else credits the surface it
+    // is leaving from now, not the one it came in on.
+    expect(withShareRef({ url: 'https://marklayer.app/s/abc?ref=ext', ref: 'web' })).toBe(
+      'https://marklayer.app/s/abc?ref=web',
+    );
+  });
+});
+
+describe('shareUrl', () => {
+  test('routes a project to /p and a page to /s', () => {
+    expect(shareUrl({ origin: 'https://marklayer.app', kind: 'project', id: 'xyz', ref: 'web' })).toBe(
+      'https://marklayer.app/p/xyz?ref=web',
+    );
+    expect(shareUrl({ origin: 'https://marklayer.app', kind: 'page', id: 'abc', ref: 'dash' })).toBe(
+      'https://marklayer.app/s/abc?ref=dash',
+    );
+  });
+
+  // The viewer copies this string and the share popover displays it; a readonly
+  // lost between them hands out a view-only link as editable.
+  test('carries readonly through alongside the ref', () => {
+    expect(shareUrl({ origin: 'https://marklayer.app', kind: 'page', id: 'abc', readonly: true, ref: 'web' })).toBe(
+      'https://marklayer.app/s/abc?readonly=1&ref=web',
+    );
   });
 });
 
