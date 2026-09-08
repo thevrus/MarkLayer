@@ -170,7 +170,16 @@ for (const line of plan) console.log(`publish — ${line}`);
 if (checkOnly) process.exit(0);
 
 if (npmNeeded) {
-  const { status } = spawnSync('npm', ['publish', '--access', 'public'], { cwd: pkgRoot, stdio: 'inherit' });
+  // Verbose only under trusted publishing, and not for noise: npm's OIDC exchange
+  // is best-effort and swallows its own failure at verbose level, then publishes
+  // with whatever credential is left — which is none, so the run dies on a 404
+  // that reads like the package does not exist. The reason is only ever in that
+  // one suppressed line.
+  const flags = trusted ? ['--loglevel', 'verbose'] : [];
+  const { status } = spawnSync('npm', ['publish', '--access', 'public', ...flags], {
+    cwd: pkgRoot,
+    stdio: 'inherit',
+  });
   if (status !== 0) process.exit(status ?? 1);
 }
 if (mcpNeeded) publishToMcpRegistry();
