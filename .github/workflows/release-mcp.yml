@@ -1,0 +1,74 @@
+# Publishes marklayer-mcp without a one-time password.
+#
+# npm has retired token-based 2FA bypass for direct publishing, so an automation
+# token cannot do this any more — a laptop publish needs a human with an
+# authenticator, every time. Trusted publishing replaces both: the workflow
+# proves its own identity over OIDC, and npm attaches provenance for free.
+#
+# One-time setup on npmjs.com → marklayer-mcp → Settings → Trusted Publisher:
+#   Organization or user: thevrus
+#   Repository:           MarkLayer
+#   Workflow filename:    release-mcp.yml
+name: Release MCP
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    # The published bundle inlines both workspace packages, so a change in either
+    # ships inside it. publish-if-new is a no-op when the version has not moved,
+    # which is what makes a path trigger safe here.
+    paths:
+      - 'apps/mcp/**'
+      - 'packages/agent-tools/**'
+      - 'packages/types/**'
+
+concurrency:
+  group: release-mcp
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # mints the OIDC token npm verifies
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24' # trusted publishing needs >= 22.14.0
+          registry-url: 'https://registry.npmjs.org'
+
+      # The runner's bundled npm predates trusted publishing (needs >= 11.5.1).
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar -xz mcp-publisher
+          sudo install -m 0755 mcp-publisher /usr/local/bin/mcp-publisher
+
+      - name: Authenticate to the MCP registry
+        working-directory: apps/mcp
+        run: mcp-publisher login github-oidc
+
+      # Deliberately not `bun run deploy:mcp`: turbo runs tasks in strict env
+      # mode, which filters out the ACTIONS_ID_TOKEN_* variables the OIDC
+      # exchange needs, and the publish would fall back to asking for a password.
+      - name: Build and publish
+        working-directory: apps/mcp
+        run: |
+          bun run build
+          node scripts/publish-if-new.mjs
