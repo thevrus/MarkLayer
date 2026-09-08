@@ -42,6 +42,7 @@ function fakeRoom(over: Partial<RoomOps> = {}): RoomOps & { calls: string[] } {
       calls.push(`reply:${id}`);
       return true;
     },
+    readPage: async () => null,
     create: () => ({ id: 'new-1' }),
     suggestEdit: () => ({ id: 'new-2' }),
   };
@@ -141,12 +142,6 @@ describe('marklayer_read_page', () => {
     entries: [{ selector: '#root > h1:nth-of-type(1)', tag: 'h1', text: 'Your pets', markdown: '`<h1>` Your pets' }],
     truncated: false,
   };
-
-  test('says so plainly when the transport cannot fetch', async () => {
-    const result = await run('marklayer_read_page', {});
-    expect(result?.isError).toBe(true);
-    expect(body(result).error).toContain('remote MCP endpoint');
-  });
 
   test('hands back entries shaped for the write tools', async () => {
     const room = fakeRoom({ readPage: async () => ({ ...page, clientRendered: false }) });

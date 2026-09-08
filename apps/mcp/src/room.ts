@@ -1,4 +1,4 @@
-import type { RoomMeta, WatchEvent } from '@marklayer/agent-tools';
+import type { PageReading, RoomMeta, WatchEvent } from '@marklayer/agent-tools';
 import { classifyOp, isWatchableOp as isWatchable } from '@marklayer/agent-tools';
 import {
   type AnnotationOp,
@@ -154,6 +154,14 @@ export class RoomClient {
     this.markClosed('client disconnected');
     this.ws?.close();
     this.ws = null;
+  }
+
+  /** The Worker owns the fetch — see `RoomOps.readPage` for why it is not done here. */
+  async readPage(): Promise<PageReading | null> {
+    const res = await fetch(`${this.apiBase}/s/${this.roomId}/page.json`).catch(() => null);
+    if (!res?.ok) return null;
+    const body = await res.json().catch(() => null);
+    return body && typeof body === 'object' && 'entries' in body ? (body as PageReading) : null;
   }
 
   getMeta(): RoomMeta {
