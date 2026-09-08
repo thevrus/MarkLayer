@@ -48,6 +48,8 @@ const compare = defineCollection({
     competitorTagline: z.string(),
     homepage: z.url().optional(),
     quote: z.string().optional(),
+    /** Optional embedded demo, rendered near the top of the page when set. */
+    video: z.object({ youtubeId: z.string(), title: z.string() }).optional(),
     rows: z.array(z.object({ feature: z.string(), ml: z.string(), them: z.string() })),
     chooseMl: z.array(z.string()),
     chooseThem: z.array(z.string()),
