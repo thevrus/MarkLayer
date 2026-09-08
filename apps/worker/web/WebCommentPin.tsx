@@ -3,6 +3,7 @@ import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
 import { PriorityPin } from '@ext/components/PriorityPicker';
 import { ReplyComposer, ThreadHeader, ThreadReplies, threadCard } from '@ext/components/ThreadCard';
+import { AgentMark } from '@ext/lib/agents';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -16,7 +17,7 @@ import {
   setOpStatus,
 } from '@ext/lib/state';
 import type { CommentOp } from '@ext/lib/types';
-import { cn, isSettled } from '@marklayer/types';
+import { agentLabel, cn, isAgentAuthored, isSettled } from '@marklayer/types';
 import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
 import { resolveAnchors } from './iframeOverlay';
 import { cssScale, fileUrl, iframeMutationTick, uploadFile } from './signals';
@@ -147,7 +148,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             <ThreadHeader
               label={String(op.num)}
               color={op.color}
-              author={op.author}
+              author={isAgentAuthored(op) && op.author ? agentLabel(op.author) : op.author}
               ts={op.ts}
               priority={op.priority}
             />
@@ -155,12 +156,23 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
             {(op.assignedAgent || dismissed) && (
               <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
                 {op.assignedAgent && (
-                  <span
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-meta font-medium"
-                    style={{ background: 'oklch(0.7 0.16 60 / 0.15)', color: styles.color }}
-                  >
-                    {inProgress && <Loader2 size={9} strokeWidth={2.75} class="animate-spin" aria-hidden="true" />}
-                    {op.assignedAgent}
+                  // Same treatment as PriorityBadge, and for the same reason: the tinted
+                  // capsule made this the loudest thing in the card and set the label in
+                  // `styles.color`, which is `transparent` while a thread is open — so an
+                  // agent's own annotation drew an empty amber box where its name should be.
+                  <span class="text-meta inline-flex items-center gap-1 font-medium text-(--ds-gray-900)">
+                    {inProgress ? (
+                      <Loader2
+                        size={10}
+                        strokeWidth={2.75}
+                        class="animate-spin"
+                        style={{ color: styles.color }}
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <AgentMark id={op.assignedAgent} size={11} />
+                    )}
+                    {agentLabel(op.assignedAgent)}
                   </span>
                 )}
                 {dismissed && op.dismissReason && (

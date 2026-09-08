@@ -1,4 +1,6 @@
 import {
+  AGENT_FALLBACK_COLOR,
+  agentColor,
   type AnnotationOp,
   applyOpPatch,
   type CommentOp,
@@ -33,12 +35,29 @@ export interface RoomMeta {
   expiresAt: number | null;
 }
 
+/**
+ * Why `watch` woke up.
+ *
+ * `new` is someone leaving an annotation. `handoff` is someone giving one to
+ * this agent — the thread was assigned to it, it was mentioned, or a person
+ * replied on a thread it already owns. The last case is the one that matters
+ * for how people actually work: replying "yes, do that" under the agent's own
+ * comment is obviously addressed to the agent, and requiring an @mention there
+ * would be ceremony for its own sake.
+ */
+export interface WatchEvent {
+  kind: 'new' | 'handoff';
+  op: AnnotationOp;
+  /** The reply that handed it over, when a reply is what did. Read it: it is the instruction. */
+  reply?: CommentOp;
+}
+
 interface PendingNew {
-  resolve: (ops: AnnotationOp[]) => void;
+  resolve: (events: WatchEvent[]) => void;
   reject: (err: Error) => void;
   timer: ReturnType<typeof setTimeout> | null;
   flushTimer: ReturnType<typeof setTimeout> | null;
-  buffer: AnnotationOp[];
+  buffer: WatchEvent[];
 }
 
 /**
@@ -46,7 +65,6 @@ interface PendingNew {
  * is driving this bridge — `agentId` (below) is what tells humans which agent
  * it actually is; this is just the "an agent made this" color convention.
  */
-const AGENT_COLOR = '#8b5cf6';
 
 export class RoomClient {
   private ws: WebSocket | null = null;
@@ -58,6 +76,8 @@ export class RoomClient {
   private closedReason: string | null = null;
   private pending: PendingNew | null = null;
   private peerId = `mcp-${nanoid()}`;
+  /** This agent's brand colour, resolved once: presence, pins and marks all use the one value. */
+  private readonly color: string;
   /**
    * Whether the room accepts this peer's writes. The bridge sends no session
    * cookie, so on a link its owner set to view-only every op is discarded — and
@@ -178,8 +198,8 @@ export class RoomClient {
   }
 
   /**
-   * Wait for new top-level comment annotations to arrive.
-   * Returns a batch — either when the first one lands plus a small grace window,
+   * Wait for work: a new annotation, or one handed to this agent.
+   * Returns a batch — either when the first event lands plus a small grace window,
    * or when the timeout expires (returning whatever has accumulated, possibly empty).
    */
   async watch({
@@ -188,16 +208,16 @@ export class RoomClient {
   }: {
     timeoutSeconds?: number;
     batchMs?: number;
-  } = {}): Promise<AnnotationOp[]> {
+  } = {}): Promise<WatchEvent[]> {
     if (this.pending) {
       throw new Error('watch is already in progress; only one watcher is supported at a time');
     }
 
-    return new Promise<AnnotationOp[]>((resolve, reject) => {
+    return new Promise<WatchEvent[]>((resolve, reject) => {
       const pending: PendingNew = {
-        resolve: (ops) => {
+        resolve: (events) => {
           this.pending = null;
-          resolve(ops);
+          resolve(events);
         },
         reject: (err) => {
           this.pending = null;
@@ -262,10 +282,14 @@ export class RoomClient {
       text,
       x,
       y,
-      color: AGENT_COLOR,
+      color: this.color,
       lineWidth: 2,
       ts: Date.now(),
       author: this.agentId,
+      // Stable across sessions, unlike the per-connection peer id. Without it the
+      // roster forgets the agent the moment it disconnects, so nobody can assign
+      // or @mention it afterwards — its own annotations name it and nothing else.
+      authorId: this.agentId,
       assignedAgent: this.agentId,
       ...(priority ? { priority } : {}),
       ...(target ? { target } : {}),
@@ -303,9 +327,13 @@ export class RoomClient {
       // already proved it differs from `text`, but not that it is trimmed.
       suggestion: normalizeSuggestion({ text, suggestion }) ?? suggestion,
       ts: Date.now(),
-      color: AGENT_COLOR,
+      color: this.color,
       lineWidth: 2,
       author: this.agentId,
+      // Stable across sessions, unlike the per-connection peer id. Without it the
+      // roster forgets the agent the moment it disconnects, so nobody can assign
+      // or @mention it afterwards — its own annotations name it and nothing else.
+      authorId: this.agentId,
       assignedAgent: this.agentId,
       ...(comment ? { comment } : {}),
       ...(priority ? { priority } : {}),
@@ -320,7 +348,7 @@ export class RoomClient {
     const params = new URLSearchParams({
       peerId: this.peerId,
       name: this.agentId,
-      color: AGENT_COLOR,
+      color: this.color,
     });
     return `${protocol}//${base.host}/ws/${this.roomId}?${params}`;
   }
@@ -378,11 +406,15 @@ export class RoomClient {
       num: this.countRootComments() + 1,
       text,
       ...opAnchor(parent),
-      color: AGENT_COLOR,
+      color: this.color,
       lineWidth: parent.lineWidth,
       ts: Date.now(),
       parentId,
       author: this.agentId,
+      // Stable across sessions, unlike the per-connection peer id. Without it the
+      // roster forgets the agent the moment it disconnects, so nobody can assign
+      // or @mention it afterwards — its own annotations name it and nothing else.
+      authorId: this.agentId,
       assignedAgent: this.agentId,
     };
     return this.commit(op);
@@ -419,7 +451,12 @@ export class RoomClient {
         const op = parsed.data;
         if (this.ops.some((o) => o.id === op.id)) return;
         this.ops.push(op);
-        if (isWatchable(op)) this.handleNewAnnotation(op);
+        if (isWatchable(op)) {
+          this.emit({ kind: 'new', op });
+          return;
+        }
+        const handoff = this.handoffFromReply(op);
+        if (handoff) this.emit(handoff);
         return;
       }
       case 'update_op': {
@@ -428,8 +465,16 @@ export class RoomClient {
         if (!opId || !patch || typeof patch !== 'object') return;
         const idx = this.ops.findIndex((o) => o.id === opId);
         if (idx === -1) return;
-        const merged = applyOpPatch({ op: this.ops[idx], patch });
-        if (merged) this.ops[idx] = merged;
+        const before = this.ops[idx];
+        const merged = applyOpPatch({ op: before, patch });
+        if (!merged) return;
+        this.ops[idx] = merged;
+        // Only on the transition: a later patch to the same thread (a status
+        // change, say) carries `assignee` forward and would wake the agent again
+        // for work it already has.
+        const mineNow = 'assignee' in merged && merged.assignee === this.agentId;
+        const mineBefore = before && 'assignee' in before && before.assignee === this.agentId;
+        if (mineNow && !mineBefore && isWatchable(merged)) this.emit({ kind: 'handoff', op: merged });
         return;
       }
       case 'undo': {
@@ -452,10 +497,31 @@ export class RoomClient {
     }
   }
 
-  private handleNewAnnotation(op: AnnotationOp): void {
+  /** Threads this agent is answerable for: it wrote them, claimed them, or was assigned them. */
+  private isMine(op: AnnotationOp): boolean {
+    return op.author === this.agentId || op.assignedAgent === this.agentId || op.assignee === this.agentId;
+  }
+
+  /**
+   * A reply is addressed to this agent when it names it, or when it lands on a
+   * thread the agent already owns. Without the second rule the obvious gesture —
+   * replying "yes, do that" under the agent's own comment — reaches nobody, and
+   * with it two people talking under someone else's thread still do not.
+   */
+  private handoffFromReply(op: DrawOp): WatchEvent | null {
+    if (op.tool !== 'comment') return null;
+    const reply = op;
+    if (!reply.parentId || reply.author === this.agentId) return null;
+    const parent = this.ops.find((o): o is AnnotationOp => isWatchable(o) && o.id === reply.parentId);
+    if (!parent) return null;
+    const named = (reply.mentions ?? []).some((mention) => mention.id === this.agentId);
+    return named || this.isMine(parent) ? { kind: 'handoff', op: parent, reply } : null;
+  }
+
+  private emit(event: WatchEvent): void {
     const pending = this.pending;
     if (!pending) return;
-    pending.buffer.push(op);
+    pending.buffer.push(event);
     if (pending.flushTimer) clearTimeout(pending.flushTimer);
     pending.flushTimer = setTimeout(() => {
       if (!this.pending) return;

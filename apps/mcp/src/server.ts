@@ -277,9 +277,12 @@ const TOOLS: Tool[] = [
   {
     name: 'marklayer_watch_annotations',
     description:
-      'Block until a new annotation is created, then return a batch of any that arrive within a short window. ' +
-      'Returns annotations of every kind (comment, area, selection, inspect) with their `target` element context. ' +
-      'Returns an empty list if the timeout expires first. Use this in a loop to process feedback as it arrives.',
+      'Block until there is work, then return a batch of whatever arrives within a short window. Each event has a ' +
+      '`kind`: "new" is an annotation someone just left; "handoff" is one given to you — assigned to you, a reply ' +
+      'that @mentions you, or a reply on a thread you already own. A handoff also carries `request`, the reply that ' +
+      'asked: read it, it is the instruction, and act on it rather than only acknowledging. Every event carries the ' +
+      'full annotation with its `target` element context. Returns an empty list if the timeout expires first. Use ' +
+      'this in a loop to process feedback as it arrives.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -536,7 +539,13 @@ export async function startServer(opts: ServerOptions): Promise<void> {
           const batch = await r.watch(parsed.data);
           return ok({
             count: batch.length,
-            annotations: batch.map((op) => projectAnnotation(op, opts.apiBase)),
+            events: batch.map((event) => ({
+              kind: event.kind,
+              annotation: projectAnnotation(event.op, opts.apiBase),
+              // The reply that handed it over is the instruction — surfaced beside
+              // the thread so the agent reads what was asked, not just what exists.
+              ...(event.reply ? { request: { from: event.reply.author ?? null, text: event.reply.text } } : {}),
+            })),
           });
         }
 

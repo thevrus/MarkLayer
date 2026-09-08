@@ -52,3 +52,23 @@ export const textareaCls = trim(`
   focus:border-(--ds-gray-700)
   placeholder:text-(--ds-gray-700)
 `);
+
+/**
+ * Composer shell — a reply/comment box as ONE bordered surface holding the
+ * field and its toolbar, rather than a bordered textarea with a separate,
+ * borderless action row floating beneath it. The border steps on
+ * focus-within, same cue as `textareaCls`'s own focus state, so the whole box
+ * reads as the control.
+ */
+export const composerCls = trim(`
+  bg-(--ds-background-100) border border-(--ds-gray-alpha-400) rounded-md
+  transition-[border-color] duration-150 ease-out
+  focus-within:border-(--ds-gray-700)
+`);
+
+/** Textarea for inside `composerCls` — same type treatment as `textareaCls`, with no border or fill of its own. */
+export const textareaBareCls = trim(`
+  bg-transparent text-(--ds-gray-1000) text-ui leading-relaxed
+  resize-none outline-none caret-(--ds-gray-1000)
+  placeholder:text-(--ds-gray-700)
+`);

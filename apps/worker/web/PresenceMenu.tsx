@@ -1,12 +1,12 @@
 import { Popover } from '@base-ui/react/popover';
 import { Avatar } from '@ext/components/Avatar';
+import { AgentMark } from '@ext/lib/agents';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { portalContainer } from '@ext/lib/portal';
 import { type DepartedPeer, departedPeers, localUser, peers } from '@ext/lib/state';
 import type { Peer } from '@ext/lib/types';
-import { cn, isAgentPeer } from '@marklayer/types';
-import { Bot } from 'lucide-preact';
+import { agentLabel, cn, isAgentPeer } from '@marklayer/types';
 import { useState } from 'preact/hooks';
 import { PresenceDot } from './shared';
 import { timeAgo } from './signals';
@@ -40,6 +40,7 @@ function Row({
   detail: string;
   dim?: boolean;
 }) {
+  const shown = agent ? agentLabel(name) : name;
   return (
     <div class="flex items-center gap-2.5 px-3.5 py-1.5">
       <Avatar
@@ -47,7 +48,7 @@ function Row({
         color={color}
         size="md"
         dim={dim}
-        glyph={agent ? <Bot size={12} strokeWidth={1.75} aria-hidden="true" /> : undefined}
+        glyph={agent ? <AgentMark id={name} size={11} /> : undefined}
       />
       <span
         class={cn(
@@ -55,7 +56,7 @@ function Row({
           dim ? 'text-(--ds-gray-900)' : 'text-(--ds-gray-1000)',
         )}
       >
-        {name}
+        {shown}
       </span>
       {/* Right-aligned so every row's status shares one edge however long the name is. */}
       <span class={cn(geist.meta, 'text-meta shrink-0 tabular-nums whitespace-nowrap')}>{detail}</span>
