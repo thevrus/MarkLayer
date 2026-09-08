@@ -4,6 +4,7 @@ import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { Avatar } from '@ext/components/Avatar';
 import { IdentityCard } from '@ext/components/IdentityCard';
 import { Tooltip } from '@ext/components/Tooltip';
+import { AgentMark } from '@ext/lib/agents';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -16,7 +17,7 @@ import {
   theme,
 } from '@ext/lib/state';
 import type { DeviceMode } from '@ext/lib/types';
-import { cn } from '@marklayer/types';
+import { agentLabel, cn, isAgentPeer } from '@marklayer/types';
 import {
   Check,
   ChevronDown,
@@ -308,21 +309,26 @@ function PresenceGroup() {
         reset();
       }}
     >
-      {visible.map((p, i) => (
-        <Avatar
-          key={p.id}
-          name={p.name}
-          color={p.color}
-          stacked
-          dim={p.cursor == null}
-          title={p.cursor != null ? p.name : `${p.name} (inactive)`}
-          style={{ zIndex: zOf(i, peers.value.size - i) }}
-          onMouseEnter={enter(i)}
-          onClick={() => {
-            if (p.cursor) onFollowScroll.value?.(p.cursor.y);
-          }}
-        />
-      ))}
+      {visible.map((p, i) => {
+        const agent = isAgentPeer(p.id);
+        const label = agent ? agentLabel(p.name) : p.name;
+        return (
+          <Avatar
+            key={p.id}
+            name={p.name}
+            color={p.color}
+            glyph={agent ? <AgentMark id={p.name} size={11} /> : undefined}
+            stacked
+            dim={!agent && p.cursor == null}
+            title={agent ? `${label} (connected)` : p.cursor != null ? label : `${label} (inactive)`}
+            style={{ zIndex: zOf(i, peers.value.size - i) }}
+            onMouseEnter={enter(i)}
+            onClick={() => {
+              if (p.cursor) onFollowScroll.value?.(p.cursor.y);
+            }}
+          />
+        );
+      })}
       {overflow > 0 && (
         <div
           class="ml-avatar w-6 h-6 rounded-full grid place-items-center shrink-0 bg-(--ds-gray-100) text-(--ds-gray-900) text-meta font-medium tabular-nums"

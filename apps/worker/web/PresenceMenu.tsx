@@ -7,6 +7,7 @@ import { portalContainer } from '@ext/lib/portal';
 import { type DepartedPeer, departedPeers, localUser, peers } from '@ext/lib/state';
 import type { Peer } from '@ext/lib/types';
 import { agentLabel, cn, isAgentPeer } from '@marklayer/types';
+import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { PresenceDot } from './shared';
 import { timeAgo } from './signals';
@@ -29,18 +30,22 @@ function status(peer: Peer): string {
 
 function Row({
   name,
+  label,
   color,
   agent,
   detail,
   dim,
 }: {
+  /** Identity only — feeds the avatar's initials, so it must stay a bare name. */
   name: string;
+  /** What the row displays, if it differs from `name` (e.g. "Vadym (you)"). */
+  label?: ComponentChildren;
   color: string;
   agent?: boolean;
   detail: string;
   dim?: boolean;
 }) {
-  const shown = agent ? agentLabel(name) : name;
+  const shown = label ?? (agent ? agentLabel(name) : name);
   return (
     <div class="flex items-center gap-2.5 px-3.5 py-1.5">
       <Avatar
@@ -111,7 +116,16 @@ export function PresenceMenu({ live, count }: { live: boolean; count: number }) 
           className="z-2147483647 outline-none"
         >
           <Popover.Popup className={cn(geist.surface, glass.font, 'w-64 overflow-hidden py-1.5 outline-none')}>
-            <Row name={`${localUser.name} (you)`} color={localUser.color} detail="active now" />
+            <Row
+              name={localUser.name}
+              color={localUser.color}
+              detail="active now"
+              label={
+                <>
+                  {localUser.name} <span class="font-normal text-(--ds-gray-800)">(you)</span>
+                </>
+              }
+            />
             {here.map((peer) => (
               <Row
                 key={peer.id}
@@ -124,6 +138,7 @@ export function PresenceMenu({ live, count }: { live: boolean; count: number }) 
             {gone.length > 0 && (
               <>
                 <div class={cn(geist.divider, 'my-1.5')} />
+                <div class={cn(geist.sectionLabel, 'px-3.5 pb-1')}>Recently left</div>
                 {gone.map((peer: DepartedPeer) => (
                   <Row
                     key={peer.id}

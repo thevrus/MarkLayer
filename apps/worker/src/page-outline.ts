@@ -63,6 +63,13 @@ const VOID_TAGS = new Set([
   'wbr',
 ]);
 
+/**
+ * Never part of a path: `querySelector` is document-scoped, so every selector
+ * would otherwise open with the same `html:nth-of-type(1) > body:nth-of-type(1)`
+ * — noise on every entry, paid for by whoever reads the result.
+ */
+const IMPLIED_ROOTS = new Set(['html', 'body']);
+
 /** Enough of an element's copy to judge it; the whole page is the caller's budget, not one node's. */
 const MAX_TEXT = 300;
 
@@ -120,14 +127,17 @@ function selectorFor(stack: Frame[]): string {
     const frame = stack[i];
     if (!frame) continue;
     if (i === from && frame.id && SIMPLE_ID.test(frame.id)) parts.push(`#${frame.id}`);
-    else parts.push(`${frame.tag}:nth-of-type(${frame.nth})`);
+    else if (!IMPLIED_ROOTS.has(frame.tag)) parts.push(`${frame.tag}:nth-of-type(${frame.nth})`);
   }
   return parts.join(' > ');
 }
 
-/** The snapshot a human sees in a comment — the client's `formatForAI` shape, minus what needs a DOM. */
-const snapshot = ({ tag, selector, text }: { tag: string; selector: string; text: string }) =>
-  `\`<${tag}>\` \`${selector}\`\n\n${text}`;
+/**
+ * The snapshot a human sees on the annotation. Deliberately not a restatement of
+ * the entry: `selector` and `tag` already travel beside it, and repeating them
+ * here doubled the size of every result an agent reads.
+ */
+const snapshot = ({ tag, text }: { tag: string; text: string }) => `\`<${tag}>\` ${text}`;
 
 /**
  * Read one HTML document into an outline. `maxEntries` bounds the response, not
@@ -202,7 +212,7 @@ export async function outlinePage({
           truncated = true;
           return;
         }
-        entries.push({ selector, tag: done.tag, text, markdown: snapshot({ tag: done.tag, selector, text }) });
+        entries.push({ selector, tag: done.tag, text, markdown: snapshot({ tag: done.tag, text }) });
       });
     },
     text(chunk) {

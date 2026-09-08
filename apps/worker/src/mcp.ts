@@ -1,3 +1,4 @@
+import type { PageReading } from '@marklayer/agent-tools';
 import {
   callRoomTool,
   classifyOp,
@@ -5,8 +6,8 @@ import {
   isWatchableOp as isWatchable,
   type RoomMeta,
   type RoomOps,
-  TOOLS,
   type ToolContent,
+  toolsFor,
   type WatchEvent,
 } from '@marklayer/agent-tools';
 import {
@@ -27,6 +28,8 @@ import {
 import { McpServer, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 import { nanoid } from 'nanoid';
 import type { AnnotationRoom } from './annotation-room';
+import { outlinePage } from './page-outline';
+import { fetchPage } from './proxy';
 
 /**
  * A room reached by RPC instead of a socket.
@@ -45,6 +48,7 @@ export class WorkerRoom implements RoomOps {
     private readonly stub: DurableObjectStub<AnnotationRoom>,
     readonly roomId: string,
     private readonly agentId: string,
+    private readonly env: Parameters<typeof fetchPage>[0]['env'],
   ) {}
 
   /** One round trip for everything a tool call might read. Also marks the agent present. */
@@ -73,6 +77,19 @@ export class WorkerRoom implements RoomOps {
   /** Nothing to be disconnected from: the room is a call away, not a socket held open. */
   checkLive(): string | null {
     return null;
+  }
+
+  /**
+   * Fetched through the proxy's own path, so this inherits the SSRF guard and
+   * the fixed-IP relay that a WAF-blocked host needs — the two reasons this
+   * cannot simply be a fetch from wherever the agent happens to run.
+   */
+  async readPage(): Promise<PageReading | null> {
+    const url = this.meta.url;
+    if (!url) return null;
+    const page = await fetchPage({ url, env: this.env });
+    if (!page.stream || page.status >= 400 || !page.contentType.includes('html')) return null;
+    return outlinePage({ html: await new Response(page.stream).text(), url: page.finalUrl });
   }
 
   getMeta(): RoomMeta {
@@ -230,7 +247,7 @@ export class WorkerRoom implements RoomOps {
  */
 function buildServer({ room, apiBase }: { room: WorkerRoom; apiBase: string }): McpServer {
   const server = new McpServer({ name: 'marklayer', version: '1.0.0' });
-  for (const tool of TOOLS) {
+  for (const tool of toolsFor({ remote: true })) {
     // connect_room has no meaning here: the room is named in the URL.
     if (tool.name === 'marklayer_connect_room') continue;
     server.registerTool(
@@ -254,14 +271,16 @@ export async function handleMcpRequest({
   roomId,
   apiBase,
   agentId,
+  env,
 }: {
   request: Request;
   stub: DurableObjectStub<AnnotationRoom>;
   roomId: string;
   apiBase: string;
   agentId: string;
+  env: Parameters<typeof fetchPage>[0]['env'];
 }): Promise<Response> {
-  const room = new WorkerRoom(stub, roomId, agentId);
+  const room = new WorkerRoom(stub, roomId, agentId, env);
   await room.load();
   const server = buildServer({ room, apiBase });
   // No session id: each request is self-contained, which is what lets this run

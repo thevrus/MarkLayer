@@ -1,5 +1,5 @@
 // Read, not restated: the literal here silently fell three releases behind package.json before.
-import { ConnectInput, callRoomTool, err, fail, ok, TOOLS, type ToolContent } from '@marklayer/agent-tools';
+import { ConnectInput, callRoomTool, err, fail, ok, type ToolContent, toolsFor } from '@marklayer/agent-tools';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -80,7 +80,7 @@ export async function startServer(opts: ServerOptions): Promise<void> {
     }
   }
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolsFor({ remote: false }) }));
 
   server.setRequestHandler(CallToolRequestSchema, async (req): Promise<ToolContent> => {
     const name = req.params.name;

@@ -216,7 +216,7 @@ export function resetRelayBreaker(): void {
 }
 
 /** A page, and how it was obtained. */
-interface FetchedPage {
+export interface FetchedPage {
   status: number;
   contentType: string;
   finalUrl: string;
@@ -288,7 +288,7 @@ export async function fetchWithHeaderTimeout({
  * served the full page to an ordinary connection. So there is nothing to retry
  * with here — only somewhere else to retry *from*.
  */
-async function fetchPage({ url, env }: { url: string; env: Env['Bindings'] }): Promise<FetchedPage> {
+export async function fetchPage({ url, env }: { url: string; env: Env['Bindings'] }): Promise<FetchedPage> {
   const origin = new URL(url).origin;
   const resp = await fetchWithHeaderTimeout({
     url,
