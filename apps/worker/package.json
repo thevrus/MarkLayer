@@ -18,6 +18,7 @@
     "@base-ui/react": "^1.7.0",
     "@cloudflare/vite-plugin": "^1.54.2",
     "@hono/zod-openapi": "^1.6.1",
+    "@marklayer/agent-tools": "workspace:*",
     "@marklayer/emails": "workspace:*",
     "@marklayer/site": "workspace:*",
     "@marklayer/types": "workspace:*",

@@ -11,7 +11,8 @@
     }
   },
   "scripts": {
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "bun test"
   },
   "dependencies": {
     "@marklayer/types": "workspace:*",

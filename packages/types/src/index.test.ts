@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  AGENT_FALLBACK_COLOR,
+  agentColor,
+  agentLabel,
   applyOpPatch,
   type CommentOp,
+  canonicalAgent,
   clientMsgSchema,
   cn,
   type DrawOp,
@@ -295,5 +299,27 @@ describe('UPLOAD_ACCEPT', () => {
     // offered a file that the server then refuses.
     expect(UPLOAD_ACCEPT.split(',')).toEqual(UPLOAD_FORMATS.map((format) => format.contentType));
     expect(UPLOAD_ACCEPT).not.toContain('svg');
+  });
+});
+
+describe('agent branding', () => {
+  test('an alias resolves to the same brand as its canonical id', () => {
+    // The mark lives in the extension and the label/colour here, so an alias
+    // spelled into only one table shows an agent's icon without its name.
+    for (const [alias, canonical] of [
+      ['claude-code', 'claude'],
+      ['gemini-cli', 'gemini'],
+      ['github-copilot', 'copilot'],
+    ]) {
+      expect(canonicalAgent(alias)).toBe(canonical);
+      expect(agentLabel(alias)).toBe(agentLabel(canonical));
+      expect(agentColor(alias)).toBe(agentColor(canonical));
+    }
+  });
+
+  test('an unrecognised id is title-cased and claims no brand', () => {
+    expect(agentLabel('my-cool-agent')).toBe('My Cool Agent');
+    expect(agentColor('my-cool-agent')).toBe(AGENT_FALLBACK_COLOR);
+    expect(agentLabel('CLAUDE-CODE')).toBe('Claude');
   });
 });

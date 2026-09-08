@@ -1,4 +1,4 @@
-import { AttachButton, AttachmentGallery, AttachmentThumbs, useAttachments } from '@ext/components/AttachmentPicker';
+import { AttachmentGallery, AttachmentThumbs, ComposerActions, useAttachments } from '@ext/components/AttachmentPicker';
 import { Avatar } from '@ext/components/Avatar';
 import { TriageSection } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
@@ -236,33 +236,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
                 onPaste={(e) => attachments.onPaste(e)}
               />
               <AttachmentThumbs attachments={attachments} resolveUrl={fileUrl} class="px-2.5" />
-              <div class="flex items-center justify-between gap-1 px-1.5 pb-1.5 pt-0.5">
-                <AttachButton attachments={attachments} />
-                <div class="flex items-center gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      attachments.reset();
-                      setReplying(false);
-                    }}
-                    class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium h-6 px-2')}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={submit}
-                    disabled={attachments.uploading}
-                    class={cn(
-                      geist.ctlOn,
-                      'inline-flex items-center justify-center h-6 px-2.5 rounded-md border-none cursor-pointer outline-none',
-                      'text-meta font-medium disabled:pointer-events-none disabled:opacity-50',
-                    )}
-                  >
-                    Reply
-                  </button>
-                </div>
-              </div>
+              <ComposerActions attachments={attachments} onCancel={() => setReplying(false)} onSubmit={submit} />
             </div>
           </div>
         </div>

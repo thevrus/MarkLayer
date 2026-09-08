@@ -59,7 +59,7 @@ cd apps/mcp && bun run dev         # tsc --watch
 cd apps/mcp && node scripts/publish-if-new.mjs --check   # Publish preflight, no side effects
 ```
 
-`bun run test` runs `bun test` in the workspaces that have specs (`packages/types`, `apps/worker`, `apps/fetcher`); the rest of the monorepo has none, so `bun run check` (TypeScript) and `bun run lint` (Biome) still carry most of the verification loop. Prefer a test where the failure would be silent — a truncated stream, a guard that stops guarding — over one that restates the type signature.
+`bun run test` runs `bun test` in the workspaces that have specs (`packages/types`, `apps/extension`, `apps/worker`, `apps/mcp`, `apps/fetcher`, `packages/emails`); the rest of the monorepo has none, so `bun run check` (TypeScript) and `bun run lint` (Biome) still carry most of the verification loop. Prefer a test where the failure would be silent — a truncated stream, a guard that stops guarding — over one that restates the type signature.
 
 **`apps/site` is pinned to `typescript@^6`, deliberately.** Its `check` is `astro check`, which needs the TS programmatic API that the 7.x native compiler does not ship yet (withastro/roadmap#1321). The rest of the monorepo runs `tsc --noEmit` on 7.x and is unaffected. Do not bump the site to 7 until `astro check` supports it: the alternative, swapping it for `tsc --noEmit`, silently stops type-checking all 37 `.astro` templates.
 
@@ -101,6 +101,13 @@ packages/types/     # Shared types & Zod schemas (DrawOp union incl. guide/inspe
                     # CommentOp + priority/status, Peer, AnchorPoint, target element
                     # metadata) and the `cn` helper. Single source of truth for
                     # client + server validation.
+packages/agent-tools/  # The agent tool contract with no transport in it: the MCP
+                    # tool specs, their zod/mini input schemas, the agent-facing
+                    # projection of an annotation and the ok/err envelope. Lifted
+                    # out of apps/mcp so a second runtime can serve the same tools
+                    # over Streamable HTTP; apps/mcp is still the only consumer.
+                    # Deliberately imports no MCP SDK — the contract is shared,
+                    # the wiring is not.
 ```
 
 ## Conventions

@@ -2,11 +2,11 @@
  * A readable outline of a page, built server-side so an agent can audit copy
  * without a browser.
  *
- * The MCP surface could only ever report annotations a human had already made:
- * an agent asked to "review this page" had nothing to review. This closes that
- * loop by emitting exactly the `TargetElement` shape the write tools already
- * take, so a `read` result feeds straight into `suggest_edit` with nothing in
- * between.
+ * The MCP surface can only report annotations a human had already made: an agent
+ * asked to "review this page" has nothing to review. This is the read half of
+ * that loop, shaped to close it — the entries carry exactly the `TargetElement`
+ * fields the write tools take, so an outline row feeds straight into
+ * `suggest_edit`. Nothing calls it yet; the tool that will is not written.
  *
  * Built on HTMLRewriter rather than a DOM parser: it is native to Workers,
  * streams, and costs no bundle. The price is that there is no tree to query, so
@@ -153,6 +153,14 @@ export async function outlinePage({
   let totalText = 0;
   let truncated = false;
 
+  /** Next `nth-of-type` index for `name` within its open parent. */
+  const bump = (name: string) => {
+    const parent = stack[stack.length - 1] ?? root;
+    const next = (parent.counts.get(name) ?? 0) + 1;
+    parent.counts.set(name, next);
+    return next;
+  };
+
   const rewriter = new HTMLRewriter().on('*', {
     element(el) {
       const tag = el.tagName.toLowerCase();
@@ -196,13 +204,6 @@ export async function outlinePage({
         }
         entries.push({ selector, tag: done.tag, text, markdown: snapshot({ tag: done.tag, selector, text }) });
       });
-
-      function bump(name: string) {
-        const parent = stack[stack.length - 1] ?? root;
-        const next = (parent.counts.get(name) ?? 0) + 1;
-        parent.counts.set(name, next);
-        return next;
-      }
     },
     text(chunk) {
       if (inTitle) {

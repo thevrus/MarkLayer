@@ -1,24 +1,5 @@
 // Read, not restated: the literal here silently fell three releases behind package.json before.
-import {
-  attachmentUrls,
-  ConnectInput,
-  CreateInput,
-  DismissInput,
-  err,
-  fail,
-  IdInput,
-  ListInput,
-  mutationErr,
-  ok,
-  projectAnnotation,
-  ReplyInput,
-  ResolveInput,
-  SuggestInput,
-  TOOLS,
-  type ToolContent,
-  targetFromParts,
-  WatchInput,
-} from '@marklayer/agent-tools';
+import { ConnectInput, callRoomTool, err, fail, ok, TOOLS, type ToolContent } from '@marklayer/agent-tools';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -89,16 +70,6 @@ export async function startServer(opts: ServerOptions): Promise<void> {
     return room;
   };
 
-  /**
-   * A write on a dead socket used to come back as `annotation not found`, which
-   * sends the agent hunting for an id that is fine. Say what actually happened.
-   */
-  const ensureLive = (r: RoomClient): ToolContent | null => {
-    const why = r.disconnectedReason();
-    if (!why) return null;
-    return err(`room ${r.roomId} is not connected (${why}) — call marklayer_connect_room to reconnect`);
-  };
-
   if (opts.initialRoom) {
     try {
       room = new RoomClient(opts.apiBase, parseRoomRef(opts.initialRoom), opts.agentId);
@@ -115,151 +86,22 @@ export async function startServer(opts: ServerOptions): Promise<void> {
     const name = req.params.name;
     const rawArgs = req.params.arguments ?? {};
     try {
-      switch (name) {
-        case 'marklayer_connect_room': {
-          const parsed = ConnectInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const id = parseRoomRef(parsed.data.room);
-          if (room) room.close();
-          room = new RoomClient(opts.apiBase, id, opts.agentId);
-          await room.connect();
-          return ok({ roomId: id, ...room.getMeta() });
-        }
-
-        case 'marklayer_room_info': {
-          const r = ensureRoom();
-          return ok({ roomId: r.roomId, ...r.getMeta() });
-        }
-
-        case 'marklayer_list_annotations': {
-          const parsed = ListInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const r = ensureRoom();
-          const ann = r.listAnnotations({ status: parsed.data.status });
-          return ok({
-            count: ann.length,
-            annotations: ann.map((op) => projectAnnotation(op, opts.apiBase)),
-          });
-        }
-
-        case 'marklayer_get_annotation': {
-          const parsed = IdInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const r = ensureRoom();
-          const found = r.getAnnotation(parsed.data.id);
-          if (!found) return err(`annotation not found: ${parsed.data.id}`);
-          return ok({
-            ...projectAnnotation(found.op, opts.apiBase),
-            dismissReason: found.op.dismissReason ?? null,
-            replies: found.replies.map((reply) => ({
-              id: reply.id,
-              text: reply.text,
-              author: reply.author ?? null,
-              ts: reply.ts,
-              attachments: attachmentUrls(reply.attachments, opts.apiBase),
-            })),
-          });
-        }
-
-        case 'marklayer_watch_annotations': {
-          const parsed = WatchInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const r = ensureRoom();
-          const batch = await r.watch(parsed.data);
-          return ok({
-            count: batch.length,
-            events: batch.map((event) => ({
-              kind: event.kind,
-              annotation: projectAnnotation(event.op, opts.apiBase),
-              // The reply that handed it over is the instruction — surfaced beside
-              // the thread so the agent reads what was asked, not just what exists.
-              ...(event.reply ? { request: { from: event.reply.author ?? null, text: event.reply.text } } : {}),
-            })),
-          });
-        }
-
-        case 'marklayer_acknowledge': {
-          const parsed = IdInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const r = ensureRoom();
-          const dead = ensureLive(r);
-          if (dead) return dead;
-          if (!r.acknowledge(parsed.data.id)) return mutationErr({ room: r, id: parsed.data.id });
-          return ok({ id: parsed.data.id, status: 'in_progress', assignedAgent: opts.agentId });
-        }
-
-        case 'marklayer_resolve': {
-          const parsed = ResolveInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const r = ensureRoom();
-          const dead = ensureLive(r);
-          if (dead) return dead;
-          if (!r.resolve(parsed.data.id, parsed.data.summary)) return mutationErr({ room: r, id: parsed.data.id });
-          return ok({ id: parsed.data.id, status: 'resolved' });
-        }
-
-        case 'marklayer_dismiss': {
-          const parsed = DismissInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const r = ensureRoom();
-          const dead = ensureLive(r);
-          if (dead) return dead;
-          if (!r.dismiss(parsed.data.id, parsed.data.reason)) return mutationErr({ room: r, id: parsed.data.id });
-          return ok({ id: parsed.data.id, status: 'dismissed', reason: parsed.data.reason });
-        }
-
-        case 'marklayer_reply': {
-          const parsed = ReplyInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const r = ensureRoom();
-          const dead = ensureLive(r);
-          if (dead) return dead;
-          if (!r.reply(parsed.data.id, parsed.data.text)) return mutationErr({ room: r, id: parsed.data.id });
-          return ok({ id: parsed.data.id, replied: true });
-        }
-
-        case 'marklayer_create_annotation': {
-          const parsed = CreateInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const { text, x, y, priority, selector, tag, markdown } = parsed.data;
-          const r = ensureRoom();
-          const dead = ensureLive(r);
-          if (dead) return dead;
-          const created = r.create({ text, x, y, priority, target: targetFromParts({ selector, tag, markdown }) });
-          if (!created) {
-            return r.viewOnly
-              ? err('this link is view-only, so nothing can be created through it')
-              : err('could not create the annotation — the room socket may be disconnected');
-          }
-          return ok({ id: created.id, status: 'open' });
-        }
-
-        case 'marklayer_suggest_edit': {
-          const parsed = SuggestInput.safeParse(rawArgs);
-          if (!parsed.success) return fail(parsed.error);
-          const { text, suggestion, rects, comment, priority, selector, tag, markdown } = parsed.data;
-          const r = ensureRoom();
-          const dead = ensureLive(r);
-          if (dead) return dead;
-          const created = r.suggestEdit({
-            text,
-            suggestion,
-            rects,
-            comment,
-            priority,
-            target: targetFromParts({ selector, tag, markdown }),
-          });
-          if (!created) {
-            return r.viewOnly
-              ? err('this link is view-only, so nothing can be created through it')
-              : err('could not create the suggestion — the room socket may be disconnected');
-          }
-          return ok({ id: created.id, status: 'open' });
-        }
-
-        default:
-          return err(`unknown tool: ${name}`);
+      // connect_room is the one tool that is not about a room's contents, so it
+      // stays here: over HTTP the room is already named in the URL and there is
+      // nothing to connect.
+      if (name === 'marklayer_connect_room') {
+        const parsed = ConnectInput.safeParse(rawArgs);
+        if (!parsed.success) return fail(parsed.error);
+        const id = parseRoomRef(parsed.data.room);
+        if (room) room.close();
+        room = new RoomClient(opts.apiBase, id, opts.agentId);
+        await room.connect();
+        return ok({ roomId: id, ...room.getMeta() });
       }
+
+      const r = ensureRoom();
+      const handled = await callRoomTool({ name, args: rawArgs, room: r, apiBase: opts.apiBase });
+      return handled ?? err(`unknown tool: ${name}`);
     } catch (e) {
       return err((e as Error).message);
     }
