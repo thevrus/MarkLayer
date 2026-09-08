@@ -132,6 +132,22 @@ const idPart = { id: z.string().check(z.minLength(1)) };
 export const ConnectInput = z.object({ room: z.string().check(z.minLength(1)) });
 export const ListInput = z.object({ status: z.optional(StatusFilter) });
 export const IdInput = z.object({ ...idPart });
+/**
+ * How long one `watch` blocks by default.
+ *
+ * Shared so the two transports cannot disagree about how long "watching" lasts.
+ * The wait itself is free — the Durable Object parks a promise and wakes on the
+ * next op — so a short window only buys an agent that stops looking sooner.
+ *
+ * The ceiling is the client's, not the edge's. Measured: a 182s hold returned
+ * 200 through Cloudflare, because the Streamable HTTP transport sends SSE
+ * keepalive comments. But a keepalive is not a progress notification, so it
+ * does not reset an MCP client's per-request timer — and that timer defaults to
+ * 60s (`DEFAULT_REQUEST_TIMEOUT_MSEC`). Anything at or above 60 races a timeout
+ * the caller sees as a broken tool, which is worse than looking away sooner.
+ */
+export const WATCH_DEFAULT_SECONDS = 50;
+
 export const WatchInput = z.object({
   timeoutSeconds: z.optional(z.number().check(z.int(), z.gte(1), z.lte(600))),
   batchMs: z.optional(z.number().check(z.int(), z.gte(0), z.lte(10000))),
@@ -289,12 +305,14 @@ export const TOOLS: ToolSpec[] = [
   {
     name: 'marklayer_watch_annotations',
     description:
-      'Block until there is work, then return a batch of whatever arrives within a short window. Each event has a ' +
-      '`kind`: "new" is an annotation someone just left; "handoff" is one given to you — assigned to you, a reply ' +
-      'that @mentions you, or a reply on a thread you already own. A handoff also carries `request`, the reply that ' +
-      'asked: read it, it is the instruction, and act on it rather than only acknowledging. Every event carries the ' +
-      'full annotation with its `target` element context. Returns an empty list if the timeout expires first. Use ' +
-      'this in a loop to process feedback as it arrives.',
+      'Block until there is work, then return a batch of whatever arrives within a short window. ' +
+      'CALL THIS AGAIN IMMEDIATELY EVERY TIME IT RETURNS, including when it returns nothing — an empty result means ' +
+      'the window expired, not that the reviewer is done. Nothing pushes work to you: between your calls, a comment ' +
+      'someone leaves reaches no one. Keep looping until the person tells you to stop or ends the session. ' +
+      'Each event has a `kind`: "new" is an annotation someone just left; "handoff" is one given to you — assigned ' +
+      'to you, a reply that @mentions you, or a reply on a thread you already own. A handoff also carries ' +
+      '`request`, the reply that asked: read it, it is the instruction, and act on it rather than only ' +
+      'acknowledging. Every event carries the full annotation with its `target` element context.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -303,7 +321,9 @@ export const TOOLS: ToolSpec[] = [
           type: 'integer',
           minimum: 1,
           maximum: 600,
-          description: 'How long to wait for new annotations before returning. Default 60.',
+          description:
+            `How long to block before returning empty. Defaults to ${WATCH_DEFAULT_SECONDS}, which fits inside the 60s ` +
+            'request timeout most clients use. Raise it only if you know yours allows a longer tool call.',
         },
         batchMs: {
           type: 'integer',

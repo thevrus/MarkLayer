@@ -8,6 +8,7 @@ import {
   type RoomOps,
   TOOLS,
   type ToolContent,
+  WATCH_DEFAULT_SECONDS,
   type WatchEvent,
 } from '@marklayer/agent-tools';
 import {
@@ -128,7 +129,12 @@ export class WorkerRoom implements RoomOps {
    * Classification runs here against the snapshot already loaded, which is what
    * makes a handoff mean the same thing on both transports.
    */
-  async watch({ timeoutSeconds = 60 }: { timeoutSeconds?: number; batchMs?: number }): Promise<WatchEvent[]> {
+  async watch({
+    timeoutSeconds = WATCH_DEFAULT_SECONDS,
+  }: {
+    timeoutSeconds?: number;
+    batchMs?: number;
+  }): Promise<WatchEvent[]> {
     const arrived = await this.stub.agentWatch(this.roomId, { timeoutMs: timeoutSeconds * 1000 });
     const events: WatchEvent[] = [];
     for (const op of arrived) {
