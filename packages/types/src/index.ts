@@ -763,14 +763,11 @@ export interface Peer {
  * never a stock violet: an unrecognised tool has no brand to borrow.
  */
 const AGENT_BRANDS: Record<string, { label: string; color: string }> = {
-  'claude-code': { label: 'Claude', color: '#D97757' },
   claude: { label: 'Claude', color: '#D97757' },
   gemini: { label: 'Gemini', color: '#8E75B2' },
-  'gemini-cli': { label: 'Gemini', color: '#8E75B2' },
   zed: { label: 'Zed', color: '#084CCF' },
   cursor: { label: 'Cursor', color: '#3F3F46' },
   copilot: { label: 'Copilot', color: '#3F3F46' },
-  'github-copilot': { label: 'Copilot', color: '#3F3F46' },
   windsurf: { label: 'Windsurf', color: '#3F3F46' },
   cline: { label: 'Cline', color: '#3F3F46' },
   codex: { label: 'Codex', color: '#3F3F46' },
@@ -780,12 +777,30 @@ const AGENT_BRANDS: Record<string, { label: string; color: string }> = {
   devin: { label: 'Devin', color: '#6b7280' },
 };
 
+/**
+ * The ids agents announce themselves under that mean the same brand. Kept here
+ * rather than in each table, because the brand's mark lives in the extension
+ * (`lib/agents.tsx`) while its label and colour live above: spelling the
+ * aliases out twice is how one gets an agent's icon without its name.
+ */
+const AGENT_ALIASES: Record<string, string> = {
+  'claude-code': 'claude',
+  'gemini-cli': 'gemini',
+  'github-copilot': 'copilot',
+};
+
+/** Fold an announced id onto the brand it belongs to. */
+export const canonicalAgent = (id: string): string => {
+  const lower = id.toLowerCase();
+  return AGENT_ALIASES[lower] ?? lower;
+};
+
 /** What an unrecognised agent gets. Graphite, so nothing is claiming a brand it is not. */
 export const AGENT_FALLBACK_COLOR = '#6b7280';
 
 /** `claude-code` → `Claude`. An unknown id is title-cased rather than shown raw. */
 export function agentLabel(id: string): string {
-  const known = AGENT_BRANDS[id.toLowerCase()];
+  const known = AGENT_BRANDS[canonicalAgent(id)];
   if (known) return known.label;
   return id
     .split(/[-_\s]+/)
@@ -794,7 +809,7 @@ export function agentLabel(id: string): string {
     .join(' ');
 }
 
-export const agentColor = (id: string): string => AGENT_BRANDS[id.toLowerCase()]?.color ?? AGENT_FALLBACK_COLOR;
+export const agentColor = (id: string): string => AGENT_BRANDS[canonicalAgent(id)]?.color ?? AGENT_FALLBACK_COLOR;
 
 /** An annotation the agent wrote itself, not one it was handed — it stamps both fields only on its own. */
 export const isAgentAuthored = (op: { author?: string; assignedAgent?: string }) =>

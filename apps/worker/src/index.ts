@@ -7,10 +7,12 @@ import { API_CATALOG, MCP_SERVER_CARD, SKILL_PATH, skillIndex } from '@site/lib/
 import type { Context } from 'hono';
 import { Hono } from 'hono/tiny';
 import { nanoid } from 'nanoid';
+import type { AnnotationRoom } from './annotation-room';
 import { api } from './api';
 import { auth, authStore } from './auth';
 import type { EmailEnv } from './email';
 import { cachedPng, dayCached, once, sha256Hex } from './http';
+import { handleMcpRequest } from './mcp';
 import { generateOgImage, generatePageOgImage } from './og';
 import { collectTally, EMPTY_TALLY_LABEL, plural, tallyParts } from './og-tally';
 import { proxy } from './proxy';
@@ -23,7 +25,7 @@ export type Env = {
   Bindings: {
     DB: D1Database;
     ASSETS: Fetcher;
-    ANNOTATION_ROOM: DurableObjectNamespace;
+    ANNOTATION_ROOM: DurableObjectNamespace<AnnotationRoom>;
     OG_BUCKET: R2Bucket;
     FILE_BUCKET: R2Bucket;
     TURN_KEY_ID?: string;
@@ -221,6 +223,28 @@ app.get('/og/:key', async (c) => {
       }
       return generateOgImage({ domain, ops: stored ?? [] });
     },
+  });
+});
+
+/**
+ * Remote MCP endpoint for a room — the share link is the address, so connecting
+ * an agent is one line and needs no package installed:
+ *
+ *   claude mcp add --transport http marklayer https://marklayer.app/s/<id>/mcp
+ *
+ * `?agent=` names the tool for the people watching the room. It defaults to
+ * something generic rather than a brand, because guessing wrong would put
+ * someone else's logo on Cursor's annotations.
+ */
+app.all('/s/:id/mcp', async (c) => {
+  const id = c.req.param('id');
+  const stub = c.env.ANNOTATION_ROOM.get(c.env.ANNOTATION_ROOM.idFromName(id));
+  return handleMcpRequest({
+    request: c.req.raw,
+    stub,
+    roomId: id,
+    apiBase: new URL(c.req.url).origin,
+    agentId: c.req.query('agent') ?? 'agent',
   });
 });
 

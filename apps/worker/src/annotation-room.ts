@@ -7,6 +7,7 @@ import {
   type DrawOp,
   effectiveExpiresAt,
   type LinkAccess,
+  opsArraySchema,
   RTC_MESSAGE_TYPES,
   type RtcMessageType,
 } from '@marklayer/types';
@@ -86,7 +87,9 @@ const AGENT_PRESENCE_TTL_MS = 15 * 60_000;
 
 /** What the remote MCP endpoint needs to answer any tool call, in one round trip. */
 export interface AgentSnapshot {
-  ops: unknown[];
+  /** Parsed here rather than at the caller: RPC will not carry `unknown`, and a
+   *  Worker should not be handed ops nobody validated. */
+  ops: DrawOp[];
   url: string | null;
   width: number | null;
   createdAt: number | null;
@@ -152,7 +155,7 @@ export class AnnotationRoom extends DurableObject<Env> {
    */
   private httpAgents = new Map<string, { peer: Omit<PeerInfo, 'canEdit' | 'userId'>; lastSeen: number }>();
   /** Parked `agentWatch` calls, woken by the next op from any source. */
-  private opWaiters: ((ops: unknown[]) => void)[] = [];
+  private opWaiters: ((ops: DrawOp[]) => void)[] = [];
 
   private async getOps(id: string): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
@@ -289,12 +292,13 @@ export class AnnotationRoom extends DurableObject<Env> {
   }
 
   async agentSnapshot(id: string): Promise<AgentSnapshot> {
-    const ops = await this.getOps(id);
+    const raw = await this.getOps(id);
+    const parsed = opsArraySchema.safeParse(raw);
     // The owner may have flipped the link since this isolate loaded it, and an
     // HTTP agent has no `init` message to carry a later value to it.
     await this.refreshAccess(id);
     return {
-      ops,
+      ops: parsed.success ? parsed.data : [],
       url: this.url,
       width: this.width,
       createdAt: this.createdAt,
@@ -343,23 +347,23 @@ export class AnnotationRoom extends DurableObject<Env> {
    * duration, so there is nothing to hibernate out from under it, and a watching
    * agent costs one call instead of one per second.
    */
-  async agentWatch(id: string, { timeoutMs }: { timeoutMs: number }): Promise<unknown[]> {
+  async agentWatch(id: string, { timeoutMs }: { timeoutMs: number }): Promise<DrawOp[]> {
     await this.getOps(id);
-    return new Promise<unknown[]>((resolve) => {
+    return new Promise<DrawOp[]>((resolve) => {
       let done = false;
-      const finish = (ops: unknown[]) => {
+      const finish = (ops: DrawOp[]) => {
         if (done) return;
         done = true;
         this.opWaiters = this.opWaiters.filter((w) => w !== waiter);
         resolve(ops);
       };
-      const waiter = (ops: unknown[]) => finish(ops);
+      const waiter = (ops: DrawOp[]) => finish(ops);
       this.opWaiters.push(waiter);
       setTimeout(() => finish([]), timeoutMs);
     });
   }
 
-  private wakeWatchers(ops: unknown[]): void {
+  private wakeWatchers(ops: DrawOp[]): void {
     if (this.opWaiters.length === 0) return;
     const waiters = this.opWaiters;
     this.opWaiters = [];

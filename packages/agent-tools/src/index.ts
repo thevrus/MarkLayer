@@ -1,7 +1,16 @@
-import type { AnnotationOp } from '@marklayer/types';
+import type {
+  AnnotationOp,
+  CommentOp,
+  CommentPriority,
+  CommentStatus,
+  DrawOp,
+  SelectionRect,
+  TargetElement,
+} from '@marklayer/types';
 import {
   COMMENT_PRIORITIES,
   commentPrioritySchema,
+  isAnnotationOp,
   resolveOpStatus,
   selectionRectSchema,
   uploadPath,
@@ -416,24 +425,278 @@ export const TOOLS: ToolSpec[] = [
 ];
 
 /**
- * Present a `zod/mini` schema the way MCP's SDK v2 wants it.
+ * Advertise a tool's arguments to MCP without validating them twice.
  *
- * `registerTool` takes a Standard Schema that can both validate a call and
- * describe itself for `tools/list`. Zod implements the validate half in every
- * build, but only the full `zod` package carries `~standard.jsonSchema` — mini
- * does not, and mini is what ships here (see CLAUDE.md: it is meaningfully
- * smaller in the content script and the Worker). `z.toJSONSchema` closes the
- * gap, so the schema stays the one written in Zod rather than becoming a second
- * hand-maintained shape.
+ * SDK v2 takes a Standard Schema that both validates a call and describes itself
+ * for `tools/list`. The describing half is what is wanted here; the validating
+ * half already happens in `callRoomTool`, against the per-tool Zod schemas that
+ * own the error text an agent reads. So this accepts every value and says so,
+ * rather than running a second, weaker check whose failures would report worse.
  *
- * `describedBy` wins when given: the tool schemas carry per-field descriptions
- * that are written for an agent to read, and Zod has no record of them yet.
+ * (Zod cannot fill this slot directly: only the full `zod` package carries
+ * `~standard.jsonSchema`, and this repo ships `zod/mini`, which does not.)
  */
-export function standardSchema<T extends { '~standard': object }>(schema: T, describedBy?: ToolSpec['inputSchema']): T {
-  const jsonSchema = () => describedBy ?? z.toJSONSchema(schema as never);
-  return { ...schema, '~standard': { ...schema['~standard'], jsonSchema } };
+export function describedSchema(json: ToolSpec['inputSchema']) {
+  const convert = () => json as unknown as Record<string, unknown>;
+  return {
+    '~standard': {
+      version: 1 as const,
+      vendor: 'marklayer',
+      validate: (value: unknown) => ({ value }),
+      // A Converter, not a function: the SDK asks input and output separately,
+      // and a tool's arguments are the input in both directions here.
+      jsonSchema: { input: convert, output: convert },
+    },
+  };
 }
 
 /** The JSON Schema a tool advertises, by name. */
 export const toolSchemaFor = (name: string): ToolSpec['inputSchema'] | undefined =>
   TOOLS.find((tool) => tool.name === name)?.inputSchema;
+
+type Awaitable<T> = T | Promise<T>;
+
+/** Room facts an agent asks for before doing anything else. */
+export interface RoomMeta {
+  url: string | null;
+  width: number | null;
+  createdAt: number | null;
+  expiresAt: number | null;
+}
+
+/**
+ * Why `watch` woke up.
+ *
+ * `new` is someone leaving an annotation. `handoff` is someone giving one to
+ * this agent — the thread was assigned to it, it was mentioned, or a person
+ * replied on a thread it already owns. The last case is the one that matters
+ * for how people actually work: replying "yes, do that" under the agent's own
+ * comment is obviously addressed to the agent, and requiring an @mention there
+ * would be ceremony for its own sake.
+ */
+export interface WatchEvent {
+  kind: 'new' | 'handoff';
+  op: AnnotationOp;
+  /** The reply that handed it over, when a reply is what did. Read it: it is the instruction. */
+  reply?: CommentOp;
+}
+
+/**
+ * One room, however it is reached.
+ *
+ * The stdio server holds a WebSocket to the room; the Worker calls the Durable
+ * Object that owns it. Same tools, same answers — so the dispatch below is
+ * written once against this, rather than twice against two clients that would
+ * quietly drift into disagreeing about what `resolve` returns.
+ */
+export interface RoomOps {
+  readonly roomId: string;
+  readonly viewOnly: boolean;
+  getMeta(): RoomMeta;
+  /** An error to return instead of acting, when the connection cannot carry a write. */
+  checkLive(): string | null;
+  listAnnotations(filter?: { status?: CommentStatus | 'all' }): AnnotationOp[];
+  getAnnotation(id: string): { op: AnnotationOp; replies: CommentOp[] } | null;
+  watch(opts: { timeoutSeconds?: number; batchMs?: number }): Promise<WatchEvent[]>;
+  // Awaited by the dispatch: a socket send returns at once, an RPC call to the
+  // Durable Object does not, and both are legitimate ways to reach a room.
+  acknowledge(id: string): Awaitable<boolean>;
+  resolve(id: string, summary?: string): Awaitable<boolean>;
+  dismiss(id: string, reason: string): Awaitable<boolean>;
+  reply(id: string, text: string): Awaitable<boolean>;
+  create(a: {
+    text: string;
+    x: number;
+    y: number;
+    priority?: CommentPriority;
+    target?: TargetElement;
+  }): Awaitable<{ id: string } | null>;
+  suggestEdit(a: {
+    text: string;
+    suggestion: string;
+    rects: SelectionRect[];
+    comment?: string;
+    priority?: CommentPriority;
+    target?: TargetElement;
+  }): Awaitable<{ id: string } | null>;
+}
+
+/**
+ * Run one tool against a room. `null` means the name is not one of these — the
+ * caller owns anything transport-specific (the stdio server's connect_room has
+ * no meaning over HTTP, where the room is already named in the URL).
+ */
+export async function callRoomTool({
+  name,
+  args,
+  room,
+  apiBase,
+}: {
+  name: string;
+  args: unknown;
+  room: RoomOps;
+  apiBase: string;
+}): Promise<ToolContent | null> {
+  const live = (): ToolContent | null => {
+    const dead = room.checkLive();
+    return dead ? err(dead) : null;
+  };
+
+  switch (name) {
+    case 'marklayer_room_info':
+      return ok({ roomId: room.roomId, ...room.getMeta() });
+
+    case 'marklayer_list_annotations': {
+      const parsed = ListInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const ann = room.listAnnotations({ status: parsed.data.status });
+      return ok({ count: ann.length, annotations: ann.map((op) => projectAnnotation(op, apiBase)) });
+    }
+
+    case 'marklayer_get_annotation': {
+      const parsed = IdInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const found = room.getAnnotation(parsed.data.id);
+      if (!found) return err(`annotation not found: ${parsed.data.id}`);
+      return ok({
+        ...projectAnnotation(found.op, apiBase),
+        dismissReason: found.op.dismissReason ?? null,
+        replies: found.replies.map((r) => ({
+          id: r.id,
+          text: r.text,
+          author: r.author ?? null,
+          ts: r.ts,
+          attachments: attachmentUrls(r.attachments, apiBase),
+        })),
+      });
+    }
+
+    case 'marklayer_watch_annotations': {
+      const parsed = WatchInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const batch = await room.watch(parsed.data);
+      return ok({
+        count: batch.length,
+        events: batch.map((event) => ({
+          kind: event.kind,
+          annotation: projectAnnotation(event.op, apiBase),
+          // The reply that handed it over is the instruction — surfaced beside
+          // the thread so the agent reads what was asked, not just what exists.
+          ...(event.reply ? { request: { from: event.reply.author ?? null, text: event.reply.text } } : {}),
+        })),
+      });
+    }
+
+    case 'marklayer_acknowledge': {
+      const parsed = IdInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const dead = live();
+      if (dead) return dead;
+      if (!(await room.acknowledge(parsed.data.id))) return mutationErr({ room, id: parsed.data.id });
+      return ok({ id: parsed.data.id, status: 'in_progress' });
+    }
+
+    case 'marklayer_resolve': {
+      const parsed = ResolveInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const dead = live();
+      if (dead) return dead;
+      if (!(await room.resolve(parsed.data.id, parsed.data.summary))) return mutationErr({ room, id: parsed.data.id });
+      return ok({ id: parsed.data.id, status: 'resolved' });
+    }
+
+    case 'marklayer_dismiss': {
+      const parsed = DismissInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const dead = live();
+      if (dead) return dead;
+      if (!(await room.dismiss(parsed.data.id, parsed.data.reason))) return mutationErr({ room, id: parsed.data.id });
+      return ok({ id: parsed.data.id, status: 'dismissed', reason: parsed.data.reason });
+    }
+
+    case 'marklayer_reply': {
+      const parsed = ReplyInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const dead = live();
+      if (dead) return dead;
+      if (!(await room.reply(parsed.data.id, parsed.data.text))) return mutationErr({ room, id: parsed.data.id });
+      return ok({ id: parsed.data.id, replied: true });
+    }
+
+    case 'marklayer_create_annotation': {
+      const parsed = CreateInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const { text, x, y, priority, selector, tag, markdown } = parsed.data;
+      const dead = live();
+      if (dead) return dead;
+      const created = await room.create({ text, x, y, priority, target: targetFromParts({ selector, tag, markdown }) });
+      if (!created) return err(createFailure({ room, what: 'annotation' }));
+      return ok({ id: created.id, status: 'open' });
+    }
+
+    case 'marklayer_suggest_edit': {
+      const parsed = SuggestInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const { text, suggestion, rects, comment, priority, selector, tag, markdown } = parsed.data;
+      const dead = live();
+      if (dead) return dead;
+      const created = await room.suggestEdit({
+        text,
+        suggestion,
+        rects,
+        comment,
+        priority,
+        target: targetFromParts({ selector, tag, markdown }),
+      });
+      if (!created) return err(createFailure({ room, what: 'suggestion' }));
+      return ok({ id: created.id, status: 'open' });
+    }
+
+    default:
+      return null;
+  }
+}
+
+/** A create returned nothing: say which of the two reasons it was. */
+function createFailure({ room, what }: { room: RoomOps; what: string }): string {
+  return room.viewOnly
+    ? `this link is view-only, so nothing can be created through it`
+    : `could not create the ${what} — the room connection may be down`;
+}
+
+/** Replies belong to their parent thread, so they are not themselves watchable. */
+export const isWatchableOp = (op: DrawOp): op is AnnotationOp =>
+  isAnnotationOp(op) && !(op.tool === 'comment' && !!op.parentId);
+
+/**
+ * What one arriving op means to this agent, given what the room already holds.
+ *
+ * Shared because both transports must agree: a reply that wakes the WebSocket
+ * client has to wake the HTTP one too, or the same room behaves differently
+ * depending on how the agent happened to connect.
+ *
+ * A reply is addressed to the agent when it names it, or when it lands on a
+ * thread the agent already owns. Without the second rule the obvious gesture —
+ * replying "yes, do that" under the agent's own comment — reaches nobody; with
+ * it, two people talking under someone else's thread still does not.
+ */
+export function classifyOp({
+  op,
+  ops,
+  agentId,
+}: {
+  op: DrawOp;
+  ops: readonly DrawOp[];
+  agentId: string;
+}): WatchEvent | null {
+  // Taken before any narrowing: `isWatchableOp` is a type predicate, so testing
+  // it first would leave the else branch typed as everything a reply is not.
+  const reply = op.tool === 'comment' && op.parentId ? op : null;
+  if (!reply) return isWatchableOp(op) ? { kind: 'new', op } : null;
+  if (reply.author === agentId) return null;
+  const parent = ops.find((o): o is AnnotationOp => isWatchableOp(o) && o.id === reply.parentId);
+  if (!parent) return null;
+  const named = (reply.mentions ?? []).some((mention) => mention.id === agentId);
+  const mine = parent.author === agentId || parent.assignedAgent === agentId || parent.assignee === agentId;
+  return named || mine ? { kind: 'handoff', op: parent, reply } : null;
+}

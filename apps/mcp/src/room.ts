@@ -1,3 +1,5 @@
+import type { RoomMeta, WatchEvent } from '@marklayer/agent-tools';
+import { classifyOp, isWatchableOp as isWatchable } from '@marklayer/agent-tools';
 import {
   type AnnotationOp,
   agentColor,
@@ -7,7 +9,6 @@ import {
   type CommentStatus,
   type DrawOp,
   drawOpSchema,
-  isAnnotationOp,
   normalizeSuggestion,
   opAnchor,
   opsArraySchema,
@@ -19,37 +20,8 @@ import {
 import { nanoid } from 'nanoid';
 import WebSocket from 'ws';
 
-export type { AnnotationOp };
+export type { AnnotationOp, RoomMeta, WatchEvent };
 export { resolveOpStatus as resolveStatus };
-
-/** Watchable = annotation op that should fan out to MCP listeners (comment replies do not). */
-function isWatchable(op: DrawOp): op is AnnotationOp {
-  return isAnnotationOp(op) && !(op.tool === 'comment' && !!op.parentId);
-}
-
-export interface RoomMeta {
-  url: string | null;
-  width: number | null;
-  createdAt: number | null;
-  expiresAt: number | null;
-}
-
-/**
- * Why `watch` woke up.
- *
- * `new` is someone leaving an annotation. `handoff` is someone giving one to
- * this agent — the thread was assigned to it, it was mentioned, or a person
- * replied on a thread it already owns. The last case is the one that matters
- * for how people actually work: replying "yes, do that" under the agent's own
- * comment is obviously addressed to the agent, and requiring an @mention there
- * would be ceremony for its own sake.
- */
-export interface WatchEvent {
-  kind: 'new' | 'handoff';
-  op: AnnotationOp;
-  /** The reply that handed it over, when a reply is what did. Read it: it is the instruction. */
-  reply?: CommentOp;
-}
 
 interface PendingNew {
   resolve: (events: WatchEvent[]) => void;
@@ -357,6 +329,15 @@ export class RoomClient {
     return `${protocol}//${base.host}/ws/${this.roomId}?${params}`;
   }
 
+  /**
+   * A write on a dead socket used to come back as `annotation not found`, which
+   * sends the agent hunting for an id that is fine. Say what actually happened.
+   */
+  checkLive(): string | null {
+    const why = this.disconnectedReason();
+    return why ? `room ${this.roomId} is not connected (${why}) — call marklayer_connect_room to reconnect` : null;
+  }
+
   /** True when the room has told us it refuses this peer's writes, so a failed
    *  mutation can say why instead of blaming a missing annotation. */
   get viewOnly(): boolean {
@@ -450,12 +431,8 @@ export class RoomClient {
         const op = parsed.data;
         if (this.ops.some((o) => o.id === op.id)) return;
         this.ops.push(op);
-        if (isWatchable(op)) {
-          this.emit({ kind: 'new', op });
-          return;
-        }
-        const handoff = this.handoffFromReply(op);
-        if (handoff) this.emit(handoff);
+        const event = classifyOp({ op, ops: this.ops, agentId: this.agentId });
+        if (event) this.emit(event);
         return;
       }
       case 'update_op': {
@@ -494,27 +471,6 @@ export class RoomClient {
         if (msg.code === 'read_only') this.canEdit = false;
         return;
     }
-  }
-
-  /** Threads this agent is answerable for: it wrote them, claimed them, or was assigned them. */
-  private isMine(op: AnnotationOp): boolean {
-    return op.author === this.agentId || op.assignedAgent === this.agentId || op.assignee === this.agentId;
-  }
-
-  /**
-   * A reply is addressed to this agent when it names it, or when it lands on a
-   * thread the agent already owns. Without the second rule the obvious gesture —
-   * replying "yes, do that" under the agent's own comment — reaches nobody, and
-   * with it two people talking under someone else's thread still do not.
-   */
-  private handoffFromReply(op: DrawOp): WatchEvent | null {
-    if (op.tool !== 'comment') return null;
-    const reply = op;
-    if (!reply.parentId || reply.author === this.agentId) return null;
-    const parent = this.ops.find((o): o is AnnotationOp => isWatchable(o) && o.id === reply.parentId);
-    if (!parent) return null;
-    const named = (reply.mentions ?? []).some((mention) => mention.id === this.agentId);
-    return named || this.isMine(parent) ? { kind: 'handoff', op: parent, reply } : null;
   }
 
   private emit(event: WatchEvent): void {
