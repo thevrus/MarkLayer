@@ -4,9 +4,15 @@ import type { EmailEnv } from '../email';
 /**
  * Auth needs a database and whatever the email engine needs; it defines neither
  * itself. The room namespace is for one thing: telling a warm room its owner
- * changed who may edit.
+ * changed who may edit. POSTHOG_* is here so the funnel counters in routes.ts
+ * can call captureServer without widening to the whole worker Env.
  */
-export type AuthEnv = EmailEnv & { DB: D1Database; ANNOTATION_ROOM: DurableObjectNamespace };
+export type AuthEnv = EmailEnv & {
+  DB: D1Database;
+  ANNOTATION_ROOM: DurableObjectNamespace;
+  POSTHOG_KEY?: string;
+  POSTHOG_HOST?: string;
+};
 
 /**
  * The same shape `/auth/me` returns, inferred from the schema both sides parse

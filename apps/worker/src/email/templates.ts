@@ -1,16 +1,18 @@
-import { fill, signInEmail } from '@marklayer/emails';
+import { fill, inviteEmail, type RenderedTemplate, signInEmail } from '@marklayer/emails';
 import type { EmailTemplate } from './types';
-
-export interface SignInData {
-  link: string;
-}
 
 /**
  * Templates are rendered to HTML in `packages/emails` at build time and arrive
- * here as strings. This module's job is only to bind typed data to them, so a
- * caller cannot pass a comment notification's fields to a sign-in.
+ * here as strings. `RenderedTemplate` already carries each template's
+ * placeholder keys, so this binds typed data to them without a hand-written
+ * `Data` interface per template — each call still infers its own `Keys`, so a
+ * caller still cannot pass a comment notification's fields to a sign-in.
  */
-export const signInTemplate: EmailTemplate<SignInData> = {
-  id: signInEmail.id,
-  render: (data) => fill({ template: signInEmail, values: { link: data.link } }),
-};
+function defineTemplate<Keys extends string>(
+  rendered: RenderedTemplate<Keys>,
+): EmailTemplate<Readonly<Record<Keys, string>>> {
+  return { id: rendered.id, render: (values) => fill({ template: rendered, values }) };
+}
+
+export const signInTemplate = defineTemplate(signInEmail);
+export const inviteTemplate = defineTemplate(inviteEmail);

@@ -5,14 +5,16 @@ import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { portalContainer } from '@ext/lib/portal';
 import { shareUrl } from '@ext/lib/share';
+import { toast } from '@ext/lib/state';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
 import { cn, type OwnedLink } from '@marklayer/types';
 import { ArrowUpRight, Upload } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { capture } from './analytics';
 import { LinkSettings } from './dashboard/LinkSettings';
-import { links, linksLoading, loadSession, sessionLoading, user } from './dashboard/session';
-import { CopyControl } from './shared';
+import { inviteToLink, links, linksLoading, loadSession, sessionLoading, user } from './dashboard/session';
+import { CopyControl, Spinner } from './shared';
 import { annotationId, projectId, sharing } from './signals';
 import { useViewerFrame } from './viewerFrame';
 
@@ -49,11 +51,91 @@ function LinkField({ url, busy, onCopy }: { url: string; busy: boolean; onCopy: 
   );
 }
 
+/**
+ * Optional, and collapsed by default — Copy stays the one obvious action, this
+ * is a quiet second path that only appears once someone reaches for it.
+ * Confirms in the toast stack, which names the address it went to, and settles
+ * the button on "Sent" until the next keystroke — no timer racing focus.
+ */
+function InviteByEmail({ id, url }: { id: string; url: string }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        class={cn(
+          'text-meta self-start rounded-sm font-medium text-(--ds-gray-900) no-underline',
+          'hover:text-(--ds-gray-1000) hover:underline',
+          'outline-none focus-visible:outline-solid focus-visible:outline-2',
+          'focus-visible:outline-offset-1 focus-visible:outline-(--ds-focus-color)',
+        )}
+      >
+        Invite by email
+      </button>
+    );
+  }
+
+  const submit = async () => {
+    const value = email.trim();
+    if (!value || busy) return;
+    setBusy(true);
+    const error = await inviteToLink({ id, email: value, url });
+    setBusy(false);
+    if (error) {
+      toast(error, 'error');
+      return;
+    }
+    capture('invite_sent');
+    setEmail('');
+    setSent(true);
+    toast(`Invite sent to ${value}`, 'success');
+  };
+
+  return (
+    <form
+      class="flex items-center gap-1.5"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void submit();
+      }}
+    >
+      <div class={cn(geist.field, 'flex flex-1 items-center px-2.5')}>
+        <input
+          type="email"
+          required
+          autofocus
+          value={email}
+          placeholder="name@company.com"
+          disabled={busy}
+          class={cn(geist.input, 'h-full w-full')}
+          onInput={(e) => {
+            setEmail(e.currentTarget.value);
+            if (sent) setSent(false);
+          }}
+        />
+      </div>
+      <button type="submit" class={cn(submitBtn, 'shrink-0')} disabled={busy || !email.trim()}>
+        {busy ? <Spinner /> : sent ? 'Sent' : 'Invite'}
+      </button>
+    </form>
+  );
+}
+
 /** No id yet: one honest action, not a field with nothing in it and a control that copies air. */
 function CreateLink({ busy, onCreate }: { busy: boolean; onCreate: () => void }) {
   return (
-    <button type="button" class={cn(submitBtn, 'w-full')} disabled={busy} onClick={onCreate}>
-      Create share link
+    <button
+      type="button"
+      class={cn(submitBtn, 'w-full disabled:pointer-events-none disabled:opacity-50')}
+      disabled={busy}
+      onClick={onCreate}
+    >
+      {busy ? <Spinner /> : 'Create share link'}
     </button>
   );
 }
@@ -70,6 +152,7 @@ function ClaimPrompt({ id }: { id: string }) {
     <Note>
       <a
         href={`/app/claim/${encodeURIComponent(id)}`}
+        onClick={() => capture('save_link_clicked')}
         class={cn(
           'rounded-sm font-medium text-(--ds-gray-1000) no-underline hover:underline',
           // offset-1 like every control in the system — at 2 the ring crowds the
@@ -154,6 +237,9 @@ export function SharePopover() {
       ? shareUrl({ origin: location.origin, kind: 'page', id, ref: 'web' })
       : null;
   const owned = id ? links.value.find((link) => link.id === id) : undefined;
+  // Whichever id the popover is actually showing a link for — a project or a
+  // page — since inviting doesn't care which kind it is, only that one exists.
+  const linkId = pid ?? id;
 
   const settings = renderLinkSettings({ pid, id, owned, checkingOwner: sessionLoading.value || linksLoading.value });
 
@@ -201,6 +287,7 @@ export function SharePopover() {
               ) : (
                 <CreateLink busy={sharing.value} onCreate={share} />
               )}
+              {url && linkId && <InviteByEmail id={linkId} url={url} />}
             </Block>
 
             {settings && (

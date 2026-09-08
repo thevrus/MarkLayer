@@ -1,9 +1,15 @@
-import { resolveOwnerExpiresAt, signInRequestSchema, updateLinkSettingsSchema } from '@marklayer/types';
+import {
+  inviteRequestSchema,
+  resolveOwnerExpiresAt,
+  signInRequestSchema,
+  updateLinkSettingsSchema,
+} from '@marklayer/types';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { Hono } from 'hono/tiny';
-import { sendEmail, signInTemplate } from '../email';
-import { nowInSeconds } from '../store';
+import { inviteTemplate, sendEmail, signInTemplate } from '../email';
+import { captureServer } from '../posthog';
+import { inviteStore, nowInSeconds } from '../store';
 import { type AuthVariables, withUser } from './middleware';
 import { authStore, ownedStore } from './store';
 import { mintToken } from './tokens';
@@ -80,6 +86,43 @@ auth.post('/request', async (c) => {
     console.error('sign-in email failed', err);
     return c.json({ error: 'Could not send the email just now. Try again shortly.' }, 502);
   }
+  captureServer(c.env, c.executionCtx, 'sign_in_requested', {});
+  return c.json({ ok: true }, 200);
+});
+
+/**
+ * Sends the current share link to an address, unauthenticated — inviting is
+ * just "forward this link", the same thing Copy already lets anyone do, so it
+ * asks for nothing an anonymous viewer wouldn't already have. `url` comes from
+ * the client rather than being rebuilt here; see the origin check below for
+ * why it still isn't trusted blindly.
+ */
+auth.post('/links/:id/invite', async (c) => {
+  const body = inviteRequestSchema.safeParse(await c.req.json().catch(() => null));
+  if (!body.success) return c.json({ error: 'An email address is required.' }, 400);
+  const email = normalizeEmail(body.data.email);
+  if (!email) return c.json({ error: 'That does not look like an email address.' }, 400);
+
+  // `z.url()` on the schema already proved this parses; the one thing left to
+  // check is what Zod cannot know statically — that it resolves to this same
+  // request's origin, not somewhere a mail from our domain could be used to
+  // relay a phishing link.
+  const link = new URL(body.data.url);
+  if (link.origin !== new URL(c.req.url).origin) return c.json({ error: 'That link looks invalid.' }, 400);
+
+  const linkId = c.req.param('id');
+  const store = inviteStore(c.env.DB);
+  const wait = await store.throttleSeconds({ linkId, email });
+  if (wait > 0) return c.json({ error: `An invite was just sent. Try again in ${wait}s.` }, 429);
+
+  try {
+    await sendEmail({ env: c.env, to: email, template: inviteTemplate, data: { link: link.toString() } });
+  } catch (err) {
+    console.error('invite email failed', err);
+    return c.json({ error: 'Could not send the invite just now. Try again shortly.' }, 502);
+  }
+  await store.record({ linkId, email });
+  captureServer(c.env, c.executionCtx, 'invite_sent', {});
   return c.json({ ok: true }, 200);
 });
 
@@ -97,6 +140,7 @@ auth.get('/verify', async (c) => {
   await store.createSession({ userId: user.id, token: session });
 
   setCookie(c, SESSION_COOKIE, session, sessionCookieOptions(new URL(c.req.url).protocol === 'https:'));
+  captureServer(c.env, c.executionCtx, 'sign_in_verified', {});
   return c.redirect(APP_PATH, 302);
 });
 
@@ -124,6 +168,9 @@ auth.get('/links', async (c) => {
 auth.post('/links/:id', async (c) => {
   const ownerId = c.get('session').id;
   const claimed = await ownedStore(c.env.DB).claimAnnotation({ id: c.req.param('id'), ownerId });
+  // Only the state change is worth a counter — a re-claim of a link already
+  // owned is a no-op, not a new save.
+  if (claimed) captureServer(c.env, c.executionCtx, 'link_claimed', {});
   // Not an error worth a 4xx: the common cause is claiming a link you already
   // own, and the caller only needs to know whether anything changed.
   return c.json({ claimed }, 200);
@@ -158,7 +205,10 @@ auth.patch('/links/:id', async (c) => {
   });
 
   const updated = await store.updateSettings({ id, ownerId, access, ownerExpiresAt });
-  if (updated) pingRoomRefreshAccess({ env: c.env, ctx: c.executionCtx, id });
+  if (updated) {
+    pingRoomRefreshAccess({ env: c.env, ctx: c.executionCtx, id });
+    captureServer(c.env, c.executionCtx, 'link_settings_updated', { access });
+  }
   return c.json({ updated }, 200);
 });
 

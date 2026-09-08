@@ -12,7 +12,8 @@
   "scripts": {
     "build": "bun run scripts/build.tsx",
     "check": "tsc --noEmit",
-    "preview": "email dev --dir src/templates"
+    "preview": "email dev --dir src/templates",
+    "test": "bun test"
   },
   "devDependencies": {
     "@react-email/components": "^1.0.12",
