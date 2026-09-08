@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.thevrus/marklayer",
   "title": "MarkLayer",
-  "description": "Work visual annotations left on a live webpage: watch, acknowledge, resolve, reply.",
-  "version": "0.1.5",
+  "description": "Work visual annotations left on a live webpage: watch, acknowledge, resolve, reply, or leave your own.",
+  "version": "0.1.6",
   "websiteUrl": "https://marklayer.app",
   "repository": {
     "url": "https://github.com/thevrus/MarkLayer",
@@ -15,7 +15,7 @@
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "marklayer-mcp",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

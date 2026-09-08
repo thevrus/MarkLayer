@@ -2,13 +2,18 @@ import {
   type AnnotationOp,
   applyOpPatch,
   type CommentOp,
+  type CommentPriority,
   type CommentStatus,
   type DrawOp,
   drawOpSchema,
   isAnnotationOp,
+  normalizeSuggestion,
   opAnchor,
   opsArraySchema,
   resolveOpStatus,
+  type SelectionOp,
+  type SelectionRect,
+  type TargetElement,
 } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import WebSocket from 'ws';
@@ -36,7 +41,11 @@ interface PendingNew {
   buffer: AnnotationOp[];
 }
 
-const AGENT_NAME = 'Claude Code';
+/**
+ * Fixed visual identity for agent-authored content, independent of which LLM
+ * is driving this bridge — `agentId` (below) is what tells humans which agent
+ * it actually is; this is just the "an agent made this" color convention.
+ */
 const AGENT_COLOR = '#8b5cf6';
 
 export class RoomClient {
@@ -227,12 +236,90 @@ export class RoomClient {
     return this.appendReply(opId, text);
   }
 
+  /**
+   * Create a new root-level comment. `target` is optional: without it the pin
+   * sits at a fixed document-px point; with it (selector/tag/markdown, the same
+   * shape a human client captures) it reflows with the page instead of drifting
+   * when the layout changes.
+   */
+  create({
+    text,
+    x,
+    y,
+    priority,
+    target,
+  }: {
+    text: string;
+    x: number;
+    y: number;
+    priority?: CommentPriority;
+    target?: TargetElement;
+  }): { id: string } | null {
+    const op: CommentOp = {
+      id: nanoid(),
+      tool: 'comment',
+      num: this.countRootComments() + 1,
+      text,
+      x,
+      y,
+      color: AGENT_COLOR,
+      lineWidth: 2,
+      ts: Date.now(),
+      author: this.agentId,
+      assignedAgent: this.agentId,
+      ...(priority ? { priority } : {}),
+      ...(target ? { target } : {}),
+    };
+    return this.commit(op) ? { id: op.id } : null;
+  }
+
+  /**
+   * Create a copy-edit annotation — the exact replacement for `text` at
+   * `rects`, the same shape a human proposes via the selection tool. `null`
+   * here means the room refused the write, matching what `null` means on
+   * every other mutator — never a second, silent meaning for the same value.
+   */
+  suggestEdit({
+    text,
+    suggestion,
+    rects,
+    comment,
+    priority,
+    target,
+  }: {
+    text: string;
+    suggestion: string;
+    rects: SelectionRect[];
+    comment?: string;
+    priority?: CommentPriority;
+    target?: TargetElement;
+  }): { id: string } | null {
+    const op: SelectionOp = {
+      id: nanoid(),
+      tool: 'selection',
+      text,
+      rects,
+      // Re-normalized (trim) rather than trusted verbatim — the schema refine
+      // already proved it differs from `text`, but not that it is trimmed.
+      suggestion: normalizeSuggestion({ text, suggestion }) ?? suggestion,
+      ts: Date.now(),
+      color: AGENT_COLOR,
+      lineWidth: 2,
+      author: this.agentId,
+      assignedAgent: this.agentId,
+      ...(comment ? { comment } : {}),
+      ...(priority ? { priority } : {}),
+      ...(target ? { target } : {}),
+    };
+    return this.commit(op) ? { id: op.id } : null;
+  }
+
   private toWebSocketUrl(): string {
     const base = new URL(this.apiBase);
     const protocol = base.protocol === 'https:' ? 'wss:' : 'ws:';
     const params = new URLSearchParams({
       peerId: this.peerId,
-      name: AGENT_NAME,
+      name: this.agentId,
       color: AGENT_COLOR,
     });
     return `${protocol}//${base.host}/ws/${this.roomId}?${params}`;
@@ -254,6 +341,13 @@ export class RoomClient {
     if (!this.canEdit) return false;
     if (this.ws?.readyState !== WebSocket.OPEN) return false;
     this.ws.send(JSON.stringify(msg));
+    return true;
+  }
+
+  /** Send before recording, for the reason `send` gives: an op the room discarded would make every later read lie. */
+  private commit(op: DrawOp): boolean {
+    if (!this.send({ type: 'op', op })) return false;
+    this.ops.push(op);
     return true;
   }
 
@@ -288,12 +382,10 @@ export class RoomClient {
       lineWidth: parent.lineWidth,
       ts: Date.now(),
       parentId,
-      author: AGENT_NAME,
+      author: this.agentId,
       assignedAgent: this.agentId,
     };
-    if (!this.send({ type: 'op', op })) return false;
-    this.ops.push(op);
-    return true;
+    return this.commit(op);
   }
 
   /** Replies are numbered off the root threads only; counting them too would
