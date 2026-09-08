@@ -55,8 +55,12 @@
   "d1_databases": [
     {
       "binding": "DB",
+      // "marklayer" here is the desired name; Cloudflare's registered name for
+      // this DB is still "annotateweb" (pre-rename), and `--remote` commands
+      // must say that instead — see migrations/ below and CLAUDE.md.
       "database_name": "marklayer",
-      "database_id": "b19c956e-8602-439b-9c06-242e88da8fbb"
+      "database_id": "b19c956e-8602-439b-9c06-242e88da8fbb",
+      "migrations_dir": "migrations"
     }
   ],
   "durable_objects": {
