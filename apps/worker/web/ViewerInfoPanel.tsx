@@ -25,10 +25,10 @@ import {
 import type { ComponentChildren } from 'preact';
 import { DOCK_GUTTER, DOCKED_ANNOTATION_WIDTH, DockedPanel, PANEL_SIDEBAR, PANEL_TRANSITION } from './AnnotationPanel';
 import { IntegrationsSection } from './IntegrationsSection';
+import { PresenceDot } from './shared';
 import { annotationId, infoPanelOpen, isReadonly, pageUrl, showInfoPanel, timeAgo } from './signals';
 import { openSupportCard } from './support-ui';
 import { connected, createdAt, expiresAt } from './useRealtimeSync';
-import { PresenceDot } from './ViewerChrome';
 
 export const INFO_PANEL_WIDTH = 300;
 

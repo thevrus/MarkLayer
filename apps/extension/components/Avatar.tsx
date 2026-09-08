@@ -1,4 +1,5 @@
 import { cn } from '@marklayer/types';
+import type { ComponentChildren } from 'preact';
 
 /** Up to two initials, the most a 24px circle can hold legibly. */
 export function initials(name: string): string {
@@ -24,6 +25,7 @@ const SIZES = {
 export function Avatar({
   name,
   color,
+  glyph,
   size = 'lg',
   stacked,
   dim,
@@ -35,6 +37,8 @@ export function Avatar({
   name: string;
   /** The person's assigned colour — becomes the ring. */
   color: string;
+  /** Rendered instead of initials. For peers with no name to reduce — an agent's mark. */
+  glyph?: ComponentChildren;
   size?: keyof typeof SIZES;
   stacked?: boolean;
   /** Present but idle (no live cursor). */
@@ -65,7 +69,7 @@ export function Avatar({
       onMouseEnter={onMouseEnter}
       onClick={onClick}
     >
-      {initials(name)}
+      {glyph ?? initials(name)}
     </div>
   );
 }
