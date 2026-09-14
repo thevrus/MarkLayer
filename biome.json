@@ -58,6 +58,7 @@
       "!**/.turbo",
       "!**/.astro",
       "!**/dist",
+      "!graft",
       "!**/*.astro",
       "!**/bun.lock",
       "!**/*.svg",
