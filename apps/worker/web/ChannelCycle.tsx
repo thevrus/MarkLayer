@@ -33,11 +33,61 @@ const CHANNELS = [
 ] as const;
 
 const HOLD_MS = 2000;
-const OUT_MS = 260;
-const IN_MS = 340;
+const OUT_MS = 220;
+const IN_MS = 420;
+const STAGGER_MS = 24;
+const OUT_EASE = 'cubic-bezier(0.4, 0, 1, 1)';
+// A mild "back" overshoot standing in for spring physics — WAAPI has no spring
+// timing function, and at the scale of one letter's travel a bezier that
+// overshoots past 1 and settles reads close enough to one.
+const IN_EASE = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+const MAX_CHARS = Math.max(...CHANNELS.map((c) => c.name.length));
+
+const EXIT_FRAMES: Keyframe[] = [
+  { transform: 'translateY(0)', opacity: 1 },
+  { transform: 'translateY(-0.5em)', opacity: 0 },
+];
+const ENTER_FRAMES: Keyframe[] = [
+  { transform: 'translateY(0.5em)', opacity: 0 },
+  { transform: 'translateY(0)', opacity: 1 },
+];
+
+/** The one way this file reaches the per-letter spans. */
+function letterEls(container: Element | null): HTMLElement[] {
+  return Array.from(container?.children ?? []).filter((c): c is HTMLElement => c instanceof HTMLElement);
+}
 
 /**
- * Swaps the channel word inside the hero headline on a loop.
+ * Rolls every letter through `keyframes` on its own STAGGER_MS offset, settling
+ * once the last one lands. The directions differ only in `fill`: an exit holds
+ * its end state so a letter stays hidden until the word swaps, an entrance
+ * holds its start state so a late letter never flashes at rest before its turn.
+ */
+function rollLetters({
+  els,
+  keyframes,
+  duration,
+  easing,
+  fill,
+}: {
+  els: HTMLElement[];
+  keyframes: Keyframe[];
+  duration: number;
+  easing: string;
+  fill: FillMode;
+}) {
+  return Promise.all(
+    els.map((el, i) =>
+      el.animate(keyframes, { duration, delay: i * STAGGER_MS, easing, fill }).finished.catch(() => {}),
+    ),
+  );
+}
+
+/**
+ * Swaps the channel word inside the hero headline on a loop, one letter at a
+ * time rather than as a block: each character exits and enters on its own
+ * clock, offset by STAGGER_MS, so the word ripples instead of sliding as a
+ * single unit.
  *
  * Only the active word is ever in the DOM, so the rendered <h1> reads as one
  * clean sentence for a crawler that executes JS.
@@ -54,6 +104,7 @@ export function ChannelCycle() {
   const wordRef = useRef<HTMLSpanElement>(null);
   const [index, setIndex] = useState(0);
   const [widths, setWidths] = useState<number[] | null>(null);
+  const mounted = useRef(false);
 
   useLayoutEffect(() => {
     const el = wordRef.current;
@@ -82,41 +133,51 @@ export function ChannelCycle() {
     setWidths(measured);
   }, []);
 
+  // Plays the per-letter entrance whenever the word changes. Skipped on
+  // mount — the first channel ships as static prerendered text, so it must
+  // never be seen animating in.
+  useLayoutEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    if (prefersReducedMotion()) return;
+    rollLetters({
+      els: letterEls(wordRef.current),
+      keyframes: ENTER_FRAMES,
+      duration: IN_MS,
+      easing: IN_EASE,
+      fill: 'backwards',
+    });
+  }, [index]);
+
   useEffect(() => {
     if (prefersReducedMotion()) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
-    const tick = async () => {
-      const el = wordRef.current;
-      if (!el || cancelled) return;
-      // Roll out, swap the text while it is invisible, roll back in. Awaiting
-      // the exit rather than racing it on a timer is what keeps the swap from
-      // ever being visible mid-fade.
-      const out = el.animate(
-        [
-          { transform: 'translateY(0)', opacity: 1 },
-          { transform: 'translateY(-0.38em)', opacity: 0 },
-        ],
-        { duration: OUT_MS, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
-      );
-      await out.finished.catch(() => {});
-      if (cancelled || !wordRef.current) return;
-      setIndex((i) => (i + 1) % CHANNELS.length);
-      out.cancel();
-      el.animate(
-        [
-          { transform: 'translateY(0.38em)', opacity: 0 },
-          { transform: 'translateY(0)', opacity: 1 },
-        ],
-        { duration: IN_MS, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' },
-      );
+    const schedule = () => {
+      timer = setTimeout(tick, HOLD_MS);
     };
 
-    const id = setInterval(tick, HOLD_MS + OUT_MS + IN_MS);
+    const tick = async () => {
+      const els = letterEls(wordRef.current);
+      if (cancelled || els.length === 0) return;
+      // Awaiting every letter out — not racing a timer — is what keeps the swap
+      // below from ever landing mid-fade. The entrance effect above takes over
+      // once the new word is in the DOM.
+      await rollLetters({ els, keyframes: EXIT_FRAMES, duration: OUT_MS, easing: OUT_EASE, fill: 'forwards' });
+      if (cancelled) return;
+      setIndex((i) => (i + 1) % CHANNELS.length);
+      schedule();
+    };
+
+    schedule();
+
     return () => {
       cancelled = true;
-      clearInterval(id);
-      for (const a of wordRef.current?.getAnimations() ?? []) a.cancel();
+      clearTimeout(timer);
+      for (const el of letterEls(wordRef.current)) for (const a of el.getAnimations()) a.cancel();
     };
   }, []);
 
@@ -132,16 +193,17 @@ export function ChannelCycle() {
           ? undefined
           : {
               width: `${widths[index]}px`,
-              // Glides while the word itself is mid-swap, so "Thread." slides
-              // rather than jumping the instant the text changes.
-              transition: `width ${OUT_MS + IN_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`,
+              // Timed to the longest word's full entrance (last letter's delay
+              // plus its own duration), not the current word's, so the box
+              // never has to outrun a longer word cutting in after a shorter one.
+              transition: `width ${IN_MS + (MAX_CHARS - 1) * STAGGER_MS}ms cubic-bezier(0.16, 1, 0.3, 1)`,
             }
       }
     >
       {/* The highlighter wash. It carries the channel's brand colour and sits on
           the slot rather than on the word, so it holds its place through the
-          ~300ms the word spends at zero opacity mid-swap — the headline reads as
-          a highlight whose word is changing, never as a hole.
+          stretch every letter spends at zero opacity mid-swap — the headline
+          reads as a highlight whose word is changing, never as a hole.
 
           The colour swaps with the text, which happens while the word is
           invisible, so it is never seen cross-fading between two brands. */}
@@ -152,9 +214,20 @@ export function ChannelCycle() {
           read as flat. White clears the large-text floor on all four channels
           and lets the brand colour stay the loud part, which is where an
           annotation's colour belongs. */}
-      <span ref={wordRef} class="inline-block whitespace-pre text-white will-change-transform">
-        {CHANNELS[index].name}
+      {/* aria-hidden: split into one span per letter, this would otherwise be
+          read out spelled ("S l a c k") instead of as the word. The sr-only
+          span carries the real accessible name instead. */}
+      <span ref={wordRef} class="inline-flex items-baseline text-white" aria-hidden="true">
+        {/* Keyed by cycle, not by position: every swap mounts fresh spans, which
+            is what lets the exit hold `fill: 'forwards'` and never be cancelled
+            — the letters it froze are gone before the new word paints. */}
+        {CHANNELS[index].name.split('').map((ch, i) => (
+          <span key={`${index}-${i}`} class="inline-block">
+            {ch}
+          </span>
+        ))}
       </span>
+      <span class="sr-only">{CHANNELS[index].name}</span>
     </span>
   );
 }
