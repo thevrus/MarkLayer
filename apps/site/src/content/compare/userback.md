@@ -7,7 +7,7 @@ competitorTagline: "a paid feedback platform whose primary use case is collectin
 bottomLine: "Choose MarkLayer when your team needs to give feedback on any webpage, anywhere on the internet. Choose Userback when you need to collect annotated feedback FROM your end users on your own product via an embedded widget."
 quote: "Userback and MarkLayer get conflated because both have annotation. Userback is the widget customers use to give you feedback on your product. MarkLayer is the tool your team uses to give feedback on any page. Different sides of the table."
 published: 2026-02-13
-modified: 2026-04-03
+modified: 2026-09-14
 rows:
   - feature: "Price"
     ml: "Free"
@@ -58,6 +58,12 @@ faq:
     a: "Yes. MarkLayer works on any webpage, including third-party sites. Many teams use it for competitive analysis and content review."
   - q: "What's the cleanest split between MarkLayer and Userback?"
     a: "MarkLayer = your team annotating anything on the web. Userback = your end users annotating your product to give you feedback. Different sides of the table."
+  - q: "Does Userback have a free plan?"
+    a: "Yes, as of September 2026: a Free Forever plan covering 2 seats, 2 projects, and 7-day feedback retention. Paid tiers start at Team ($29/month annual, 5 seats) and go up through Business ($79/month, adds session replay and AI classification) to Business Plus ($159/month, adds mobile SDK and webhooks). MarkLayer stays free at every scale, with no seat count to outgrow."
 ---
 
-MarkLayer and Userback look similar but solve different problems. Userback's main mode is a feedback widget you embed on your own product so end users can submit annotated feedback to you. MarkLayer is a browser-based app your team uses to annotate any webpage (including third-party pages, staging sites, and competitor products) and share the result, with nothing to install on either side.
+MarkLayer and Userback look similar at a glance, both put comments and drawings on a page, but they're built for opposite directions of feedback. Userback's core product is a widget: your team installs a script tag on your own site, and it lets your end users, the people using your product, report bugs and leave feedback that lands in your dashboard with browser and OS metadata attached automatically.
+
+MarkLayer runs the other way. There's no widget to install anywhere, because the "product" being annotated isn't yours to embed a script on in the first place. Your team opens marklayer.app, pastes a URL, whether that's your own staging site, a client's production page, or a competitor's product, and annotates it directly in the browser, live cursors and all, then shares a link.
+
+The confusion is understandable, since Userback's dashboard can also be used internally by a team reviewing its own product, which looks a lot like what MarkLayer does. The real dividing line is where the feedback originates: from your customers (Userback's job) or from your own team looking at any page at all (MarkLayer's job). Teams that need both often run them side by side rather than picking one.

@@ -8,7 +8,7 @@ homepage: "https://usesuperflow.ai"
 bottomLine: "Choose MarkLayer for unlimited free annotation with your own AI coding agent working the room via MCP. Choose Superflow if you want built-in AI reviewers that audit pages for you, recorded video/audio feedback, and native Asana/ClickUp/Jira routing, priced per seat and per credit."
 quote: "Superflow and MarkLayer take AI in opposite directions. Superflow sells its own review agents: 10 credits per page audit, credits reset monthly. MarkLayer connects the agent you already pay for, Claude Code or Cursor, and lets it fix the annotations rather than write more of them."
 published: 2026-08-15
-modified: 2026-08-15
+modified: 2026-09-14
 rows:
   - feature: "Price"
     ml: "Free, no tiers, no credits"
@@ -55,6 +55,12 @@ faq:
     a: "Superflow ships its own review agents: you spend credits and an agent posts findings on the page. MarkLayer ships an MCP server: your existing coding agent (Claude Code, Cursor, any MCP client) connects to the room, reads each annotation with its CSS selector and component name, fixes the code, and resolves the pin. One generates feedback; the other clears it."
   - q: "Can both handle client review?"
     a: "Yes. Superflow supports unlimited guests, with anonymous guest mode on higher tiers. MarkLayer share links open with no account for anyone, on every page."
+  - q: "What happens when Superflow's 60 monthly credits run out?"
+    a: "Roughly six AI page audits, since each one costs about 10 credits, and after that the built-in reviewer stops until the month resets or the account upgrades to Growth at $24/seat/month. MarkLayer's MCP connection has no credit meter of any kind; the cost, if any, is whatever you already pay for the coding agent itself (Claude Code, Cursor, or another MCP client), not a per-review charge from MarkLayer."
 ---
 
-MarkLayer and [Superflow](https://usesuperflow.ai) both pin comments to live websites, and both have an AI story, pointed in opposite directions. Superflow sells built-in AI agents that review pages for you, metered by monthly credits, alongside recorded video/audio feedback and deep tracker integrations. MarkLayer is free with no meters, and its AI angle is an MCP server that puts your own coding agent inside the review room.
+MarkLayer and [Superflow](https://usesuperflow.ai) both pin comments to live websites, and both have an AI story, pointed in opposite directions. Superflow sells its own review agents: spend credits, and a built-in AI audits the page for broken links, accessibility issues, or copy problems, with no human needed to drive it. MarkLayer has no built-in reviewer at all. Instead, its MCP server opens the annotation room to whatever coding agent you already run, so the agent that reads a MarkLayer pin is the same one already sitting in your editor.
+
+That's a real architectural difference, not just a pricing one. Superflow's agent generates findings, more things flagged on the page, metered by a credit system that resets monthly. MarkLayer's agent connection is built to close findings: an agent watching a room can read an annotation's CSS selector and component name, make the actual code fix, and resolve the pin itself, with the status update visible live to everyone else in the room. One workflow adds work to a page; the other removes it.
+
+Which one earns its keep depends on where a team's bottleneck actually is. A team that struggles to catch problems in the first place, thin QA coverage, no one auditing for accessibility, benefits from Superflow's automated reviewer flagging things nobody asked it to look for. A team already drowning in flagged annotations, where the backlog is the problem, gets more from MarkLayer's model: point an agent at the room and let it clear the queue.

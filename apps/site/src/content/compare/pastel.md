@@ -7,7 +7,7 @@ competitorTagline: "a paid visual feedback platform built for design agencies an
 bottomLine: "Choose MarkLayer if you want unlimited free visual feedback with no account and open-source code you can self-host. Choose Pastel if you run an agency that needs branded review canvases, integrations with Slack/Trello/Asana/Jira, and a paid SaaS workflow."
 quote: "Pastel's polish and the Slack/Trello/Asana integrations are genuine, and that's the agency moat. The trade-off is the per-seat bill. MarkLayer covers the visual-feedback core for free; if you don't need auto-routing into a tracker, that's the saving."
 published: 2026-02-28
-modified: 2026-04-18
+modified: 2026-09-14
 rows:
   - feature: "Price"
     ml: "Free, no tiers"
@@ -60,6 +60,12 @@ faq:
     a: "If your team uses Pastel only for ad-hoc visual comments, MarkLayer is a drop-in replacement. If you depend on Pastel's project workspaces or integrations, you'll lose those."
   - q: "Is MarkLayer self-hostable?"
     a: "Yes. MarkLayer is open source and runs on Cloudflare Workers, D1, and Durable Objects. You can fork the repo and deploy your own instance."
+  - q: "What does Pastel's canvas model actually get you that a link doesn't?"
+    a: "Persistence and structure across a whole engagement, not just one round. A Pastel canvas stays put as a named project, holds a version history as the client's site changes, and gives an agency a client-facing surface with its own branding. MarkLayer's link-based model has none of that; each annotation session is its own share link, which is lighter for a single review and worse for tracking ten rounds across three months."
 ---
 
-MarkLayer and Pastel both let you annotate live websites and share feedback via a link. The trade-off: Pastel is a polished, paid platform optimized for agency-client workflows; MarkLayer is a free, open-source web app built for fast, install-free and sign-up-free visual feedback.
+MarkLayer and Pastel both let you annotate live websites and share feedback via a link, and on the annotation itself they're close: both draw on the live page, both sync in real time, neither one makes the reviewer install anything. The difference is what happens around that core action.
+
+Pastel is built as a canvas, a persistent object with a name, a version history, and a place in a project list, because agencies need to track a client relationship across many review rounds, not one. That's also where the seat count comes from: a canvas belongs to an account, and Pastel bills per account past the first free one. MarkLayer skips the canvas entirely. There's no project to name, no version to archive, just a URL and a link, which is exactly why it stays free: there's no persistent object to meter.
+
+That trade cuts both ways depending on what a team actually does. An agency running the same three clients through structured monthly reviews will feel Pastel's canvas as a genuine organizing tool, not overhead. A team that mostly needs "look at this one page and tell me what's wrong" will feel the canvas as a setup step standing between them and the feedback, and that's the gap MarkLayer fills for free.

@@ -8,7 +8,7 @@ homepage: "https://web.hypothes.is"
 bottomLine: "Choose MarkLayer for visual feedback on any webpage. Drawings, arrows, and pinned comments anywhere on the page. Choose Hypothesis if you need a public, W3C-standard text annotation layer for scholarly research, classroom reading groups, or article-level discussion."
 quote: "Hypothesis is the gold standard for scholarly text annotation. MarkLayer is the visual one, built for when the annotation is an arrow, not a quote. They complement each other; same browser, different workflows."
 published: 2026-03-05
-modified: 2026-04-23
+modified: 2026-09-14
 rows:
   - feature: "Price"
     ml: "Free"
@@ -56,6 +56,12 @@ faq:
     a: "MarkLayer supports highlighting text with comments, but its primary strength is visual annotation. Drawings, shapes, and arrows on the page itself."
   - q: "Is MarkLayer's annotation data public like Hypothesis groups?"
     a: "No. MarkLayer annotations are private until you share the link. There is no public annotation layer or open group system."
+  - q: "Which one should a research team actually install?"
+    a: "Often both, for different halves of the work. Hypothesis for annotating the literature itself: highlighting a passage in a paper, adding a note, seeing what a reading group flagged in the same PDF. MarkLayer for annotating a tool built from that research: a dashboard, a survey instrument, a prototype's UI, where the feedback is \"this element\" rather than \"this sentence.\""
 ---
 
-MarkLayer and [Hypothesis](https://web.hypothes.is) are both free and open source, but they solve different problems. Hypothesis adds a public, W3C-standard text annotation layer to the web. Useful for research, education, and scholarly markup. MarkLayer is a visual annotation tool for drawings, shapes, arrows, and pinned comments. Closer to a digital whiteboard over any webpage.
+MarkLayer and [Hypothesis](https://web.hypothes.is) are both free and open source, but they anchor to different things on a page. Hypothesis anchors to text: select a passage, and the annotation attaches to that exact string, portable across however the page reflows. MarkLayer anchors to space: draw an arrow at a coordinate, pin a comment to a button, and the mark lives on the visual layout itself, not a string of words.
+
+That distinction decides which tool actually fits a given job, more than any feature comparison does. A research group annotating a journal article, a class discussing a shared reading, a journalist marking up a source document: all three are annotating text, and Hypothesis's W3C-standard, publicly addressable layer is built exactly for that, sign-up required, groups persistent across sessions. A designer circling a misaligned button, a QA engineer flagging a broken layout, a PM pointing at a chart that renders wrong on mobile: none of that is text to select, and Hypothesis has no drawing tool or pixel-anchor to reach for it with.
+
+Where the comparison gets genuinely interesting is a page that's both: a data-heavy article, an annotated report, a research tool with real prose alongside its UI. Nothing stops a team from running Hypothesis for the argument and MarkLayer for the interface on the very same URL; they don't compete for the same anchor point, so neither one has to lose for the other to be the right call.

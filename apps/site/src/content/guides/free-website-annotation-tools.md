@@ -42,9 +42,9 @@ Checked against each vendor's live pricing page, August 2026:
 
 The free-tool question is really three questions.
 
-**Do reviewers need accounts?** Whatever tool you pick, the person receiving your review link decides whether the workflow survives. MarkLayer requires no account on either side. Pastel, BugHerd, Marker.io, and Volley allow guest reviewers but require an account for the person running the review.
+**Do reviewers need accounts?** Whatever tool you pick, the person receiving your review link decides whether the workflow survives — creating an account for every reviewer kills adoption faster than any missing feature. MarkLayer requires no account on either side, so anyone can leave feedback directly on the annotated web page without signing up first. Pastel, BugHerd, Marker.io, and Volley allow guest reviewers but require an account for the person running the review.
 
-**What happens to the work?** AnnotateWeb is free and deletes everything after 2 minutes of inactivity, which rules out any review cycle longer than a call. MarkLayer keeps share links for 90 days from last access. Paid tools persist work as long as you pay.
+**What happens to the work?** AnnotateWeb is free and deletes everything after 2 minutes of inactivity, which rules out any review cycle longer than a call — fine for a real time feedback process during a live walkthrough, but not for anything you'd want to revisit tomorrow. MarkLayer keeps share links for 90 days from last access. Paid tools persist work as long as you pay.
 
 **What happens when pricing changes?** Markup.io's 2025 change is the cautionary tale: teams that built client workflows on its free tier woke up to a $79/month bill. A tool that is free by open-source license rather than by current pricing policy cannot repeat that on you.
 

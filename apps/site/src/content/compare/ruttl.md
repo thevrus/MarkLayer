@@ -7,7 +7,7 @@ competitorTagline: "a paid visual feedback platform with project workspaces, ver
 bottomLine: "Choose MarkLayer for free, instant visual feedback with no project setup and no paid tier. Choose Ruttl if you run an agency that needs project workspaces, version comparison, live CSS edit mode, and PDF/static-image annotation alongside web pages."
 quote: "Ruttl's live CSS edit mode is the standout feature; if reviewers genuinely need to suggest specific code changes, it's hard to replace. MarkLayer skips that and stays free. Most teams I talk to don't need the edit mode. They need the annotation to work in 30 seconds."
 published: 2026-01-22
-modified: 2026-03-12
+modified: 2026-09-14
 rows:
   - feature: "Price"
     ml: "Free, no tiers"
@@ -61,6 +61,12 @@ faq:
     a: "Not natively. Ruttl has built-in version comparison; MarkLayer is a single-state tool. You'd handle versioning by sharing two separate annotation links, one per version."
   - q: "Is MarkLayer open source like Ruttl?"
     a: "MarkLayer is open source on GitHub and self-hostable on Cloudflare Workers. Ruttl is closed-source SaaS."
+  - q: "Is the live CSS edit mode worth paying for on its own?"
+    a: "Depends entirely on who's reviewing. If reviewers are comfortable proposing an actual style or copy change, not just describing what's wrong, the edit mode turns a review round into something closer to a pull request against the page's appearance. If reviewers just want to say \"this is wrong\" and let a developer decide the fix, the feature goes unused, and a free annotation tool gets the same job done at no cost."
 ---
 
-MarkLayer and Ruttl both annotate live websites with comments and drawings. Ruttl adds a project-workspace layer with version history, side-by-side comparison, and a "live edit" mode where reviewers can suggest CSS/text changes inline. MarkLayer is the simpler, free, open-source alternative. Link-based sharing, real-time cursors, no project hierarchy.
+MarkLayer and Ruttl both annotate live websites with comments and drawings, and on that core action they're close: both work directly on the rendered page, both sync collaborators in real time, neither requires the reviewer to install anything. Ruttl builds a persistent project layer on top of that: named workspaces, version history that lets a client see what changed between drafts, and a live CSS/text edit mode where a reviewer can propose an actual style change on the page instead of just describing one.
+
+That live edit mode is the one feature on this page nothing free replicates, and it's worth being honest about what it actually requires: a reviewer who understands enough CSS to make a specific suggestion, not just flag a problem. For a lot of review workflows, especially ones where the reviewer is a client or a PM rather than a developer, that's more precision than the feedback ever needed. Pointing at the wrong thing and saying so in plain language, which is what MarkLayer does, covers the same ground for most bugs and design notes.
+
+Where Ruttl's project-workspace layer earns its price is recurring, structured review: an agency running the same client through monthly rounds benefits from persistent history and version comparison in a way a one-off annotation link never will. MarkLayer's link-based model has no equivalent, deliberately, since there's no project object underneath it to version in the first place.

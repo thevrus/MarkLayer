@@ -8,7 +8,7 @@ homepage: "https://www.loom.com"
 bottomLine: "Choose MarkLayer when the message is \"this specific thing on this page\". You want a fast, focused, durable artifact that survives a Loom video's 5-minute attention span. Choose Loom when the message is \"watch me walk through this flow\" and motion or voice tone matters."
 quote: "I use both. Loom for walkthroughs where motion or voice tone matters. MarkLayer for everything else. A circle on the broken element gets a developer to 'I see it' faster than scrubbing a 90-second video."
 published: 2026-01-15
-modified: 2026-04-23
+modified: 2026-09-14
 rows:
   - feature: "Price"
     ml: "Free, no tiers"
@@ -59,6 +59,12 @@ faq:
     a: "No. MarkLayer is text + drawing-based. If you need voice or video, Loom or its alternatives (Tella, Vidyard, Berrycast) are the right category."
   - q: "Why pick MarkLayer over Loom for bug reports?"
     a: "A circle on the broken element with two lines of text gets a developer to \"I see it\" faster than a 90-second video they need to scrub through. For visual or layout bugs, an annotated link wins."
+  - q: "What's the actual cost difference at scale?"
+    a: "Loom's Business tier is $18 per user per month once a team outgrows the free plan's 25-video, 5-minute caps, $180/month for a 10-person team before anyone touches the AI transcription tier at $24/user. MarkLayer has no per-user cost at any team size, because there's no recording to host or transcribe. The trade isn't free-vs-paid so much as recurring-per-seat-vs-nothing, since the two tools aren't replacing the same underlying artifact."
 ---
 
-MarkLayer and [Loom](https://www.loom.com) solve different sides of the same problem: how do I show someone something on a webpage when we're not in the same room? Loom records a video walkthrough with your voice. MarkLayer captures a single annotated state of the page with arrows, comments, and threaded replies. They complement each other more than they compete.
+MarkLayer and [Loom](https://www.loom.com) solve different sides of the same problem: how do I show someone something on a webpage when we're not in the same room? Loom records a video walkthrough with your voice, so the recipient watches an action unfold at whatever pace you performed it. MarkLayer captures a single annotated state of the page with arrows, comments, and threaded replies, so the recipient reads a fact in the time it takes to glance at a screenshot, nothing to press play on.
+
+That's a difference in what kind of information survives the format, not just in price. A multi-step flow with a confusing transition genuinely needs to be watched; describing it in arrows and text loses the timing that makes the confusion visible in the first place. A misaligned button or a wrong headline needs none of that: dressing a static fact up as a video just adds a scrubber between the viewer and the one thing they needed to know.
+
+Most teams that use both land on a rough rule of thumb: if the last thing you'd say while narrating is "and then I clicked here, and then this happened," record it in Loom. If the whole message fits in one sentence pinned to an exact pixel, that was never really a video, and MarkLayer replaces it for free.
