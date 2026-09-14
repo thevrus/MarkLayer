@@ -37,6 +37,8 @@ const articleBase = {
   bottomLine: z.string(),
   published: isoDate,
   modified: isoDate,
+  /** YouTube video id or full watch/embed URL for an optional demo embed. */
+  video: z.string().optional(),
   faq,
 };
 

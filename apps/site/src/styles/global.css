@@ -389,7 +389,7 @@
      are capped at 560px by the prose rule in the base layer and are deliberately
      not repeated here — naming them again would override that cap and widen
      every line on the site. */
-  .ml-shell > :is(h1, h2, h3, h4, hr, .ml-bottom-line) {
+  .ml-shell > :is(h1, h2, h3, h4, hr, .ml-bottom-line, .ml-video) {
     max-width: var(--container-column);
   }
 
@@ -657,6 +657,17 @@
   }
   .ml-release-body > :last-child {
     @apply mb-0;
+  }
+
+  /* A lazy-loaded demo embed on a comparison or alternatives page. Native
+     `loading="lazy"` defers the iframe until it nears the viewport, so no
+     facade script is needed for the handful of pages that carry one. Its width
+     comes from the measure rule above, like every other block-level component. */
+  .ml-video {
+    @apply my-10 aspect-video w-full overflow-hidden rounded-xl border border-rule;
+  }
+  .ml-video iframe {
+    @apply size-full border-0;
   }
 
   /* A hub entry: a linked h3 and its blurb, ruled off from the next one. The

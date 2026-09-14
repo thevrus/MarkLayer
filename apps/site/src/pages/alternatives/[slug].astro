@@ -2,6 +2,7 @@
 import { render } from 'astro:content';
 import Faq from '../../components/Faq.astro';
 import Related from '../../components/Related.astro';
+import VideoEmbed from '../../components/VideoEmbed.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getAlternatives, getComparisons, getCompetitorPrices, relatedLinks } from '../../lib/collections';
 import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
@@ -72,6 +73,8 @@ const breadcrumbs: Crumb[] = [
   ]}
 >
   <Content slot="intro" />
+
+  {a.video && <VideoEmbed video={a.video} title={`Free ${a.target} alternatives demo`} />}
 
   {/* The summary table carries `bestFor` and the price; the entries below carry
       the prose. Splitting them that way keeps the same fact from appearing

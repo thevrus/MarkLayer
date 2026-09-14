@@ -2,6 +2,7 @@
 import { render } from 'astro:content';
 import Faq from '../../components/Faq.astro';
 import Related from '../../components/Related.astro';
+import VideoEmbed from '../../components/VideoEmbed.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getAlternatives, getComparisons, relatedLinks } from '../../lib/collections';
 import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
@@ -52,6 +53,8 @@ const breadcrumbs: Crumb[] = [
   ]}
 >
   <Content slot="intro" />
+
+  {c.video && <VideoEmbed video={c.video} title={`MarkLayer vs ${c.competitor} demo`} />}
 
   {/* Both value columns are ink. The competitor's used to be set in the grey
       metadata step, which dimmed half the data in a table whose entire job is
