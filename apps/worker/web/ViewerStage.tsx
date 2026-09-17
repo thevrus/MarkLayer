@@ -10,7 +10,7 @@ import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
 import { CursorLayer } from './CursorLayer';
 import { frameSrc, isUploadPath } from './docSource';
 import { captureAnchors, frameViewport } from './iframeOverlay';
-import { Logo, TextInputOverlay } from './shared';
+import { HOME_LINK_PROPS, Logo, TextInputOverlay } from './shared';
 import {
   commentPopover,
   cssScale,
@@ -25,6 +25,7 @@ import {
   originalWidth,
   pageUrl,
   pushDeviceOp,
+  STILL_FRAME,
   selectionPopover,
   textInput,
   uploadFile,
@@ -144,7 +145,10 @@ function PageFailure() {
           >
             {isUploadPath(pageUrl.value) ? 'Open the file' : 'Open original site'}
           </a>
-          <a href="/" class="text-ui text-ml-fg/70 underline underline-offset-2 hover:text-ml-fg transition-colors">
+          <a
+            {...HOME_LINK_PROPS}
+            class="text-ui text-ml-fg/70 underline underline-offset-2 hover:text-ml-fg transition-colors"
+          >
             Back home
           </a>
         </div>
@@ -191,6 +195,11 @@ function ProxiedPage() {
         // A PDF or an image has no element tree worth inspecting and no responsive
         // layout to resize, so the tools and device sizes that act on those come off.
         elementToolsUnavailable.value = doc?.documentElement?.dataset?.doc === '1';
+        if (STILL_FRAME && doc) {
+          const style = doc.createElement('style');
+          style.textContent = 'html,body{overflow:hidden !important}';
+          doc.head?.appendChild(style);
+        }
         if (doc?.documentElement?.dataset?.marklayer === '1') {
           // A page that arrives after the give-up bound still rendered, so clear
           // that failure instead of leaving its screen parked over a working page.
@@ -326,7 +335,7 @@ function PageSurface() {
   return (
     <div
       ref={innerRef}
-      onWheel={forwardWheel}
+      onWheel={STILL_FRAME ? undefined : forwardWheel}
       class="absolute top-0 left-0 will-change-transform"
       style={{
         width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
@@ -385,8 +394,7 @@ function PendingComment({ frameRef }: { frameRef: { current: HTMLIFrameElement |
       onClose={() => {
         commentPopover.value = null;
       }}
-      upload={uploadFile}
-      resolveUrl={fileUrl}
+      attachments={{ upload: uploadFile, resolveUrl: fileUrl }}
     />
   );
 }

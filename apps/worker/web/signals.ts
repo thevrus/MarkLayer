@@ -81,6 +81,11 @@ export function attachIframeMutationObserver(doc: Document): () => void {
   };
 }
 export const isLanding = signal(true);
+
+/** True while an embedded room holds most of the screen, so the host page's own toolbar can step aside. */
+export const embedInView = signal(false);
+/** True while the pointer is over an embedded room: the host page's drawn cursor yields to the room's. */
+export const embedPointerOver = signal(false);
 export const urlReady = signal(false);
 export const commentPopover = signal<{ x: number; y: number } | null>(null);
 export const textInput = signal<{ x: number; y: number } | null>(null);
@@ -110,6 +115,10 @@ export const showSupportDialog = signal<SupportTrigger | null>(null);
  * of whatever the room says about who may edit. Read once, like `parseViewParam`:
  * the flag arrives with the page and `replaceState` here always preserves it. */
 const URL_FORCES_READONLY = new URLSearchParams(location.search).get('readonly') === '1';
+/** `?still=1` — the page under review does not scroll. The landing page embeds a
+ * room this way: a wheel over the window then chains to the page around it
+ * instead of scrolling a second document inside the first. */
+export const STILL_FRAME = new URLSearchParams(location.search).get('still') === '1';
 /** What the room last said about this session, or `undefined` before it has said anything. */
 export const canEditFromRoom = signal<boolean | undefined>(undefined);
 /** The URL flag always wins over the room, in one place — not by convention at every writer. */
@@ -288,7 +297,7 @@ if (parseViewParam()) {
 // Show friendly error when redirected from proxy. Use the hash (not a query
 // param) so the error URL is not indexable as a duplicate of `/`.
 if (location.hash === '#error=self') {
-  showToast("You can't annotate MarkLayer itself — try a different URL", 'error', 5000);
+  showToast("You can't annotate MarkLayer itself — try a different URL", { type: 'error', duration: 5000 });
   history.replaceState(null, '', location.pathname + location.search);
 }
 

@@ -102,6 +102,14 @@
   --color-ml-accent-fg: oklch(0.86 0.08 300);
   /* Resolved/muted neutral — used for done-state chips and de-emphasized swatches. */
   --color-ml-resolved: oklch(0.55 0 0);
+  /* The footer status dot's green, and the only colour on the landing page that
+     is not an annotation mark — because here green IS the datum: a status line
+     set in ink says nothing the words do not already say. It borrows the
+     approved-thread green rather than minting a swatch, so it follows the theme
+     for free (#0a7d33 light, #00c853 dark: 4.82:1 on the floor, 7.78:1 on it in
+     the dark). The brighter --ds-green-700 reads at 2.81 on the floor and would
+     put the label under the AA text floor. */
+  --color-ml-live: var(--ds-green-900);
   /* Spring easing for entrance/exit motion. */
   --ease-ml-spring: cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -491,6 +499,63 @@
   }
 }
 
+/* The footer's live dot. A size breath on the mark itself rather than
+   mlStatusPulse's expanding ring above, which is right for the toolbar's
+   connection light (a ring reads at 6px inside a dense control strip) and wrong
+   on a floor, where it becomes a halo bloom bolted onto a dot.
+
+   Most of the movement is in SCALE, and the opacity trough stops at 0.85, for a
+   contrast reason: the dot is 6px of #0a7d33 on a #f5f5f5 floor, and opacity
+   composites it toward that floor. At 0.5 it rendered #80b994 — 2.07:1, under
+   the 3:1 floor for non-text — so a third of every cycle the dot read as a dead
+   grey-green pip rather than a live green one. 0.85 lands on #2d8f50 at 3.74:1
+   and stays unmistakably green; scale carries the breath instead, because
+   shrinking a dot costs no contrast at all.
+
+   Only those two properties move, so the dot is a rendered, fully-visible circle
+   whether or not this runs. Stopped for `prefers-reduced-motion` by the global
+   block at the end of this file. */
+@keyframes mlLivePulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(0.72);
+  }
+}
+
+/* Same shape as `.ml-live` in apps/site's global.css, on this app's own tokens:
+   one class pair driven by a data attribute, so the on/off states are not also
+   written out as ternaries at the only call site. */
+.ml-live {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-fine);
+  line-height: var(--text-fine--line-height);
+  color: var(--color-ml-live);
+}
+.ml-live-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background-color: var(--color-ml-live);
+  animation: mlLivePulse 2.4s ease-in-out infinite;
+}
+/* Degraded: the green and the breath both go, and that is the whole signal. */
+.ml-live[data-ml-status="degraded"] {
+  color: color-mix(in oklab, var(--color-ml-fg) 65%, transparent);
+}
+.ml-live[data-ml-status="degraded"] .ml-live-dot {
+  background-color: color-mix(in oklab, var(--color-ml-fg) 45%, transparent);
+  animation: none;
+}
+
 /* ─── Landing page animations ─── */
 
 /* Content is visible by default. These used to start at `opacity: 0` and rely
@@ -523,6 +588,18 @@
    is in use) and a CSS animation on the same property would fight it. Scaling the
    children also costs no layout, so the pill is full width from the first frame
    and nothing reflows as the buttons land. */
+/* Opacity on the wrapper, never a transform: a transformed ancestor becomes
+   the fixed pill's containing block and the toolbar would leave the viewport
+   edge. The pill's own opacity is WAAPI-owned (see Toolbar.tsx), which is the
+   other reason this lives one level up. */
+.lp-toolbar-in {
+  transition: opacity 250ms ease-out;
+}
+.lp-toolbar-in[data-away] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 @keyframes lpToolIn {
   from {
     opacity: 0;
@@ -705,6 +782,111 @@
   box-shadow: var(--ds-shadow-border-small);
 }
 
+/* ── The demo stage ──
+   A desktop wallpaper with a macOS window on it, holding the live board. The
+   chrome is sized in container units so titlebar, lights and radius scale with
+   the desk. The window's shadow is cast downward from one light, as a real
+   window's is, not bloomed around.
+
+   Below `sm`, without scroll-driven animation, or with reduced motion, this is
+   a framed figure in the page column. Otherwise `.lp-stage` breaks out to the
+   viewport and becomes a runway: the pin holds for 1.2 screens, and the desk
+   rides the stage's view timeline — it grows from the page column (the same
+   spine as the heading above it, so nothing is inset from the copy) to the full
+   viewport over the first third, holds, and zooms back out over the last third,
+   so the release hands the reader a small desk scrolling away and the sections
+   below arrive as they always did. The wallpaper stays around the
+   window at every size. `scale` is the whole expansion and nothing else
+   animates: the desk is laid out at viewport size from the start, so the room
+   inside never reflows — an animated padding once resized the iframe on every
+   scroll frame, and the page inside visibly re-laid itself out. */
+.lp-desk {
+  container-type: inline-size;
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  aspect-ratio: 16 / 10;
+  /* The resting width of the runway desk, as a ratio of the viewport it is laid
+     out at: the page column, so its edges land on the same spine as the heading
+     above it. CSS has no length-over-length division and `scale` takes a number,
+     so tan(atan2(a, b)) does the division. */
+  --lp-rest: tan(atan2(min(100vw, var(--container-page)) - 5rem, 100vw));
+}
+.lp-desk-pad {
+  position: absolute;
+  inset: 0;
+  padding: 3.4% 4%;
+}
+.lp-window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background: #fff;
+  border-radius: clamp(6px, 1.15cqw, 12px);
+  box-shadow:
+    0 0 0 0.5px #0000004d,
+    0 1px 2px #00000029,
+    0 16px 40px -14px #00000066;
+}
+.lp-window-bar {
+  height: clamp(20px, 3.4cqw, 36px);
+  padding-inline: clamp(8px, 1.35cqw, 14px);
+  gap: clamp(5px, 0.75cqw, 8px);
+  background: #e8e8e8;
+  box-shadow:
+    inset 0 0.5px 0 #ffffffb3,
+    inset 0 -0.5px 0 #00000024;
+}
+.lp-light {
+  width: clamp(7px, 1.15cqw, 12px);
+  height: clamp(7px, 1.15cqw, 12px);
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 0.5px #0000002e;
+}
+
+@media (min-width: 640px) and (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .lp-stage {
+      width: 100vw;
+      margin-inline: calc(50% - 50vw);
+      height: 220svh;
+      view-timeline: --lp-stage block;
+    }
+    .lp-stage-pin {
+      position: sticky;
+      top: 0;
+      height: 100svh;
+    }
+    .lp-desk {
+      position: absolute;
+      inset: 0;
+      aspect-ratio: auto;
+      animation: lpDeskExpand ease-in-out both;
+      animation-timeline: --lp-stage;
+      animation-range: contain 0% contain 100%;
+    }
+    /* The caption belongs to the released state; under the pin it would sit
+       behind the desk. */
+    .lp-stage figcaption {
+      margin-top: 0;
+      padding-top: 1rem;
+    }
+  }
+}
+
+@keyframes lpDeskExpand {
+  0%,
+  100% {
+    scale: var(--lp-rest, 0.8);
+    border-radius: 1.25rem;
+  }
+  35%,
+  65% {
+    scale: 1;
+    border-radius: 0;
+  }
+}
 /* ── Focus ──
 
    The URL field's focus ring lives here rather than on a Tailwind

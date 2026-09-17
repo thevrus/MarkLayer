@@ -4,7 +4,7 @@ import { annotationPanelOpen, peers, uiHidden } from '@ext/lib/state';
 import { cn } from '@marklayer/types';
 import { Lock, Mic, MicOff, MonitorPlay, X } from 'lucide-preact';
 import { lazy, Suspense } from 'preact/compat';
-import { Logo } from './shared';
+import { HOME_LINK_PROPS, Logo } from './shared';
 import { followingPeer, presenting, setPresenting } from './signals';
 import {
   audioBlocked,
@@ -43,7 +43,7 @@ function DesktopOnly({ cover }: { cover: boolean }) {
         Annotation tools require a desktop browser. Open this link on your computer to view and collaborate.
       </p>
       <a
-        href="/"
+        {...HOME_LINK_PROPS}
         class="px-5 py-2.5 rounded-xl bg-ml-btn text-ml-btn-fg text-ui-lg font-semibold no-underline hover:bg-ml-btn-hover transition-colors"
       >
         Back to home

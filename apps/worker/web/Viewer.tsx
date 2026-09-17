@@ -219,7 +219,7 @@ export default function Viewer() {
     loadProject(pid).then((data) => {
       if (cancelled || !data) {
         projectLoading.value = false;
-        if (!cancelled) toast('Project not found or expired', 'error', 4000);
+        if (!cancelled) toast('Project not found or expired', { type: 'error', duration: 4000 });
         return;
       }
       projectPages.value = data.pages;
@@ -281,7 +281,7 @@ export default function Viewer() {
           if (b) {
             downloadBlob(b);
             capture('export_completed', { format: 'png', mode: 'canvas', ops: operations.value.length });
-            toast('PNG exported (drawings only)', 'success');
+            toast('PNG exported (drawings only)', { type: 'success' });
           } else {
             capture('export_failed', { format: 'png', reason: 'blob-null' });
           }
@@ -297,7 +297,7 @@ export default function Viewer() {
         if (blob) {
           downloadBlob(blob);
           capture('export_completed', { format: 'png', mode: 'dom', ops: operations.value.length });
-          toast('PNG exported', 'success');
+          toast('PNG exported', { type: 'success' });
         } else {
           fallbackToCanvas();
         }
@@ -605,9 +605,9 @@ export default function Viewer() {
       });
       try {
         await navigator.clipboard.writeText(link);
-        toast('Project link copied', 'success');
+        toast('Project link copied', { type: 'success' });
       } catch {
-        toast('Failed to copy link', 'error');
+        toast('Failed to copy link', { type: 'error' });
       } finally {
         sharing.value = false;
       }
@@ -622,7 +622,7 @@ export default function Viewer() {
     // Copy link immediately so the user gets instant feedback
     const link = shareUrl({ origin: location.origin, kind: 'page', id, readonly: opts?.readonly, ref: 'web' });
     await navigator.clipboard.writeText(link);
-    toast('Link copied', 'success');
+    toast('Link copied', { type: 'success' });
 
     // Save to server in the background
     try {
@@ -648,7 +648,7 @@ export default function Viewer() {
       // A copied link that never saved is the worst failure the product has: the
       // person walks away believing they shared something.
       capture('share_failed', { ops: operations.value.length });
-      toast('Failed to save — link may not work', 'error');
+      toast('Failed to save — link may not work', { type: 'error' });
     } finally {
       sharing.value = false;
     }
@@ -713,7 +713,12 @@ export default function Viewer() {
     // Fit against the scroll container, never #viewer itself — #viewer's width
     // is `originalWidth * cssScale`, so measuring it turns auto-fit into a
     // one-way ratchet (shrinks once, never recovers when the window widens).
-    const containerW = viewer?.parentElement ? viewer.parentElement.clientWidth : window.innerWidth;
+    // Floored off the fractional rect, not `clientWidth`: a 1339.5px container
+    // rounds up to 1340, and a frame sized to fit 1340 overflows it by half a
+    // pixel — enough for `overflow-x: auto` to raise a scrollbar.
+    const containerW = viewer?.parentElement
+      ? Math.floor(viewer.parentElement.getBoundingClientRect().width)
+      : window.innerWidth;
     const viewerH = viewer ? viewer.clientHeight : window.innerHeight;
     const dev = deviceMode.value;
     // In a device viewport the panels dock as flex siblings and take real width

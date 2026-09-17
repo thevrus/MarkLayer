@@ -118,7 +118,7 @@ export function WebSelectionPopover({
               commit(false);
             }
           }}
-          class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
+          class={cn(textareaCls, 'w-full min-h-10 max-h-100', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
         />
         <PriorityPicker value={priority} onChange={setPriority} class="mt-1.5 -ml-1.5" />

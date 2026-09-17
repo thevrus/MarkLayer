@@ -3,7 +3,7 @@ import { activeTool, isDrawingTool, localUser } from '@ext/lib/state';
 import { useEffect, useRef } from 'preact/hooks';
 import { CursorArrow } from './CursorArrow';
 import { CursorLabel } from './CursorLabel';
-import { isMobileDevice } from './signals';
+import { embedPointerOver, isMobileDevice } from './signals';
 
 /** Toggled on <html> while our cursor is drawn; drops the native one (style.css). */
 const SWAP_CLASS = 'ml-cursor-swapped';
@@ -43,7 +43,9 @@ const RIPPLE_RINGS = [0, 140];
 export function SelfCursor() {
   // 'navigate' is the only tool that leaves the pointer free. The rest want the
   // native crosshair or caret on the canvas, where precision beats decoration.
-  const enabled = !isMobileDevice && !isDrawingTool(activeTool.value);
+  // Over the demo window the room draws its own cursor; two arrows on one
+  // pointer is what this would otherwise be.
+  const enabled = !isMobileDevice && !isDrawingTool(activeTool.value) && !embedPointerOver.value;
   const rootRef = useRef<HTMLDivElement>(null);
   const hoverRef = useRef<HTMLDivElement>(null);
   const arrowRef = useRef<HTMLDivElement>(null);

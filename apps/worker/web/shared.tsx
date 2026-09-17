@@ -100,8 +100,12 @@ export function Logo({ size = 24, class: className }: { size?: number; class?: s
    until hover, and it matches the sibling icon link in the landing nav so the
    two read as one pair rather than two differently-sized glyphs. 44px under
    `sm` clears the touch-target floor; the bare 18px anchor did not. */
-const ICON_LINK_CLS =
+export const ICON_LINK_CLS =
   'inline-flex items-center justify-center size-11 sm:size-9 rounded-lg transition-colors no-underline hover:bg-current/[0.04]';
+
+/* The landing page embeds a room in an iframe, so a bare `href="/"` loads the
+   landing page inside its own screenshot. Every way out of the viewer spreads this. */
+export const HOME_LINK_PROPS = { href: '/', target: '_top' } as const;
 
 export function GithubLink({ dark }: { dark?: boolean }) {
   return (

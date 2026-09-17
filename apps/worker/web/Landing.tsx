@@ -18,15 +18,17 @@ import { FakeCursors } from './FakeCursors';
 import { frameViewport } from './iframeOverlay';
 import { ChromeIcon, ChromeStoreLink } from './landing/ChromeStoreLink';
 import { MOMENTS, NAV_LINKS } from './landing/content';
+import { DemoStage } from './landing/DemoStage';
 import { useHeroPin } from './landing/useHeroPin';
 import { useLandingCanvas } from './landing/useLandingCanvas';
 import { useLandingPresence } from './landing/useLandingPresence';
 import { useLandingShortcuts } from './landing/useLandingShortcuts';
 import { useLandingUpload } from './landing/useLandingUpload';
 import { SelfCursor } from './SelfCursor';
-import { GithubLink, Logo, TextInputOverlay } from './shared';
+import { GithubLink, ICON_LINK_CLS, Logo, TextInputOverlay } from './shared';
 import {
   commentPopover,
+  embedInView,
   isMobileDevice,
   navigateTo,
   pushDeviceOp,
@@ -34,6 +36,7 @@ import {
   textInput,
   urlReady,
 } from './signals';
+import { STATUS_LABEL, systemStatus } from './status';
 import { WebCommentPin } from './WebCommentPin';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
@@ -74,7 +77,7 @@ export function Landing() {
           the strokes are real ops and the highlight under the headline is the
           highlighter tool's own 40%-alpha swipe. Nothing here is a drawing of
           the product pretending to be the product. */}
-      <div class="ml-force-light lp-voice relative min-h-screen overflow-x-hidden lp-board">
+      <div class="ml-force-light lp-voice relative min-h-screen overflow-x-clip lp-board">
         {/* No page-wide column. The content column used to be 800px wide on any
             viewport, which read as a narrow tube down the middle of a dead white
             field — packed inside, empty outside. Each section now owns its own
@@ -121,7 +124,7 @@ export function Landing() {
                   href="https://www.producthunt.com/posts/marklayer"
                   target="_blank"
                   rel="noopener"
-                  class="inline-flex items-center justify-center size-11 sm:size-9 rounded-full text-ml-fg/60 hover:text-ml-fg hover:bg-ml-fg/[0.05] transition-colors"
+                  class={cn(ICON_LINK_CLS, 'text-ml-fg/60 hover:text-ml-fg')}
                 >
                   <span class="sr-only">Product Hunt</span>
                   <svg class="size-[18px] fill-current" viewBox="0 0 24 24" aria-hidden="true">
@@ -404,36 +407,16 @@ export function Landing() {
               Somebody else&rsquo;s page, opened from a link and marked up in the browser. No install on either end.
             </p>
 
-            {/* A real screenshot, not a mock.
+            {/* The product, live, not a picture of it.
 
-                This slot has been through two failed versions: three small
-                objects parked beside three paragraphs (inert), then a
-                hand-built "page under review" card (a heading, two grey nav
-                bars and a button on white — which reads as a wireframe,
-                because with no real imagery a four-element box is a wireframe).
-                The product is an annotation layer over somebody's live page,
-                so the only honest way to show it is a capture of exactly that:
-                MarkLayer open on a real article, with real ops on it.
-
-                The frame is the page's one elevation primitive — a hairline
-                ring and a 2px contact shadow — rather than the wide soft bloom
-                it used to float on. */}
-            <figure class="mx-auto mt-14 mb-0 max-w-[1040px] sm:mt-16">
-              <div class="lp-panel overflow-hidden rounded-xl p-1.5">
-                <img
-                  src="/product-review-wikipedia.webp"
-                  width={1440}
-                  height={900}
-                  alt="MarkLayer open on the Wikipedia article for Web annotation. The opening sentence is highlighted in pink, an arrow is drawn from the text toward the language switcher, and a numbered comment pin sits on the title. The MarkLayer toolbar floats over the page and the share bar shows one other person online."
-                  loading="lazy"
-                  decoding="async"
-                  class="block w-full rounded-lg"
-                />
-              </div>
-              <figcaption class="mt-4 text-ui text-ml-fg/60">
-                A live Wikipedia article, opened from a share link and marked up in the browser.
-              </figcaption>
-            </figure>
+                This slot has been through three versions: three small objects
+                parked beside three paragraphs (inert), a hand-built "page under
+                review" card (a wireframe), then a real screenshot. The
+                screenshot is still the poster, but what a visitor sees is the
+                actual viewer on the actual Wikipedia article, in a room every
+                visitor shares, wiped hourly by the worker. Scroll pins it and
+                grows it to the whole screen; click it and draw. */}
+            <DemoStage />
 
             {/* Equal columns on one grid: every title sits on the same line
                 and every description starts on the same line, whatever the
@@ -636,15 +619,41 @@ export function Landing() {
                   smaller and quieter than the link columns, so the legal
                   boilerplate is not the heaviest text on the floor. */}
               <p class="mt-10 mb-0 text-fine text-ml-fg/65">{TRADEMARK_NOTICE}</p>
-              <p class="mt-5 mb-0 flex items-start gap-2 text-fine text-ml-fg/65">
-                {/* Aligned to the FIRST line, not to the block: the line wraps
-                    on a phone, and a centred mark then floats between the two
-                    rows. */}
-                <Logo size={14} class="mt-[3px] shrink-0" />
-                <span>
-                  &copy; {new Date().getFullYear()} MarkLayer &middot; {COLOPHON}
-                </span>
-              </p>
+              {/* The closing row: the colophon on the page's spine, where the
+                  lockup belongs, and the status line anchored to the opposite
+                  end. Two items on one line rather than a third stacked grey
+                  line. `items-center`, not `items-baseline`: the colophon is
+                  itself a flex row led by the mark, so its first baseline is
+                  the mark's bottom edge rather than the text's, and baseline
+                  alignment dropped the status 5px below the line it sits on.
+
+                  The reference for this row put the status on the left; it is
+                  on the right here because the left edge of the floor is the
+                  brand's edge. Mirrored in SiteFooter.astro. */}
+              <div class="mt-5 flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
+                <p class="m-0 flex items-start gap-2 text-fine text-ml-fg/65">
+                  {/* Aligned to the FIRST line, not to the block: the line
+                      wraps on a phone, and a centred mark then floats between
+                      the two rows. */}
+                  <Logo size={14} class="mt-[3px] shrink-0" />
+                  <span>
+                    &copy; {new Date().getFullYear()} MarkLayer &middot; {COLOPHON}
+                  </span>
+                </p>
+                {/* Starts at `ok`, which is what the page attests — it came
+                    from the Worker that answers `/api/health` — and downgrades
+                    only on a probe that measured D1 or R2 not answering. When it
+                    does, the green and the breath both go: grey and still
+                    against green and breathing is the whole signal, so it needs
+                    no second colour. */}
+                <p class="ml-live" data-ml-status={systemStatus.value} role="status">
+                  {/* The pulse rides the mark only — see `mlLivePulse` in
+                      style.css for why it breathes rather than ringing, and why
+                      the dot is fully rendered if the animation never runs. */}
+                  <span class="ml-live-dot" aria-hidden="true" />
+                  {STATUS_LABEL[systemStatus.value]}
+                </p>
+              </div>
             </div>
 
             {/* The signature wordmark: full-bleed, cut at roughly half the cap
@@ -771,7 +780,10 @@ export function Landing() {
 
         <InspectorLayer />
 
-        <div class="lp-toolbar-in hidden sm:block z-2147483647">
+        {/* Steps aside while the demo window fills the screen: its own toolbar
+            is the one to use there, and two identical bars stacked at the
+            bottom edge read as a rendering fault. */}
+        <div class="lp-toolbar-in hidden sm:block z-2147483647" data-away={embedInView.value ? 'true' : undefined}>
           <Toolbar />
         </div>
 

@@ -1,7 +1,7 @@
 import { Menu } from '@base-ui/react/menu';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
-import { Avatar } from '@ext/components/Avatar';
+import { AvatarGroup } from '@ext/components/AvatarGroup';
 import { IdentityCard } from '@ext/components/IdentityCard';
 import { Tooltip } from '@ext/components/Tooltip';
 import { AgentMark } from '@ext/lib/agents';
@@ -36,11 +36,10 @@ import {
 } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
-import { useRef, useState } from 'preact/hooks';
 import { isUploadPath } from './docSource';
 import { PresenceMenu } from './PresenceMenu';
 import { SharePopover } from './SharePopover';
-import { DEVICE_ICONS, Logo } from './shared';
+import { DEVICE_ICONS, HOME_LINK_PROPS, Logo } from './shared';
 import {
   deviceMode,
   isReadonly,
@@ -100,7 +99,7 @@ export function BarButton({
 function BrandLink() {
   return (
     <a
-      href="/"
+      {...HOME_LINK_PROPS}
       class={cn(
         'flex items-center gap-1.5 h-8 px-2 rounded-md no-underline shrink-0 cursor-pointer',
         'hover:bg-(--ds-gray-alpha-100) transition-colors duration-150',
@@ -255,94 +254,26 @@ function ZoomMenu() {
  * per-item CSS vars; the `.ml-avatar` class owns the transform and transition,
  * whose easings and duration these constants are matched to.
  */
-const AVATAR_LIFT = -2;
-const AVATAR_SCALE = 1.03;
-const AVATAR_FALLOFF = 0.35;
-
-function useAvatarSpring() {
-  const groupRef = useRef<HTMLDivElement>(null);
-  const eachChild = (fn: (el: HTMLElement, i: number) => void) => {
-    const group = groupRef.current;
-    if (!group) return;
-    for (const [i, el] of Array.from(group.children).entries()) {
-      if (el instanceof HTMLElement) fn(el, i);
-    }
-  };
-  const spring = (activeIdx: number) =>
-    eachChild((el, i) => {
-      el.style.transitionTimingFunction = 'var(--ml-avatar-ease-in)';
-      const shift = AVATAR_LIFT * AVATAR_FALLOFF ** Math.abs(i - activeIdx);
-      el.style.setProperty('--shift', `${shift.toFixed(3)}px`);
-      el.style.setProperty('--scale-active', i === activeIdx ? `${AVATAR_SCALE}` : '1');
-    });
-  const reset = () =>
-    eachChild((el) => {
-      el.style.transitionTimingFunction = 'var(--ml-avatar-ease-out)';
-      el.style.setProperty('--shift', '0px');
-      el.style.setProperty('--scale-active', '1');
-    });
-  return { groupRef, spring, reset };
-}
-
 /** The other people in the room. You are not in the stack — you are the
  *  IdentityCard trigger beside it, which is also where you rename yourself. */
 function PresenceGroup() {
-  const { groupRef, spring, reset } = useAvatarSpring();
-  const visible = Array.from(peers.value.values()).slice(0, MAX_VISIBLE_PEERS);
-  const overflow = peers.value.size - MAX_VISIBLE_PEERS;
-  // The stack overlaps, so whoever is hovered has to come to the front —
-  // otherwise the neighbour on top clips the name you are reaching for.
-  const [hovered, setHovered] = useState<number | null>(null);
-  const enter = (index: number) => () => {
-    setHovered(index);
-    spring(index);
-  };
-  const zOf = (index: number, base: number) => (hovered === index ? peers.value.size + 10 : base);
-
   if (!peers.value.size) return null;
-  return (
-    <div
-      ref={groupRef}
-      class="flex items-center -space-x-2 mx-1"
-      onMouseLeave={() => {
-        setHovered(null);
-        reset();
-      }}
-    >
-      {visible.map((p, i) => {
-        const agent = isAgentPeer(p.id);
-        const label = agent ? agentLabel(p.name) : p.name;
-        return (
-          <Avatar
-            key={p.id}
-            name={p.name}
-            color={p.color}
-            glyph={agent ? <AgentMark id={p.name} size={11} /> : undefined}
-            stacked
-            dim={!agent && p.cursor == null}
-            title={agent ? `${label} (connected)` : p.cursor != null ? label : `${label} (inactive)`}
-            style={{ zIndex: zOf(i, peers.value.size - i) }}
-            onMouseEnter={enter(i)}
-            onClick={() => {
-              if (p.cursor) onFollowScroll.value?.(p.cursor.y);
-            }}
-          />
-        );
-      })}
-      {overflow > 0 && (
-        <div
-          class="ml-avatar w-6 h-6 rounded-full grid place-items-center shrink-0 bg-(--ds-gray-100) text-(--ds-gray-900) text-meta font-medium tabular-nums"
-          style={{
-            boxShadow: '0 0 0 1.5px var(--ds-gray-alpha-400), 0 0 0 3px var(--ds-background-100)',
-            zIndex: zOf(MAX_VISIBLE_PEERS, 0),
-          }}
-          onMouseEnter={enter(MAX_VISIBLE_PEERS)}
-        >
-          +{overflow}
-        </div>
-      )}
-    </div>
-  );
+  const items = Array.from(peers.value.values()).map((p) => {
+    const agent = isAgentPeer(p.id);
+    const label = agent ? agentLabel(p.name) : p.name;
+    return {
+      key: p.id,
+      name: p.name,
+      color: p.color,
+      glyph: agent ? <AgentMark id={p.name} size={11} /> : undefined,
+      dim: !agent && p.cursor == null,
+      title: agent ? `${label} (connected)` : p.cursor != null ? label : `${label} (inactive)`,
+      onClick: () => {
+        if (p.cursor) onFollowScroll.value?.(p.cursor.y);
+      },
+    };
+  });
+  return <AvatarGroup items={items} max={MAX_VISIBLE_PEERS} className="mx-1" />;
 }
 
 function JoinVoiceControls() {
