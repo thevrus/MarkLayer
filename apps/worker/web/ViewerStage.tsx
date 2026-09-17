@@ -459,7 +459,14 @@ export function ViewerStage() {
     /* `mx-auto` (not `justify-center`) so flex auto-margins collapse on overflow
        — scroll starts at the page's left edge instead of clipping content. */
     <div class="flex-1 w-full relative min-h-0 bg-ml-bg-device">
-      <div class="absolute inset-0 overflow-x-auto overflow-y-hidden flex items-stretch">
+      {/* The embedded board auto-fits its frame and offers no device widths, so
+          a sideways scroller there can only ever be sub-pixel rounding. */}
+      <div
+        class={cn(
+          'absolute inset-0 overflow-y-hidden flex items-stretch',
+          STILL_FRAME ? 'overflow-x-hidden' : 'overflow-x-auto',
+        )}
+      >
         {!desktop && <DockedInfoPanel />}
         <DeviceFrame />
         {!desktop && <DockedAnnotationPanel {...panels} />}
