@@ -68,7 +68,7 @@ export async function copyElementShot({ rect, markdown }: { rect: DOMRect; markd
     await navigator.clipboard.write([
       new ClipboardItem({ 'image/png': png, 'text/plain': new Blob([markdown], { type: 'text/plain' }) }),
     ]);
-    toast('Screenshot + specs copied — paste into your AI', 'success');
+    toast('Screenshot + specs copied — paste into your AI', { type: 'success' });
   } catch {
     copyText(markdown, 'Element copied — paste into your AI');
   }

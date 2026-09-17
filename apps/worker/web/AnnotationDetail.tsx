@@ -219,7 +219,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
                 {...mentionProps}
                 placeholder="Write a reply…"
                 rows={1}
-                class={cn(textareaBareCls, glass.font, 'w-full min-h-7 max-h-[140px] px-2.5 pt-1.5')}
+                class={cn(textareaBareCls, glass.font, 'w-full min-h-7 max-h-100 px-2.5 pt-1.5')}
                 style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
@@ -387,7 +387,7 @@ function FileRow({ op }: { op: { id: string; x: number; y: number } }) {
       if (!res.ok) {
         // The API names the reason, and the reason is the whole point of this
         // route: a rejected token and an unreachable host need different fixes.
-        toast(stringField(body, 'error') ?? `Could not file in ${target.label}`, 'error', 4500);
+        toast(stringField(body, 'error') ?? `Could not file in ${target.label}`, { type: 'error', duration: 4500 });
         return;
       }
       // Kept only once it has actually worked, so a typo is not remembered.
@@ -400,9 +400,9 @@ function FileRow({ op }: { op: { id: string; x: number; y: number } }) {
       pushReply({ parent: op, text: url ? `Filed in ${target.label}: ${url}` : `Filed in ${target.label}.` });
       // Not captured here: the push route already records `annotation_filed`,
       // and it is the emitter that cannot be blocked or missed on a slow tab.
-      toast(`Filed in ${target.label}`, 'success');
+      toast(`Filed in ${target.label}`, { type: 'success' });
     } catch {
-      toast(`Could not reach ${target.label}`, 'error', 4500);
+      toast(`Could not reach ${target.label}`, { type: 'error', duration: 4500 });
     } finally {
       setFiling('');
     }

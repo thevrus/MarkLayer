@@ -30,7 +30,7 @@ export function useCopyToClipboard({ resetMs = 1400 }: { resetMs?: number } = {}
   };
 
   const copy = (value: string) => {
-    navigator.clipboard.writeText(value).then(flash, () => toast('Failed to copy', 'error'));
+    navigator.clipboard.writeText(value).then(flash, () => toast('Failed to copy', { type: 'error' }));
   };
 
   return { copied, copy, flash };

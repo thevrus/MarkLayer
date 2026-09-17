@@ -348,7 +348,7 @@ export function useRealtimeSync(annotationId: string) {
               // hidden — a stale client, or a race with the owner flipping access.
               if (msg.code === 'read_only') {
                 canEditFromRoom.value = false;
-                toast('This link is view-only', 'info');
+                toast('This link is view-only', { type: 'info' });
               }
               break;
             case 'access': {
@@ -357,7 +357,9 @@ export function useRealtimeSync(annotationId: string) {
               const wasReadonly = isReadonly.value;
               canEditFromRoom.value = msg.canEdit;
               if (isReadonly.value !== wasReadonly) {
-                toast(isReadonly.value ? 'This link is now view-only' : 'You can edit this link again', 'info');
+                toast(isReadonly.value ? 'This link is now view-only' : 'You can edit this link again', {
+                  type: 'info',
+                });
               }
               break;
             }
@@ -419,7 +421,7 @@ export function useRealtimeSync(annotationId: string) {
                 peers.value = map;
                 clearDeparture(p.id);
                 if (isNew) {
-                  toast(`${p.name || 'Someone'} joined`, 'info', 2500);
+                  toast(`${p.name || 'Someone'} joined`, { type: 'info', duration: 2500 });
                   playPeerChime(true);
                 }
                 if (isNew && isAgentPeer(p.id)) noteSupportSignal('mcp');
@@ -432,10 +434,10 @@ export function useRealtimeSync(annotationId: string) {
               if (msg.on) {
                 followingPeer.value = msg.peerId;
                 // Say why the page just moved, or being pulled reads as a bug.
-                toast(`${who} is presenting — scroll to break away`, 'info', 4000);
+                toast(`${who} is presenting — scroll to break away`, { type: 'info', duration: 4000 });
               } else if (followingPeer.value === msg.peerId) {
                 followingPeer.value = null;
-                toast(`${who} stopped presenting`, 'info', 2500);
+                toast(`${who} stopped presenting`, { type: 'info', duration: 2500 });
               }
               break;
             }
@@ -448,7 +450,7 @@ export function useRealtimeSync(annotationId: string) {
               peerCursorSamples.delete(msg.peerId);
               if (leaving) {
                 noteDeparture({ id: leaving.id, name: leaving.name, color: leaving.color, leftAt: Date.now() });
-                toast(`${leaving.name} left`, 'info', 2500);
+                toast(`${leaving.name} left`, { type: 'info', duration: 2500 });
                 playPeerChime(false);
               }
               break;

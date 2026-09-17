@@ -118,7 +118,7 @@ export function ShareDialog() {
     }
     const flushed = flushInspectorStackToComments();
     if (flushed > 0) {
-      toast(`Added ${flushed} inspector ${flushed === 1 ? 'item' : 'items'}`, 'success');
+      toast(`Added ${flushed} inspector ${flushed === 1 ? 'item' : 'items'}`, { type: 'success' });
     }
     const url = getShareUrl();
     setShareUrl(url);
@@ -130,7 +130,7 @@ export function ShareDialog() {
           res.reason === 'view-only'
             ? 'This link is view-only — your marks were not saved'
             : 'Failed to save — link may not work',
-          'error',
+          { type: 'error' },
         );
       });
     }

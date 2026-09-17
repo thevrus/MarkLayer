@@ -87,13 +87,13 @@ function InviteByEmail({ id, url }: { id: string; url: string }) {
     const error = await inviteToLink({ id, email: value, url });
     setBusy(false);
     if (error) {
-      toast(error, 'error');
+      toast(error, { type: 'error' });
       return;
     }
     capture('invite_sent');
     setEmail('');
     setSent(true);
-    toast(`Invite sent to ${value}`, 'success');
+    toast(`Invite sent to ${value}`, { type: 'success' });
   };
 
   return (

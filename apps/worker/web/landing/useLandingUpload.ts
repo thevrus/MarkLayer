@@ -38,11 +38,11 @@ export function useLandingUpload(): {
     try {
       const res = await fetch('/f', { method: 'POST', body: file });
       if (res.status === 413) {
-        toast(`That file is larger than ${MAX_UPLOAD_BYTES / 1024 / 1024}MB`, 'error');
+        toast(`That file is larger than ${MAX_UPLOAD_BYTES / 1024 / 1024}MB`, { type: 'error' });
         return;
       }
       if (res.status === 415) {
-        toast('That has to be a PDF or an image', 'error');
+        toast('That has to be a PDF or an image', { type: 'error' });
         return;
       }
       if (!res.ok) throw new Error(String(res.status));
@@ -50,7 +50,7 @@ export function useLandingUpload(): {
       if (!stored.success) throw new Error('no url');
       navigateTo({ url: stored.data.url, source: 'hero_upload' });
     } catch {
-      toast('Could not upload that file', 'error');
+      toast('Could not upload that file', { type: 'error' });
     } finally {
       uploading.value = false;
     }

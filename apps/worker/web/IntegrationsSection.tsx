@@ -79,7 +79,7 @@ export function IntegrationsSection({ id }: { id: string }) {
       if (!res.ok || !parsed.success) {
         // The API names which destination it refused and why, and the reason is
         // almost always "that is not the kind of URL this one takes".
-        toast(stringField(body, 'error') ?? 'Could not save destinations', 'error', 4500);
+        toast(stringField(body, 'error') ?? 'Could not save destinations', { type: 'error', duration: 4500 });
         return false;
       }
       destinations.value = parsed.data.integrations;
@@ -111,7 +111,7 @@ export function IntegrationsSection({ id }: { id: string }) {
       // Cleared on success only: a rejected token should not take the four
       // fields the person got right down with it.
       setValues({});
-      toast(`${provider.label} connected`, 'success');
+      toast(`${provider.label} connected`, { type: 'success' });
     }
   };
 

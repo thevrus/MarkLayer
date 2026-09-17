@@ -46,8 +46,7 @@ export function CommentLayer() {
           })}
           push={pushOp}
           onClose={() => setPopover(null)}
-          upload={uploadFile}
-          resolveUrl={fileUrl}
+          attachments={{ upload: uploadFile, resolveUrl: fileUrl }}
         />
       )}
     </div>

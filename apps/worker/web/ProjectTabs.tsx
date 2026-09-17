@@ -61,7 +61,7 @@ export function ProjectTabs() {
   const deletePage = async (i: number, e: Event) => {
     e.stopPropagation();
     if (pages.length <= 1) {
-      toast('A project needs at least one page', 'info');
+      toast('A project needs at least one page', { type: 'info' });
       return;
     }
     const page = pages[i];
@@ -88,10 +88,10 @@ export function ProjectTabs() {
     );
     projectLoading.value = false;
     if (!ok) {
-      toast('Failed to remove page', 'error');
+      toast('Failed to remove page', { type: 'error' });
       return;
     }
-    toast('Page removed', 'success');
+    toast('Page removed', { type: 'success' });
   };
 
   const submitAdd = async (e: Event) => {

@@ -551,7 +551,7 @@ export function useVoiceRoom(localPeerId: string) {
       } catch (err) {
         const { code, title, hint } = describeGumError(err);
         capture('voice_failed', { stage: 'start', reason: code });
-        toast(hint ? `${title}: ${hint}` : title, 'error', 6000);
+        toast(hint ? `${title}: ${hint}` : title, { type: 'error', duration: 6000 });
         voiceActive.value = false;
         videoActive.value = false;
         return;
@@ -693,7 +693,7 @@ export function useVoiceRoom(localPeerId: string) {
           } catch (err) {
             const { code, title, hint } = describeGumError(err);
             capture('voice_failed', { stage: 'camera', reason: code });
-            toast(hint ? `${title}: ${hint}` : title, 'error', 6000);
+            toast(hint ? `${title}: ${hint}` : title, { type: 'error', duration: 6000 });
             videoActive.value = false;
           }
         }
@@ -771,7 +771,7 @@ async function hotSwapTrack(
   } catch (err) {
     const { code, title, hint } = describeGumError(err);
     capture('voice_failed', { stage: 'switch_device', reason: code, kind });
-    toast(hint ? `${title}: ${hint}` : title, 'error', 5000);
+    toast(hint ? `${title}: ${hint}` : title, { type: 'error', duration: 5000 });
     return;
   }
 

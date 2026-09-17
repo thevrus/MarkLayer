@@ -101,7 +101,7 @@ export async function navigateTo({ url, source = 'viewer' }: { url: string; sour
     if (!newPageId) {
       projectLoading.value = false;
       capture('page_open_failed', { mode: 'project_page', step: 'create_page' });
-      showToast('Failed to add page', 'error');
+      showToast('Failed to add page', { type: 'error' });
       return;
     }
     const pages = projectPages.value;
@@ -117,7 +117,7 @@ export async function navigateTo({ url, source = 'viewer' }: { url: string; sour
     if (!ok) {
       projectLoading.value = false;
       capture('page_open_failed', { mode: 'project_page', step: 'save_project' });
-      showToast('Failed to save project', 'error');
+      showToast('Failed to save project', { type: 'error' });
       return;
     }
     currentPageIdx.value = next.length - 1;
@@ -143,7 +143,7 @@ export async function navigateTo({ url, source = 'viewer' }: { url: string; sour
     if (!newPageId) {
       projectLoading.value = false;
       capture('page_open_failed', { mode: 'promoted', step: 'create_page' });
-      showToast('Failed to add page', 'error');
+      showToast('Failed to add page', { type: 'error' });
       return;
     }
     const newProjectId = nanoid();
@@ -151,7 +151,7 @@ export async function navigateTo({ url, source = 'viewer' }: { url: string; sour
     if (!ok) {
       projectLoading.value = false;
       capture('page_open_failed', { mode: 'promoted', step: 'save_project' });
-      showToast('Failed to create project', 'error');
+      showToast('Failed to create project', { type: 'error' });
       return;
     }
     location.href = `/p/${newProjectId}?page=1`;

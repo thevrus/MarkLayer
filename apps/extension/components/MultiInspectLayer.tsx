@@ -278,7 +278,10 @@ export function MultiInspectLayer() {
     selected.value = [];
     activeTool.value = 'navigate';
     const stackCount = inspectorStack.value.length;
-    toast(`Added ${items.length} element${items.length === 1 ? '' : 's'} (${stackCount} in stack)`, 'success', 2200);
+    toast(`Added ${items.length} element${items.length === 1 ? '' : 's'} (${stackCount} in stack)`, {
+      type: 'success',
+      duration: 2200,
+    });
   };
 
   const cancel = () => {

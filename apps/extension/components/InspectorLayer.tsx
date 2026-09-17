@@ -189,7 +189,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       markdown: state.markdown,
     });
     const count = inspectorStack.value.length;
-    toast(`Added to stack (${count})`, 'success', 2000);
+    toast(`Added to stack (${count})`, { type: 'success', duration: 2000 });
     onClose();
   };
 
@@ -217,7 +217,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };
     pushOp(op);
-    toast('Sent to agent', 'success', 2000);
+    toast('Sent to agent', { type: 'success', duration: 2000 });
     onClose();
   };
   const canSend = connectionStatus.value === 'connected';

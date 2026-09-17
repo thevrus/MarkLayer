@@ -287,7 +287,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
     const data = getExportData?.() ?? { ops: operations.value };
     downloadMarkdown(md, defaultExportFilename(data.url));
     capture('export_completed', { format: 'markdown', ops: operations.value.length });
-    toast('Markdown exported', 'success');
+    toast('Markdown exported', { type: 'success' });
   };
 
   const allOps = operations.value;

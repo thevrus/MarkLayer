@@ -68,7 +68,7 @@ export function watchSupportPaid(): () => void {
     // nothing arrives if they paid with no editor left open — so read it as a
     // floor, and Polar as the ledger.
     capture('support_payment_confirmed');
-    toast('Thank you. That keeps the servers on.', 'success', 6000);
+    toast('Thank you. That keeps the servers on.', { type: 'success', duration: 6000 });
   };
   return () => channel.close();
 }
