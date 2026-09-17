@@ -1,4 +1,4 @@
-import { isUploadId, MAX_UPLOAD_BYTES, RETENTION_DAYS, uploadPath } from '@marklayer/types';
+import { DEMO_ROOM, isNewShareId, isUploadId, MAX_UPLOAD_BYTES, RETENTION_DAYS, uploadPath } from '@marklayer/types';
 import LLMS_TXT from '@site/content/agent/llms.txt?raw';
 import LLMS_FULL_TXT from '@site/content/agent/llms-full.txt?raw';
 import ROBOTS_TXT from '@site/content/agent/robots.txt?raw';
@@ -100,9 +100,26 @@ app.route('/api', api);
 app.get('/s/:id', async (c) => {
   const annotationId = c.req.param('id');
   const reqUrl = new URL(c.req.url);
-  let domain = 'a webpage';
   const annotations = annotationStore(c.env.DB);
-  const [pageUrl, ops] = await Promise.all([annotations.getUrl(annotationId), annotations.getOps(annotationId)]);
+
+  // The landing's embedded board: nothing unfurls an iframe, so the tags below
+  // are never read. It still mints the demo room, being what first asks for one.
+  if (reqUrl.searchParams.get('still') === '1') {
+    if (annotationId === DEMO_ROOM.id && !(await annotations.getUrl(annotationId))) {
+      await ensureDemoRoom(annotations);
+    }
+    return c.env.ASSETS.fetch(new Request(new URL('/', reqUrl)));
+  }
+
+  let domain = 'a webpage';
+  let [pageUrl, ops] = await Promise.all([annotations.getUrl(annotationId), annotations.getOps(annotationId)]);
+  // The demo board mints itself on first visit, so a fresh database (local dev,
+  // a new deployment) never serves the landing page an empty window.
+  if (!pageUrl && annotationId === DEMO_ROOM.id) {
+    await ensureDemoRoom(annotations);
+    pageUrl = DEMO_ROOM.url;
+    ops = [];
+  }
   if (pageUrl) {
     try {
       domain = new URL(pageUrl).hostname;
@@ -226,6 +243,13 @@ app.get('/og/:key', async (c) => {
   });
 });
 
+/** The one door to a room: the store refuses to *persist* a guessable id, but
+ *  the DO would still let strangers meet live on one. `&&` spares a real id the query. */
+async function getRoomStub({ id, env }: { id: string; env: Env['Bindings'] }) {
+  if (!isNewShareId(id) && !(await annotationStore(env.DB).exists(id))) return null;
+  return env.ANNOTATION_ROOM.get(env.ANNOTATION_ROOM.idFromName(id));
+}
+
 /**
  * The page an annotation room points at, read into an outline.
  *
@@ -234,8 +258,10 @@ app.get('/og/:key', async (c) => {
  * WAF-blocked host needs, not from wherever someone happens to run a CLI.
  */
 app.get('/s/:id/page.json', async (c) => {
-  const stub = c.env.ANNOTATION_ROOM.get(c.env.ANNOTATION_ROOM.idFromName(c.req.param('id')));
-  const reading = await readRoomPage({ stub, roomId: c.req.param('id'), env: c.env });
+  const id = c.req.param('id');
+  const stub = await getRoomStub({ id, env: c.env });
+  if (!stub) return c.text('Share id too short', 400);
+  const reading = await readRoomPage({ stub, roomId: id, env: c.env });
   return reading ? c.json(reading) : c.json({ error: 'could not read the page' }, 502);
 });
 
@@ -251,7 +277,8 @@ app.get('/s/:id/page.json', async (c) => {
  */
 app.all('/s/:id/mcp', async (c) => {
   const id = c.req.param('id');
-  const stub = c.env.ANNOTATION_ROOM.get(c.env.ANNOTATION_ROOM.idFromName(id));
+  const stub = await getRoomStub({ id, env: c.env });
+  if (!stub) return c.text('Share id too short', 400);
   return handleMcpRequest({
     request: c.req.raw,
     stub,
@@ -266,8 +293,8 @@ app.all('/s/:id/mcp', async (c) => {
 app.get('/ws/:id', async (c) => {
   const id = c.req.param('id');
   if (c.req.header('Upgrade') !== 'websocket') return c.text('Expected WebSocket', 426);
-  const roomId = c.env.ANNOTATION_ROOM.idFromName(id);
-  const room = c.env.ANNOTATION_ROOM.get(roomId);
+  const room = await getRoomStub({ id, env: c.env });
+  if (!room) return c.text('Share id too short', 400);
   const url = new URL(c.req.url);
   url.searchParams.set('id', id);
   return room.fetch(new Request(url.toString(), c.req.raw));
@@ -442,7 +469,32 @@ app.get('/app/*', appShell);
 app.route('/', proxy);
 
 // Scheduled cleanup: delete stale and expired annotations + their OG images
-const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (_event, env) => {
+/** Seeds the landing page's shared board if it is missing. Idempotent. */
+async function ensureDemoRoom(annotations: ReturnType<typeof annotationStore>) {
+  if (await annotations.exists(DEMO_ROOM.id)) return;
+  await annotations.put({ id: DEMO_ROOM.id, ops: [], url: DEMO_ROOM.url, width: DEMO_ROOM.width, expiresAt: null });
+}
+
+/** Wipes the landing page's shared board and keeps it out of the retention sweep. */
+async function resetDemoRoom(env: Env['Bindings']) {
+  const annotations = annotationStore(env.DB);
+  await ensureDemoRoom(annotations);
+  await env.ANNOTATION_ROOM.get(env.ANNOTATION_ROOM.idFromName(DEMO_ROOM.id)).fetch(
+    new Request(`https://room/reset?id=${encodeURIComponent(DEMO_ROOM.id)}`, { method: 'POST' }),
+  );
+  await annotations.touch(DEMO_ROOM.id);
+}
+
+const RETENTION_CRON = '0 3 * * *';
+
+const scheduled: ExportedHandlerScheduledHandler<Env['Bindings']> = async (event, env) => {
+  // Both crons match at 03:00 and Cloudflare fires one invocation per
+  // expression, so the reset rides the hourly tick or it happens twice.
+  if (event.cron !== RETENTION_CRON) {
+    await resetDemoRoom(env);
+    return;
+  }
+
   const staleBefore = nowInSeconds() - RETENTION_DAYS * 24 * 60 * 60;
 
   // R2 caps a batch delete at 1000 keys.

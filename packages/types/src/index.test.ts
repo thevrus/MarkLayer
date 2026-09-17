@@ -11,7 +11,9 @@ import {
   type DrawOp,
   deletionDeadline,
   effectiveExpiresAt,
+  isNewShareId,
   type Mention,
+  MIN_SHARE_ID_LENGTH,
   mentionSegments,
   normalizeSuggestion,
   RETENTION_DAYS,
@@ -321,5 +323,30 @@ describe('agent branding', () => {
     expect(agentLabel('my-cool-agent')).toBe('My Cool Agent');
     expect(agentColor('my-cool-agent')).toBe(AGENT_FALLBACK_COLOR);
     expect(agentLabel('CLAUDE-CODE')).toBe('Claude');
+  });
+});
+
+describe('isNewShareId', () => {
+  test('refuses an id short enough to guess', () => {
+    // The whole point of the floor: these are the ids that let someone squat a
+    // room or enumerate their way into one, because the id is the access token.
+    for (const id of ['a', 'abc', 'aB3xY7kZ', '12345678901']) expect(isNewShareId(id)).toBe(false);
+    expect(isNewShareId('a'.repeat(MIN_SHARE_ID_LENGTH))).toBe(true);
+  });
+
+  test('takes what the product and the docs actually mint', () => {
+    // A real nanoid() rather than the call, so `types` stays dependency-free.
+    expect(isNewShareId('dsWPMrdw6EZ8jkkhxvFKS')).toBe(true);
+    expect(isNewShareId(crypto.randomUUID())).toBe(true);
+  });
+
+  test('refuses anything that could walk out of its own path', () => {
+    for (const id of ['../../etc/passwd', 'abcdefghijkl/mno', 'abcdefghijkl?x=1', 'abcdefghijkl.json', ''])
+      expect(isNewShareId(id)).toBe(false);
+  });
+
+  test('refuses an id too long to want as a primary key', () => {
+    expect(isNewShareId('a'.repeat(64))).toBe(true);
+    expect(isNewShareId('a'.repeat(65))).toBe(false);
   });
 });

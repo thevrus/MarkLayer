@@ -5,6 +5,7 @@ import {
   effectiveExpiresAt,
   MAX_EXPIRES_IN_SECONDS,
   MAX_INTEGRATIONS_PER_ROOM,
+  MIN_SHARE_ID_LENGTH,
   opsArraySchema,
 } from '@marklayer/types';
 import { cors } from 'hono/cors';
@@ -30,7 +31,43 @@ api.use('*', cors());
 // Static routes are registered before the `/{id}` param routes so the parent
 // router (hono/tiny PatternRouter, which matches in registration order) doesn't
 // swallow `/health` or `/openapi.json` as an annotation id.
-api.get('/health', (c) => c.json({ status: 'ok' }));
+/**
+ * A real probe of the Cloudflare bindings this app runs on, not a liveness ping.
+ * It used to answer a hardcoded `{ status: 'ok' }`, which meant it stayed green
+ * through a D1 outage — and the footer's status line on every page is now
+ * reading it, so "operational" has to be a measurement.
+ *
+ * D1 and R2 are the two bindings that fail independently of the Worker: one
+ * `SELECT 1` and one `head()` on a key that need not exist (a miss is still a
+ * round trip). ANNOTATION_ROOM is deliberately not probed — a Durable Object has
+ * no cheap read, and touching one would boot a real room per health check; a
+ * room's health is what its own peers' connection state reports.
+ *
+ * 503 on a failed probe so uptime monitors and `fetch().ok` both see it. The
+ * 15s `max-age` is a browser-cache hint only — a Worker's own response is not
+ * edge-cached without the Cache API — so the real fan-out guard is the
+ * session-scoped cache in `probeStatus` on the client.
+ */
+api.get('/health', async (c) => {
+  const [db, storage] = await Promise.all([
+    reaches(() => c.env.DB.prepare('SELECT 1').first()),
+    reaches(() => c.env.OG_BUCKET.head('health')),
+  ]);
+  const ok = db && storage;
+  return c.json({ status: ok ? 'ok' : 'degraded', checks: { db, storage } }, ok ? 200 : 503, {
+    'Cache-Control': 'public, max-age=15',
+  });
+});
+
+/** Whether the binding answered at all. A miss is a pass; only a throw is not. */
+async function reaches(probe: () => Promise<unknown>): Promise<boolean> {
+  try {
+    await probe();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // The OpenAPI document is generated from the route definitions below on first
 // request and memoized, keeping the spec build off every isolate's cold-start
@@ -57,6 +94,9 @@ api.get('/openapi.json', (c) =>
 
 // ---------- Shared schemas ----------
 
+/** Said by both create routes, and by nothing else. */
+const WEAK_NEW_ID = `A new share id needs at least ${MIN_SHARE_ID_LENGTH} characters of [A-Za-z0-9_-]`;
+
 const ErrorResponse = z.object({ error: z.string() }).openapi('Error');
 const OkResponse = z.object({ ok: z.boolean() }).openapi('Ok');
 
@@ -72,11 +112,16 @@ function expiresAtFrom(expiresIn: number | undefined): number | null {
   return typeof expiresIn === 'number' && expiresIn > 0 ? Math.floor(Date.now() / 1000) + expiresIn : null;
 }
 
-const IdParam = z.object({
-  id: z
-    .string()
-    .openapi({ description: 'Unguessable share id (nanoid/uuid) — it is the access token', example: 'aB3xY7kZ' }),
-});
+const shareIdParam = (description: string) =>
+  z.object({ id: z.string().openapi({ description, example: 'dsWPMrdw6EZ8jkkhxvFKS' }) });
+
+/** Reading: unconstrained, so a room minted before the floor existed still resolves. */
+const IdParam = shareIdParam('Unguessable share id (nanoid/uuid) — it is the access token');
+
+/** Creating: documented here, enforced in `store.ts`, the layer every writer shares. */
+const NewIdParam = shareIdParam(
+  `Unguessable share id you choose — it is the access token. Creating a new one takes at least ${MIN_SHARE_ID_LENGTH} characters of [A-Za-z0-9_-]; a nanoid() or uuid is ideal.`,
+);
 
 // A static path under the same router as `/{id}`, so it is registered above the
 // annotation routes for the same reason `/health` is: hono/tiny matches in
@@ -195,7 +240,7 @@ const storeAnnotation = createRoute({
   path: '/{id}',
   summary: 'Create or replace a share link',
   request: {
-    params: IdParam,
+    params: NewIdParam,
     body: { required: true, content: { 'application/json': { schema: StoreAnnotationBody } } },
   },
   responses: {
@@ -233,6 +278,7 @@ api.openapi(storeAnnotation, async (c) => {
   // to view-only, so the check lives here too rather than only in the DO.
   const store = annotationStore(c.env.DB);
   const current = await store.getAccess(id);
+
   // `canEditLink` is the rule, shared with the room's own gate. The `view` test
   // in front of it only skips a session lookup on a link where it cannot say no.
   if (current?.access === 'view') {
@@ -242,7 +288,11 @@ api.openapi(storeAnnotation, async (c) => {
     }
   }
 
-  await store.put({ id, ops: result.data, url, width, expiresAt });
+  // False: too weak an id to mint, and no existing room to update. The store
+  // decides that; this reports it.
+  if (!(await store.put({ id, ops: result.data, url, width, expiresAt }))) {
+    return c.json({ error: WEAK_NEW_ID }, 400);
+  }
 
   // The web app autosaves a bare ops array every few seconds (useRealtimeSync);
   // the extension and API callers send the object form only when someone
@@ -552,7 +602,7 @@ const storeProject = createRoute({
   path: '/p/{id}',
   summary: 'Create or replace a project bundle (up to 50 pages)',
   request: {
-    params: IdParam,
+    params: NewIdParam,
     body: { required: true, content: { 'application/json': { schema: StoreProjectBody } } },
   },
   responses: {
@@ -570,7 +620,9 @@ api.openapi(storeProject, async (c) => {
     return c.json({ error: `Project exceeds ${MAX_PAGES_PER_PROJECT} pages` }, 400);
   }
   const expiresAt = expiresAtFrom(body.expires_in);
-  await projectStore(c.env.DB).put({ id, pageIds, expiresAt });
+  if (!(await projectStore(c.env.DB).put({ id, pageIds, expiresAt }))) {
+    return c.json({ error: WEAK_NEW_ID }, 400);
+  }
   return c.json({ ok: true }, 200);
 });
 

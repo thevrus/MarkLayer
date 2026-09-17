@@ -32,8 +32,17 @@ export const POLAR_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_DBsDl9Ufd2O0mOE
  */
 export const MONTHLY_COST_USD: number | null = null;
 
-/** Distinct days of use before the tool has earned the right to ask. */
-const DAYS_BEFORE_ASKING = 3;
+/**
+ * Distinct days of use before the tool has earned the right to ask.
+ *
+ * Was 3, and that was the whole reason nothing came in: over 90 days it
+ * qualified 11 people, out of 379 who used the tool and 74 who shared a link.
+ * The card itself was fine — 2 of the 12 who saw it opened the checkout — it
+ * just almost never fired. At 1 the share below carries the bar alone, which is
+ * the better signal anyway: sending someone a link is the tool having worked,
+ * where a second calendar day is only a return visit.
+ */
+const DAYS_BEFORE_ASKING = 1;
 /**
  * Share links created — evidence of sharing with someone, not just trying it.
  * One is the signal: at three, 4 people qualified where 31 had shared at all.
@@ -88,11 +97,12 @@ export function parseSupportRecord(raw: string | null): SupportRecord {
 /**
  * Whether to show the card.
  *
- * Two independent qualifications, either of which is enough on its own once the
- * day threshold is met: they wired up MCP (a developer using this at work), or
- * they have sent someone a share link (they are using it with other people). Both
- * still require the tool to have been useful across several days, because one
- * enthusiastic afternoon is not a habit.
+ * Two independent qualifications, either of which is enough on its own: they
+ * wired up MCP (a developer using this at work), or they have sent someone a
+ * share link (they are using it with other people). Both still require a day of
+ * authoring, which at this threshold means only that somebody has opened the
+ * tool on their own work — a read-only visitor looking at someone else's page is
+ * never asked.
  */
 export function shouldOfferSupport({ record, hasCheckout }: { record: SupportRecord; hasCheckout: boolean }): boolean {
   if (!hasCheckout) return false; // nothing to offer

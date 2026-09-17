@@ -109,3 +109,44 @@ describe('isExpired', () => {
     expect(isExpired(now + 60)).toBe(false);
   });
 });
+
+describe('the share-id entropy floor', () => {
+  // The floor lives here, not in the routes: `putOps` (realtime) and the MCP
+  // bridge reach this same layer, and a route-only check missed both.
+  const WEAK = 'abc';
+  const STRONG = 'dsWPMrdw6EZ8jkkhxvFKS';
+  const sql = (db: ReturnType<typeof fakeDb>) => db.calls.map((call) => call.sql).join(' ');
+
+  test('putOps never inserts at an id short enough to guess', async () => {
+    const db = fakeDb({ changes: 0 });
+    expect(await annotationStore(asDb(db)).putOps({ id: WEAK, ops: [] })).toBe(false);
+    expect(sql(db)).not.toContain('INSERT');
+  });
+
+  test('putOps still updates a room that already exists at a short id', async () => {
+    const db = fakeDb({ changes: 1 });
+    expect(await annotationStore(asDb(db)).putOps({ id: WEAK, ops: [] })).toBe(true);
+    expect(sql(db)).toContain('UPDATE annotations');
+  });
+
+  test('putOps upserts as before for a well-formed id', async () => {
+    const db = fakeDb();
+    expect(await annotationStore(asDb(db)).putOps({ id: STRONG, ops: [] })).toBe(true);
+    expect(sql(db)).toContain('INSERT INTO annotations');
+  });
+
+  test('put and projectStore.put hold the same line', async () => {
+    const row = { id: WEAK, ops: [], url: null, width: null, expiresAt: null };
+    const missing = fakeDb({ changes: 0 });
+    expect(await annotationStore(asDb(missing)).put(row)).toBe(false);
+    expect(sql(missing)).not.toContain('INSERT');
+
+    const project = fakeDb({ changes: 0 });
+    expect(await projectStore(asDb(project)).put({ id: WEAK, pageIds: ['a'], expiresAt: null })).toBe(false);
+    expect(sql(project)).not.toContain('INSERT');
+
+    const fresh = fakeDb();
+    expect(await projectStore(asDb(fresh)).put({ id: STRONG, pageIds: ['a'], expiresAt: null })).toBe(true);
+    expect(sql(fresh)).toContain('INSERT INTO projects');
+  });
+});

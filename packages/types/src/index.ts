@@ -56,6 +56,16 @@ export { isBlockedHost, isPrivateAddress, parseFetchableUrl } from './net';
  */
 const UPLOAD_ID = /^[A-Za-z0-9_-]{21}$/;
 
+/**
+ * A share id the API will mint a *new* room at. 12 of a 64-symbol charset is 72
+ * bits, past what guessing reaches with no rate limit in front of it; `nanoid()`
+ * gives 21. Only creation is checked, so a shorter id already in D1 keeps
+ * resolving. The cap keeps it sane as a primary key and still takes a UUID.
+ */
+export const MIN_SHARE_ID_LENGTH = 12;
+export const MAX_SHARE_ID_LENGTH = 64;
+const NEW_SHARE_ID = new RegExp(`^[A-Za-z0-9_-]{${MIN_SHARE_ID_LENGTH},${MAX_SHARE_ID_LENGTH}}$`);
+
 /** The cap on an anonymous upload. Enforced server-side; shown client-side. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
@@ -119,6 +129,9 @@ export const UPLOAD_IMAGE_ACCEPT = UPLOAD_FORMATS.filter((format) => format.cont
   .join(',');
 
 export const isUploadId = (id: string): boolean => UPLOAD_ID.test(id);
+
+/** Whether the API may create a room at this id. Reads do not use this — see `NEW_SHARE_ID`. */
+export const isNewShareId = (id: string): boolean => NEW_SHARE_ID.test(id);
 export const uploadPath = (id: string): string => `/f/${id}`;
 export const isUploadPath = (url: string): boolean => url.startsWith('/f/') && isUploadId(url.slice(3));
 
@@ -1088,6 +1101,21 @@ export const uploadResponseSchema = z.object({ id: z.string(), url: z.string() }
  * it from here rather than each hand-typing "90 days".
  */
 export const RETENTION_DAYS = 90;
+
+/**
+ * The landing page's public board: one room every visitor draws on, embedded
+ * in the product screenshot's place. The worker creates it on first request
+ * and wipes it hourly, so a stranger's mark never outlives the hour.
+ */
+export const DEMO_ROOM = {
+  id: 'marklayer-live-demo-board',
+  url: 'https://en.wikipedia.org/wiki/Web_annotation',
+  // The width the page is locked to, which sets how zoomed-in it reads: the
+  // viewer upscales it to fill, capped at MAX_AUTO_UPSCALE, and a 1280 lock hit
+  // that cap on a wide screen and letterboxed the frame in grey. Stays under
+  // Wikipedia's own 1596px container so the page still fills it edge to edge.
+  width: 1600,
+} as const;
 
 /**
  * When the retention cron will delete a link.

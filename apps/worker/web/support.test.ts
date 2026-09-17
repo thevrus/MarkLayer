@@ -7,7 +7,7 @@ const veteran: SupportRecord = { ...fresh, days: ['2026-08-01', '2026-08-04', '2
 const offer = (record: SupportRecord) => shouldOfferSupport({ record, hasCheckout: true });
 
 describe('shouldOfferSupport — who never sees it', () => {
-  test('somebody on their first day', () => {
+  test('somebody who has not authored anything yet', () => {
     expect(offer({ ...fresh, shares: 12, mcp: true })).toBe(false);
   });
 
@@ -36,6 +36,11 @@ describe('shouldOfferSupport — who does', () => {
   test('somebody who sent one share link, across several days of use', () => {
     expect(offer({ ...veteran, shares: 1 })).toBe(true);
   });
+
+  test('somebody who shared on the very first day they used it', () => {
+    // The share is the bar; a second calendar day is only a return visit.
+    expect(offer({ ...fresh, days: ['2026-08-01'], shares: 1 })).toBe(true);
+  });
 });
 
 describe('recordSignal', () => {
@@ -58,7 +63,7 @@ describe('recordSignal', () => {
       r = recordSignal({ record: r, signal: 'used', date });
     }
     // The record answers "enough distinct days?" — it is not a usage log.
-    expect(r.days.length).toBe(3);
+    expect(r.days).toEqual(['2026-08-01']);
   });
 
   test('supporting also marks asked, so the card cannot return', () => {

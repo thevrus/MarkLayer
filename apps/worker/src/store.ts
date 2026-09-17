@@ -1,4 +1,4 @@
-import { type LinkAccess, linkAccessSchema } from '@marklayer/types';
+import { isNewShareId, type LinkAccess, linkAccessSchema } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 
 /**
@@ -20,6 +20,32 @@ export interface StoredAnnotation {
   access: LinkAccess;
   ownerId: string | null;
   ownerExpiresAt: number | null;
+}
+
+/**
+ * A weak id degrades the upsert below to a plain UPDATE, so zero rows changed
+ * means the *create* was refused — the id is the room's only access token, and
+ * one short enough to guess may not mint a room.
+ */
+const wroteRow = (res: D1Response): boolean => (res.meta.changes ?? 0) > 0;
+
+/**
+ * Every write that can also create a row. A weak id may only ever update one
+ * that already exists, so a squatter cannot mint a guessable room; the miss is
+ * what `wroteRow` reports. One guard so the rule cannot drift between writers.
+ */
+async function upsertGuarded({
+  id,
+  update,
+  insert,
+}: {
+  id: string;
+  update: () => Promise<D1Response>;
+  insert: () => Promise<D1Response>;
+}): Promise<boolean> {
+  if (!isNewShareId(id)) return wroteRow(await update());
+  await insert();
+  return true;
 }
 
 /**
@@ -152,6 +178,12 @@ export function annotationStore(db: D1Database) {
       return found;
     },
 
+    /** Whether the room is there at all, without reading any of it. */
+    async exists(id: string): Promise<boolean> {
+      return (await db.prepare('SELECT 1 FROM annotations WHERE id = ?').bind(id).first()) !== null;
+    },
+
+    /** False when the id was too weak to mint a room at — see `wroteRow`. */
     async put({
       id,
       ops,
@@ -164,25 +196,49 @@ export function annotationStore(db: D1Database) {
       url: string | null;
       width: number | null;
       expiresAt: number | null;
-    }): Promise<void> {
-      await db
-        .prepare(
-          `INSERT INTO annotations (id, ops, url, width, expires_at) VALUES (?, ?, ?, ?, ?)
+    }): Promise<boolean> {
+      return upsertGuarded({
+        id,
+        update: () =>
+          db
+            .prepare(
+              `UPDATE annotations SET ops = ?, url = COALESCE(?, url), width = COALESCE(?, width), expires_at = ?
+             WHERE id = ?`,
+            )
+            .bind(JSON.stringify(ops), url, width, expiresAt, id)
+            .run(),
+        insert: () =>
+          db
+            .prepare(
+              `INSERT INTO annotations (id, ops, url, width, expires_at) VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, url = COALESCE(excluded.url, url), width = COALESCE(excluded.width, width), expires_at = excluded.expires_at`,
-        )
-        .bind(id, JSON.stringify(ops), url, width, expiresAt)
-        .run();
+            )
+            .bind(id, JSON.stringify(ops), url, width, expiresAt)
+            .run(),
+      });
     },
 
-    /** Write ops alone, preserving url/width/expiry — the realtime room's flush. */
-    async putOps({ id, ops }: { id: string; ops: unknown[] }): Promise<void> {
-      await db
-        .prepare(
-          `INSERT INTO annotations (id, ops, last_accessed_at) VALUES (?, ?, unixepoch())
+    /**
+     * Write ops alone, preserving url/width/expiry — the realtime room's flush.
+     * False when the id was too weak to mint a room at; see `wroteRow`.
+     */
+    async putOps({ id, ops }: { id: string; ops: unknown[] }): Promise<boolean> {
+      return upsertGuarded({
+        id,
+        update: () =>
+          db
+            .prepare('UPDATE annotations SET ops = ?, last_accessed_at = unixepoch() WHERE id = ?')
+            .bind(JSON.stringify(ops), id)
+            .run(),
+        insert: () =>
+          db
+            .prepare(
+              `INSERT INTO annotations (id, ops, last_accessed_at) VALUES (?, ?, unixepoch())
            ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, last_accessed_at = unixepoch()`,
-        )
-        .bind(id, JSON.stringify(ops))
-        .run();
+            )
+            .bind(id, JSON.stringify(ops))
+            .run(),
+      });
     },
 
     /**
@@ -194,7 +250,7 @@ export function annotationStore(db: D1Database) {
      */
     async setIntegrations({ id, json }: { id: string; json: string | null }): Promise<boolean> {
       const res = await db.prepare('UPDATE annotations SET integrations = ? WHERE id = ?').bind(json, id).run();
-      return (res.meta.changes ?? 0) > 0;
+      return wroteRow(res);
     },
 
     /**
@@ -248,14 +304,35 @@ export function projectStore(db: D1Database) {
       return { pageIds: parseIds(row.page_ids), createdAt: row.created_at, expiresAt: row.expires_at };
     },
 
-    async put({ id, pageIds, expiresAt }: { id: string; pageIds: string[]; expiresAt: number | null }): Promise<void> {
-      await db
-        .prepare(
-          `INSERT INTO projects (id, page_ids, expires_at) VALUES (?, ?, ?)
+    /** False when the id was too weak to mint a project at — see `wroteRow`. */
+    async put({
+      id,
+      pageIds,
+      expiresAt,
+    }: {
+      id: string;
+      pageIds: string[];
+      expiresAt: number | null;
+    }): Promise<boolean> {
+      return upsertGuarded({
+        id,
+        update: () =>
+          db
+            .prepare(
+              `UPDATE projects SET page_ids = ?, expires_at = ?, last_accessed_at = unixepoch()
+             WHERE id = ?`,
+            )
+            .bind(JSON.stringify(pageIds), expiresAt, id)
+            .run(),
+        insert: () =>
+          db
+            .prepare(
+              `INSERT INTO projects (id, page_ids, expires_at) VALUES (?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET page_ids = excluded.page_ids, expires_at = excluded.expires_at, last_accessed_at = unixepoch()`,
-        )
-        .bind(id, JSON.stringify(pageIds), expiresAt)
-        .run();
+            )
+            .bind(id, JSON.stringify(pageIds), expiresAt)
+            .run(),
+      });
     },
 
     touch(id: string): Promise<unknown> {

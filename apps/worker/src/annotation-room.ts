@@ -399,6 +399,13 @@ export class AnnotationRoom extends DurableObject<Env> {
     }
   }
 
+  private async clearOps({ id, from }: { id: string; from?: WebSocket }) {
+    const ops = await this.getOps(id);
+    ops.length = 0;
+    this.broadcast(JSON.stringify({ type: 'clear' }), from);
+    await this.scheduleFlush();
+  }
+
   private async scheduleFlush() {
     this.dirty = true;
     // Debounce: flush 3 seconds after last mutation
@@ -432,6 +439,12 @@ export class AnnotationRoom extends DurableObject<Env> {
     // is recorded, since this request's origin is not one a person can open.
     if (request.method === 'POST' && url.pathname === '/refresh-access') {
       await this.refreshAccess(id);
+      return new Response(null, { status: 204 });
+    }
+    // The cron wiping the public demo board. Goes through the room rather than
+    // D1 so a warm room's in-memory ops cannot flush the old board straight back.
+    if (request.method === 'POST' && url.pathname === '/reset') {
+      await this.clearOps({ id });
       return new Response(null, { status: 204 });
     }
 
@@ -607,10 +620,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         return;
       }
       case 'clear': {
-        const ops = await this.getOps(id!);
-        ops.length = 0;
-        this.broadcast(JSON.stringify({ type: 'clear' }), ws);
-        await this.scheduleFlush();
+        await this.clearOps({ id: id!, from: ws });
         return;
       }
       case 'ping': {
