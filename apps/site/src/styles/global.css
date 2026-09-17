@@ -121,6 +121,15 @@
   --color-brand: #a855f7;
   --color-brand-deep: #6d28d9;
 
+  /* The status dot's green, and the one place the achromatic rule above bends.
+     Green is not decoration here, it is the datum — a status line in ink says
+     nothing that the words do not already say. It is held to `--ds-green-900`'s
+     light value, the same green the app's approved-thread badge uses, which
+     clears 4.82:1 on the floor it sits on; the brighter #28a948 reads at 2.81
+     and would put the label under the AA floor. Nothing else on the site may
+     use it. */
+  --color-live: #0a7d33;
+
   --font-sans: "Geist", "Geist Fallback", ui-sans-serif, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 
@@ -704,6 +713,59 @@
   }
   .ml-floor-inner {
     @apply mx-auto max-w-page px-6;
+  }
+
+  /* ── The status line ──
+     Dot plus label, closing the floor opposite the colophon. Shared value for
+     value with the landing page's own row (apps/worker/web/Landing.tsx). */
+  .ml-live {
+    @apply inline-flex items-center gap-2 text-fine text-live;
+  }
+
+  /* The pulse is on the mark itself — a size breath with a touch of opacity —
+     not the expanding ring every status widget ships, which is a halo bloom
+     bolted onto a dot rather than a dot that is alive.
+
+     Most of the movement is in SCALE, and the opacity trough stops at 0.85, for
+     a contrast reason: the dot is 6px of #0a7d33 on a #f5f5f5 floor, and opacity
+     composites it toward that floor. At 0.5 it rendered #80b994 — 2.07:1, under
+     the 3:1 floor for non-text — so a third of every cycle the dot read as a
+     dead grey-green pip rather than a live green one. 0.85 lands on #2d8f50 at
+     3.74:1 and stays unmistakably green; scale carries the breath instead,
+     because shrinking a dot costs no contrast at all.
+
+     Only those two properties ever move, so the dot is a rendered, fully-visible
+     6px circle whether or not the animation runs. */
+  .ml-live-dot {
+    @apply size-1.5 shrink-0 rounded-full bg-live;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .ml-live-dot {
+      animation: mlLivePulse 2.4s ease-in-out infinite;
+    }
+  }
+  @keyframes mlLivePulse {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.85;
+      transform: scale(0.72);
+    }
+  }
+
+  /* Degraded. The green and the breath both go, and that is the whole signal —
+     grey and still against green and breathing needs no second colour, and an
+     alarm red down in a footer is louder than the fact deserves. Specificity
+     beats the animation rule above on purpose. */
+  .ml-live[data-ml-status="degraded"] {
+    @apply text-meta;
+  }
+  .ml-live[data-ml-status="degraded"] .ml-live-dot {
+    background-color: var(--color-meta);
+    animation: none;
   }
 
   /* ── The signature wordmark ──

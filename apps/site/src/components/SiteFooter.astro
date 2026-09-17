@@ -1,5 +1,6 @@
 ---
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '../lib/footer';
+import { STATUS_LABEL } from '../lib/status';
 import Logo from './Logo.astro';
 
 const year = new Date().getFullYear();
@@ -87,14 +88,34 @@ const year = new Date().getFullYear();
         line that wraps 152px short of the grid above it reads as ragged, not as
         a measure. */}
     <p class="ml-floor-fine mt-10">{TRADEMARK_NOTICE}</p>
-    {/* The colophon carries the lockup, small, the way `/` closes its own
-        footer. */}
-    <p class="ml-floor-fine mt-5 flex items-start gap-2">
-      {/* Aligned to the FIRST line, not to the block: the line wraps on a phone,
-          and a centred mark then floats between the two rows. */}
-      <Logo size={14} class="mt-[3px] shrink-0" />
-      <span>&copy; {year} MarkLayer &middot; {COLOPHON}</span>
-    </p>
+    {/* The closing row: the colophon on the page's spine, where the lockup
+        belongs, and the status line anchored to the opposite end. Two items on
+        one line rather than a third stacked grey line. `items-center`, not
+        `items-baseline`: the colophon is itself a flex row led by the mark, so
+        its first baseline is the mark's bottom edge rather than the text's, and
+        baseline alignment dropped the status 5px below the line it sits on.
+        Both items are one 19px line, so centring aligns them exactly.
+
+        The reference for this row put the status on the left; it is on the right
+        here because the left edge of the floor is the brand's edge. */}
+    <div class="mt-5 flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
+      <p class="ml-floor-fine mt-0 flex items-start gap-2">
+        {/* Aligned to the FIRST line, not to the block: the line wraps on a
+            phone, and a centred mark then floats between the two rows. */}
+        <Logo size={14} class="mt-[3px] shrink-0" />
+        <span>&copy; {year} MarkLayer &middot; {COLOPHON}</span>
+      </p>
+      {/* Rendered at `ok`, which is what the page itself attests: it was served
+          by the Worker that answers `/api/health`. The script below probes that
+          route and downgrades this in place if D1 or R2 is not answering, so no
+          state is gated on JS running — without it the line still reads, it just
+          stops being able to tell you about an outage. `role="status"` so the
+          downgrade is announced rather than silently swapped. */}
+      <p class="ml-live m-0 max-w-none" data-ml-status="ok" role="status">
+        <span class="ml-live-dot" aria-hidden="true"></span>
+        <span data-ml-status-label>{STATUS_LABEL.ok}</span>
+      </p>
+    </div>
   </div>
 
   {/* The signature: the brand word full-bleed across the floor, cut partway down
@@ -108,3 +129,19 @@ const year = new Date().getFullYear();
     <span class="ml-signature">MarkLayer</span>
   </div>
 </footer>
+
+<script>
+  import { probeStatus, STATUS_LABEL } from '../lib/status';
+
+  const line = document.querySelector('[data-ml-status]');
+  const label = line?.querySelector('[data-ml-status-label]');
+  if (line instanceof HTMLElement && label) {
+    // Only ever downgrades. `ok` is already on screen, so resolving to it is a
+    // no-op, and a failed probe resolves to `ok` by design.
+    probeStatus().then((status) => {
+      if (status === 'ok') return;
+      line.dataset.mlStatus = status;
+      label.textContent = STATUS_LABEL[status];
+    });
+  }
+</script>
