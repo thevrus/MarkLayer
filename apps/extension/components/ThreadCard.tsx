@@ -182,7 +182,7 @@ export function ReplyComposer({
           {...mentionProps}
           placeholder="Reply…"
           rows={1}
-          class={cn(textareaBareCls, 'w-full min-h-7 max-h-20 px-2.5 pt-1.5', glass.font)}
+          class={cn(textareaBareCls, 'w-full min-h-7 max-h-100 px-2.5 pt-1.5', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

@@ -21,6 +21,9 @@ const ctlShape = (size: string, radius: string) =>
     focus-visible:outline-(--ds-focus-color)
   `);
 
+/** Geist icon metrics: 16px on a 1.5 stroke, the weight Geist draws at. */
+export const GLYPH = { size: 16, strokeWidth: 1.5 } as const;
+
 export const geist = {
   /** Floating shell. `shadow-menu` opens with a 1px ring, so no border here. */
   surface: trim(`

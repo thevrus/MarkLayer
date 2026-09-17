@@ -47,7 +47,7 @@ export const secondaryBtn = trim(`
 export const textareaCls = trim(`
   bg-(--ds-background-100) border border-(--ds-gray-alpha-400) rounded-md px-3 py-2
   text-(--ds-gray-1000) text-ui leading-relaxed
-  resize-none outline-none caret-(--ds-gray-1000)
+  resize-y outline-none caret-(--ds-gray-1000)
   transition-[border-color] duration-150 ease-out
   focus:border-(--ds-gray-700)
   placeholder:text-(--ds-gray-700)
@@ -69,6 +69,6 @@ export const composerCls = trim(`
 /** Textarea for inside `composerCls` — same type treatment as `textareaCls`, with no border or fill of its own. */
 export const textareaBareCls = trim(`
   bg-transparent text-(--ds-gray-1000) text-ui leading-relaxed
-  resize-none outline-none caret-(--ds-gray-1000)
+  resize-y outline-none caret-(--ds-gray-1000)
   placeholder:text-(--ds-gray-700)
 `);

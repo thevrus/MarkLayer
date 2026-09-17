@@ -9,7 +9,7 @@ import { lsGet, lsSet, persistedFlag } from './storage';
 import { copyText, toast } from './toasts';
 
 export { lsGet, lsSet } from './storage';
-export { copyText, type Toast, toast, toasts } from './toasts';
+export { copyText, pauseToast, resumeToast, type Toast, type ToastAction, toast, toasts } from './toasts';
 export type { OutputDetail };
 
 import type {
@@ -34,7 +34,7 @@ const drafts = createDraftStore({
   setOps: (ops) => {
     operations.value = ops;
   },
-  notify: (msg) => toast(msg, 'info', 2500),
+  notify: (msg) => toast(msg, { duration: 2500 }),
 });
 
 /** Restore any saved draft for this URL into the operations signal. */
@@ -99,7 +99,7 @@ export function toggleUiHidden() {
   uiHidden.value = next;
   if (!next) return;
   // The way back is two shortcuts with nothing on screen pointing at either, so say it.
-  toast('Interface hidden — Esc or ⌘/ to bring it back', 'info', 2600);
+  toast('Interface hidden — Esc or ⌘/ to bring it back', { duration: 2600 });
   // A dialog is a transient surface, not chrome to restore later; drop it outright.
   showSettings.value = false;
   showShareDialog.value = false;
@@ -479,7 +479,7 @@ export function buildInspectorStackPrompt(): string {
 export function copyInspectorStack() {
   const items = inspectorStack.value;
   if (!items.length) {
-    toast('Stack is empty', 'info');
+    toast('Stack is empty');
     return;
   }
   copyText(buildInspectorStackPrompt(), `Copied ${items.length} task${items.length === 1 ? '' : 's'} for AI!`);
@@ -871,7 +871,7 @@ effect(() => {
 });
 
 /** How a tool was reached. A programmatic switch — Escape, an inspector exit — reports `other`. */
-export type ToolSelectVia = 'toolbar' | 'shortcut' | 'other';
+export type ToolSelectVia = 'toolbar' | 'shortcut' | 'radial' | 'other';
 
 let pendingVia: ToolSelectVia = 'other';
 
@@ -1253,7 +1253,7 @@ export function duplicateLastOp() {
     // An area op carries a `ts`, and the copy was made now, not when the original was.
     return pushOp(copy.tool === 'area' ? { ...copy, ts: Date.now() } : copy);
   }
-  toast('Nothing to duplicate', 'info', 1800);
+  toast('Nothing to duplicate', { duration: 1800 });
 }
 
 /**

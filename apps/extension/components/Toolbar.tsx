@@ -5,10 +5,11 @@ import { signal, useSignalEffect } from '@preact/signals';
 import type { ComponentChildren, RefObject } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
-import { geist } from '../lib/geist';
+import { GLYPH, geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { prefersReducedMotion } from '../lib/media';
+import { capturePointer, pointerSampler } from '../lib/pointer';
 import {
   activeTool,
   clearAll,
@@ -33,10 +34,8 @@ import {
 } from '../lib/state';
 import type { Tool } from '../lib/types';
 import { SettingsPanel } from './SettingsPanel';
+import { ToolFan, useToolFan } from './ToolFan';
 import { Tooltip } from './Tooltip';
-
-/** Geist icon metrics: 16px on a 1.5 stroke, the weight Geist draws at. */
-const GLYPH = { size: 16, strokeWidth: 1.5 } as const;
 
 /**
  * A toolbar action. `Toolbar.Button` is what carries the roving tabindex, so
@@ -49,6 +48,8 @@ function Ctl({
   tip,
   shortcut,
   onClick,
+  onPointerDown,
+  tipDisabled,
   on,
   anchor,
   action,
@@ -59,6 +60,10 @@ function Ctl({
   tip: string;
   shortcut?: string;
   onClick: () => void;
+  /** Arms a gesture that may pre-empt the click, as the collapsed bar's fan does. */
+  onPointerDown?: (e: PointerEvent) => void;
+  /** Hold the tooltip closed while a gesture owns the space it would cover. */
+  tipDisabled?: boolean;
   /** Selected — Geist's inverted primary fill. */
   on?: boolean;
   anchor?: string;
@@ -75,12 +80,13 @@ function Ctl({
         if (action) track('toolbar_action', { action });
         onClick();
       }}
+      onPointerDown={onPointerDown}
       aria-label={tip}
       data-ml-anchor={anchor}
       className={cn(geist.ctl, on ? geist.ctlOn : geist.ctlIdle)}
     >
       {children ?? (icon && <Icon name={icon} {...GLYPH} />)}
-      <Tooltip text={tip} shortcut={shortcut} />
+      <Tooltip text={tip} shortcut={shortcut} disabled={tipDisabled} />
     </BaseToolbar.Button>
   );
 }
@@ -163,45 +169,6 @@ function DragShield() {
   return <div aria-hidden="true" class="fixed inset-0 z-2147483645" style={{ cursor: 'grabbing' }} />;
 }
 
-/** Keep a captured pointer's events flowing to us even over foreign content. */
-function capturePointer(target: EventTarget | null, pointerId: number) {
-  if (!(target instanceof Element)) return;
-  try {
-    target.setPointerCapture(pointerId);
-  } catch {
-    // The pointer can already be gone (fast tap, cancelled gesture) — the
-    // shield and the document listeners still carry the drag on their own.
-  }
-}
-
-/**
- * Sample the pointer on every move but run `onFrame` at most once per frame:
- * pointermove fires faster than the display refreshes (and in bursts after a
- * busy frame), so acting on each event just piles up work the compositor
- * throws away. `flush` lands the last sample instead of dropping the frame.
- */
-function pointerSampler(e: PointerEvent, onFrame: (x: number, y: number) => void) {
-  let frame = 0;
-  let px = e.clientX;
-  let py = e.clientY;
-  const run = () => {
-    frame = 0;
-    onFrame(px, py);
-  };
-  return {
-    sample(ev: PointerEvent) {
-      px = ev.clientX;
-      py = ev.clientY;
-      if (!frame) frame = requestAnimationFrame(run);
-    },
-    flush() {
-      if (!frame) return;
-      cancelAnimationFrame(frame);
-      run();
-    },
-  };
-}
-
 function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
   const [dragging, setDragging] = useState(false);
 
@@ -240,10 +207,13 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
       el.style.top = `${baseY}px`;
       el.style.bottom = 'auto';
 
-      const sampler = pointerSampler(e, (px, py) => {
-        const x = Math.min(Math.max(px - offX, 0), innerWidth - w);
-        const y = Math.min(Math.max(py - offY, 0), innerHeight - h);
-        el.style.translate = `${x - baseX}px ${y - baseY}px`;
+      const sampler = pointerSampler({
+        event: e,
+        onFrame: (px, py) => {
+          const x = Math.min(Math.max(px - offX, 0), innerWidth - w);
+          const y = Math.min(Math.max(py - offY, 0), innerHeight - h);
+          el.style.translate = `${x - baseX}px ${y - baseY}px`;
+        },
       });
 
       // Capture, shield and document listeners are three belts for one brace:
@@ -273,7 +243,7 @@ function useDrag(ref: RefObject<HTMLElement | null>): DragApi {
       document.addEventListener('pointermove', onMove);
       document.addEventListener('pointerup', onEnd);
       document.addEventListener('pointercancel', onEnd);
-      capturePointer(e.currentTarget, pointerId);
+      capturePointer({ target: e.currentTarget, pointerId });
       dragShieldActive.value = true;
       setDragging(true);
     },
@@ -437,10 +407,37 @@ function ColorChip() {
   );
 }
 
+/**
+ * Collapsed, the bar used to be a dead end: the one thing it could do was stop
+ * being collapsed, so minimising to see the page cost you every tool. Pressing
+ * the button and dragging now fans the first few tools out around it and
+ * commits the one you release on, and the button previews that tool the whole
+ * way — so the bar stays out of the way and still works.
+ */
 function MinimizedToolbar({ onExpand, drag }: { onExpand: () => void; drag: DragApi }) {
+  const fan = useToolFan({
+    setShield: (on) => {
+      dragShieldActive.value = on;
+    },
+  });
   return (
-    <BaseToolbar.Root data-ml-tb="row" className="flex items-center gap-1">
-      <Ctl icon={activeTool.value} on onClick={onExpand} tip="Expand toolbar" action="expand" />
+    // `relative` is the fan's origin: it places itself from this box's left edge
+    // and vertical centre, which is exactly where the button below sits.
+    <BaseToolbar.Root data-ml-tb="row" className="relative flex items-center gap-1">
+      <Ctl
+        icon={fan.icon}
+        on
+        onClick={onExpand}
+        onPointerDown={fan.onPointerDown}
+        // Two verbs, because the grip beside it also answers to a drag. The
+        // gesture is invisible otherwise, and this is the only place to say so.
+        tip="Expand · drag to pick a tool"
+        // The tooltip sits exactly where the fan opens, so the hint gets out of
+        // the way the moment the gesture it was describing actually starts.
+        tipDisabled={fan.open}
+        action="expand"
+      />
+      <ToolFan />
       <DragGrip drag={drag} />
     </BaseToolbar.Root>
   );
@@ -560,34 +557,37 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
             draggedBtn.style.willChange = 'translate';
             // Capture only once the drag is real, so a plain click on a tool
             // keeps its untouched default pointerdown → pointerup → click path.
-            capturePointer(draggedBtn, pointerId);
+            capturePointer({ target: draggedBtn, pointerId });
           }
         }
         activationCx = cx;
         activationCy = cy;
       };
 
-      const sampler = pointerSampler(e, (px, py) => {
-        // Nearest slot to the cursor, straight from the snapshotted pitch — no
-        // DOM reads, so the move handler never invalidates layout.
-        const next =
-          itemStep > 0 ? Math.min(Math.max(Math.round((px - firstSlotCentre) / itemStep), 0), slotCount - 1) : to;
-        if (next !== to) {
-          // Optimistically reorder so the user sees a live preview; FLIP
-          // smooths each cross for the OTHER buttons (the dragged button is
-          // excluded via [data-dragging] and its position is set manually).
-          moveTool(to, next);
-          to = next;
-        }
-        // Cursor-follow: translate the dragged button so the cursor stays at
-        // the same point on it. Compensate for slot drift caused by optimistic
-        // reorders — when `to` moves by 1, the button's CSS slot shifts by
-        // itemStep, so we subtract that to keep visual position smooth.
-        if (draggedBtn) {
-          lastDx = (fromIndex - to) * itemStep + (px - activationCx);
-          lastDy = py - activationCy;
-          draggedBtn.style.translate = `${lastDx}px ${lastDy}px`;
-        }
+      const sampler = pointerSampler({
+        event: e,
+        onFrame: (px, py) => {
+          // Nearest slot to the cursor, straight from the snapshotted pitch — no
+          // DOM reads, so the move handler never invalidates layout.
+          const next =
+            itemStep > 0 ? Math.min(Math.max(Math.round((px - firstSlotCentre) / itemStep), 0), slotCount - 1) : to;
+          if (next !== to) {
+            // Optimistically reorder so the user sees a live preview; FLIP
+            // smooths each cross for the OTHER buttons (the dragged button is
+            // excluded via [data-dragging] and its position is set manually).
+            moveTool(to, next);
+            to = next;
+          }
+          // Cursor-follow: translate the dragged button so the cursor stays at
+          // the same point on it. Compensate for slot drift caused by optimistic
+          // reorders — when `to` moves by 1, the button's CSS slot shifts by
+          // itemStep, so we subtract that to keep visual position smooth.
+          if (draggedBtn) {
+            lastDx = (fromIndex - to) * itemStep + (px - activationCx);
+            lastDy = py - activationCy;
+            draggedBtn.style.translate = `${lastDx}px ${lastDy}px`;
+          }
+        },
       });
 
       const onMove = (ev: PointerEvent) => {
