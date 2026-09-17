@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
 import { type AnalyticsProps, setAnalytics } from './analytics';
-import { copyText, toast, toasts } from './toasts';
+import { copyText, pauseToast, resumeToast, toast, toasts } from './toasts';
 
 const tick = (ms = 0) => new Promise((r) => setTimeout(r, ms));
 
@@ -21,7 +21,7 @@ afterAll(() => {
 
 describe('toast', () => {
   test('queues a message with its type', () => {
-    toast('Saved', 'success');
+    toast('Saved', { type: 'success' });
     expect(toasts.value).toEqual([{ id: expect.any(Number), message: 'Saved', type: 'success' }]);
   });
 
@@ -31,7 +31,7 @@ describe('toast', () => {
   });
 
   test('dismisses itself after its own duration', async () => {
-    toast('Quick', 'info', 10);
+    toast('Quick', { duration: 10 });
     expect(toasts.value).toHaveLength(1);
     await tick(30);
     expect(toasts.value).toEqual([]);
@@ -39,8 +39,8 @@ describe('toast', () => {
 
   test('dismisses by id, so a short toast cannot take a longer one with it', async () => {
     // Removing by index would drop whichever toast happened to sit there.
-    toast('long', 'info', 400);
-    toast('short', 'info', 10);
+    toast('long', { duration: 400 });
+    toast('short', { duration: 10 });
     await tick(40);
     expect(toasts.value.map((t) => t.message)).toEqual(['long']);
   });
@@ -50,6 +50,34 @@ describe('toast', () => {
     toast('same');
     const [a, b] = toasts.value;
     expect(a?.id).not.toBe(b?.id);
+  });
+
+  test('pausing clears the timer so the toast outlives its original duration', async () => {
+    toast('hovered', { duration: 10 });
+    const id = toasts.value[0]?.id as number;
+    pauseToast(id);
+    await tick(30);
+    expect(toasts.value).toHaveLength(1);
+  });
+
+  test('resuming picks up the remaining time rather than a fresh full duration', async () => {
+    toast('hovered', { duration: 30 });
+    const id = toasts.value[0]?.id as number;
+    await tick(20);
+    pauseToast(id);
+    await tick(50);
+    expect(toasts.value).toHaveLength(1);
+    resumeToast(id);
+    await tick(5);
+    expect(toasts.value).toHaveLength(1);
+    await tick(20);
+    expect(toasts.value).toEqual([]);
+  });
+
+  test('carries an optional action through to the queued toast', () => {
+    const onClick = () => {};
+    toast('Undo?', { action: { label: 'Undo', onClick } });
+    expect(toasts.value[0]?.action).toEqual({ label: 'Undo', onClick });
   });
 });
 
