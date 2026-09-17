@@ -8,7 +8,7 @@ homepage: "https://www.figma.com"
 bottomLine: "Choose MarkLayer when the thing being reviewed is the built product: real fonts, real breakpoints, real bugs that only exist once code ships. Choose Figma comments when the thing being reviewed is still the design: a frame, a prototype flow, a component before anyone has built it."
 quote: "Figma comments answer 'does the design work.' MarkLayer answers 'does the built page match it,' because it puts the comment on the page, not on a picture of one."
 published: 2026-09-03
-modified: 2026-09-03
+modified: 2026-09-17
 rows:
   - feature: "Price"
     ml: "Free, no tiers"
@@ -60,7 +60,7 @@ faq:
   - q: "Is MarkLayer trying to replace Figma?"
     a: "No. Figma owns the pre-build design conversation: frames, prototypes, component libraries, version history. MarkLayer owns the post-build conversation: is the thing that got built correct. Most teams that use MarkLayer also use Figma; they're reviewing different artifacts at different stages of the same project."
   - q: "Does MarkLayer integrate with Figma directly?"
-    a: "No. There's no plugin or file import; MarkLayer works on URLs, not Figma files. If your workflow needs the design file and the live page reviewed in the same tool, that's a Figma-only workflow today. If you're comfortable using Figma for the design stage and a separate tool for the built-page stage, MarkLayer covers the second half for free."
+    a: "There's no plugin and no .fig import, so a Figma file itself stays in Figma. The one bridge is an export: send a frame out as a PNG or a PDF and MarkLayer will annotate that like any other document, which is enough for a quick pass on a static comp but loses the prototype, the component state and the link back to the file. If the design file and the live page must be reviewed in the same tool with all of that intact, that's a Figma-only workflow today."
 ---
 
 Figma comments and MarkLayer comments look similar at first glance: pin a note to something on screen, reply in a thread, watch a cursor move in real time. They're solving different problems. A comment in [Figma](https://www.figma.com) lives on the design file, before or during the build. A comment in MarkLayer lives on the actual page after it's rendered in a browser, with real fonts, real data, and whatever the build introduced that the design never had. The design can be perfect and the shipped page still wrong; Figma comments can't see that gap, because they're not looking at the shipped page.

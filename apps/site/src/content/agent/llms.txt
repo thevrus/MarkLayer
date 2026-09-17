@@ -167,6 +167,8 @@ visual feedback layer, not a project management system.
 - How MarkLayer works, in plain English: https://marklayer.app/guides/how-marklayer-works
 - Twenty-one website feedback tools compared, prices checked against each vendor's own page: https://marklayer.app/guides/website-feedback-tools
 - How to annotate a website, four methods (built-in markup, extension, share link, dev tools) and what each one breaks on: https://marklayer.app/guides/how-to-annotate-a-website
+- How to annotate a PDF for free, the built-in readers (Preview, Edge, Acrobat Reader) versus a share link a second person can reply on: https://marklayer.app/guides/how-to-annotate-a-pdf
+- How to annotate an image or screenshot, the free built-in markup tools and how to get comments back on the image itself: https://marklayer.app/guides/how-to-annotate-an-image
 - Bug report MCP servers compared: https://marklayer.app/guides/bug-report-mcp-servers
 - Free website annotation tools, audited: https://marklayer.app/guides/free-website-annotation-tools
 - Website feedback without logins: https://marklayer.app/guides/website-feedback-without-login

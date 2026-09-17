@@ -7,11 +7,11 @@ homepage: "https://usepastel.com"
 bottomLine: "MarkLayer is the only fully free, open-source Pastel alternative. Nothing to install, real-time live cursors, link-based sharing, no account. Markup.io covers similar ground but has no free plan ($79/month). PageProofer and BugHerd are paid alternatives."
 hubBlurb: "Free plan caps at one canvas, then per-seat billing. MarkLayer is the open-source replacement."
 published: 2026-02-16
-modified: 2026-09-13
+modified: 2026-09-17
 options:
   - name: "MarkLayer"
     url: "/"
-    pitch: "Free and open source: paste a URL and annotate any live webpage in your browser, with live cursors and link-based sharing. No account, no canvas cap, no seat count, so reviewing five projects in a week costs exactly what reviewing one does. It won't review a PDF or a design file the way Pastel can; it only works on pages loaded in a browser."
+    pitch: "Free and open source: paste a URL and annotate any live webpage in your browser, with live cursors and link-based sharing. No account, no canvas cap, no seat count, so reviewing five projects in a week costs exactly what reviewing one does. PDFs and images work too, by link or by uploading a file up to 25MB; what it has no answer to is Pastel's saved project history and approval stage."
     bestFor: "Anyone who needs the core Pastel use case for free."
   - name: "Markup.io"
     url: "/vs/markup-io"
@@ -32,7 +32,7 @@ faq:
   - q: "Can I self-host a Pastel alternative?"
     a: "MarkLayer is open source and self-hostable on Cloudflare Workers, so you can run it on infrastructure you control. Pastel, Markup.io, PageProofer, and BugHerd are all closed-source SaaS with no self-hosting option."
   - q: "What does MarkLayer not do that Pastel does?"
-    a: "Pastel reviews PDFs, images, and design files alongside live webpages, and it keeps a persistent project history with an approval workflow built for client sign-off. MarkLayer only annotates live webpages: no file upload, no approval stage, no saved project list. If most of your review work is static files rather than pages open in a browser, Pastel still covers ground MarkLayer doesn't."
+    a: "Both annotate live webpages, PDFs and images; MarkLayer takes a file by link or by upload up to 25MB. Where Pastel goes further is the workflow around the file: design-file formats, a persistent project history, and an approval stage built for client sign-off. MarkLayer has none of those. Every review is a share link, and there is no saved project list to come back to."
   - q: "Can I migrate my existing Pastel canvases to MarkLayer?"
     a: "Not directly. There's no import tool, and Pastel doesn't export a canvas in a format anything else reads. In practice this matters less than it sounds, because MarkLayer annotations live on the page itself: you start a session by pasting the URL rather than porting old comment threads over. Treat the switch as starting your next review on a different tool, not migrating history."
 ---

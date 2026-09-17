@@ -1,5 +1,5 @@
 ---
-order: 7
+order: 9
 title: "Claude Code, Codex, Cursor & Windsurf: Visual Feedback via MCP"
 description: "Connect Claude Code, Codex, Cursor, or Windsurf to a MarkLayer room so it reads annotations left on a live webpage, works them, and resolves each one with a status the human reviewer sees live. Full setup per client, tool reference, and troubleshooting."
 h1: "Give your AI coding agent visual feedback from a live webpage"

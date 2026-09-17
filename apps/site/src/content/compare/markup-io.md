@@ -8,7 +8,7 @@ homepage: "https://markup.io"
 bottomLine: "Choose MarkLayer for fast, sign-up-free visual feedback on any live page with real-time live cursors. Choose Markup.io if you need persistent project workspaces, version tracking, and a team account tied to client deliverables."
 quote: "Markup.io removed its free plan and moved Pro to $79 a month, and a lot of teams went alternative-shopping after that. I built MarkLayer for the other end of the spectrum: drop an annotation on a page in ten seconds, no signup, no project setup, no bill."
 published: 2026-02-22
-modified: 2026-09-14
+modified: 2026-09-17
 rows:
   - feature: "Price"
     ml: "Free, no tiers, no paywall"
@@ -44,7 +44,7 @@ chooseMl:
   - "You want zero friction. Install once, share a link, done."
 chooseThem:
   - "You need persistent project history tied to a team account."
-  - "You review static deliverables (PDFs, design files) alongside web pages."
+  - "You review design files and video alongside web pages, and want every round kept in one client project."
   - "You need agency-grade workflow: project status, approvals, version tracking."
   - "You want integrations with project management tools."
 faq:
@@ -64,6 +64,6 @@ faq:
 
 MarkLayer and [Markup.io](https://markup.io) are both visual feedback tools for live websites, and until 2025 they were closer in spirit than they are now: Markup.io ran a free plan of its own before discontinuing it and raising Pro from $29 to $79 a month. That change is the reason most visitors land on this page. A workflow built around a free Markup.io account didn't get a price increase so much as the ground removed from under it, and a lot of teams went looking for what replaces the free tier that used to be there.
 
-MarkLayer is the direct answer to that specific problem: no account, no project setup, no plan to pick, ever. Paste a URL, draw or comment, share the link. What it doesn't replicate is the reason Markup.io still has paying customers past $79 a month: persistent project workspaces, a team account tied to client deliverables, and review workflows built around PDFs and design files alongside live pages, not just the pages themselves.
+MarkLayer is the direct answer to that specific problem: no account, no project setup, no plan to pick, ever. Paste a URL, draw or comment, share the link. What it doesn't replicate is the reason Markup.io still has paying customers past $79 a month: persistent project workspaces, a team account tied to client deliverables, and review workflows built around design files and video alongside live pages, not just the pages themselves.
 
 If you're researching a Markup.io alternative, or reading this as a Markup.io review before committing to its pricing, here's the short version: Markup.io is built for teams that want to leave comments on live pages inside a persistent, billed project, and its flat per-workspace rate is a real advantage for a team large enough to make the per-seat math of other paid tools look worse. MarkLayer is built for anyone who wants to collect feedback right now, on any page, without opening an account, picking a plan, or trusting that the free option they signed up for will still exist next year.

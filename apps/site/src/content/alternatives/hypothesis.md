@@ -7,7 +7,7 @@ homepage: "https://web.hypothes.is"
 bottomLine: "MarkLayer is the right Hypothesis alternative if you need visual annotation. Drawings, arrows, comments pinned anywhere on the page. Diigo is a freemium hybrid. Markup.io and Pastel are paid visual-feedback alternatives. Hypothesis itself remains the right tool for scholarly text annotation."
 hubBlurb: "Text-only scholarly annotation. MarkLayer is the visual annotation layer."
 published: 2026-01-20
-modified: 2026-09-13
+modified: 2026-09-17
 options:
   - name: "MarkLayer"
     url: "/"
@@ -28,7 +28,7 @@ faq:
   - q: "Is Hypothesis actually free?"
     a: "Yes, for individuals. Web and PDF annotation, groups, tags, search, and the API cost nothing, and the project is nonprofit-backed (it's stewarded by Annotation Unlimited, a public benefit corporation). Institutions running the LMS-integrated version pay per seat for Bronze, Silver, or Gold tiers, but nobody needs to buy anything to annotate an article or a PDF on their own."
   - q: "What's the real difference between Hypothesis and MarkLayer?"
-    a: "Hypothesis anchors annotations to text you select: a sentence in an article, a paragraph in a PDF. MarkLayer anchors to anything on a rendered page: a button, a layout gap, a whole component, with freehand drawing and arrows, plus live cursors so a team can review a product together in real time. One is a reading tool. The other is a webpage review tool."
+    a: "Hypothesis anchors annotations to text you select: a sentence in an article, a paragraph in a PDF. MarkLayer anchors to anything rendered: a button, a layout gap, a figure in a PDF, a region of an image, with freehand drawing and arrows, plus live cursors so a team can review together in real time. It opens PDFs and images as well as webpages, and keeps PDF text selectable so a highlight still binds to the words. One is a reading tool. The other is a review tool."
   - q: "Can I self-host Hypothesis?"
     a: "Yes. Its core annotation client and API are open source, and self-hosting is documented for institutions that want to run their own instance. MarkLayer is open source too, but the hosted version is the practical choice for most people, since annotations live behind a share link rather than a database you'd stand up yourself."
   - q: "Is Hypothesis or MarkLayer the better fit for a product or design team?"

@@ -5,7 +5,7 @@
       "@type": "WebSite",
       "name": "MarkLayer",
       "url": "https://marklayer.app",
-      "description": "Free webpage annotation and visual collaboration tool. Draw, comment, and mark up any live website, then share a link for instant feedback.",
+      "description": "Free webpage, PDF and image annotation and visual collaboration tool. Draw, comment and mark up any live website, PDF or image, then share a link for instant feedback.",
       "potentialAction": {
         "@type": "SearchAction",
         "target": "https://marklayer.app/proxy?url={url}",
@@ -15,11 +15,11 @@
     {
       "@type": "WebApplication",
       "name": "MarkLayer",
-      "description": "Free, anonymous web app for annotating any live webpage. Paste a URL on marklayer.app and draw, comment, or highlight in your browser. No install, no account, no sign-up. Share a single link for instant visual feedback.",
+      "description": "Free, anonymous web app for annotating any live webpage, PDF or image. Paste a URL on marklayer.app or drop in a file, then draw, comment or highlight in your browser. No install, no account, no sign-up. Share a single link for instant visual feedback.",
       "alternateName": "MarkLayer web app",
       "disambiguatingDescription": "MarkLayer is a browser-based web app: you paste a URL at marklayer.app and annotate the live page in your browser. It is not a browser extension and there is nothing to download or install to use it, for you or for anyone you share a link with. A separate free Chrome extension exists as an optional companion for pages the web app cannot embed, such as sites behind a login, but it is not required to annotate, to share, or to view a shared annotation.",
       "applicationCategory": "DesignApplication",
-      "applicationSubCategory": "Visual Feedback and Annotation",
+      "applicationSubCategory": "Visual Feedback, PDF and Image Annotation",
       "operatingSystem": "Any web browser (no installation or extension required)",
       "softwareRequirements": "Any modern browser",
       "isAccessibleForFree": true,
@@ -181,6 +181,22 @@
           "acceptedAnswer": {
             "@type": "Answer",
             "text": "Yes. The full source code is available on GitHub. You can audit it, contribute, or self-host on your own Cloudflare account."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I annotate a PDF with MarkLayer?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Paste a link to a PDF or upload one from your computer, up to 25MB, and the drawing, comment, area and highlight tools all work on it. Text inside the PDF stays selectable, so a highlight binds to the words rather than to a coordinate, and every mark records the page it was made on. The annotations live in the share link rather than inside the file, so nothing is written back into the PDF."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I annotate an image or a screenshot?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Paste the URL of an image, or upload a PNG, JPEG, GIF, WebP or AVIF up to 25MB. Drawing, arrows, shapes, area captures and pinned comments all work on it, and whoever opens the share link can reply without an account. Text highlighting is the one tool that does not, because an image has no text layer to attach a highlight to."
           }
         }
       ]

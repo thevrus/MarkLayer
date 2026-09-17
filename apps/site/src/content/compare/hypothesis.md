@@ -8,7 +8,7 @@ homepage: "https://web.hypothes.is"
 bottomLine: "Choose MarkLayer for visual feedback on any webpage. Drawings, arrows, and pinned comments anywhere on the page. Choose Hypothesis if you need a public, W3C-standard text annotation layer for scholarly research, classroom reading groups, or article-level discussion."
 quote: "Hypothesis is the gold standard for scholarly text annotation. MarkLayer is the visual one, built for when the annotation is an arrow, not a quote. They complement each other; same browser, different workflows."
 published: 2026-03-05
-modified: 2026-09-14
+modified: 2026-09-17
 rows:
   - feature: "Price"
     ml: "Free"
@@ -57,7 +57,7 @@ faq:
   - q: "Is MarkLayer's annotation data public like Hypothesis groups?"
     a: "No. MarkLayer annotations are private until you share the link. There is no public annotation layer or open group system."
   - q: "Which one should a research team actually install?"
-    a: "Often both, for different halves of the work. Hypothesis for annotating the literature itself: highlighting a passage in a paper, adding a note, seeing what a reading group flagged in the same PDF. MarkLayer for annotating a tool built from that research: a dashboard, a survey instrument, a prototype's UI, where the feedback is \"this element\" rather than \"this sentence.\""
+    a: "Often both, for different halves of the work. Hypothesis for the literature as a public, standards-based layer: a passage highlighted in a paper, a note, a reading group working through the same PDF over a term. MarkLayer for a working pass on one document or one build: it opens a PDF or an image too, by link or upload, and adds drawing, arrows and pinned comments that a text anchor cannot express, then hands the result to anyone as a link. One is a permanent annotation layer; the other is a review you send."
 ---
 
 MarkLayer and [Hypothesis](https://web.hypothes.is) are both free and open source, but they anchor to different things on a page. Hypothesis anchors to text: select a passage, and the annotation attaches to that exact string, portable across however the page reflows. MarkLayer anchors to space: draw an arrow at a coordinate, pin a comment to a button, and the mark lives on the visual layout itself, not a string of words.
