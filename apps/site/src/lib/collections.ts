@@ -25,6 +25,17 @@ export const getReleases = async () =>
   );
 
 /**
+ * The published version number, from the newest release. Every surface that
+ * states a version — the home page's `softwareVersion`, `llms.txt` — reads it
+ * here, so none of them can drift from the changelog.
+ */
+export const getCurrentVersion = async (): Promise<string> => {
+  const version = (await getReleases()).at(0)?.data.version;
+  if (!version) throw new Error('collections: no releases to take the current version from');
+  return version;
+};
+
+/**
  * Every competitor price, read out of the `Price` row of each comparison's own
  * table so no other surface restates a figure the comparison pages own. The
  * `Price` row label lives here and nowhere else.

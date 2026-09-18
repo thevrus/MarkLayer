@@ -1,6 +1,6 @@
 ---
 name: marklayer-annotations
-description: Create MarkLayer annotation share links over a no-auth HTTP API, and process a human's webpage annotations (comments, selections, areas, inspected elements) as a work queue via the marklayer-mcp server, which can acknowledge, resolve, dismiss, and reply with live status.
+description: Create MarkLayer annotation share links over a no-auth HTTP API, and process a human's webpage annotations (comments, selections, areas, inspected elements) as a work queue via the marklayer-mcp server, which can read the page, watch for new work, acknowledge, resolve, dismiss, reply, leave its own comments, and propose exact text edits as diffs, all with live status.
 license: MIT
 ---
 
@@ -61,6 +61,21 @@ Typical loop:
 \`approved\` is the one status you never set: it is the person who asked for the
 change confirming your fix. Seeing it means the thread is closed for good, and
 seeing a resolved thread go back to open means they disagreed.
+
+Three further tools let you take part rather than only respond:
+
+- \`marklayer_read_page\` returns the page's headings, text, links and controls
+  with their selectors, so you can review a page before anyone has annotated it.
+- \`marklayer_create_annotation\` leaves a comment of your own, anchored to an
+  element, with an optional priority.
+- \`marklayer_suggest_edit\` proposes exact replacement text against the \`rects\`
+  of a selection. The human sees a diff rather than a paragraph describing a
+  change, so prefer it over explaining a wording fix in a reply.
+
+A comment carries fields worth reading before you act: \`status\`, \`priority\`
+(low | medium | high | urgent), an \`assignee\` (which may be an agent, including
+you), \`mentions\`, and the browser, OS and viewport it was written on. A report
+that only reproduces at one width usually says so there.
 
 Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
 

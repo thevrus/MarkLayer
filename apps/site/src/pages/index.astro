@@ -2,7 +2,7 @@
 import HomeContent from '../components/home/HomeContent.astro';
 import schema from '../data/home-schema.json';
 import dates from '../data/page-dates.json';
-import { getReleases } from '../lib/collections';
+import { getCurrentVersion } from '../lib/collections';
 import { OG_IMAGE, ORIGIN, WORKER_DEV } from '../lib/site';
 
 /**
@@ -29,8 +29,7 @@ const twitterDescription =
    releases collection is the public version number (the changelog reads the same
    entry) and page-dates.json is what the sitemap tells crawlers about `/`. Held
    in the JSON, both drift the moment someone bumps one and not the other. */
-const softwareVersion = (await getReleases()).at(0)?.data.version;
-if (!softwareVersion) throw new Error('home-schema: no releases to take softwareVersion from');
+const softwareVersion = await getCurrentVersion();
 const dateModified = dates.home.modified;
 
 /* home-schema.json's Chrome Extension node carries a real aggregateRating (5.0,

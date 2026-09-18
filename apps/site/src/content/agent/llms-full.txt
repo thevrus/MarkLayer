@@ -15,16 +15,42 @@ MarkLayer is designed for designers, developers, QA engineers, product managers,
 ## Core Features
 
 ### Drawing Tools
-Freehand drawing, shapes, arrows, and lines. Users can mark up any page with precision using a floating toolbar. Stroke colors and widths are customizable.
+Sixteen tools, each bound to a single key so the muscle memory carries over from Figma where Figma has an equivalent: move (V), pen (P), highlight (Shift+H), line (L), arrow (A or Shift+L), rectangle (R), circle (O), text label (T), comment (C), text selection (S), area (G or F), eraser (E), inspector (I), multi-select (X), measure (M), ruler guide (U). Stroke colors and widths are customizable. Undo is Cmd-Z, redo Cmd-Shift-Z, and Clear all empties the page. The floating toolbar drags anywhere on screen, reorders by dragging a tool, and collapses to a fan.
+
+### Ruler Guides
+Drag out horizontal and vertical guides to check alignment, the way a design tool does. A guide is an operation in the same stream as every drawing, which is why it appears on everyone else's screen rather than staying a private overlay on yours.
 
 ### Real-time Collaboration
-Multiple users can annotate the same page simultaneously. Live cursors show each participant's position and name in real time, powered by WebSockets and Cloudflare Durable Objects.
+Multiple users can annotate the same page simultaneously. Live cursors show each participant's position and name in real time, powered by WebSockets and Cloudflare Durable Objects. There is no collaborator limit and no seat to buy.
+
+### Voice and Video
+Peer-to-peer WebRTC audio and video, negotiated through the same room as the annotations. Microphone, camera and output device selection, a speaking indicator, a connection-quality readout, and a TURN relay fallback when a network refuses a direct connection. Nobody installs anything to join a call.
 
 ### Shareable Links
-One click generates a share link. Anyone who opens the link sees the annotated page in their browser. No extension, no account, no install required. The link loads the original webpage with annotations overlaid.
+One click generates a share link. Anyone who opens the link sees the annotated page in their browser. No extension, no account, no install required. The link loads the original webpage with annotations overlaid. MarkLayer can also email the link for you.
+
+### Optional Accounts and Access Control
+An account is optional and free, and nothing behind it costs money. Annotating and viewing never require one. Signing in with a magic link (no password) lets a person claim the links they made, switch one between "can edit" and "can view", give it its own expiry date, and see everything they own in one dashboard. View-only is enforced by the room everywhere a write could land, not by hiding the toolbar.
 
 ### Threaded Comments
-Users can pin comments to any spot on the page. Comments support threaded replies, making it easy to have contextual conversations directly on the webpage rather than in external tools like Slack or email.
+Users can pin comments to any spot on the page, with threaded replies, so a conversation happens on the webpage rather than in Slack or email. Each comment carries one of five statuses (open, in_progress, resolved, approved, dismissed) and one of four priorities (low, medium, high, urgent). It can be assigned to a person or to an AI agent, can @mention anyone already working on that page, and can hold up to four image attachments, pasted from the clipboard or picked from disk. Every comment also records the browser, operating system and viewport width it was written on, which is what lets a bug report say "only at this width" without anyone asking.
+
+### Suggested Edits
+Select real text on the page and write the exact replacement rather than describing it. MarkLayer renders that as a diff, and the same diff travels into the Markdown export and into an AI agent's view of the thread, so the correction is never retyped by hand.
+
+### Integrations
+Seven destinations, connected from the panel on any share link, five per room. Slack, Microsoft Teams, Discord and a generic JSON webhook post every new batch of annotations automatically. Linear, GitHub and Jira create one issue from one annotation, when a person chooses to file it.
+
+All seven are one way out. MarkLayer creates the issue and reads back its URL once so it can show a link; nothing about that ticket's later state comes back, and no destination sends anything in. For the three issue trackers the API token never reaches MarkLayer's server: the room stores only the non-secret fields (repository, project key, team id), and the token stays in the browser of whoever set it up. Chat webhooks are different, because the webhook URL is itself the credential, so it is stored with the room and anyone holding the share link can see its last four characters and remove it.
+
+### Export
+Two ways out, both from the panel on a share link. Copy or download every comment, reply and highlighted selection as Markdown, carrying statuses, authors, device metadata and suggested edits as fenced diff blocks, which pastes cleanly into a ticket or an AI coding agent. Or export the annotated page as a PNG, which captures the live page with the drawings over it and falls back to the drawings alone if the page refuses capture.
+
+### Multi-page Projects
+One share link can hold a project of up to 50 pages, each with its own annotations, switched through a tab strip at the top of the viewer. Add a page by pasting its URL. The Markdown export covers the whole project in a single document with a section per page.
+
+### Responsive Review and Anchoring
+Preview a page at desktop, tablet or mobile width without touching the annotations. Marks bind to the element they were left on, by CSS selector with a normalized-text fingerprint as a fallback, plus a fractional offset inside that element's box. When the layout reflows at another width, or a single-page app re-renders the DOM underneath, the mark re-resolves onto the right element instead of floating to a coordinate that no longer means anything.
 
 ### Inspector
 Point at any element on a page and MarkLayer captures the CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Designed as the bridge between visual feedback and AI-driven code edits. The user points, and the agent gets enough context to act.
@@ -129,13 +155,17 @@ JavaScript is failing", runtime logs win. If they are mostly "this element is wr
 
 ### What MarkLayer does not do
 
-MarkLayer captures no console or network logs, and has no two-way sync into Jira or Linear. That is what
-the $39-79 tier is priced for. Three tools switch off on a PDF or an image, and for the same reason: the
-element inspector, measure and multi-select all read the page's HTML, and a file has none, so pointing at
-it returns the whole page rather than a heading or a button. A scanned PDF with no text layer, and any
-image, takes drawing and comments but not text highlights, because there are no words to attach one to. If every piece of feedback needs an owner, a status, a priority and a
-ticket in an existing tracker, BugHerd, Marker.io or Usersnap are the honest recommendation. MarkLayer is
-the visual feedback layer, not a project management system.
+MarkLayer captures no console logs and no network requests. It can file an annotation into Linear, GitHub
+or Jira as an issue, but only one way: nothing about the ticket's later state returns, so a comment does
+not close when the ticket closes. Those two gaps are what the $39-79 tier is priced for. Three tools
+switch off on a PDF or an image, and for the same reason: the element inspector, measure and multi-select
+all read the page's HTML, and a file has none, so pointing at it returns the whole page rather than a
+heading or a button. A scanned PDF with no text layer, and any image, takes drawing and comments but not
+text highlights, because there are no words to attach one to. Both surfaces are desktop only today, and a
+phone is told so rather than shown a broken toolbar. Without an account there is no list of past links,
+because there is nothing to look them up against. If a comment has to stay in step with a ticket in an
+existing tracker, BugHerd, Marker.io or Usersnap are the honest recommendation. MarkLayer is the visual
+feedback layer in front of one, not a project management system.
 
 ## AI Coding Agent Integration (MCP)
 
@@ -149,7 +179,13 @@ Pre-connect to a specific room:
 
     claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123
 
-Available tools: marklayer_connect_room, marklayer_room_info, marklayer_list_annotations, marklayer_get_annotation, marklayer_watch_annotations, marklayer_acknowledge, marklayer_resolve, marklayer_dismiss, marklayer_reply.
+Twelve tools: marklayer_connect_room, marklayer_room_info, marklayer_read_page, marklayer_list_annotations, marklayer_get_annotation, marklayer_watch_annotations, marklayer_acknowledge, marklayer_resolve, marklayer_dismiss, marklayer_reply, marklayer_create_annotation, marklayer_suggest_edit.
+
+Three of those are worth spelling out, because they are what separates an agent that reads feedback from one that takes part in the review. marklayer_read_page returns the page's headings, text, links and controls with their selectors, so an agent can review a page before anyone has annotated it. marklayer_create_annotation lets it leave a comment of its own, anchored to an element. marklayer_suggest_edit proposes exact replacement text, shown to the human as a diff they can read rather than a paragraph describing a change.
+
+approved is the one status an agent never sets. It is the person who asked for the change confirming the fix, so a resolved thread going back to open means they disagreed.
+
+In a browser whose agent supports WebMCP, the same actions are exposed on a share link through document.modelContext, with nothing installed.
 
 - Package: https://www.npmjs.com/package/marklayer-mcp
 - Source: https://github.com/thevrus/MarkLayer/tree/main/apps/mcp
@@ -310,6 +346,9 @@ A: Yes. There is a public, unauthenticated POST endpoint at https://marklayer.ap
 ## Links
 
 - Website: https://marklayer.app
+- Features, in full, with keyboard shortcuts: https://marklayer.app/features
+- Pricing: https://marklayer.app/pricing
+- Sending annotations to Jira, Linear, GitHub, Slack, Teams and Discord: https://marklayer.app/guides/send-feedback-to-jira-linear-slack
 - Chrome Web Store: https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc
 - GitHub: https://github.com/thevrus/MarkLayer
 - MCP server (npm): https://www.npmjs.com/package/marklayer-mcp
