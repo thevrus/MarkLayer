@@ -72,3 +72,11 @@ export const textareaBareCls = trim(`
   resize-y outline-none caret-(--ds-gray-1000)
   placeholder:text-(--ds-gray-700)
 `);
+
+/** Quiet secondary path — a text link, not a button: no fill, no border, underline on hover. */
+export const quietLinkBtn = trim(`
+  text-meta self-start rounded-sm font-medium text-(--ds-gray-900) no-underline
+  hover:text-(--ds-gray-1000) hover:underline
+  outline-none focus-visible:outline-solid focus-visible:outline-2
+  focus-visible:outline-offset-1 focus-visible:outline-(--ds-focus-color)
+`);

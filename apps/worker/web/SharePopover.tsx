@@ -1,6 +1,6 @@
 import { Popover } from '@base-ui/react/popover';
 import { Tooltip } from '@ext/components/Tooltip';
-import { submitBtn } from '@ext/lib/buttons';
+import { quietLinkBtn, submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { portalContainer } from '@ext/lib/portal';
@@ -8,7 +8,7 @@ import { shareUrl } from '@ext/lib/share';
 import { toast } from '@ext/lib/state';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
 import { cn, type OwnedLink } from '@marklayer/types';
-import { ArrowUpRight, Upload } from 'lucide-preact';
+import { ArrowUpRight, Share2, Upload } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { capture } from './analytics';
@@ -51,6 +51,43 @@ function LinkField({ url, busy, onCopy }: { url: string; busy: boolean; onCopy: 
   );
 }
 
+// Most mobile and Chromium desktop, but not Firefox desktop. Support can't change
+// mid-session, so it is read once rather than on every render.
+const hasShareSheet = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+
+/** Fewer taps than typing an address — the friction was the email field, not a lack of desire to share. */
+function ShareSheet({ url }: { url: string }) {
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await navigator.share({ url });
+      capture('share_sheet_used');
+    } catch (err) {
+      // AbortError just means the person closed the sheet — not a failure to report.
+      if (err instanceof Error && err.name !== 'AbortError') {
+        toast('Could not open the share sheet.', { type: 'error' });
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={() => void send()}
+      disabled={busy}
+      class={cn(quietLinkBtn, 'inline-flex items-center gap-1 disabled:pointer-events-none disabled:opacity-50')}
+    >
+      {busy ? <Spinner /> : <Share2 size={13} strokeWidth={1.75} aria-hidden="true" />}
+      Share…
+    </button>
+  );
+}
+
 /**
  * Optional, and collapsed by default — Copy stays the one obvious action, this
  * is a quiet second path that only appears once someone reaches for it.
@@ -65,16 +102,7 @@ function InviteByEmail({ id, url }: { id: string; url: string }) {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        class={cn(
-          'text-meta self-start rounded-sm font-medium text-(--ds-gray-900) no-underline',
-          'hover:text-(--ds-gray-1000) hover:underline',
-          'outline-none focus-visible:outline-solid focus-visible:outline-2',
-          'focus-visible:outline-offset-1 focus-visible:outline-(--ds-focus-color)',
-        )}
-      >
+      <button type="button" onClick={() => setOpen(true)} class={quietLinkBtn}>
         Invite by email
       </button>
     );
@@ -287,7 +315,7 @@ export function SharePopover() {
               ) : (
                 <CreateLink busy={sharing.value} onCreate={share} />
               )}
-              {url && linkId && <InviteByEmail id={linkId} url={url} />}
+              {url && linkId && (hasShareSheet ? <ShareSheet url={url} /> : <InviteByEmail id={linkId} url={url} />)}
             </Block>
 
             {settings && (
