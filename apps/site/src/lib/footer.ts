@@ -41,6 +41,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     heading: 'Product',
     links: [
       { href: '/', label: 'Home' },
+      { href: '/features', label: 'Features' },
       { href: HOW_IT_WORKS, label: 'How it works' },
       { href: '/pricing', label: 'Pricing' },
       { href: CHROME_STORE_URL, label: 'Chrome extension', external: true },

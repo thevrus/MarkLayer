@@ -79,23 +79,64 @@ import { CHROME_STORE_URL } from '../../lib/site';
 </ul>
 
 <h2>Features</h2>
+<p>
+  Everything below is free, with no account. The
+  <a href="/features">full feature list</a> has the detail, including
+  every keyboard shortcut.
+</p>
 <ul>
   <li>
-    <strong>Drawing tools.</strong> Freehand drawing, shapes, arrows,
-    and lines. Mark up any page with precision.
+    <strong>Sixteen annotation tools.</strong> Pen, highlighter,
+    arrow, line, rectangle, circle, text label, eraser, comment pin,
+    text selection, area note, element inspector, multi-select,
+    measure, ruler guides and move. Each has a single-key shortcut,
+    matching Figma where Figma has an equivalent.
+  </li>
+  <li>
+    <strong>Comments with status, priority and an owner.</strong> Five
+    statuses (open, in progress, resolved, approved, dismissed), four
+    priorities, threaded replies, @mentions, and up to four image
+    attachments per comment. Each one records the browser, OS and
+    viewport it was written on.
+  </li>
+  <li>
+    <strong>Suggested edits as diffs.</strong> Select text on the page
+    and write the exact replacement. It travels as a diff into the
+    export and into an AI agent's view, so nobody retypes it.
   </li>
   <li>
     <strong>Real-time collaboration.</strong> Live cursors so everyone
     sees changes as they happen. Unlimited collaborators per session.
   </li>
   <li>
-    <strong>Shareable links.</strong> Share a link so anyone can see
-    your annotations instantly. No extension and no account needed to
-    view.
+    <strong>Voice and video.</strong> Peer-to-peer WebRTC in the room,
+    with microphone, camera and output device selection. Nobody
+    installs anything to join.
   </li>
   <li>
-    <strong>Threaded comments.</strong> Pin comments to any spot on
-    the page. Have conversations in context, not in Slack.
+    <strong>Shareable links.</strong> Share a link so anyone can see
+    your annotations instantly. No extension and no account needed to
+    view. Sign in with a magic link, and you can make a link view
+    only, set its expiry, and see everything you own in one dashboard.
+  </li>
+  <li>
+    <strong>Send feedback to Slack, Teams, Discord, Linear, GitHub or
+    Jira.</strong> Chat destinations post each new batch on their own.
+    File a single annotation into a tracker as an issue. It is one way
+    out: nothing syncs back.
+  </li>
+  <li>
+    <strong>Export as Markdown or PNG.</strong> Copy or download every
+    comment, reply and highlight as Markdown, with suggested edits as
+    diff blocks. Or export the annotated page as an image.
+  </li>
+  <li>
+    <strong>Built for AI coding agents.</strong> The inspector
+    captures an element's CSS selector, computed styles and the React
+    or Vue component behind it, as a copy-ready prompt. The
+    <code>marklayer-mcp</code> server gives an agent twelve tools to
+    watch a room, acknowledge, resolve, dismiss and reply, with every
+    status change visible to the human.
   </li>
   <li>
     <strong>Works on any website.</strong> Production, staging,
@@ -109,6 +150,16 @@ import { CHROME_STORE_URL } from '../../lib/site';
     <a href="/guides/how-to-annotate-a-pdf">how to annotate a PDF</a>
     and <a href="/guides/how-to-annotate-an-image">how to annotate an
     image</a>.
+  </li>
+  <li>
+    <strong>Up to 50 pages on one link.</strong> Review a whole flow
+    as a project, switched through tabs, exported as one document.
+  </li>
+  <li>
+    <strong>Marks that survive a reflow.</strong> Preview at desktop,
+    tablet or mobile width. Comments bind to the element, by selector
+    with a text fingerprint as a fallback, so they land on the right
+    thing when the layout changes or a single-page app re-renders.
   </li>
   <li>
     <strong>Browser extension.</strong> One click to start annotating.

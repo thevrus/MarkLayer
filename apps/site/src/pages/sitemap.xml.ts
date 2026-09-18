@@ -32,6 +32,9 @@ export const GET: APIRoute = async () => {
 
   const entries: Entry[] = [
     { path: '/', lastmod: dates.home.modified, changefreq: 'weekly', priority: '1.0' },
+    // Above the hubs: it is the one page that answers what the product does, and
+    // it changes on every release rather than on an editorial cadence.
+    { path: '/features', lastmod: dates.features.modified, changefreq: 'weekly', priority: '0.9' },
     article('/compare', dates['hub-compare'].modified),
     article('/alternatives', dates['hub-alternatives'].modified),
     article('/use-cases', dates['hub-use-cases'].modified),

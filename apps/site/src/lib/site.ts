@@ -64,6 +64,10 @@ export const WORKER_DEV = 'http://localhost:5173';
  * section suppresses its own nav link.
  */
 export const SECTIONS = [
+  /* First in the row: what the product does comes before who it beats. It is
+     also the only hub that answers a "what can it do" query, which the compare
+     and alternatives pages were absorbing by default. */
+  { key: 'features', label: 'Features', href: '/features', prefixes: ['/features'] },
   { key: 'compare', label: 'Compare', href: '/compare', prefixes: ['/compare', '/vs/'] },
   { key: 'alternatives', label: 'Alternatives', href: '/alternatives', prefixes: ['/alternatives'] },
   { key: 'use-cases', label: 'Use cases', href: '/use-cases', prefixes: ['/use-cases', '/for/'] },

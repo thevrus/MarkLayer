@@ -1,0 +1,360 @@
+---
+import Faq from '../components/Faq.astro';
+import LinkGrid from '../components/LinkGrid.astro';
+import dates from '../data/page-dates.json';
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import { articleSchema, faqSchema, type QA } from '../lib/schema';
+
+const { published, modified } = dates.features;
+
+const path = '/features';
+const title = 'MarkLayer Features: Every Tool, Integration and AI Hook';
+const description =
+  'The full feature list: 16 annotation tools, threaded comments with status and priority, live cursors, voice and video, Slack, Jira, Linear and GitHub, a 12-tool MCP server, Markdown and PNG export. Free, no account.';
+const h1 = 'MarkLayer features';
+
+/**
+ * Tool rows carry the shortcut the product actually binds, read off
+ * `TOOL_SHORTCUTS` in apps/extension/lib/state.ts. Two tools answer to two keys
+ * each, which is deliberate Figma parity and is stated rather than hidden.
+ */
+const tools: { name: string; key: string; does: string }[] = [
+  { name: 'Move', key: 'V', does: 'Scroll and click the page underneath without drawing on it.' },
+  { name: 'Pen', key: 'P', does: 'Freehand stroke, the fastest way to circle something.' },
+  { name: 'Highlight', key: '⇧H', does: 'A translucent marker pass over anything on the page.' },
+  { name: 'Line', key: 'L', does: 'A straight segment between two points.' },
+  { name: 'Arrow', key: 'A or ⇧L', does: 'The same line with a head on it, for pointing at a thing.' },
+  { name: 'Rectangle', key: 'R', does: 'A box around a region.' },
+  { name: 'Circle', key: 'O', does: 'An ellipse from its centre out.' },
+  { name: 'Text', key: 'T', does: 'A typed label placed directly on the page.' },
+  { name: 'Comment', key: 'C', does: 'A pinned thread with replies, status, priority and an owner.' },
+  { name: 'Selection', key: 'S', does: 'Select real text and comment on it, or propose an exact rewrite.' },
+  { name: 'Area', key: 'G or F', does: 'Draw a region and attach a note to the whole of it.' },
+  { name: 'Eraser', key: 'E', does: 'Remove strokes without clearing the page.' },
+  { name: 'Inspector', key: 'I', does: "Capture one element's CSS selector, styles and a prompt for a coding agent." },
+  { name: 'Multi-select', key: 'X', does: 'Marquee several elements and copy them as one agent task.' },
+  { name: 'Measure', key: 'M', does: 'Pixel distances and gaps between two elements, the way Figma shows them.' },
+  { name: 'Guide', key: 'U', does: 'Drag a ruler guide out to check alignment. Everyone on the link sees it.' },
+];
+
+const integrations: { name: string; when: string; sends: string }[] = [
+  { name: 'Slack', when: 'Automatic', sends: 'Posts each new batch of annotations to an incoming webhook.' },
+  { name: 'Microsoft Teams', when: 'Automatic', sends: 'The same batch, formatted for a Teams incoming webhook.' },
+  { name: 'Discord', when: 'Automatic', sends: "The same batch, trimmed to fit Discord's 2,000-character ceiling." },
+  { name: 'Webhook', when: 'Automatic', sends: 'A structured JSON body to any public endpoint you control.' },
+  { name: 'Linear', when: 'You pick one', sends: 'Files a single annotation as a Linear issue and hands you the link.' },
+  { name: 'GitHub', when: 'You pick one', sends: 'Opens a GitHub issue on a repository from one annotation.' },
+  { name: 'Jira', when: 'You pick one', sends: 'Creates a Jira issue in the project and issue type you name.' },
+];
+
+const agentTools: { name: string; does: string }[] = [
+  { name: 'connect_room', does: 'Join a share link, by URL or by bare id.' },
+  { name: 'room_info', does: 'Read the page under review, its viewport and its timestamps.' },
+  { name: 'read_page', does: "Read the page's headings, text, links and controls with their selectors." },
+  { name: 'list_annotations', does: 'Backfill everything outstanding, filtered by status.' },
+  { name: 'get_annotation', does: 'Pull one annotation in full, including the reply thread.' },
+  { name: 'watch_annotations', does: 'Long-poll for new work and for anything handed to this agent by name.' },
+  { name: 'acknowledge', does: 'Mark a comment in progress so the human sees it has been picked up.' },
+  { name: 'resolve', does: 'Close a comment and post the summary as a reply.' },
+  { name: 'dismiss', does: 'Decline a comment, with a reason that is required rather than optional.' },
+  { name: 'reply', does: 'Ask a clarifying question without moving the status.' },
+  { name: 'create_annotation', does: 'Leave a comment of its own, anchored to an element.' },
+  { name: 'suggest_edit', does: 'Propose exact replacement text, shown to the human as a diff.' },
+];
+
+const qa: QA[] = [
+  {
+    q: 'How many annotation tools does MarkLayer have?',
+    a: 'Sixteen, and every one of them is free. Move, pen, highlight, line, arrow, rectangle, circle, text, comment, selection, area, eraser, inspector, multi-select, measure and guide. Each has a single-key shortcut, and the toolbar can be dragged anywhere on screen and reordered to suit how you work.',
+  },
+  {
+    q: 'Can MarkLayer send annotations to Jira, Linear or GitHub?',
+    a: 'Yes. Open the panel on a share link, connect Linear, GitHub or Jira, then file any single annotation as an issue and MarkLayer hands you the link to it. This is one way out: MarkLayer creates the issue, and nothing about that issue flows back. Slack, Microsoft Teams, Discord and a plain JSON webhook work differently, posting every new batch of annotations automatically. A room can hold five destinations at once.',
+  },
+  {
+    q: 'Do the Jira, Linear and GitHub tokens get stored on your server?',
+    a: 'No. For the three issue trackers, the room stores only the parts that are not secret, such as the repository name or the project key. The API token stays in the browser of whoever set it up and is sent straight to Linear, GitHub or Jira when they file something. Chat webhooks are different: the webhook URL is the credential, so it is stored with the room, and anyone holding the share link can see its last four characters and remove it.',
+  },
+  {
+    q: 'What can an AI coding agent do with a MarkLayer link?',
+    a: 'Twelve things, over the marklayer-mcp server. An agent can join the room, read the page, list and watch annotations, acknowledge one so the human sees it is being worked on, resolve it with a summary, dismiss it with a reason, reply with a question, leave comments of its own, and propose an exact text edit rendered as a diff. Install it with: claude mcp add marklayer -- npx -y marklayer-mcp',
+  },
+  {
+    q: 'Can I get my comments out of MarkLayer?',
+    a: 'Yes, two ways, both in the panel on the right of any share link. Copy or download every comment, reply and highlighted selection as Markdown, where a suggested edit arrives as a fenced diff block that pastes straight into a ticket or a coding agent. Or export the annotated page as a PNG, which captures the page and the drawings over it.',
+  },
+  {
+    q: 'Does a comment have a status and an owner?',
+    a: 'Yes. Every comment carries one of five statuses (open, in progress, resolved, approved, dismissed) and one of four priorities (low, medium, high, urgent). You can assign it to a person or to an AI agent, @mention anyone already working on that page, and attach up to four images per comment. Approved is the one status an agent never sets: it is the person who asked for the change confirming the fix.',
+  },
+  {
+    q: 'Do I need an account to use any of this?',
+    a: 'No. Every feature on this page works with no sign-up, no email and no install, for you and for anyone you send a link to. An optional account exists if you want it: sign in with a magic link and you can claim your links, switch one to view only, set its expiry and see them all in one dashboard. Nothing behind the account costs money, and nothing in front of it is degraded to sell it.',
+  },
+  {
+    q: 'Does MarkLayer work on more than one page at a time?',
+    a: 'Yes. A share link can hold a project of up to 50 pages, each with its own annotations, switched through a tab strip at the top of the viewer. Add a page by pasting its URL. The Markdown export covers every page in the project in one document, with a section per page.',
+  },
+];
+---
+
+<ArticleLayout
+  title={title}
+  description={description}
+  path={path}
+  h1={h1}
+  breadcrumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Features' }]}
+  modified={modified}
+  schema={[articleSchema({ h1, description, path, published, modified }), faqSchema(qa)]}
+>
+  <Fragment slot="intro">
+    MarkLayer is a free web app and Chrome extension for drawing and commenting on any live webpage, PDF or image, then
+    sharing it as a link. It has 16 annotation tools, threaded comments with status and priority, live cursors, voice
+    and video, seven places to send feedback, and a 12-tool MCP server for AI coding agents. No account, no paid tier.
+  </Fragment>
+
+  <h2>The 16 annotation tools</h2>
+  <p>
+    Every tool below is available on the web app and in the extension, on any page, with no account. Each answers to a
+    single key, chosen to match Figma where Figma has an equivalent, so the muscle memory carries over. The toolbar
+    itself drags anywhere on screen, reorders by dragging a tool, and collapses to a fan when you want the page back.
+  </p>
+  <div class="ml-scroll-x">
+    <table>
+      <caption>MarkLayer annotation tools and their keyboard shortcuts</caption>
+      <thead>
+        <tr>
+          <th scope="col">Tool</th>
+          <th scope="col">Key</th>
+          <th scope="col">What it does</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          tools.map((t) => (
+            <tr>
+              <th scope="row">{t.name}</th>
+              <td>{t.key}</td>
+              <td>{t.does}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Undo and redo are ⌘Z and ⌘⇧Z, and Clear all empties the page in one step. Everything you draw is an operation in one
+    stream, which is why a ruler guide you drag out appears on everyone else's screen too rather than staying a private
+    overlay on yours.
+  </p>
+
+  <h2>Comments that behave like work, not like sticky notes</h2>
+  <p>
+    A comment pin is a thread. It has replies, and it carries the fields a review actually needs to move: five statuses
+    (open, in progress, resolved, approved, dismissed) and four priorities (low, medium, high, urgent). Assign one to a
+    teammate or to an AI agent. @mention anyone already working on the page. Attach up to four images per comment, or
+    paste a screenshot straight from the clipboard.
+  </p>
+  <p>
+    Each comment also records the browser, operating system and viewport size it was written on, so a bug report that
+    only reproduces at one width says so without anyone having to ask.
+  </p>
+  <p>
+    The selection tool goes one step further. Select real text on the page, then either comment on it or write the exact
+    replacement you want. MarkLayer renders that as a diff, and the same diff travels into the Markdown export and into
+    an AI agent's view of the thread, so nobody retypes the correction.
+  </p>
+
+  <h2>Real-time collaboration, voice and video</h2>
+  <p>
+    Open the same link as someone else and you see each other's cursors move, with names, as the marks appear. There is
+    no collaborator limit and no seat to buy.
+  </p>
+  <p>
+    Voice and video run peer to peer over WebRTC, negotiated through the same room. You get microphone and camera
+    selection, an output device picker, a speaking indicator, and a connection-quality readout. It falls back to a TURN
+    relay when a network refuses a direct connection. Nobody installs anything to join.
+  </p>
+
+  <h2>Sharing, access control and how long a link lives</h2>
+  <p>
+    Sharing is a link. The unguessable id in it is the access token, which is why a recipient needs no account and no
+    extension, and why there is no invite flow to sit through. You can also have MarkLayer email the link.
+  </p>
+  <p>
+    A link is deleted 90 days after the last time anyone opened it, and any view, comment or edit resets that clock, so
+    an active review never expires underneath you. You can set a shorter expiry explicitly, up to 30 days, when a link
+    should not outlive the round.
+  </p>
+  <p>
+    If you want more control than that, signing in with a magic link (no password) lets you claim a link, switch it
+    between <strong>can edit</strong> and <strong>can view</strong>, set its own expiry date, and see everything you own
+    in one dashboard. The room enforces view-only everywhere a write could land, rather than by hiding the toolbar. The
+    account is optional and free; annotating and viewing never require one.
+  </p>
+
+  <h2>Send feedback to Slack, Teams, Discord, Linear, GitHub or Jira</h2>
+  <p>
+    Connect a destination from the panel on any share link. Chat destinations post on their own as annotations arrive.
+    Issue trackers wait for you to pick a specific annotation and file it, which is what stops a review from
+    manufacturing forty tickets nobody asked for.
+  </p>
+  <div class="ml-scroll-x">
+    <table>
+      <caption>Where MarkLayer can send annotations, and when</caption>
+      <thead>
+        <tr>
+          <th scope="col">Destination</th>
+          <th scope="col">Fires</th>
+          <th scope="col">What happens</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          integrations.map((i) => (
+            <tr>
+              <th scope="row">{i.name}</th>
+              <td>{i.when}</td>
+              <td>{i.sends}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p>
+    Be clear about the direction: this is one way out. MarkLayer creates the Linear, GitHub or Jira issue and gives you
+    the link to it, and nothing about that issue's later life comes back. If you need a comment to close when the ticket
+    closes, you want a bug tracker, and the honest recommendation is <a href="/vs/bugherd">BugHerd</a> or
+    <a href="/vs/marker-io">Marker.io</a>.
+  </p>
+  <p>
+    One detail worth knowing, because most tools do the opposite: for Linear, GitHub and Jira the API token never
+    reaches our server. The room stores only the repository, project key or team id. The token stays in the browser of
+    whoever set it up. A room holds five destinations at once.
+  </p>
+
+  <h2>What an AI coding agent can do with a link</h2>
+  <p>
+    MarkLayer ships an MCP server, <code>marklayer-mcp</code>, that turns a review into a work queue an agent can
+    actually work through rather than just read. Install it in Claude Code with one line:
+  </p>
+  <pre><code>claude mcp add marklayer -- npx -y marklayer-mcp</code></pre>
+  <div class="ml-scroll-x">
+    <table>
+      <caption>The twelve tools an AI agent gets over MCP</caption>
+      <thead>
+        <tr>
+          <th scope="col">Tool</th>
+          <th scope="col">What the agent can do</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          agentTools.map((t) => (
+            <tr>
+              <th scope="row"><code>marklayer_{t.name}</code></th>
+              <td>{t.does}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+  <p>
+    The part that matters is that the human watching sees all of it happen. A comment flips to in progress when the
+    agent picks it up, and lands as resolved with a written summary underneath. When an agent asks a question, it
+    appears as a reply on the thread the person already has open.
+  </p>
+  <p>
+    Feeding it is the inspector. Point at any element and MarkLayer captures its CSS selector, its computed styles, a
+    text fingerprint and, on a React or Vue page, the component behind it, then formats the lot as a prompt. Multi-select
+    does the same for a whole set of elements and copies them as one task. There is also a plain HTTP API with no auth,
+    so an assistant can mint share links for a list of URLs on its own. See
+    <a href="/guides/bug-report-mcp-servers">how that compares to other tools' MCP servers</a>.
+  </p>
+
+  <h2>PDFs, images and multi-page projects</h2>
+  <p>
+    Paste a link to a PDF or an image, or upload one up to 25MB. PDF text stays selectable, so a highlight binds to the
+    words rather than to a coordinate, and every mark records which page it was made on. Images accept PNG, JPEG, GIF,
+    WebP and AVIF.
+  </p>
+  <p>
+    One share link can hold a project of up to 50 pages, switched through a tab strip. Add a page by pasting its URL,
+    and the Markdown export covers the whole project with a section per page.
+  </p>
+  <p>
+    Two tools switch off on a file, and it is better to say so than to let you find out: the element inspector and
+    measure need HTML elements to point at, and a PDF has none. Annotations sit in a layer over the file rather than
+    being written into it, so there is no annotated PDF to download afterwards. Read
+    <a href="/guides/how-to-annotate-a-pdf">how to annotate a PDF</a> and
+    <a href="/guides/how-to-annotate-an-image">how to annotate an image</a> for the full picture.
+  </p>
+
+  <h2>Marks that survive a responsive reflow</h2>
+  <p>
+    Preview a page at desktop, tablet or mobile width from the viewer, without touching the annotations. This is the
+    part of MarkLayer that took the most work and shows the least: a comment binds to the element it was left on, by CSS
+    selector with a text fingerprint as a fallback, plus a fractional offset inside that element's box. When the layout
+    reflows or a single-page app re-renders the DOM underneath, the mark re-resolves and lands back on the right thing
+    instead of floating off to a coordinate that no longer means anything.
+  </p>
+
+  <h2>Getting the feedback out</h2>
+  <p>
+    Comments do not have to stay in MarkLayer. From the panel on any share link you can copy every comment, reply and
+    highlighted selection as Markdown or download it as a <code>.md</code> file, with statuses, authors, device
+    metadata and suggested edits as diff blocks. You can also export the annotated page as a PNG, which captures the
+    live page with the drawings over it.
+  </p>
+
+  <h2>The web app and the extension</h2>
+  <p>
+    The web app is the main route: paste a URL at marklayer.app and MarkLayer fetches the page, overlays the canvas, and
+    gives you the address bar as the share link before you have drawn anything. Nothing to install, for you or for the
+    people you send it to.
+  </p>
+  <p>
+    The free extension exists for the pages a proxy cannot reach: anything behind a login, internal tools, and
+    localhost. It annotates in place in the browser you are already signed into, and it asks for only three permissions
+    (<code>activeTab</code>, <code>scripting</code>, <code>contextMenus</code>), none of which grant standing access to
+    your browsing. Both routes produce the same share link, and the recipient installs nothing either way.
+  </p>
+
+  <h2>What MarkLayer does not do</h2>
+  <p>
+    It captures no console logs and no network requests, which is what the $39 to $79 tier at Marker.io and BugHerd is
+    priced for. Nothing syncs back from Jira, Linear or GitHub. Both surfaces are desktop only today, and a phone will
+    tell you so. There is no list of your past links unless you sign in, because without an account there is nothing to
+    look them up against. And on a PDF or an image, the inspector, measure and multi-select are off.
+  </p>
+  <p>
+    If every comment needs an owner, a status and a ticket in a tracker that stays in step, buy the tracker. MarkLayer
+    is the visual feedback layer in front of it. The
+    <a href="/guides/website-feedback-tools">full audit of 21 feedback tools</a>, with prices read off each vendor's own
+    page, includes what MarkLayer does worse.
+  </p>
+
+  <h2>What all of this costs</h2>
+  <p>
+    Nothing. There is no paid plan, no trial, no per-seat price, no usage cap and no feature held back for a tier that
+    does not exist. MarkLayer is Apache-2.0 licensed, so it cannot be withdrawn from under a workflow you have built on
+    it, and you can self-host the whole thing on your own Cloudflare account. See <a href="/pricing">pricing</a> and the
+    <a href="/guides/free-website-annotation-tools">audit of what "free" means at other tools</a>.
+  </p>
+
+  <Faq qa={qa} />
+
+  <h2>Read next</h2>
+  <LinkGrid
+    links={[
+      { href: '/guides/how-marklayer-works', label: 'How MarkLayer works, in plain English' },
+      { href: '/guides/bug-report-mcp-servers', label: 'Bug report MCP servers compared' },
+      { href: '/guides/website-feedback-tools', label: 'Twenty-one website feedback tools, prices checked' },
+      { href: '/for/localhost-ai-agents', label: 'Annotating localhost for AI coding agents' },
+      { href: '/compare', label: 'MarkLayer compared to other tools' },
+      { href: '/changelog', label: "What's new in MarkLayer" },
+    ]}
+  />
+</ArticleLayout>
