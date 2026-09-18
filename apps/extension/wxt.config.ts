@@ -12,7 +12,7 @@ export default defineConfig({
       'Free annotation tool for Chrome. Draw, comment, and mark up any webpage, then share a link instantly. No account required.',
     version: '0.8.0',
     action: {},
-    permissions: ['activeTab', 'scripting'],
+    permissions: ['activeTab', 'scripting', 'contextMenus'],
   },
   hooks: {
     'build:manifestGenerated': (_, manifest) => {
