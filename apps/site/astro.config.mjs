@@ -4,6 +4,7 @@ import { unified } from '@astrojs/markdown-remark';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
+import { rehypeScrollTables } from './src/lib/rehype-scroll-tables.mjs';
 import { WORKER_DEV } from './src/lib/site';
 
 export default defineConfig({
@@ -37,7 +38,7 @@ export default defineConfig({
     // in Markdown bodies only, so the same page would mix ' and ’.
     processor: unified({
       smartypants: false,
-      rehypePlugins: [[rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }]],
+      rehypePlugins: [[rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }], rehypeScrollTables],
     }),
   },
 

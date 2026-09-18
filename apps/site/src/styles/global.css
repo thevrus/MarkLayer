@@ -378,6 +378,18 @@
     font-size: 0.85em;
   }
 
+  /* A block needs its own surface and its own scroller; the inline `code` recipe
+     above gave the span a pill inside an unstyled, unscrollable parent, so a
+     one-line install command ran off the right of a phone and took the page with
+     it. The nested reset is what stops the pill from drawing inside the block. */
+  pre {
+    @apply my-7 overflow-x-auto rounded-md bg-sunken p-4 text-ui;
+  }
+  pre code {
+    @apply bg-transparent p-0;
+    font-size: inherit;
+  }
+
   small {
     @apply text-label text-meta;
   }
@@ -422,6 +434,16 @@
      is the one thing on these pages that reads better across the full width. */
   .ml-scroll-x.ml-scroll-wide {
     max-width: none;
+  }
+
+  /* A `w-full` table fills whatever it is given, so one whose cells all wrap
+     never grows past the column: on a phone it squeezes into three ~100px lanes
+     of four-line text rather than scrolling. The comparison tables only ever
+     scrolled by accident, because their cells happened not to fit. This is the
+     floor that makes it deliberate. It sits below both the reading column and
+     the widths those tables already take, so nothing on desktop moves. */
+  .ml-scroll-x table {
+    min-width: 34rem;
   }
 
   /* The lede. It was set in the grey metadata step, which put the one paragraph
