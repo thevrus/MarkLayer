@@ -5,7 +5,7 @@ import { asDb, fakeDb } from '../test-d1';
 import { auth } from './routes';
 import { authStore, ownedStore } from './store';
 import { hashToken, mintToken } from './tokens';
-import { normalizeEmail, SESSION_COOKIE } from './types';
+import { normalizeEmail, SEEN_BUMP_SECONDS, SESSION_COOKIE } from './types';
 
 describe('normalizeEmail', () => {
   test('lower-cases and trims so one person is one account', () => {
@@ -65,6 +65,46 @@ describe('authStore.upsertUser', () => {
     expect(await authStore(asDb(db)).upsertUser('a@b.com')).toEqual({ id: 'existing', email: 'a@b.com' });
     expect(db.calls).toHaveLength(1);
     expect(db.calls[0].sql).toContain('ON CONFLICT(email)');
+  });
+});
+
+describe('authStore.userForSession', () => {
+  const now = Math.floor(Date.now() / 1000);
+  const session = (lastSeen: number | null) => ({
+    id: 'u1',
+    email: 'a@b.com',
+    last_seen_at: lastSeen,
+    expires_at: now + 600,
+  });
+
+  test('returns null for an expired session without writing anything', async () => {
+    const db = fakeDb({ first: { ...session(now), expires_at: now - 1 } });
+    expect(await authStore(asDb(db)).userForSession('tok')).toBeNull();
+    expect(db.calls).toHaveLength(1);
+  });
+
+  // The column is the only record of a return visit: a 30-day cookie means a
+  // person can use this for a month without the sign-in path ever running again.
+  test('refreshes last_seen_at when it is older than the bump window', async () => {
+    const db = fakeDb({ first: session(now - SEEN_BUMP_SECONDS - 60) });
+    expect(await authStore(asDb(db)).userForSession('tok')).toEqual({ id: 'u1', email: 'a@b.com' });
+    expect(db.calls).toHaveLength(2);
+    expect(db.calls[1].sql).toContain('UPDATE users SET last_seen_at');
+    expect(db.calls[1].bindings[1]).toBe('u1');
+  });
+
+  test('leaves it alone within the window, so an active session is one read', async () => {
+    const db = fakeDb({ first: session(now - 60) });
+    expect(await authStore(asDb(db)).userForSession('tok')).not.toBeNull();
+    expect(db.calls).toHaveLength(1);
+  });
+
+  // Rows predating the column's upkeep have it NULL; those are exactly the ones
+  // that most need a first real timestamp, not a crash or a skipped write.
+  test('treats a null last_seen_at as due for a refresh', async () => {
+    const db = fakeDb({ first: session(null) });
+    await authStore(asDb(db)).userForSession('tok');
+    expect(db.calls).toHaveLength(2);
   });
 });
 
@@ -137,8 +177,14 @@ describe('PATCH /links/:id', () => {
   });
   const cookie = `${SESSION_COOKIE}=tok`;
   const jsonHeaders = { Cookie: cookie, 'Content-Type': 'application/json' };
-  // What `authStore.userForSession`'s join returns for a live session.
-  const sessionRow = { id: 'owner1', email: 'owner@example.com', expires_at: nowInSeconds() + 1000 };
+  // What `authStore.userForSession`'s join returns for a live session. `last_seen_at`
+  // is current so the daily refresh does not fire and add a write to these counts.
+  const sessionRow = {
+    id: 'owner1',
+    email: 'owner@example.com',
+    last_seen_at: nowInSeconds(),
+    expires_at: nowInSeconds() + 1000,
+  };
 
   test('the owner flips access and the write carries the resolved values', async () => {
     const db = fakeDb({ firstQueue: [sessionRow, { access: 'edit', owner_expires_at: null }] });

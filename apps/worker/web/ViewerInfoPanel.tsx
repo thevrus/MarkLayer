@@ -28,7 +28,7 @@ import { IntegrationsSection } from './IntegrationsSection';
 import { PresenceDot } from './shared';
 import { annotationId, infoPanelOpen, isReadonly, pageUrl, showInfoPanel, timeAgo } from './signals';
 import { openSupportCard } from './support-ui';
-import { connected, createdAt, expiresAt } from './useRealtimeSync';
+import { connected, createdAt, expiresAt, isOwned } from './useRealtimeSync';
 
 export const INFO_PANEL_WIDTH = 300;
 
@@ -271,17 +271,24 @@ const formatStamp = (seconds: number) =>
 const formatDate = (seconds: number) =>
   new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(seconds * 1000);
 
+/** The Expires row: no deadline at all, one already past, or the date it lands on. */
+function expiryText({ deadline, resetsOnView }: { deadline: number | null; resetsOnView: boolean }): string {
+  if (deadline === null) return 'Never · saved to an account';
+  if (deadline * 1000 < Date.now()) return 'Expired';
+  return `${formatDate(deadline)}${resetsOnView ? ' · resets on view' : ''}`;
+}
+
 function InfoPanelBody() {
   const created = createdAt.value;
   const expires = expiresAt.value;
+  const owned = isOwned.value;
   const readonly = isReadonly.value;
   const url = pageUrl.value;
   const id = annotationId.value;
 
   // Opening this panel just touched `last_accessed_at`, so `now` stands in for it.
-  const deadline = deletionDeadline({ lastAccessedAt: Math.floor(Date.now() / 1000), expiresAt: expires });
-  const expiresValue =
-    deadline * 1000 < Date.now() ? 'Expired' : `${formatDate(deadline)}${expires == null ? ' · resets on view' : ''}`;
+  const deadline = deletionDeadline({ lastAccessedAt: Math.floor(Date.now() / 1000), expiresAt: expires, owned });
+  const expiresValue = expiryText({ deadline, resetsOnView: expires == null });
 
   return (
     <>

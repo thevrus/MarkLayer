@@ -1118,23 +1118,33 @@ export const DEMO_ROOM = {
 } as const;
 
 /**
- * When the retention cron will delete a link.
+ * When the retention cron will delete a link, or null when nothing is going to.
  *
- * The cron's condition is `last_accessed_at < cutoff OR expires_at < now OR
- * owner_expires_at < now`, so an explicit expiry brings the date forward — it
- * does not replace the idle window. One definition, so a countdown shown to a
- * person cannot outlive the row. `ownerExpiresAt` is optional because the
- * viewer's own countdown only knows the anonymous expiry.
+ * The cron's condition is `(owner_id IS NULL AND last_accessed_at < cutoff) OR
+ * expires_at < now OR owner_expires_at < now`, so an explicit expiry brings the
+ * date forward — it does not replace the idle window — and a claimed link has no
+ * idle window to bring forward. One definition, so a countdown shown to a person
+ * can neither outlive its row nor promise a deletion that will not happen.
+ * `ownerExpiresAt` and `owned` are optional because a caller holding only the
+ * anonymous expiry knows neither.
  */
 export function deletionDeadline({
   lastAccessedAt,
   expiresAt,
   ownerExpiresAt = null,
+  owned = false,
 }: {
   lastAccessedAt: number;
   expiresAt: number | null;
   ownerExpiresAt?: number | null;
-}): number {
+  owned?: boolean;
+}): number | null {
+  const chosen = effectiveExpiresAt({ expiresAt, ownerExpiresAt });
+  // Keeping a link is the reason to sign in, so while it has an owner only an
+  // expiry someone picked can take it. Releasing it clears `owner_id` and the
+  // idle window applies again from `last_accessed_at` — a long-dormant link
+  // released today goes on tonight's sweep, which is the intended answer.
+  if (owned) return chosen;
   const idleUntil = lastAccessedAt + RETENTION_DAYS * DAY_SECONDS;
-  return Math.min(idleUntil, effectiveExpiresAt({ expiresAt, ownerExpiresAt }) ?? idleUntil);
+  return Math.min(idleUntil, chosen ?? idleUntil);
 }

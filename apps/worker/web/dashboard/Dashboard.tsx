@@ -2,7 +2,7 @@ import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { shareUrl } from '@ext/lib/share';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
-import { cn, DAY_SECONDS, deletionDeadline, type OwnedLink, RETENTION_DAYS } from '@marklayer/types';
+import { cn, DAY_SECONDS, deletionDeadline, type OwnedLink } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { Link2, Settings2, Trash2 } from 'lucide-preact';
 import { CopyControl } from '../shared';
@@ -20,15 +20,28 @@ const LAST_CALL_DAYS = 1;
  * makes the loudest thing on the page the one that is still fine; red is held
  * back for the day the link actually goes.
  */
-function expiryTone(days: number): string {
+function expiryTone(days: number | null): string {
+  if (days === null) return '';
   if (days <= LAST_CALL_DAYS) return 'font-medium text-(--ds-red-700)';
   if (days <= SOON_DAYS) return 'font-medium text-(--ds-gray-1000)';
   return '';
 }
 
-/** Days until the retention cron takes it. The rule itself lives beside its constant. */
-function daysLeft(link: OwnedLink): number {
-  return Math.max(0, Math.ceil((deletionDeadline(link) - Date.now() / 1000) / DAY_SECONDS));
+/**
+ * Days until the retention cron takes it, or null when nothing is going to. Every
+ * row here is claimed by definition — `listAnnotations` selects on `owner_id` —
+ * so `owned` is the constant that makes the idle window not apply.
+ */
+function daysLeft(link: OwnedLink): number | null {
+  const deadline = deletionDeadline({ ...link, owned: true });
+  return deadline === null ? null : Math.max(0, Math.ceil((deadline - Date.now() / 1000) / DAY_SECONDS));
+}
+
+/** The end of the row's meta line: a countdown, or that there is no countdown. */
+function expiryText(days: number | null): string {
+  if (days === null) return 'No expiry';
+  if (days === 0) return 'Expires today';
+  return `Expires in ${days} ${days === 1 ? 'day' : 'days'}`;
 }
 
 function whenText(seconds: number): string {
@@ -118,9 +131,7 @@ function LinkRow({ link }: { link: OwnedLink }) {
             <span class="px-1.5" aria-hidden="true">
               ·
             </span>
-            <span class={cn('tabular-nums whitespace-nowrap', expiryTone(left))}>
-              {left === 0 ? 'Expires today' : `Expires in ${left} ${left === 1 ? 'day' : 'days'}`}
-            </span>
+            <span class={cn('tabular-nums whitespace-nowrap', expiryTone(left))}>{expiryText(left)}</span>
             {link.access === 'view' && (
               <>
                 <span class="px-1.5" aria-hidden="true">
@@ -267,7 +278,8 @@ export function Dashboard() {
           {/* Said once, at the foot of the list, rather than re-explained on
               every row — which is what the per-row "unless opened" was doing. */}
           <p class="text-meta leading-body mt-3 text-(--ds-gray-900)">
-            Links are deleted {RETENTION_DAYS} days after they were last opened. Opening one resets its clock.
+            Links you keep here are not deleted. Give one an expiry in its settings if you want it to go, or remove it
+            to put it back on the 90-day clock.
           </p>
         </>
       )}

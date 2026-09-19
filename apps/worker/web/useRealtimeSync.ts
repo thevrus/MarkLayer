@@ -29,6 +29,8 @@ export const connected = signal(false);
 export const createdAt = signal<number | null>(null);
 /** Unix timestamp (seconds) when the annotation expires (null = never) */
 export const expiresAt = signal<number | null>(null);
+/** Whether someone has claimed this link, which exempts it from the idle window. */
+export const isOwned = signal(false);
 
 /** Annotation metadata received from server init */
 export const serverUrl = signal<string | null>(null);
@@ -295,6 +297,7 @@ export function useRealtimeSync(annotationId: string) {
               if (arriving) announceMissedMentions({ ops: msg.ops, room: annotationId });
               if (msg.createdAt != null) createdAt.value = msg.createdAt;
               if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
+              if (typeof msg.owned === 'boolean') isOwned.value = msg.owned;
               // `isReadonly` ORs this with `?readonly=1` in signals.ts, so the
               // room's own view of canEdit can't clear a URL-forced one.
               if (typeof msg.canEdit === 'boolean') canEditFromRoom.value = msg.canEdit;

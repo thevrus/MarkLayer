@@ -1,4 +1,4 @@
-import type { SessionUser } from '@marklayer/types';
+import { DAY_SECONDS, type SessionUser } from '@marklayer/types';
 import type { EmailEnv } from '../email';
 
 /**
@@ -28,6 +28,13 @@ export const LOGIN_TOKEN_TTL_SECONDS = 15 * 60;
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 export const SESSION_COOKIE = 'ml_session';
+
+/**
+ * How stale `users.last_seen_at` may get before a resolved session refreshes it.
+ * A day is precise enough for a return-rate number and keeps an active dashboard
+ * from issuing a write per request.
+ */
+export const SEEN_BUMP_SECONDS = DAY_SECONDS;
 
 /**
  * Deliberately permissive. The only real proof an address exists is that the

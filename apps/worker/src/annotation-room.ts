@@ -500,6 +500,10 @@ export class AnnotationRoom extends DurableObject<Env> {
         // concept and must not learn about a link's own expiry while missing
         // its owner's, or the info panel counts down to the wrong date.
         expiresAt: effectiveExpiresAt({ expiresAt: this.expiresAt, ownerExpiresAt: this.ownerExpiresAt }),
+        // Whether anyone claimed this link, not who: the info panel's countdown
+        // needs to know the idle window no longer applies, and the owner's
+        // identity is none of a visiting peer's business.
+        owned: this.ownerId !== null,
         url: this.url,
         width: this.width,
         access: this.access,

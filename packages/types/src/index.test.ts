@@ -293,6 +293,26 @@ describe('deletionDeadline', () => {
     const late = lastAccessedAt + 500 * DAY;
     expect(deletionDeadline({ lastAccessedAt, expiresAt: late })).toBe(lastAccessedAt + RETENTION_DAYS * DAY);
   });
+
+  // The reason the dashboard exists: signing in and keeping a link has to mean
+  // the link is kept. `deleteExpired` gates the same clause on `owner_id IS NULL`.
+  test('a claimed link with no chosen expiry is never deleted', () => {
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: null, owned: true })).toBeNull();
+  });
+
+  test('a claimed link still honours an expiry someone actually chose', () => {
+    const soon = lastAccessedAt + 5 * DAY;
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: null, ownerExpiresAt: soon, owned: true })).toBe(soon);
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: soon, ownerExpiresAt: null, owned: true })).toBe(soon);
+  });
+
+  test('being claimed lifts the idle window rather than capping at it', () => {
+    // Unowned, an expiry past the window is clamped back to the window. Owned,
+    // there is no window to clamp to and the far date is the real answer.
+    const late = lastAccessedAt + 500 * DAY;
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: late })).toBe(lastAccessedAt + RETENTION_DAYS * DAY);
+    expect(deletionDeadline({ lastAccessedAt, expiresAt: late, owned: true })).toBe(late);
+  });
 });
 
 describe('UPLOAD_ACCEPT', () => {

@@ -276,12 +276,18 @@ export function annotationStore(db: D1Database) {
       return db.prepare('DELETE FROM annotations WHERE id = ?').bind(id).run();
     },
 
-    /** Ids of everything past retention, its own expiry, or the owner's, now deleted. */
+    /**
+     * Ids of everything past its own expiry, its owner's, or — for a link nobody
+     * has claimed — the idle window, now deleted. The idle clause is gated on
+     * `owner_id IS NULL` because a claimed link is one someone asked to keep:
+     * only an expiry they chose may take it. `deletionDeadline` is the same rule
+     * in the shape the dashboard counts down from; the two must agree.
+     */
     async deleteExpired({ unusedSince }: { unusedSince: number }): Promise<string[]> {
       const now = nowInSeconds();
       const deleted = await db
         .prepare(
-          `DELETE FROM annotations WHERE last_accessed_at < ?
+          `DELETE FROM annotations WHERE (owner_id IS NULL AND last_accessed_at < ?)
            OR (expires_at IS NOT NULL AND expires_at < ?)
            OR (owner_expires_at IS NOT NULL AND owner_expires_at < ?)
            RETURNING id`,

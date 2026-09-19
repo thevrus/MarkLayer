@@ -2,7 +2,7 @@ import type { LinkAccess, OwnedLink } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { isExpired, nowInSeconds, parseLinkAccess, throttleRemaining } from '../store';
 import { hashToken } from './tokens';
-import { LOGIN_TOKEN_TTL_SECONDS, SESSION_TTL_SECONDS, type User } from './types';
+import { LOGIN_TOKEN_TTL_SECONDS, SEEN_BUMP_SECONDS, SESSION_TTL_SECONDS, type User } from './types';
 
 /**
  * One factory per concern, mirroring `store.ts` — the caller passes the D1
@@ -77,14 +77,26 @@ export function authStore(db: D1Database) {
         .run();
     },
 
+    /**
+     * Resolves a session, and keeps `users.last_seen_at` meaning what it says.
+     *
+     * A session lasts 30 days, so before this the column only moved when someone
+     * redeemed a magic link: it recorded re-authentication, not use, and a
+     * return-rate read off it was near zero by construction. Bumped at most once
+     * a day per user, which is why the SELECT carries the column at all.
+     */
     async userForSession(token: string): Promise<User | null> {
       const row = await db
         .prepare(
-          'SELECT users.id AS id, users.email AS email, sessions.expires_at AS expires_at FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id = ?',
+          'SELECT users.id AS id, users.email AS email, users.last_seen_at AS last_seen_at, sessions.expires_at AS expires_at FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.id = ?',
         )
         .bind(await hashToken(token))
-        .first<{ id: string; email: string; expires_at: number }>();
+        .first<{ id: string; email: string; last_seen_at: number | null; expires_at: number }>();
       if (!row || isExpired(row.expires_at)) return null;
+      const now = nowInSeconds();
+      if ((row.last_seen_at ?? 0) < now - SEEN_BUMP_SECONDS) {
+        await db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').bind(now, row.id).run();
+      }
       return { id: row.id, email: row.email };
     },
 

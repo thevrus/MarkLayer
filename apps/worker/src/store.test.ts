@@ -110,6 +110,29 @@ describe('isExpired', () => {
   });
 });
 
+describe('annotationStore.deleteExpired', () => {
+  const sqlOf = (db: ReturnType<typeof fakeDb>) => (db.calls[0]?.sql ?? '').replace(/\s+/g, ' ');
+
+  // The fake does not run SQLite, so the rule is asserted where it is written.
+  // This guard is the whole point of signing in: drop the `owner_id IS NULL` and
+  // a kept link is swept 90 days later while the dashboard promises it will not be.
+  test('the idle window is gated on the link being unclaimed', async () => {
+    const db = fakeDb({ all: [{ id: 'a' }] });
+    expect(await annotationStore(asDb(db)).deleteExpired({ unusedSince: 100 })).toEqual(['a']);
+    expect(sqlOf(db)).toContain('(owner_id IS NULL AND last_accessed_at < ?)');
+  });
+
+  test('an expiry someone chose still deletes, owner or not', async () => {
+    const db = fakeDb();
+    await annotationStore(asDb(db)).deleteExpired({ unusedSince: 100 });
+    // Neither expiry clause mentions `owner_id`: keeping a link exempts it from
+    // the idle clock, never from a deadline that was actually set on it.
+    expect(sqlOf(db)).toContain('(expires_at IS NOT NULL AND expires_at < ?)');
+    expect(sqlOf(db)).toContain('(owner_expires_at IS NOT NULL AND owner_expires_at < ?)');
+    expect(db.calls[0]?.bindings[0]).toBe(100);
+  });
+});
+
 describe('the share-id entropy floor', () => {
   // The floor lives here, not in the routes: `putOps` (realtime) and the MCP
   // bridge reach this same layer, and a route-only check missed both.
