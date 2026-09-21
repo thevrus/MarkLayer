@@ -1,3 +1,30 @@
+# Named blocks for AI search/citation and training crawlers: robots.txt gives
+# each named user-agent its own rule set with no fallback to `*`, so these
+# repeat the same allow/disallow shape as the wildcard block below rather than
+# relying on it — some crawlers' compliance checks look for an explicit named
+# match instead of a wildcard, and Content-Signal isn't universally honored yet.
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: ClaudeBot
+User-agent: GPTBot
+User-agent: CCBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+Allow: /
+Allow: /api/openapi.json
+Allow: /api/health
+Disallow: /proxy
+Disallow: /api/
+Disallow: /og/
+Disallow: /ws/
+Disallow: /px/
+Disallow: /s/
+Disallow: /p/
+
 User-agent: *
 Content-Signal: ai-train=yes, search=yes, ai-input=yes
 Allow: /
