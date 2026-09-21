@@ -150,7 +150,7 @@ Found a bug or have an idea? [Open an issue](https://github.com/thevrus/MarkLaye
 
 ## License
 
-[Apache License 2.0](LICENSE) © [Vadym Rusin](https://github.com/thevrus)
+[Apache License 2.0](LICENSE) © [Dean Rusin](https://github.com/thevrus)
 
 ---
 
