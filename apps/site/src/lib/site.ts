@@ -51,7 +51,7 @@ export const SUPPORT_PAID = 'paid';
 export const POLAR_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_DBsDl9Ufd2O0mOEodJrcrIDpuOu2iEc0UqG4w4cXdk2';
 
 export const REPO_URL = 'https://github.com/thevrus/MarkLayer';
-export const AUTHOR_NAME = 'Vadym Rusin';
+export const AUTHOR_NAME = 'Dean Rusin';
 export const AUTHOR_EMAIL = 'hello@marklayer.app';
 
 /** apps/worker's Vite dev server, started alongside this one by `turbo run dev`. */
