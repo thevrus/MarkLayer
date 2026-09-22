@@ -5,7 +5,7 @@ import Related from '../../components/Related.astro';
 import VideoEmbed from '../../components/VideoEmbed.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getAlternatives, getComparisons, relatedLinks } from '../../lib/collections';
-import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+import { articleSchema, type Crumb, faqSchema, productSchema } from '../../lib/schema';
 
 export async function getStaticPaths() {
   const [comparisons, alternatives] = await Promise.all([getComparisons(), getAlternatives()]);
@@ -50,6 +50,7 @@ const breadcrumbs: Crumb[] = [
   schema={[
     articleSchema({ h1, description: c.description, path, published: c.published, modified: c.modified }),
     faqSchema(c.faq),
+    productSchema(),
   ]}
 >
   <Content slot="intro" />
@@ -117,7 +118,7 @@ const breadcrumbs: Crumb[] = [
       <blockquote class="my-10 border-t border-rule pt-5">
         <p class="text-lede m-0 text-pretty text-ink">{c.quote}</p>
         <footer class="ml-meta mt-3">
-          <a href="/about">Vadym Rusin</a>, MarkLayer developer
+          <a href="/about">Dean Rusin</a>, MarkLayer developer
         </footer>
       </blockquote>
     )

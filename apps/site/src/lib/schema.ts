@@ -50,6 +50,25 @@ export function faqSchema(qa: QA[]): object | null {
   };
 }
 
+/**
+ * The homepage's product entity, repeated on comparison pages so an assistant can
+ * answer "how much does it cost" without a hop back to `/`.
+ */
+export function productSchema(): object {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'MarkLayer',
+    description:
+      'Free, anonymous web app for annotating any live webpage, PDF or image. No install, no account, no sign-up.',
+    applicationCategory: 'DesignApplication',
+    operatingSystem: 'Any web browser (no installation or extension required)',
+    isAccessibleForFree: true,
+    url: ORIGIN,
+    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  };
+}
+
 export function breadcrumbSchema(items: Crumb[]): object {
   return {
     '@context': 'https://schema.org',

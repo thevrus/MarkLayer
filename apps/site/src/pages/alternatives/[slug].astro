@@ -5,7 +5,7 @@ import Related from '../../components/Related.astro';
 import VideoEmbed from '../../components/VideoEmbed.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getAlternatives, getComparisons, getCompetitorPrices, relatedLinks } from '../../lib/collections';
-import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+import { articleSchema, type Crumb, faqSchema, productSchema } from '../../lib/schema';
 
 export async function getStaticPaths() {
   const [alternatives, comparisons] = await Promise.all([getAlternatives(), getComparisons()]);
@@ -70,6 +70,7 @@ const breadcrumbs: Crumb[] = [
   schema={[
     articleSchema({ h1, description: a.description, path, published: a.published, modified: a.modified }),
     faqSchema(a.faq),
+    productSchema(),
   ]}
 >
   <Content slot="intro" />
