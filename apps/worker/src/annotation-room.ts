@@ -157,6 +157,13 @@ export class AnnotationRoom extends DurableObject<Env> {
   /** Parked `agentWatch` calls, woken by the next op from any source. */
   private opWaiters: ((ops: DrawOp[]) => void)[] = [];
 
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    // Our heartbeat is a text message, not a protocol ping frame, so it would wake
+    // the room from hibernation 4x/min per client. Answered by the runtime instead.
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('{"type":"ping"}', '{"type":"pong"}'));
+  }
+
   private async getOps(id: string): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
     if (this.opsPromise) return this.opsPromise;

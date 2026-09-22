@@ -1,0 +1,644 @@
+import { type AnnotationOp, applyOpPatch, isAgentPeer, isAnnotationOp } from '@marklayer/types';
+import { type ReadonlySignal, type Signal, signal } from '@preact/signals';
+import { nanoid } from 'nanoid';
+import type { AnalyticsProps } from './analytics';
+import { mergeOps } from './mergeOps';
+import {
+  clearDeparture,
+  connectionStatus,
+  localUser,
+  lsGet,
+  lsSet,
+  noteDeparture,
+  onCleared,
+  onCursorMove,
+  onOpPushed,
+  onOpUpdated,
+  onProfileChange,
+  onUndone,
+  operations,
+  peers,
+  toast,
+} from './state';
+import type { DrawOp, Peer } from './types';
+
+/** Mirrors `capture` in apps/worker/web/analytics.ts — kept local since shared code has no transport of its own. */
+type CaptureFn = (event: string, props?: AnalyticsProps) => void;
+
+/**
+ * Mirrors `SupportSignal` in apps/worker/web/support.ts. Duplicated rather than
+ * imported: that module is web-app only and shared code must not depend on it.
+ */
+type SupportSignal = 'used' | 'shared' | 'mcp' | 'asked' | 'supported';
+
+export const connected = signal(false);
+/** Unix timestamp (seconds) when the annotation was first created */
+export const createdAt = signal<number | null>(null);
+/** Unix timestamp (seconds) when the annotation expires (null = never) */
+export const expiresAt = signal<number | null>(null);
+/** Whether someone has claimed this link, which exempts it from the idle window. */
+export const isOwned = signal(false);
+
+/** Annotation metadata received from server init */
+export const serverUrl = signal<string | null>(null);
+export const serverWidth = signal<number | null>(null);
+
+/** Exposed so voice room can send signaling messages through the same WS */
+export const wsSend = signal<((msg: unknown) => void) | null>(null);
+/** Callback for incoming WebRTC signaling messages */
+export const onRtcMessage = signal<((msg: { type: string; from: string; [k: string]: unknown }) => void) | null>(null);
+/** ICE servers bundled into the WS init message — used by useVoiceRoom. */
+export const turnIceServers = signal<RTCIceServer[] | null>(null);
+
+function isIceServerArray(v: unknown): v is RTCIceServer[] {
+  return Array.isArray(v) && v.every((s) => !!s && typeof s === 'object' && 'urls' in s);
+}
+
+function urlsKey(urls: string | string[]): string {
+  return Array.isArray(urls) ? urls.join('|') : urls;
+}
+function iceServersEqual(a: RTCIceServer[] | null, b: RTCIceServer[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const serverA = a[i];
+    const serverB = b[i];
+    // Unreachable given the length check above — narrows past `noUncheckedIndexedAccess`,
+    // which the extension's tsconfig turns on but the worker's does not.
+    if (!serverA || !serverB) return false;
+    if (
+      urlsKey(serverA.urls) !== urlsKey(serverB.urls) ||
+      serverA.username !== serverB.username ||
+      serverA.credential !== serverB.credential
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Highest `ts` of a mention this browser has already been told about, per room.
+ * Without it, everything written while you were away is either announced every
+ * time you open the room or never announced at all.
+ */
+const seenKey = (room: string) => `ml-mentions-seen-${room}`;
+
+/** A type guard, so the callers that read `author`/`tool` need no second narrowing. */
+function tagsMe(op: DrawOp): op is AnnotationOp {
+  return isAnnotationOp(op) && !!op.mentions?.some((m) => m.id === localUser.id);
+}
+
+/**
+ * Everything written while you were away that names you, said once on arrival.
+ * A mention has no address to be delivered to — no accounts, no email — so this
+ * and the live toast below are the whole of it.
+ */
+function announceMissedMentions({ ops, room, capture }: { ops: DrawOp[]; room: string; capture?: CaptureFn }) {
+  const seen = Number(lsGet(seenKey(room))) || 0;
+  // Guard first as its own filter, so the result is typed as annotation ops.
+  const missed = ops.filter(tagsMe).filter((op) => op.ts > seen);
+  if (!missed.length) return;
+  lsSet(seenKey(room), String(missed.reduce((latest, op) => Math.max(latest, op.ts), 0)));
+  toast(`${missed.length} annotation${missed.length === 1 ? '' : 's'} mention${missed.length === 1 ? 's' : ''} you`);
+  capture?.('mention_missed_seen', { count: missed.length });
+}
+
+/**
+ * Say it out loud when an incoming annotation tags you. This is the whole of
+ * "notifications": the room has no accounts and no address to reach, so a
+ * mention can only be delivered to someone who is here to see it — which is why
+ * it is matched on the stable client id rather than on the display name.
+ */
+function announceMention({ op, room, capture }: { op: DrawOp; room: string; capture?: CaptureFn }) {
+  if (!tagsMe(op)) return;
+  lsSet(seenKey(room), String(op.ts));
+  toast(`${op.author || 'Someone'} mentioned you`);
+  capture?.('mention_received', { tool: op.tool });
+}
+
+export const localPeerId = nanoid();
+
+/** Stale cursor threshold — hide cursors older than 5s */
+const STALE_MS = 5000;
+
+/**
+ * Timestamped cursor samples used for client-side interpolation. Lives outside
+ * the `peers` signal so the rAF render loop in CursorLayer reads it without
+ * forcing a Preact re-render on every packet. Buffer size is small (3) — we
+ * only need previous + current + a tiny lookahead margin.
+ */
+export interface CursorSample {
+  x: number;
+  y: number;
+  t: number;
+}
+
+export const peerCursorSamples = new Map<string, CursorSample[]>();
+function pushCursorSample(peerId: string, x: number, y: number) {
+  const buf = peerCursorSamples.get(peerId) ?? [];
+  buf.push({ x, y, t: performance.now() });
+  if (buf.length > 3) buf.shift();
+  peerCursorSamples.set(peerId, buf);
+}
+
+/** Active click ripples. Each entry auto-clears after the CSS animation completes. */
+export interface Ripple {
+  id: string;
+  peerId: string;
+  color: string;
+  x: number;
+  y: number;
+}
+export const activeRipples = signal<Ripple[]>([]);
+/** ms — animation is 700ms and the last ring is delayed 140ms; pad slightly so
+ * the trailing ring doesn't pop out mid-fade if the browser is busy. */
+const RIPPLE_LIFETIME_MS = 900;
+
+function pushRipple(r: Ripple) {
+  activeRipples.value = [...activeRipples.value, r];
+  setTimeout(() => {
+    activeRipples.value = activeRipples.value.filter((x) => x.id !== r.id);
+  }, RIPPLE_LIFETIME_MS);
+}
+
+/** Local emitter — called from the click handler. Sends to peers and renders own ripple. */
+export const emitRipple = signal<((x: number, y: number) => void) | null>(null);
+
+/** Lazily-created AudioContext for peer join/leave chimes. Browser autoplay
+ * policy keeps it suspended until a user gesture; since the user is already
+ * interacting with the viewer by the time peers join, resume() usually works. */
+let peerChimeCtx: AudioContext | null = null;
+function playPeerChime(joining: boolean) {
+  try {
+    if (typeof AudioContext === 'undefined') return;
+    if (!peerChimeCtx) peerChimeCtx = new AudioContext();
+    if (peerChimeCtx.state === 'suspended') peerChimeCtx.resume().catch(() => {});
+    const t0 = peerChimeCtx.currentTime;
+    const osc = peerChimeCtx.createOscillator();
+    const gain = peerChimeCtx.createGain();
+    osc.type = 'sine';
+    // Join: rising C5 → G5. Leave: falling G5 → C5.
+    const [f1, f2] = joining ? [523.25, 783.99] : [783.99, 523.25];
+    osc.frequency.setValueAtTime(f1, t0);
+    osc.frequency.exponentialRampToValueAtTime(f2, t0 + 0.14);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(0.05, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
+    osc.connect(gain).connect(peerChimeCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.25);
+  } catch {
+    /* audio unavailable — ignore */
+  }
+}
+
+/**
+ * Web-only signals and callbacks the core has no equivalent for. Required
+ * fields exist on every surface; optional ones are presence/voice concepts the
+ * extension doesn't have yet, so the core reads them through `?.`.
+ */
+export interface ConnectRoomHooks {
+  /** Whether the room says this session may edit. */
+  canEditFromRoom: Signal<boolean | undefined>;
+  /** `canEditFromRoom` ORed with any URL-forced read-only flag. */
+  isReadonly: ReadonlySignal<boolean>;
+  /** Peer being auto-followed (scroll-to-cursor) — web viewer only. */
+  followingPeer?: Signal<string | null>;
+  /** Follow-mode scroll callback, owned by the viewer's iframe ref — web viewer only. */
+  onFollowScroll?: Signal<((y: number) => void) | null>;
+  /** Whether this session is presenting (pulling peers onto its scroll position) — web viewer only. */
+  presenting?: Signal<boolean>;
+  /** Sends this session's presenting toggle to the room — web viewer only. */
+  onPresentChange?: Signal<((on: boolean) => void) | null>;
+  /** Analytics sink — omitted where nothing reports (see `@ext/lib/analytics`). */
+  capture?: CaptureFn;
+  /** Folds a usage signal into the local ask-for-support record — web viewer only. */
+  noteSupportSignal?: (signal: SupportSignal) => void;
+}
+
+export interface ConnectRoomOptions {
+  roomId: string;
+  /** Absolute http(s) origin the WebSocket and REST fallback are built against, e.g. `https://marklayer.app`. */
+  origin: string;
+  hooks: ConnectRoomHooks;
+}
+
+/**
+ * Opens the realtime WebSocket for one annotation room and wires every signal
+ * and callback that drives it. Returns a teardown that undoes all of it — call
+ * it exactly once, from whatever lifecycle (a Preact effect today) owns the room.
+ */
+export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () => void {
+  if (!roomId) return () => {};
+
+  let destroyed = false;
+  let initReceived = false;
+  let followScrollTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const wsRef = { current: null as WebSocket | null };
+  const retryRef = { current: 0 };
+  const pendingRef = { current: [] as string[] };
+  const saveTimerRef = { current: null as ReturnType<typeof setTimeout> | null };
+
+  // Debounced REST API save as fallback persistence
+  function scheduleSave() {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      const ops = operations.value;
+      fetch(`${origin}/api/${roomId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ops),
+      }).catch(() => {});
+    }, 3000);
+  }
+
+  // Periodically hide stale cursors (but keep peers in the map for presence)
+  // Skip pruning while tab is hidden — browser throttles timers and WS messages
+  // queue, so cursors would falsely appear stale. Bump lastSeen on visibility
+  // restore so peers aren't immediately pruned.
+  const pruneInterval = setInterval(() => {
+    if (document.hidden || peers.value.size === 0) return;
+    const now = Date.now();
+    let changed = false;
+    const next = new Map<string, Peer>();
+    for (const [id, peer] of peers.value) {
+      if (peer.cursor && now - peer.lastSeen > STALE_MS) {
+        next.set(id, { ...peer, cursor: null });
+        peerCursorSamples.delete(id);
+        changed = true;
+      } else {
+        next.set(id, peer);
+      }
+    }
+    if (changed) peers.value = next;
+  }, 2000);
+  const onVisible = () => {
+    if (document.hidden || peers.value.size === 0) return;
+    const now = Date.now();
+    const next = new Map(peers.value);
+    for (const [id, peer] of next) {
+      next.set(id, { ...peer, lastSeen: now });
+    }
+    peers.value = next;
+  };
+  document.addEventListener('visibilitychange', onVisible);
+
+  function connect() {
+    if (destroyed) return;
+    const originUrl = new URL(origin);
+    const protocol = originUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+    const params = new URLSearchParams({
+      peerId: localPeerId,
+      // Announced alongside the per-session peer id so peers can address each
+      // other across reconnects — this is what a mention points at.
+      uid: localUser.id,
+      name: localUser.name,
+      color: localUser.color,
+    });
+    connectionStatus.value = 'connecting';
+    const ws = new WebSocket(`${protocol}//${originUrl.host}/ws/${roomId}?${params}`);
+    wsRef.current = ws;
+
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let pongTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    ws.onopen = () => {
+      connected.value = true;
+      connectionStatus.value = 'connected';
+      // Silent reconnects are invisible from the room's own logs — the DO sees
+      // only a peer leaving and a peer joining.
+      hooks.capture?.('realtime_connected', { attempt: retryRef.current });
+      retryRef.current = 0;
+      const pending = pendingRef.current;
+      pendingRef.current = [];
+      for (const msg of pending) {
+        ws.send(msg);
+      }
+      // Heartbeat: ping every 15s, expect pong within 5s
+      pingTimer = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send('{"type":"ping"}');
+          pongTimeout = setTimeout(() => {
+            ws.close(); // force reconnect
+          }, 5000);
+        }
+      }, 15000);
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        switch (msg.type) {
+          case 'init': {
+            // Only the first init is an arrival. A silent reconnect replays the
+            // same room, and announcing it again would re-toast every mention.
+            const arriving = !initReceived;
+            initReceived = true;
+            // Merged on arrival as well as on reconnect. The web viewer opens on
+            // an empty canvas so the two are the same thing there, but the
+            // extension always carries local marks and replacing would bin them.
+            operations.value = mergeOps({ local: operations.value, remote: msg.ops });
+            if (arriving) announceMissedMentions({ ops: msg.ops, room: roomId, capture: hooks.capture });
+            if (msg.createdAt != null) createdAt.value = msg.createdAt;
+            if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
+            if (typeof msg.owned === 'boolean') isOwned.value = msg.owned;
+            // `isReadonly` ORs this with `?readonly=1` in signals.ts, so the
+            // room's own view of canEdit can't clear a URL-forced one.
+            if (typeof msg.canEdit === 'boolean') hooks.canEditFromRoom.value = msg.canEdit;
+            if (msg.url) serverUrl.value = msg.url;
+            if (msg.width) serverWidth.value = msg.width;
+            if (isIceServerArray(msg.iceServers)) turnIceServers.value = msg.iceServers;
+            // Initialize peer list from server
+            if (msg.peers) {
+              const map = new Map<string, Peer>();
+              for (const p of msg.peers) {
+                if (p.id !== localPeerId) {
+                  map.set(p.id, { ...p, cursor: null, lastSeen: Date.now() });
+                }
+              }
+              peers.value = map;
+              for (const id of map.keys()) clearDeparture(id);
+              // An agent in the room means someone wired the MCP server into real work.
+              // Read off the built map, whose keys are typed, rather than the loose wire payload.
+              if ([...map.keys()].some(isAgentPeer)) hooks.noteSupportSignal?.('mcp');
+            }
+            break;
+          }
+          case 'op':
+            if (!operations.value.some((o) => o.id === msg.op.id)) {
+              operations.value = [...operations.value, msg.op];
+              announceMention({ op: msg.op, room: roomId, capture: hooks.capture });
+            }
+            break;
+          case 'update_op': {
+            const opId: string | undefined = msg.opId;
+            const patch = msg.patch;
+            if (!opId || !patch || typeof patch !== 'object') break;
+            const ops = operations.value;
+            const idx = ops.findIndex((o) => o.id === opId);
+            if (idx === -1) break;
+            const merged = applyOpPatch({ op: ops[idx], patch });
+            if (!merged) break;
+            const next = ops.slice();
+            next[idx] = merged;
+            operations.value = next;
+            break;
+          }
+          case 'undo':
+            operations.value = operations.value.filter((o) => o.id !== msg.opId);
+            break;
+          case 'clear':
+            operations.value = [];
+            break;
+          case 'error':
+            // The room rejected an edit rather than trusting the toolbar to stay
+            // hidden — a stale client, or a race with the owner flipping access.
+            if (msg.code === 'read_only') {
+              hooks.canEditFromRoom.value = false;
+              toast('This link is view-only', { type: 'info' });
+            }
+            break;
+          case 'access': {
+            // The owner flipped the link while this tab was open. `isReadonly`
+            // still ORs in `?readonly=1`, so a URL-forced session stays read-only.
+            const wasReadonly = hooks.isReadonly.value;
+            hooks.canEditFromRoom.value = msg.canEdit;
+            if (hooks.isReadonly.value !== wasReadonly) {
+              toast(hooks.isReadonly.value ? 'This link is now view-only' : 'You can edit this link again', {
+                type: 'info',
+              });
+            }
+            break;
+          }
+          case 'pong':
+            if (pongTimeout) {
+              clearTimeout(pongTimeout);
+              pongTimeout = null;
+            }
+            break;
+          case 'ripple': {
+            pushRipple({
+              id: nanoid(),
+              peerId: msg.peerId,
+              color: msg.color || '#8b5cf6',
+              x: msg.x,
+              y: msg.y,
+            });
+            break;
+          }
+          case 'cursor': {
+            const prev = peers.value;
+            const existing = prev.get(msg.peerId);
+            const updated = existing
+              ? { ...existing, cursor: { x: msg.x, y: msg.y }, tool: msg.tool, lastSeen: Date.now() }
+              : {
+                  id: msg.peerId,
+                  name: msg.name || 'Anonymous',
+                  color: msg.color || '#8b5cf6',
+                  cursor: { x: msg.x, y: msg.y },
+                  tool: msg.tool,
+                  lastSeen: Date.now(),
+                };
+            const next = new Map(prev);
+            next.set(msg.peerId, updated);
+            peers.value = next;
+            pushCursorSample(msg.peerId, msg.x, msg.y);
+            // Follow mode: throttled scroll to followed peer's Y position
+            if (hooks.followingPeer?.value === msg.peerId && !followScrollTimer) {
+              followScrollTimer = setTimeout(() => {
+                followScrollTimer = null;
+              }, 200);
+              hooks.onFollowScroll?.value?.(msg.y);
+            }
+            break;
+          }
+          case 'peer_join': {
+            const map = new Map(peers.value);
+            const p = msg.peer;
+            if (p.id !== localPeerId) {
+              const isNew = !map.has(p.id);
+              map.set(p.id, {
+                id: p.id,
+                uid: p.uid,
+                name: p.name,
+                color: p.color,
+                cursor: null,
+                lastSeen: Date.now(),
+              });
+              peers.value = map;
+              clearDeparture(p.id);
+              if (isNew) {
+                toast(`${p.name || 'Someone'} joined`, { type: 'info', duration: 2500 });
+                playPeerChime(true);
+              }
+              if (isNew && isAgentPeer(p.id)) hooks.noteSupportSignal?.('mcp');
+            }
+            break;
+          }
+          case 'flock': {
+            const peer = peers.value.get(msg.peerId);
+            const who = peer?.name || msg.name || 'Someone';
+            if (msg.on) {
+              if (hooks.followingPeer) hooks.followingPeer.value = msg.peerId;
+              // Say why the page just moved, or being pulled reads as a bug.
+              toast(`${who} is presenting — scroll to break away`, { type: 'info', duration: 4000 });
+            } else if (hooks.followingPeer && hooks.followingPeer.value === msg.peerId) {
+              hooks.followingPeer.value = null;
+              toast(`${who} stopped presenting`, { type: 'info', duration: 2500 });
+            }
+            break;
+          }
+          case 'peer_leave': {
+            const leaving = peers.value.get(msg.peerId);
+            if (hooks.followingPeer && hooks.followingPeer.value === msg.peerId) hooks.followingPeer.value = null;
+            const map = new Map(peers.value);
+            map.delete(msg.peerId);
+            peers.value = map;
+            peerCursorSamples.delete(msg.peerId);
+            if (leaving) {
+              noteDeparture({ id: leaving.id, name: leaving.name, color: leaving.color, leftAt: Date.now() });
+              toast(`${leaving.name} left`, { type: 'info', duration: 2500 });
+              playPeerChime(false);
+            }
+            break;
+          }
+          case 'profile': {
+            const existing = peers.value.get(msg.peerId);
+            if (existing) {
+              const next = new Map(peers.value);
+              next.set(msg.peerId, {
+                ...existing,
+                name: msg.name || existing.name,
+                color: msg.color || existing.color,
+              });
+              peers.value = next;
+            }
+            break;
+          }
+          case 'rtc_offer':
+          case 'rtc_answer':
+          case 'rtc_ice':
+            onRtcMessage.value?.(msg);
+            break;
+          case 'ice_refresh':
+            // Server-pushed TURN credential rotation. The voice engine's effect
+            // on `turnIceServers` calls setConfiguration() on every active PC;
+            // skip the write when the URL set is identical to avoid thrashing
+            // during ICE flapping (one peer's restart triggers refresh-for-all).
+            if (isIceServerArray(msg.iceServers) && !iceServersEqual(turnIceServers.peek(), msg.iceServers)) {
+              turnIceServers.value = msg.iceServers;
+            }
+            break;
+        }
+      } catch {
+        /* ignore malformed */
+      }
+    };
+
+    ws.onclose = () => {
+      if (pingTimer) clearInterval(pingTimer);
+      if (pongTimeout) clearTimeout(pongTimeout);
+      connected.value = false;
+      wsRef.current = null;
+      if (!destroyed) {
+        connectionStatus.value = 'connecting';
+        const delay = Math.min(1000 * 2 ** retryRef.current, 10000);
+        retryRef.current++;
+        // Only the first attempt of an outage: the backoff caps at 10s and never
+        // gives up, so an event per retry is unbounded — and `realtime_connected`
+        // already carries the attempt count for outages that recover.
+        if (retryRef.current === 1) hooks.capture?.('realtime_reconnecting');
+        setTimeout(connect, delay);
+      } else {
+        connectionStatus.value = 'disconnected';
+      }
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
+  }
+
+  connect();
+
+  // Wire up sync callbacks
+  const sendMsg = (msg: unknown) => {
+    const str = JSON.stringify(msg);
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(str);
+    } else {
+      pendingRef.current.push(str);
+      scheduleSave();
+    }
+  };
+
+  onOpPushed.value = (op: DrawOp) => sendMsg({ type: 'op', op });
+  onOpUpdated.value = (opId: string, patch: Record<string, unknown>) => sendMsg({ type: 'update_op', opId, patch });
+  onUndone.value = (opId: string) => sendMsg({ type: 'undo', opId });
+  onCleared.value = () => sendMsg({ type: 'clear' });
+  onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });
+  if (hooks.onPresentChange) hooks.onPresentChange.value = (on: boolean) => sendMsg({ type: 'flock', on });
+  wsSend.value = sendMsg;
+
+  // Throttled cursor sending (50 ms = 20 Hz). Visual smoothness comes from
+  // the rAF interpolator in CursorLayer reading peerCursorSamples, not from
+  // CSS — bumping this interval needs no transition retuning.
+  let cursorTimer: ReturnType<typeof setTimeout> | null = null;
+  onCursorMove.value = (x: number, y: number, tool: string) => {
+    if (cursorTimer) return;
+    cursorTimer = setTimeout(() => {
+      cursorTimer = null;
+      const ws = wsRef.current;
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'cursor', x, y, tool }));
+      }
+    }, 50);
+  };
+
+  emitRipple.value = (x: number, y: number) => {
+    // Only peers see the ripple; the clicker doesn't need their own click visualized.
+    // Skip the offline queue — a click event has no value once peers have moved on.
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'ripple', x, y }));
+    }
+  };
+
+  return () => {
+    destroyed = true;
+    connectionStatus.value = null;
+    onOpPushed.value = null;
+    onOpUpdated.value = null;
+    onUndone.value = null;
+    onCleared.value = null;
+    onCursorMove.value = null;
+    // Presenting cannot outlive the socket that carries it. Followers are
+    // released by the peer_leave this disconnect triggers on their side.
+    if (hooks.onPresentChange) hooks.onPresentChange.value = null;
+    if (hooks.presenting) hooks.presenting.value = false;
+    onProfileChange.value = null;
+    emitRipple.value = null;
+    activeRipples.value = [];
+    peerCursorSamples.clear();
+    wsSend.value = null;
+    turnIceServers.value = null;
+    clearInterval(pruneInterval);
+    document.removeEventListener('visibilitychange', onVisible);
+    if (cursorTimer) clearTimeout(cursorTimer);
+    if (followScrollTimer) clearTimeout(followScrollTimer);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    // Drop stale handlers BEFORE close so any in-flight messages from the old
+    // room don't leak into operations after the user has switched pages.
+    const ws = wsRef.current;
+    if (ws) {
+      ws.onmessage = null;
+      ws.onopen = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.close();
+    }
+    peers.value = new Map();
+  };
+}

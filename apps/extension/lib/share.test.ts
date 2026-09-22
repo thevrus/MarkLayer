@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, test } from 'bun:test';
 import type { DrawOp } from '@marklayer/types';
 import {
   claudeMcpCommand,
@@ -12,13 +12,45 @@ import {
   loadAnnotations,
   mcpEndpoint,
   npxMcpCommand,
+  parseRoomRef,
   parseShareRef,
   parseUrlHash,
+  resetRoomIdentity,
   saveAnnotations,
   setAnnotationId,
   shareUrl,
   withShareRef,
 } from './share';
+
+describe('parseRoomRef', () => {
+  test('takes a bare room id', () => {
+    expect(parseRoomRef('V1StGXR8Z5jdHi6BmyT')).toBe('V1StGXR8Z5jdHi6BmyT');
+    expect(parseRoomRef('  V1StGXR8Z5jdHi6BmyT  ')).toBe('V1StGXR8Z5jdHi6BmyT');
+  });
+
+  test('takes a share link, with or without its scheme or query', () => {
+    expect(parseRoomRef('https://marklayer.app/s/abc123')).toBe('abc123');
+    expect(parseRoomRef('marklayer.app/s/abc123')).toBe('abc123');
+    expect(parseRoomRef('https://marklayer.app/s/abc123?ref=ext')).toBe('abc123');
+    expect(parseRoomRef('https://marklayer.app/s/abc123/')).toBe('abc123');
+  });
+
+  /**
+   * The floor on `isNewShareId` guards minting, not joining: a room made before
+   * it existed still resolves, so refusing a short id here would strand it.
+   */
+  test('accepts a short legacy id that could no longer be minted', () => {
+    expect(parseRoomRef('abc123')).toBe('abc123');
+  });
+
+  test('rejects anything that is not one', () => {
+    expect(parseRoomRef('')).toBeNull();
+    expect(parseRoomRef('   ')).toBeNull();
+    expect(parseRoomRef('has spaces')).toBeNull();
+    expect(parseRoomRef('https://marklayer.app/guides/how-marklayer-works')).toBeNull();
+    expect(parseRoomRef('a'.repeat(65))).toBeNull();
+  });
+});
 
 describe('isShareableUrl', () => {
   test('accepts an ordinary public page over either web protocol', () => {
@@ -200,6 +232,13 @@ describe('getAnnotationId', () => {
 });
 
 describe('saveAnnotations and loadAnnotations', () => {
+  // Room identity is a module singleton, and `saveAnnotations` now branches on
+  // it — without a reset, whichever test last called `setAnnotationId` would
+  // leak a "joined" room into every test after it.
+  beforeEach(() => {
+    resetRoomIdentity();
+  });
+
   /**
    * Swaps `fetch`, and captures the logging the failure paths do so the run stays
    * readable. Typed as the call signature rather than `typeof fetch`: Bun's fetch
@@ -228,7 +267,7 @@ describe('saveAnnotations and loadAnnotations', () => {
     // The hash carries our own viewer state; storing it would make the saved
     // url a different page from the one annotated.
     window.location.hash = '#ant=1440=abc';
-    setAnnotationId('room-1');
+    const id = getRoomId(); // a freshly created room — the join guard only blocks a joined one
     // Collected into an array, not a nullable local: assigning inside the callback
     // leaves the checker convinced it is still null at the assertions below.
     const calls: { url: string; init: RequestInit | undefined }[] = [];
@@ -243,7 +282,7 @@ describe('saveAnnotations and loadAnnotations', () => {
       },
     );
 
-    expect(calls[0]?.url).toBe('https://marklayer.app/api/room-1');
+    expect(calls[0]?.url).toBe(`https://marklayer.app/api/${id}`);
     expect(calls[0]?.init?.method).toBe('POST');
     const sent: unknown = JSON.parse(String(calls[0]?.init?.body));
     expect(sent).toMatchObject({ ops: [op], url: 'https://example.com/page', width: window.innerWidth });
@@ -280,6 +319,35 @@ describe('saveAnnotations and loadAnnotations', () => {
       async (logged) => {
         expect(await saveAnnotations([op])).toEqual({ ok: false, reason: 'error' });
         expect(logged.join()).toContain('Error saving annotations');
+      },
+    );
+  });
+
+  // The bug this guards: once a room can be joined, a snapshot push from the
+  // joiner would replace everyone else's ops wholesale (POST /api/:id is a
+  // full replace server-side). The guard must refuse before the request goes
+  // out at all, not just report a failure after the fact.
+  test('refuses to push a snapshot to a joined room, without touching the network', async () => {
+    setAnnotationId('someone-elses-room');
+    let fetchCalled = false;
+    await withFetch(
+      async () => {
+        fetchCalled = true;
+        return new Response('{}', { status: 200 });
+      },
+      async () => {
+        expect(await saveAnnotations([op])).toEqual({ ok: false, reason: 'joined-room' });
+      },
+    );
+    expect(fetchCalled).toBe(false);
+  });
+
+  test('still allows a snapshot push to a room this browser created', async () => {
+    getRoomId();
+    await withFetch(
+      async () => new Response('{}', { status: 200 }),
+      async () => {
+        expect(await saveAnnotations([op])).toEqual({ ok: true });
       },
     );
   });

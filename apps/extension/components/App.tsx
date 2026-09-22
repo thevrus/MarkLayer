@@ -2,7 +2,8 @@ import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { loadAnnotations, parseUrlHash, setAnnotationId } from '../lib/share';
+import { joinRoom, useRoomConnection } from '../lib/room';
+import { parseUrlHash } from '../lib/share';
 import {
   activeTool,
   bindFigmaKeys,
@@ -130,18 +131,14 @@ export function App() {
     ensureHostMutationObserver();
   }, []);
 
-  // Load shared annotations from URL hash
+  // A room id on the URL joins that room. `joinRoom` merges rather than
+  // replaces, so arriving on a hashed link keeps whatever was already drawn.
   useEffect(() => {
     const params = parseUrlHash();
-    if (params) {
-      setAnnotationId(params.id);
-      loadAnnotations(params.id).then((ops) => {
-        if (ops && Array.isArray(ops)) {
-          operations.value = ops;
-        }
-      });
-    }
+    if (params) joinRoom({ id: params.id });
   }, []);
+
+  useRoomConnection();
 
   // Sync theme class to shadow host
   useSignalEffect(() => {

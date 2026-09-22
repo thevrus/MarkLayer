@@ -6,7 +6,8 @@ import { animationsFrozen, toggleAnimationsFrozen } from '../lib/freeze';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
-import { getRoomId } from '../lib/share';
+import { joinRoom } from '../lib/room';
+import { getRoomId, parseRoomRef } from '../lib/share';
 import {
   blockInteractions,
   clearOnCopyEnabled,
@@ -22,6 +23,7 @@ import {
   setOutputDetail,
   showSettings,
   showShareDialog,
+  toast,
   toggleBlockInteractions,
   toggleClearOnCopy,
   toggleMarkersVisible,
@@ -294,6 +296,83 @@ function RoomIdRow() {
   );
 }
 
+/**
+ * The inverse of the row above: that one hands this room's id out, this one
+ * takes one in. Inline rather than a dialog — it is one short string, and the
+ * panel the user needs is already open.
+ */
+function JoinRoomRow() {
+  const setHint = useHintSetter();
+  const [editing, setEditing] = useState(false);
+  const [pending, setPending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hint = "Paste a room ID or share link to open someone else's canvas here.";
+
+  // Focused by hand: Preact does not polyfill `autofocus` the way React does,
+  // and the native attribute only fires on page load, never on a node mounted
+  // later by a click (preactjs/preact#1255).
+  useLayoutEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  async function commit(value: string) {
+    const id = parseRoomRef(value);
+    if (!id) {
+      toast('Not a room ID or share link', { type: 'error' });
+      return;
+    }
+    setPending(true);
+    const joined = await joinRoom({ id });
+    setPending(false);
+    if (!joined) {
+      toast('Could not reach that room', { type: 'error' });
+      return;
+    }
+    setEditing(false);
+    showSettings.value = false;
+    toast('Joined room', { type: 'success' });
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onMouseEnter={() => setHint(hint)}
+        onFocus={() => setHint(hint)}
+        onClick={() => setEditing(true)}
+        class={cn(geist.row, geist.rowHover, 'justify-start gap-2.5')}
+      >
+        <span class="text-(--ds-gray-900)">
+          <Icon name="arrow" size={14} strokeWidth={1.5} />
+        </span>
+        Join a room
+      </button>
+    );
+  }
+
+  return (
+    <div class={cn(geist.row, 'gap-2.5')}>
+      <span class="text-(--ds-gray-900) shrink-0">
+        <Icon name="arrow" size={14} strokeWidth={1.5} />
+      </span>
+      <input
+        ref={inputRef}
+        disabled={pending}
+        placeholder="Room ID or link"
+        aria-label="Room ID or share link"
+        class={cn(geist.input, 'flex-1 text-meta font-mono')}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit(e.currentTarget.value);
+          if (e.key === 'Escape') setEditing(false);
+        }}
+        onBlur={() => {
+          if (!pending) setEditing(false);
+        }}
+      />
+    </div>
+  );
+}
+
 function PanelHeader() {
   return (
     <div class="flex items-center justify-between px-4 h-11">
@@ -431,6 +510,7 @@ export function SettingsPanel() {
           <div class={geist.divider} />
           <ShareRow />
           <RoomIdRow />
+          <JoinRoomRow />
           <ChevronLinkRow
             icon="terminal"
             label="Connect an AI agent"
