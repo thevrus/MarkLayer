@@ -20,9 +20,8 @@ describe('mergeOps', () => {
     expect(mergeOps({ local, remote })).toEqual([op('remote-1'), op('local-1'), op('local-2')]);
   });
 
-  // The case the merge quietly depends on: two browsers touched the same op and
-  // only one version can survive. The room is the shared source of truth once
-  // it can be joined, so the remote copy — not whichever side merges last — wins.
+  // Two browsers touched the same op and only one version survives. The room is the
+  // shared source of truth, so the remote copy wins — not whichever side merges last.
   test('dedupes a shared id, keeping the remote copy even when its content differs', () => {
     const local = [op('shared', 'local edit')];
     const remote = [op('shared', 'remote edit')];
@@ -30,8 +29,7 @@ describe('mergeOps', () => {
   });
 
   test('orders remote ops first in their own order, then local-only ops appended after in theirs', () => {
-    // Matches the merge useRealtimeSync does on a WebSocket reconnect, so a full
-    // reload and an incremental resync land on the same op order.
+    // Matches the reconnect merge, so a full reload and a resync agree on op order.
     const local = [op('local-1'), op('shared'), op('local-2')];
     const remote = [op('remote-1'), op('shared', 'remote wins'), op('remote-2')];
     expect(mergeOps({ local, remote })).toEqual([

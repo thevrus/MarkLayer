@@ -25,10 +25,8 @@ import type { DrawOp, Peer } from './types';
 /** Mirrors `capture` in apps/worker/web/analytics.ts — kept local since shared code has no transport of its own. */
 type CaptureFn = (event: string, props?: AnalyticsProps) => void;
 
-/**
- * Mirrors `SupportSignal` in apps/worker/web/support.ts. Duplicated rather than
- * imported: that module is web-app only and shared code must not depend on it.
- */
+/** Mirrors `SupportSignal` in apps/worker/web/support.ts — duplicated because that
+ * module is web-app only and shared code must not depend on it. */
 type SupportSignal = 'used' | 'shared' | 'mcp' | 'asked' | 'supported';
 
 export const connected = signal(false);
@@ -62,8 +60,7 @@ function iceServersEqual(a: RTCIceServer[] | null, b: RTCIceServer[]): boolean {
   for (let i = 0; i < a.length; i++) {
     const serverA = a[i];
     const serverB = b[i];
-    // Unreachable given the length check above — narrows past `noUncheckedIndexedAccess`,
-    // which the extension's tsconfig turns on but the worker's does not.
+    // Unreachable given the length check — narrows past `noUncheckedIndexedAccess`.
     if (!serverA || !serverB) return false;
     if (
       urlsKey(serverA.urls) !== urlsKey(serverB.urls) ||
@@ -192,11 +189,8 @@ function playPeerChime(joining: boolean) {
   }
 }
 
-/**
- * Web-only signals and callbacks the core has no equivalent for. Required
- * fields exist on every surface; optional ones are presence/voice concepts the
- * extension doesn't have yet, so the core reads them through `?.`.
- */
+/** What the caller owns and the transport does not. Required fields exist on every
+ * surface; optional ones are web-viewer concepts, read through `?.`. */
 export interface ConnectRoomHooks {
   /** Whether the room says this session may edit. */
   canEditFromRoom: Signal<boolean | undefined>;
@@ -223,11 +217,8 @@ export interface ConnectRoomOptions {
   hooks: ConnectRoomHooks;
 }
 
-/**
- * Opens the realtime WebSocket for one annotation room and wires every signal
- * and callback that drives it. Returns a teardown that undoes all of it — call
- * it exactly once, from whatever lifecycle (a Preact effect today) owns the room.
- */
+/** Opens the realtime WebSocket for one room and wires every signal that drives it.
+ * Returns a teardown that undoes all of it; call it exactly once. */
 export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () => void {
   if (!roomId) return () => {};
 
@@ -235,15 +226,15 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
   let initReceived = false;
   let followScrollTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const wsRef = { current: null as WebSocket | null };
-  const retryRef = { current: 0 };
-  const pendingRef = { current: [] as string[] };
-  const saveTimerRef = { current: null as ReturnType<typeof setTimeout> | null };
+  let ws: WebSocket | null = null;
+  let retries = 0;
+  let pending: string[] = [];
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Debounced REST API save as fallback persistence
   function scheduleSave() {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
       const ops = operations.value;
       fetch(`${origin}/api/${roomId}`, {
         method: 'POST',
@@ -297,36 +288,36 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
       color: localUser.color,
     });
     connectionStatus.value = 'connecting';
-    const ws = new WebSocket(`${protocol}//${originUrl.host}/ws/${roomId}?${params}`);
-    wsRef.current = ws;
+    const socket = new WebSocket(`${protocol}//${originUrl.host}/ws/${roomId}?${params}`);
+    ws = socket;
 
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     let pongTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    ws.onopen = () => {
+    socket.onopen = () => {
       connected.value = true;
       connectionStatus.value = 'connected';
       // Silent reconnects are invisible from the room's own logs — the DO sees
       // only a peer leaving and a peer joining.
-      hooks.capture?.('realtime_connected', { attempt: retryRef.current });
-      retryRef.current = 0;
-      const pending = pendingRef.current;
-      pendingRef.current = [];
-      for (const msg of pending) {
-        ws.send(msg);
+      hooks.capture?.('realtime_connected', { attempt: retries });
+      retries = 0;
+      const queued = pending;
+      pending = [];
+      for (const msg of queued) {
+        socket.send(msg);
       }
       // Heartbeat: ping every 15s, expect pong within 5s
       pingTimer = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send('{"type":"ping"}');
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send('{"type":"ping"}');
           pongTimeout = setTimeout(() => {
-            ws.close(); // force reconnect
+            socket.close(); // force reconnect
           }, 5000);
         }
       }, 15000);
     };
 
-    ws.onmessage = (e) => {
+    socket.onmessage = (e) => {
       try {
         const msg = JSON.parse(e.data);
         switch (msg.type) {
@@ -335,9 +326,8 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
             // same room, and announcing it again would re-toast every mention.
             const arriving = !initReceived;
             initReceived = true;
-            // Merged on arrival as well as on reconnect. The web viewer opens on
-            // an empty canvas so the two are the same thing there, but the
-            // extension always carries local marks and replacing would bin them.
+            // Merged on arrival too, not just on reconnect: the extension always
+            // carries local marks, and replacing would bin them.
             operations.value = mergeOps({ local: operations.value, remote: msg.ops });
             if (arriving) announceMissedMentions({ ops: msg.ops, room: roomId, capture: hooks.capture });
             if (msg.createdAt != null) createdAt.value = msg.createdAt;
@@ -536,27 +526,27 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
       }
     };
 
-    ws.onclose = () => {
+    socket.onclose = () => {
       if (pingTimer) clearInterval(pingTimer);
       if (pongTimeout) clearTimeout(pongTimeout);
       connected.value = false;
-      wsRef.current = null;
+      ws = null;
       if (!destroyed) {
         connectionStatus.value = 'connecting';
-        const delay = Math.min(1000 * 2 ** retryRef.current, 10000);
-        retryRef.current++;
+        const delay = Math.min(1000 * 2 ** retries, 10000);
+        retries++;
         // Only the first attempt of an outage: the backoff caps at 10s and never
         // gives up, so an event per retry is unbounded — and `realtime_connected`
         // already carries the attempt count for outages that recover.
-        if (retryRef.current === 1) hooks.capture?.('realtime_reconnecting');
+        if (retries === 1) hooks.capture?.('realtime_reconnecting');
         setTimeout(connect, delay);
       } else {
         connectionStatus.value = 'disconnected';
       }
     };
 
-    ws.onerror = () => {
-      ws.close();
+    socket.onerror = () => {
+      socket.close();
     };
   }
 
@@ -565,11 +555,10 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
   // Wire up sync callbacks
   const sendMsg = (msg: unknown) => {
     const str = JSON.stringify(msg);
-    const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(str);
     } else {
-      pendingRef.current.push(str);
+      pending.push(str);
       scheduleSave();
     }
   };
@@ -590,7 +579,6 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     if (cursorTimer) return;
     cursorTimer = setTimeout(() => {
       cursorTimer = null;
-      const ws = wsRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'cursor', x, y, tool }));
       }
@@ -600,7 +588,6 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
   emitRipple.value = (x: number, y: number) => {
     // Only peers see the ripple; the clicker doesn't need their own click visualized.
     // Skip the offline queue — a click event has no value once peers have moved on.
-    const ws = wsRef.current;
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ type: 'ripple', x, y }));
     }
@@ -628,10 +615,9 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     document.removeEventListener('visibilitychange', onVisible);
     if (cursorTimer) clearTimeout(cursorTimer);
     if (followScrollTimer) clearTimeout(followScrollTimer);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if (saveTimer) clearTimeout(saveTimer);
     // Drop stale handlers BEFORE close so any in-flight messages from the old
     // room don't leak into operations after the user has switched pages.
-    const ws = wsRef.current;
     if (ws) {
       ws.onmessage = null;
       ws.onopen = null;

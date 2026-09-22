@@ -131,8 +131,8 @@ export function App() {
     ensureHostMutationObserver();
   }, []);
 
-  // A room id on the URL joins that room. `joinRoom` merges rather than
-  // replaces, so arriving on a hashed link keeps whatever was already drawn.
+  // `joinRoom` merges rather than replaces, so arriving on a hashed link keeps
+  // whatever was already drawn.
   useEffect(() => {
     const params = parseUrlHash();
     if (params) joinRoom({ id: params.id });

@@ -296,11 +296,8 @@ function RoomIdRow() {
   );
 }
 
-/**
- * The inverse of the row above: that one hands this room's id out, this one
- * takes one in. Inline rather than a dialog — it is one short string, and the
- * panel the user needs is already open.
- */
+/** The inverse of the row above: that one hands this room's id out, this one takes
+ * one in. Inline rather than a dialog — it is one short string. */
 function JoinRoomRow() {
   const setHint = useHintSetter();
   const [editing, setEditing] = useState(false);
@@ -308,9 +305,8 @@ function JoinRoomRow() {
   const inputRef = useRef<HTMLInputElement>(null);
   const hint = "Paste a room ID or share link to open someone else's canvas here.";
 
-  // Focused by hand: Preact does not polyfill `autofocus` the way React does,
-  // and the native attribute only fires on page load, never on a node mounted
-  // later by a click (preactjs/preact#1255).
+  // Focused by hand: the native `autofocus` only fires on page load, never on a
+  // node mounted later by a click, and Preact does not polyfill it (preact#1255).
   useLayoutEffect(() => {
     if (editing) inputRef.current?.focus();
   }, [editing]);

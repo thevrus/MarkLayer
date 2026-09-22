@@ -41,17 +41,13 @@ export function getRoomId(): string {
   return currentAnnotationId;
 }
 
-/**
- * A snapshot push replaces the room wholesale, so it is safe only while this browser
- * is its one writer: it minted the id, and no live socket is carrying anyone else's
- * ops. Both the guard in `saveAnnotations` and the one in ShareDialog read this, so
- * they cannot drift apart.
- */
+/** Whether this browser is the room's only writer — it minted the id and no live
+ * socket is carrying anyone else's ops. Read by every guard, so none can drift. */
 export function canPushSnapshot(): boolean {
   return !joinedRoom && connectionStatus.peek() === null;
 }
 
-/** Test-only: room identity is a module singleton, so a spec needs this to get back to a clean slate. */
+/** Test-only: room identity is a module singleton, so a spec needs a way back to zero. */
 export function resetRoomIdentity() {
   currentAnnotationId = null;
   joinedRoom = false;

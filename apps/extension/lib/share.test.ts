@@ -35,10 +35,8 @@ describe('parseRoomRef', () => {
     expect(parseRoomRef('https://marklayer.app/s/abc123/')).toBe('abc123');
   });
 
-  /**
-   * The floor on `isNewShareId` guards minting, not joining: a room made before
-   * it existed still resolves, so refusing a short id here would strand it.
-   */
+  // The floor on `isNewShareId` guards minting, not joining, so a short legacy id
+  // must still resolve.
   test('accepts a short legacy id that could no longer be minted', () => {
     expect(parseRoomRef('abc123')).toBe('abc123');
   });
@@ -232,9 +230,8 @@ describe('getAnnotationId', () => {
 });
 
 describe('saveAnnotations and loadAnnotations', () => {
-  // Room identity is a module singleton, and `saveAnnotations` now branches on
-  // it — without a reset, whichever test last called `setAnnotationId` would
-  // leak a "joined" room into every test after it.
+  // Room identity is a module singleton: without a reset, whichever test last
+  // called `setAnnotationId` leaks a joined room into every test after it.
   beforeEach(() => {
     resetRoomIdentity();
   });
@@ -323,10 +320,8 @@ describe('saveAnnotations and loadAnnotations', () => {
     );
   });
 
-  // The bug this guards: once a room can be joined, a snapshot push from the
-  // joiner would replace everyone else's ops wholesale (POST /api/:id is a
-  // full replace server-side). The guard must refuse before the request goes
-  // out at all, not just report a failure after the fact.
+  // POST /api/:id is a full replace server-side, so a joiner's snapshot would bin
+  // everyone else's ops. The guard has to refuse before the request goes out.
   test('refuses to push a snapshot to a joined room, without touching the network', async () => {
     setAnnotationId('someone-elses-room');
     let fetchCalled = false;

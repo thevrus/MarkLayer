@@ -5,6 +5,7 @@ import type { DrawOp } from './types';
  * a room exists, the server is the trusted one.
  */
 export function mergeOps({ local, remote }: { local: DrawOp[]; remote: DrawOp[] }): DrawOp[] {
+  if (!local.length) return remote;
   const remoteIds = new Set(remote.map((op) => op.id));
   const localOnly = local.filter((op) => !remoteIds.has(op.id));
   return [...remote, ...localOnly];
