@@ -9,6 +9,7 @@ import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
 import { activeRoomId } from '../lib/room';
 import {
+  canPushSnapshot,
   claudeMcpCommand,
   getRoomId,
   getShareUrl,
@@ -23,7 +24,6 @@ import {
 import {
   clearInspectorStack,
   color,
-  connectionStatus,
   getCommentMeta,
   inspectorStack,
   lineWidth,
@@ -136,15 +136,13 @@ export function ShareDialog() {
     }
     const url = getShareUrl();
     setShareUrl(url);
-    // Sharing is what binds this canvas to a room, so the connection opens from
-    // here rather than wherever the id happens to be read.
+    // Sharing is what binds this canvas to a room, so the socket opens from here
+    // rather than wherever the id happens to be read.
     activeRoomId.value = getRoomId();
     const ops = operations.value;
-    // Peeked, not subscribed: this is a point-in-time check, and depending on it
-    // would re-run the whole effect every time the socket changed state.
-    // A live room already carries every op additively, so a snapshot on top of
-    // it would replace the room with only what this browser can see.
-    if (ops.length && connectionStatus.peek() === null) {
+    // A point-in-time check, not a subscription: depending on the socket's state
+    // would re-run this whole effect every time it changed.
+    if (ops.length && canPushSnapshot()) {
       saveAnnotations(ops).then((res) => {
         if (res.ok) return;
         toast(saveFailureMessage(res.reason), { type: 'error' });

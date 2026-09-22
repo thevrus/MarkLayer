@@ -64,7 +64,9 @@ const UPLOAD_ID = /^[A-Za-z0-9_-]{21}$/;
  */
 export const MIN_SHARE_ID_LENGTH = 12;
 export const MAX_SHARE_ID_LENGTH = 64;
-const NEW_SHARE_ID = new RegExp(`^[A-Za-z0-9_-]{${MIN_SHARE_ID_LENGTH},${MAX_SHARE_ID_LENGTH}}$`);
+const SHARE_ID_CHARS = '[A-Za-z0-9_-]';
+const NEW_SHARE_ID = new RegExp(`^${SHARE_ID_CHARS}{${MIN_SHARE_ID_LENGTH},${MAX_SHARE_ID_LENGTH}}$`);
+const ANY_SHARE_ID = new RegExp(`^${SHARE_ID_CHARS}{1,${MAX_SHARE_ID_LENGTH}}$`);
 
 /** The cap on an anonymous upload. Enforced server-side; shown client-side. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
@@ -130,8 +132,11 @@ export const UPLOAD_IMAGE_ACCEPT = UPLOAD_FORMATS.filter((format) => format.cont
 
 export const isUploadId = (id: string): boolean => UPLOAD_ID.test(id);
 
-/** Whether the API may create a room at this id. Reads do not use this — see `NEW_SHARE_ID`. */
+/** Whether the API may create a room at this id. Reads do not use this — see `isShareId`. */
 export const isNewShareId = (id: string): boolean => NEW_SHARE_ID.test(id);
+/** Whether a room could exist at this id. No length floor: that guards minting, and
+ * rooms made before it existed still resolve. */
+export const isShareId = (id: string): boolean => ANY_SHARE_ID.test(id);
 export const uploadPath = (id: string): string => `/f/${id}`;
 export const isUploadPath = (url: string): boolean => url.startsWith('/f/') && isUploadId(url.slice(3));
 

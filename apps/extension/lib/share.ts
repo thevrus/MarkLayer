@@ -1,6 +1,7 @@
-import { MAX_SHARE_ID_LENGTH, postBody, postJson, uploadPath, uploadResponseSchema } from '@marklayer/types';
+import { isShareId, postBody, postJson, uploadPath, uploadResponseSchema } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { track } from './analytics';
+import { connectionStatus } from './state';
 import type { DrawOp } from './types';
 
 export const APP_ORIGIN = 'https://marklayer.app';
@@ -19,19 +20,8 @@ export { nanoid };
 
 // Current annotation ID — reused across shares so multiple people edit the same canvas
 let currentAnnotationId: string | null = null;
-/**
- * Whether this browser JOINED the current room (`setAnnotationId`, e.g. from a
- * shared link) rather than minting it (`getRoomId`). `saveAnnotations` refuses
- * a full-snapshot push while it is true.
- *
- * Provenance is only a proxy for "someone else may have written here", and it
- * guards one side: a room this browser CREATED stays unguarded even after the
- * link is opened in the web viewer, whose ops the extension never sees — it
- * holds no socket — and therefore omits from the next snapshot, which replaces
- * the room wholesale. The honest test is whether an additive transport already
- * carries this room's ops; replace this flag with that once the extension has
- * a realtime connection.
- */
+/** Whether this browser joined the current room (`setAnnotationId`) rather than
+ * minting it (`getRoomId`). Half of `canPushSnapshot` below. */
 let joinedRoom = false;
 
 export function getAnnotationId() {
@@ -51,9 +41,14 @@ export function getRoomId(): string {
   return currentAnnotationId;
 }
 
-/** Whether this browser joined the current room rather than minting it. */
-export function isJoinedRoom(): boolean {
-  return joinedRoom;
+/**
+ * A snapshot push replaces the room wholesale, so it is safe only while this browser
+ * is its one writer: it minted the id, and no live socket is carrying anyone else's
+ * ops. Both the guard in `saveAnnotations` and the one in ShareDialog read this, so
+ * they cannot drift apart.
+ */
+export function canPushSnapshot(): boolean {
+  return !joinedRoom && connectionStatus.peek() === null;
 }
 
 /** Test-only: room identity is a module singleton, so a spec needs this to get back to a clean slate. */
@@ -61,13 +56,6 @@ export function resetRoomIdentity() {
   currentAnnotationId = null;
   joinedRoom = false;
 }
-
-/**
- * Deliberately looser than `isNewShareId`: that floor guards *minting* a room,
- * and holding a paste to it would refuse rooms created before the floor existed
- * — which still resolve server-side.
- */
-const ROOM_ID = new RegExp(`^[A-Za-z0-9_-]{1,${MAX_SHARE_ID_LENGTH}}$`);
 
 function roomIdFromUrl(value: string): string | null {
   // A pasted link often arrives without its scheme, and the bare-id path below
@@ -88,7 +76,9 @@ export function parseRoomRef(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   const candidate = roomIdFromUrl(trimmed) ?? trimmed;
-  return ROOM_ID.test(candidate) ? candidate : null;
+  // `isShareId`, not `isNewShareId`: that floor guards minting, and a room made
+  // before it existed still resolves.
+  return isShareId(candidate) ? candidate : null;
 }
 
 /**
@@ -208,21 +198,18 @@ export function isLikelyEmbedHostile(url: string = window.location.href): boolea
 }
 
 /**
- * Why a save failed, because the words need to stay distinct. `view-only` is
- * the owner having set the link so only they may write (the API answers 403);
- * it is a settled state no retry fixes, unlike a network blip or a 500.
- * `joined-room` is refused locally, before any request goes out: the room's
- * ops belong to everyone in it, so this browser may not replace them wholesale.
+ * Why a save failed. `view-only` is the owner having set the link so only they may
+ * write (a 403), settled where a blip is not; `joined-room` is refused locally,
+ * before any request, because the room's ops are not all ours to replace.
  */
 export type SaveFailure = 'view-only' | 'error' | 'joined-room';
 export type SaveResult = { ok: true } | { ok: false; reason: SaveFailure };
 
 /** Save ops to server. */
 export async function saveAnnotations(ops: DrawOp[]): Promise<SaveResult> {
-  // POST /api/:id replaces the room's stored ops wholesale — safe only when
-  // this browser owns the room outright. A joined room has other people's
-  // marks in it, so the push is refused before it ever reaches the network.
-  if (joinedRoom) return { ok: false, reason: 'joined-room' };
+  // POST /api/:id replaces the room's stored ops wholesale, so a shared room is
+  // refused before the push ever reaches the network.
+  if (!canPushSnapshot()) return { ok: false, reason: 'joined-room' };
   const id = getRoomId();
   const url = window.location.href.split('#')[0];
   const width = window.innerWidth;
