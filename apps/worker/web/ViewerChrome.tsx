@@ -1,4 +1,4 @@
-import { Menu } from '@base-ui/react/menu';
+import { Slider } from '@base-ui/react/slider';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { AvatarGroup } from '@ext/components/AvatarGroup';
@@ -6,7 +6,6 @@ import { IdentityCard } from '@ext/components/IdentityCard';
 import { Tooltip } from '@ext/components/Tooltip';
 import { AgentMark } from '@ext/lib/agents';
 import { geist } from '@ext/lib/geist';
-import { glass } from '@ext/lib/glass';
 import {
   copyText,
   cycleTheme,
@@ -19,8 +18,6 @@ import {
 import type { DeviceMode } from '@ext/lib/types';
 import { agentLabel, cn, isAgentPeer } from '@marklayer/types';
 import {
-  Check,
-  ChevronDown,
   Heart,
   Info,
   Link,
@@ -41,6 +38,7 @@ import { PresenceMenu } from './PresenceMenu';
 import { SharePopover } from './SharePopover';
 import { DEVICE_ICONS, HOME_LINK_PROPS, Logo } from './shared';
 import {
+  cssScale,
   deviceMode,
   isReadonly,
   navigateTo,
@@ -49,14 +47,12 @@ import {
   presenting,
   setPresenting,
   showInfoPanel,
-  type ViewerZoom,
   viewerZoom,
-  ZOOM_PRESETS,
 } from './signals';
 import { openSupportCard } from './support-ui';
 import { connected } from './useRealtimeSync';
-import { useViewerFrame } from './viewerFrame';
 import { videoActive, voiceActive, voiceMuted } from './voiceSignals';
+import { notchToZoom, thumbNotch, ZOOM_LARGE_STEP, ZOOM_NOTCHES } from './zoomScale';
 
 // Only fetched when a user joins voice/video or opens the device picker.
 const DeviceMenu = lazy(() => import('./DeviceMenu').then((m) => ({ default: m.DeviceMenu })));
@@ -186,65 +182,106 @@ function ViewportSwitcher() {
   );
 }
 
-const zoomLabel = (z: ViewerZoom): string => (z === 'auto' ? 'Auto' : `${Math.round(z * 100)}%`);
-
-function ZoomMenu() {
-  const { state } = useViewerFrame();
+/**
+ * Fills from 100% out to the thumb: how far the page is zoomed, and which way.
+ * An edge-aligned thumb travels `100% - --thumb`, so the fill shares the var to end under its centre.
+ */
+function ZoomFill({ notch }: { notch: number }) {
+  const at = (notch + ZOOM_NOTCHES) / (ZOOM_NOTCHES * 2);
+  const from = Math.min(at, 0.5);
+  const to = Math.max(at, 0.5);
   return (
-    <Menu.Root open={state.zoomMenuOpen.value} onOpenChange={(next: boolean) => (state.zoomMenuOpen.value = next)}>
-      <Menu.Trigger
-        className={cn(
-          geist.ctl,
-          geist.ctlIdle,
-          'w-auto min-w-16 gap-1 px-2 text-meta font-medium tabular-nums',
-          'data-popup-open:bg-(--ds-gray-alpha-100) data-popup-open:text-(--ds-gray-1000)',
+    <span
+      aria-hidden="true"
+      class={cn(
+        'absolute top-0 h-full rounded-full bg-(--ds-gray-700) transition-colors duration-150',
+        'group-hover:bg-(--ds-gray-900) group-data-dragging:bg-(--ds-gray-900)',
+      )}
+      style={{
+        left: `calc(var(--thumb) / 2 + (100% - var(--thumb)) * ${from})`,
+        width: `calc((100% - var(--thumb)) * ${to - from})`,
+      }}
+    />
+  );
+}
+
+/**
+ * In auto the thumb shows the fitted scale, and dragging takes over from the fit.
+ * The readout toggles between the two anchors, fit and 100%.
+ */
+function ZoomControl() {
+  const zoom = viewerZoom.value;
+  const auto = zoom === 'auto';
+  const effective = auto ? cssScale.value : zoom;
+  const pct = `${Math.round(effective * 100)}%`;
+  const notch = thumbNotch(effective);
+  return (
+    <div class="flex items-center gap-1 shrink-0">
+      <Slider.Root
+        value={notch}
+        min={-ZOOM_NOTCHES}
+        max={ZOOM_NOTCHES}
+        largeStep={ZOOM_LARGE_STEP}
+        thumbAlignment="edge"
+        // Below lg the bar has no room for it without crushing the URL field; the
+        // readout and ⌘± still zoom there.
+        className="hidden lg:block"
+        onValueChange={(next: number) => {
+          viewerZoom.value = notchToZoom(next);
+        }}
+        // The one place Root's drag state is readable. A tooltip left up mid-drag
+        // would cover the page being resized.
+        render={(props, state) => (
+          <div {...props}>
+            {props.children}
+            <Tooltip text="Zoom" placement="bottom" disabled={state.dragging} />
+          </div>
         )}
       >
-        {zoomLabel(viewerZoom.value)}
-        <ChevronDown size={12} strokeWidth={1.5} aria-hidden="true" />
-        {/* Same reason as the share card's: tooltip and menu open on the same
-            side from the same anchor, so the tooltip surface would sit behind
-            the menu and peek out from under it. */}
-        <Tooltip text="Zoom" placement="bottom" disabled={state.zoomMenuOpen.value} />
-      </Menu.Trigger>
-      <Menu.Portal>
-        <Menu.Positioner
-          positionMethod="fixed"
-          side="bottom"
-          align="end"
-          sideOffset={6}
-          collisionPadding={8}
-          className="z-2147483647 outline-none"
+        <Slider.Control
+          className="group flex items-center w-24 h-8 touch-none select-none cursor-pointer data-dragging:cursor-grabbing [--thumb:14px]"
+          // Base UI focuses the thumb's input on press, and tinykeys ignores keys aimed
+          // at an input, so a focused slider would swallow tool keys and hand ⌘+ to the
+          // browser's own zoom. Waiting a frame lets Base UI's deferred focus land first.
+          onPointerUp={(e) => {
+            const control = e.currentTarget;
+            requestAnimationFrame(() => {
+              const focused = document.activeElement;
+              if (focused instanceof HTMLElement && control.contains(focused)) focused.blur();
+            });
+          }}
         >
-          <Menu.Popup className={cn(geist.surface, glass.font, 'min-w-32 p-1')}>
-            <Menu.RadioGroup
-              value={viewerZoom.value}
-              onValueChange={(next: ViewerZoom) => {
-                viewerZoom.value = next;
-              }}
-            >
-              {ZOOM_PRESETS.map((preset) => (
-                <Menu.RadioItem
-                  key={String(preset.value)}
-                  value={preset.value}
-                  closeOnClick
-                  className={cn(
-                    'flex items-center justify-between gap-3 h-8 px-2 rounded-md cursor-pointer outline-none',
-                    'text-ui tabular-nums text-(--ds-gray-1000)',
-                    'transition-colors duration-100 data-highlighted:bg-(--ds-gray-alpha-100)',
-                  )}
-                >
-                  {preset.label}
-                  <Menu.RadioItemIndicator className="inline-flex text-(--ds-gray-900)">
-                    <Check size={14} strokeWidth={1.5} aria-hidden="true" />
-                  </Menu.RadioItemIndicator>
-                </Menu.RadioItem>
-              ))}
-            </Menu.RadioGroup>
-          </Menu.Popup>
-        </Menu.Positioner>
-      </Menu.Portal>
-    </Menu.Root>
+          <Slider.Track
+            className={cn(
+              'h-1 w-full rounded-full bg-(--ds-gray-alpha-400) transition-colors duration-150',
+              'group-hover:bg-(--ds-gray-alpha-500) group-data-dragging:bg-(--ds-gray-alpha-500)',
+            )}
+          >
+            <ZoomFill notch={notch} />
+            <Slider.Thumb
+              aria-label="Zoom"
+              aria-valuetext={auto ? `Auto, ${pct}` : pct}
+              className={cn(
+                'size-(--thumb) rounded-full bg-(--ds-background-100) [box-shadow:var(--ds-shadow-border-small)]',
+                'has-focus-visible:outline-solid has-focus-visible:outline-2 has-focus-visible:outline-offset-1',
+                'has-focus-visible:outline-(--ds-focus-color)',
+              )}
+            />
+          </Slider.Track>
+        </Slider.Control>
+      </Slider.Root>
+      <button
+        type="button"
+        onClick={() => {
+          viewerZoom.value = auto ? 1 : 'auto';
+        }}
+        aria-label={auto ? 'Auto, zoom to 100%' : `${pct}, fit to window`}
+        class={cn(geist.ctl, geist.ctlIdle, 'w-11 text-meta font-medium tabular-nums')}
+      >
+        {auto ? 'Auto' : pct}
+        <Tooltip text={auto ? 'Zoom to 100%' : 'Fit to window'} shortcut={auto ? undefined : '⌘0'} placement="bottom" />
+      </button>
+    </div>
   );
 }
 
@@ -402,7 +439,7 @@ export function ViewerTopBar() {
       />
       <div class={geist.sep} />
       <ViewportSwitcher />
-      <ZoomMenu />
+      <ZoomControl />
       <div class={geist.sep} />
 
       <div class="flex items-center gap-1 shrink-0">

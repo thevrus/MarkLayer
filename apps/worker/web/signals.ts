@@ -15,6 +15,7 @@ import { computed, effect, signal } from '@preact/signals';
 import { capture, captureOnce, setRole } from './analytics';
 import { fromBase64 } from './encoding';
 import { annotationId, currentPageIdx, originalWidth, pageUrl, projectId } from './projects';
+import { nextLargeStop, zoomStop } from './zoomScale';
 
 // Re-export project surface so existing imports from './signals' keep working.
 export {
@@ -168,28 +169,16 @@ export const DEVICE_WIDTHS: Record<DeviceMode, number> = { desktop: 0, tablet: 7
 /**
  * Viewer zoom for the iframe+canvas composite.
  * - 'auto' (default): fits available width, downscaling or upscaling up to `MAX_AUTO_UPSCALE`.
- * - number: explicit factor (0.5, 0.75, 1, 1.5, 2).
+ * - number: an explicit factor, one of the stops on the slider's scale (`zoomScale.ts`).
  * Drawings stay pixel-aligned at any zoom because the iframe and canvas share the same transform wrapper.
  */
 export type ViewerZoom = number | 'auto';
 /** Ceiling on how far 'auto' zoom will upscale a narrow capture to fill available width. */
 export const MAX_AUTO_UPSCALE = 2;
-export const ZOOM_PRESETS: { value: ViewerZoom; label: string }[] = [
-  { value: 'auto', label: 'Auto' },
-  { value: 0.5, label: '50%' },
-  { value: 0.75, label: '75%' },
-  { value: 1, label: '100%' },
-  { value: 1.5, label: '150%' },
-  { value: 2, label: '200%' },
-];
 
 const _zoomLs = typeof localStorage !== 'undefined' ? localStorage : null;
-function parseStoredZoom(raw: string | null): ViewerZoom {
-  if (raw === 'auto') return raw;
-  const n = Number(raw);
-  return ZOOM_PRESETS.some((p) => p.value === n) ? n : 'auto';
-}
-export const viewerZoom = signal<ViewerZoom>(parseStoredZoom(_zoomLs?.getItem('ml-zoom') ?? null));
+// 'auto', a missing key and a value off the scale all parse to no stop.
+export const viewerZoom = signal<ViewerZoom>(zoomStop(Number(_zoomLs?.getItem('ml-zoom'))) ?? 'auto');
 effect(() => {
   try {
     _zoomLs?.setItem('ml-zoom', String(viewerZoom.value));
@@ -198,13 +187,10 @@ effect(() => {
   }
 });
 
-const NUMERIC_ZOOMS = ZOOM_PRESETS.flatMap((p) => (typeof p.value === 'number' ? [p.value] : []));
-
-/** Step to the next/previous numeric preset relative to the current effective scale. */
+/** Step to the next/previous large stop relative to the current effective scale. */
 export function stepZoom(dir: 1 | -1) {
-  const current = viewerZoom.value === 'auto' ? cssScale.value : viewerZoom.value;
-  const next = dir > 0 ? NUMERIC_ZOOMS.find((v) => v > current) : [...NUMERIC_ZOOMS].reverse().find((v) => v < current);
-  if (next !== undefined) viewerZoom.value = next;
+  const next = nextLargeStop({ from: viewerZoom.value === 'auto' ? cssScale.value : viewerZoom.value, dir });
+  if (next !== null) viewerZoom.value = next;
 }
 
 // Whether the responsive frames get used, and which ones. Changes only: the mode

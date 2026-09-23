@@ -148,7 +148,6 @@ export default function Viewer() {
   const renderFailed = useSignal<RenderFailure | null>(null);
   const blockedEgressIp = useSignal<string | null>(null);
   const pageSlow = useSignal(false);
-  const zoomMenuOpen = useSignal(false);
   // The two causes the upstream names itself win; anything else is judged by the URL.
   const failureCopy = useComputed(() => {
     const cause = renderFailed.value;
@@ -177,30 +176,6 @@ export default function Viewer() {
 
   useRealtimeSync(annotationId.value);
   const voiceMounted = voiceActive.value || videoActive.value;
-
-  // The zoom menu dismisses itself on any outside pointerdown in our document —
-  // but a click inside the previewed page is inside an iframe, and never reaches
-  // us. Re-runs when iframeLoaded flips so it reattaches after each (re)load.
-  useSignalEffect(() => {
-    if (!zoomMenuOpen.value) return;
-    iframeLoaded.value; // subscribe so we reattach after iframe (re)loads
-    const close = () => {
-      zoomMenuOpen.value = false;
-    };
-    const win = frameRef.current?.contentWindow;
-    try {
-      win?.addEventListener('mousedown', close);
-    } catch {
-      return; // cross-origin — nothing to attach, and nothing to clean up
-    }
-    return () => {
-      try {
-        win?.removeEventListener('mousedown', close);
-      } catch {
-        /* ignore */
-      }
-    };
-  });
 
   // Fill page URL / width from server when using short URLs
   useSignalEffect(() => {
@@ -1103,7 +1078,7 @@ export default function Viewer() {
   // once and a Viewer re-render never invalidates the subtree beneath it.
   const frame = useMemo<ViewerFrame>(
     () => ({
-      state: { iframeLoaded, renderFailed, pageSlow, blockedEgressIp, failureCopy, zoomMenuOpen },
+      state: { iframeLoaded, renderFailed, pageSlow, blockedEgressIp, failureCopy },
       actions: {
         canvasCoords,
         startDrawing,
