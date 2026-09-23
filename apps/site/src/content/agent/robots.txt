@@ -3,6 +3,10 @@
 # repeat the same allow/disallow shape as the wildcard block below rather than
 # relying on it — some crawlers' compliance checks look for an explicit named
 # match instead of a wildcard, and Content-Signal isn't universally honored yet.
+#
+# /og/page.png is the marketing pages' og:image, so it stays crawlable: the
+# longer Allow beats `Disallow: /og/`, which still hides share cards (their URL
+# carries the room id).
 User-agent: OAI-SearchBot
 User-agent: ChatGPT-User
 User-agent: PerplexityBot
@@ -17,6 +21,7 @@ User-agent: Applebot-Extended
 Allow: /
 Allow: /api/openapi.json
 Allow: /api/health
+Allow: /og/page.png
 Disallow: /proxy
 Disallow: /api/
 Disallow: /og/
@@ -30,6 +35,7 @@ Content-Signal: ai-train=yes, search=yes, ai-input=yes
 Allow: /
 Allow: /api/openapi.json
 Allow: /api/health
+Allow: /og/page.png
 Disallow: /proxy
 Disallow: /api/
 Disallow: /og/
