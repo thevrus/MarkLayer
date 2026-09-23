@@ -46,7 +46,6 @@ interface ViewerFrameState {
    */
   blockedEgressIp: Signal<string | null>;
   failureCopy: ReadonlySignal<{ readonly title: string; readonly body: string }>;
-  zoomMenuOpen: Signal<boolean>;
 }
 
 interface ViewerFrameActions {
