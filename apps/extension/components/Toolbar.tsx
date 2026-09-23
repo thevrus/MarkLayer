@@ -429,9 +429,9 @@ function MinimizedToolbar({ onExpand, drag }: { onExpand: () => void; drag: Drag
         on
         onClick={onExpand}
         onPointerDown={fan.onPointerDown}
-        // Two verbs, because the grip beside it also answers to a drag. The
-        // gesture is invisible otherwise, and this is the only place to say so.
-        tip="Expand · drag to pick a tool"
+        // Two verbs: the hold gesture is invisible otherwise, and this is the
+        // only place to say so.
+        tip="Expand · hold to pick a tool"
         // The tooltip sits exactly where the fan opens, so the hint gets out of
         // the way the moment the gesture it was describing actually starts.
         tipDisabled={fan.open}
