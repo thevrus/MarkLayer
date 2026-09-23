@@ -34,6 +34,8 @@ const SIZE = 32;
 
 /** Under this the press is still a plain tap, so the fan never opens on a click. */
 const DEADZONE = 14;
+/** Holding still this long opens the fan; a quicker release stays a click. */
+const HOLD_MS = 280;
 /**
  * How far past its own slice a tool still answers. Half a step covers the ring;
  * the slack is what lets the two outer tools take a sloppy drag, while a drag
@@ -139,9 +141,9 @@ function swallowNextClick(btn: HTMLElement) {
 }
 
 /**
- * Press the collapsed bar and drag toward a tool to switch to it without ever
- * expanding it: opening, choosing and committing are one gesture. A plain click
- * still expands, so this only adds a path rather than replacing one.
+ * Hold the collapsed bar, then slide toward a tool and let go to switch to it
+ * without ever expanding it. A flick past the deadzone opens it early too. A
+ * plain click still expands, so this only adds a path rather than replacing one.
  *
  * `setShield` raises the toolbar's drag shield. The web viewer frames the target
  * page in an iframe, and an iframe swallows the pointer stream the moment the
@@ -166,20 +168,29 @@ function startToolFan({ e, setShield }: { e: PointerEvent; setShield: (on: boole
   /** Set once the fan has been refused room, so a longer drag doesn't retry it. */
   let cancelled = false;
 
+  /** False when there is no room, which also ends the gesture for good. */
+  const open = () => {
+    clearTimeout(holdTimer);
+    const placed = chooseBase({ cx: btnX, cy: btnY, count });
+    // No room for a whole fan here. Leave the press alone so it still reads as
+    // the click it started as, and never try again for this gesture.
+    if (!placed) {
+      cancelled = true;
+      return false;
+    }
+    opened = true;
+    fanState.value = { tools, ...placed };
+    setShield(true);
+    return true;
+  };
+  // Every path that opens or cancels clears this first, so firing needs no guard.
+  const holdTimer = setTimeout(open, HOLD_MS);
+
   const aimAt = (px: number, py: number) => {
     if (cancelled) return;
     if (!opened) {
       if (Math.hypot(px - btnX, py - btnY) < DEADZONE) return;
-      const placed = chooseBase({ cx: btnX, cy: btnY, count });
-      // No room for a whole fan here. Leave the press alone so it still reads as
-      // the click it started as, and never try again for this gesture.
-      if (!placed) {
-        cancelled = true;
-        return;
-      }
-      opened = true;
-      fanState.value = { tools, ...placed };
-      setShield(true);
+      if (!open()) return;
     }
     const st = fanState.value;
     if (!st) return;
@@ -213,6 +224,7 @@ function startToolFan({ e, setShield }: { e: PointerEvent; setShield: (on: boole
   };
 
   const teardown = () => {
+    clearTimeout(holdTimer);
     aimSampler.cancel();
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
@@ -350,7 +362,7 @@ export function useToolFan({ setShield }: { setShield: (on: boolean) => void }) 
   const st = fanState.value;
   const aim = fanAim.value;
   return {
-    /** Open once the press has travelled past the deadzone, never on a click. */
+    /** Open once the press is held or travels past the deadzone, never on a click. */
     open: st !== null,
     /**
      * The tool the drag is aimed at, else the live one. The button is the
