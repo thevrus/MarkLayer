@@ -1,14 +1,15 @@
 ---
 order: 5
-title: "Marker.io vs MarkLayer: Free Alternative to $59/Month"
-description: "Marker.io starts at $59/month ($39/mo billed annually) with Jira/GitHub sync. MarkLayer is free with no integrations. Paste the share link into your tracker."
+title: "Marker.io vs MarkLayer: A Free Marker.io Alternative"
+description: "Marker.io costs $59/month ($39 annual, 3 seats); Jira sync needs the $199 Team plan. MarkLayer is a free Marker.io alternative with one-way issue filing."
+intro: "MarkLayer is a free, open-source Marker.io alternative for visual feedback: paste a URL and annotate the live page in your browser without installing anything or making an account. Marker.io costs at least $39 a month and adds two-way Jira sync, console logs, and network capture that MarkLayer does not have."
 competitor: "Marker.io"
 competitorTagline: "a paid visual bug-reporting platform with deep integrations into Jira, GitHub, and project management tools like Trello, Asana, and ClickUp"
 homepage: "https://marker.io"
-bottomLine: "Choose MarkLayer for free, fast visual feedback that you paste into the tracker you already have. Choose Marker.io if you want bug reports to flow automatically into Jira, GitHub, or Trello with browser metadata attached, and your team is on a paid bug-reporting subscription."
-quote: "Marker.io's moat is the two-way Jira/GitHub sync, published at $59 a month, or $39 on annual billing, as of August 2026. If your team lives in those trackers, that's worth the bill. If you paste share links yourself, MarkLayer covers the annotation step for free."
+bottomLine: "Choose MarkLayer for free, real-time visual feedback with one-way issue filing into Linear, GitHub, or Jira. Choose Marker.io if you want two-way Jira sync, console and network capture, and your team already pays for a bug-tracking subscription."
+quote: "Marker.io's moat is automatic console capture on every report and a Jira sync that runs both ways, and that sync sits on the $199-a-month Team plan (checked September 2026). MarkLayer files a Linear, GitHub or Jira issue for you now too. One way out, and free."
 published: 2026-01-28
-modified: 2026-09-14
+modified: 2026-09-24
 rows:
   - feature: "Price"
     ml: "Free"
@@ -17,26 +18,26 @@ rows:
     ml: "No"
     them: "Yes"
   - feature: "Native Jira integration"
-    ml: "No. Paste the share link"
-    them: "Yes. Two-way sync"
+    ml: "Yes. One issue filed at a time, nothing syncs back"
+    them: "Yes. Two-way sync (Team plan, $149/mo annual and up)"
   - feature: "Native GitHub integration"
-    ml: "No"
+    ml: "Yes. One issue filed at a time, nothing syncs back"
     them: "Yes"
   - feature: "Native Trello/Asana/ClickUp"
     ml: "No"
     them: "Yes"
   - feature: "Browser metadata capture"
-    ml: "No"
+    ml: "Yes. Browser, OS, viewport width on every comment"
     them: "Yes. Browser, OS, viewport"
   - feature: "Console log capture"
     ml: "No"
     them: "Yes"
   - feature: "AI coding agent access (MCP)"
-    ml: "Yes. Agents watch, acknowledge, resolve, and reply in the live room"
-    them: "Yes. Agents read reports; resolving and replying stay manual"
+    ml: "Yes. Agents watch a live room and resolve, reply, or dismiss instantly"
+    them: "Yes. MCP tools can resolve issues and post replies, plus read console and network logs"
   - feature: "Real-time live cursors"
     ml: "Yes"
-    them: "No. Report-style, not collaborative canvas"
+    them: "No. Report-style, not a collaborative canvas"
   - feature: "Drawing tools"
     ml: "Freehand, shapes, arrows, lines"
     them: "Pin comments + draw"
@@ -44,34 +45,83 @@ rows:
     ml: "Yes"
     them: "No"
   - feature: "Best for"
-    ml: "Lightweight visual feedback"
+    ml: "Lightweight, real-time visual feedback"
     them: "Tracker-integrated QA workflow"
 chooseMl:
-  - "You want free annotation and you're fine pasting links into your tracker manually."
-  - "You don't want yet another paid SaaS subscription per QA reporter."
-  - "You need real-time collaborative review with live cursors, not a report-handoff workflow."
-  - "You want open source for security or self-hosting reasons."
+  - "You want free annotation plus one-way issue filing into Linear, GitHub, or Jira, no subscription attached."
+  - "You don't want another paid SaaS seat for every QA reporter."
+  - "You need real-time collaborative review with live cursors, not a report-and-forward workflow."
+  - "You want open source, for security review or self-hosting."
 chooseThem:
-  - "You need bug reports to land in Jira, GitHub, Trello, Asana, or ClickUp automatically. Not pasted by hand."
-  - "You want browser, OS, viewport, and console errors captured without thinking about it."
-  - "You run a QA team where the integration cost is justified by reporter velocity."
+  - "You need two-way Jira sync so a ticket's status reflects back to the reporter automatically. That sits behind the $149-to-199-a-month Team plan."
+  - "You want console logs and network requests captured automatically, beyond a screenshot and a comment."
+  - "You run a QA team where the integration cost is justified by reporter time saved."
 faq:
   - q: "Is MarkLayer a free Marker.io alternative?"
-    a: "For the annotation step itself, yes. For Marker.io's tracker integrations and metadata capture, no. Those are the platform's core differentiators and MarkLayer doesn't replicate them."
-  - q: "Can I integrate MarkLayer with Jira like Marker.io?"
-    a: "Not natively. MarkLayer is open source, so a webhook-style integration could be built, but there's nothing out of the box. The standard workflow is pasting the share link into a Jira ticket description."
-  - q: "Does MarkLayer capture browser metadata for bug reports?"
-    a: "No. MarkLayer records no browser version, no OS, no viewport, no console logs, and no session replay. It captures what you draw and type on the page, nothing about the environment behind it. For automatic capture, Marker.io or BugHerd or Jam are better fits."
+    a: "For the annotation and live-collaboration step, yes. For Marker.io's two-way Jira sync and its console and network capture, no. Those still sit behind Marker.io's paid plans, and MarkLayer doesn't try to replicate them."
+  - q: "What shows up in the Jira, Linear, or GitHub ticket MarkLayer creates?"
+    a: "The annotation's text, its author, its priority, and the page it's pinned to. It's a single filed issue, not a synced one: MarkLayer posts the new ticket's URL back into the thread once, and that's the only trip the data makes in either direction."
+  - q: "Does MarkLayer capture browser metadata for reports?"
+    a: "Yes. Every comment records the browser, operating system and viewport width it was written on, so a report can say a bug only shows up at one width. It doesn't capture console logs, network requests or a session replay; Marker.io and Jam do."
   - q: "When does MarkLayer make more sense than Marker.io?"
-    a: "When you want zero billing setup, no per-reporter pricing, and you're already happy pasting links into Jira/Linear/GitHub Issues yourself."
-  - q: "Do MarkLayer and Marker.io both have MCP servers for AI coding agents?"
-    a: "Yes, both. The difference is the loop. Marker.io's MCP server lets an agent read bug reports (screenshots, console and network logs) but the agent cannot resolve or reply to them. MarkLayer's MCP server lets an agent watch a room, mark annotations in progress, fix the issue, resolve, and reply, while everyone in the room sees the status change live."
-  - q: "What exactly does the $59/month buy that pasting a link doesn't?"
-    a: "Automation on the receiving end. Marker.io's report arrives in Jira or GitHub already carrying the browser, OS, viewport, and console state, with two-way sync so a status change in the tracker reflects back to the reporter. Pasting a MarkLayer share link into the same ticket gets the visual annotation into the tracker too, just without the automatic metadata capture or the sync back out. For a QA team filing dozens of reports a week, that automation is the entire point of paying; for occasional feedback, it's overhead nobody asked for."
+    a: "When you want zero billing setup, real-time collaboration with live cursors, and you're fine filing tickets one at a time instead of syncing them continuously."
+  - q: "Does connecting either tool's MCP server cost extra?"
+    a: "No, on both sides. Marker.io's MCP access is open to every customer regardless of plan, per its own documentation checked September 2026. MarkLayer's MCP server, marklayer-mcp on npm, is free and open source; install it with `claude mcp add marklayer -- npx -y marklayer-mcp`."
+  - q: "Can I use MarkLayer and Marker.io on the same project?"
+    a: "Nothing stops it: paste a MarkLayer share link into a Marker.io ticket for the visual mark and let Marker.io's report stay the record. It is more tooling to run, so it mostly makes sense while you trial one against the other."
+  - q: "What happens to a MarkLayer link if nobody claims it?"
+    a: "It's deleted 90 days after the last view, comment, or edit; any of those three resets that clock. Claiming the link with MarkLayer's free magic-link account removes the idle clock entirely, so a claimed review stays until its owner deletes it or sets an earlier expiry themselves."
 ---
+## How MarkLayer's issue filing compares to Marker.io's two-way sync
 
-MarkLayer and [Marker.io](https://marker.io) both let you annotate webpages and share feedback, but they're built for different volumes of reporting. Marker.io is a paid B2B platform: install a feedback widget or browser extension, and every bug report flows automatically into Jira, GitHub, Trello, or Asana with browser metadata and console logs already attached, plus two-way sync so a status change in the tracker reflects back to whoever filed it. MarkLayer skips the widget and the sync entirely: paste a URL, annotate it in the browser, and share a link that you paste into whatever tracker you already use, by hand.
+MarkLayer files one Linear, GitHub or Jira issue from one annotation, and the connection runs one way. Marker.io's Team plan keeps a Jira ticket and its bug report in step in both directions, and that plan costs $149 to $199 a month rather than the $39 Starter tier most teams try first.
 
-That gap, automatic capture and sync versus a link you paste yourself, is really a question of report volume. A QA team filing bug reports daily against a real backlog gets genuine value from Marker.io's automation: the metadata that would otherwise need typing out by hand, the sync that keeps a ticket's status honest without someone updating it manually. A team that annotates a handful of things a week, mostly client feedback or one-off internal review, is paying $59 a month for automation it barely exercises.
+Marker.io's pricing page, checked September 2026, puts Jira and Azure DevOps on Team: $199 a month billed monthly, or $149 annually, for 15 users. GitHub, GitLab, Linear, Trello, Asana and ClickUp already come with Starter ($59 a month, or $39 annually, for three users).
 
-The split is really about who's reporting and how often, not which tool is "better." Marker.io earns its subscription at scale, where the integration pays for itself in saved reporter time. MarkLayer covers the same annotation step for free, for teams where that scale was never the situation in the first place.
+On MarkLayer, the issue carries the annotation's text, author, priority and page, and the new ticket's URL is posted back into the thread once. After that nothing travels in either direction, so closing the Jira ticket doesn't close the comment. MarkLayer also posts new annotations to Slack, Microsoft Teams, Discord or any webhook, batched into one message when several land together. A room holds up to five integrations, and tracker tokens stay in the browser of whoever connected them rather than on MarkLayer's server.
+
+## What you give up moving from Marker.io to MarkLayer
+
+Treating MarkLayer as a Marker.io alternative means giving up automatic capture and two-way sync, the two things Marker.io charges for. MarkLayer draws and comments on a page. It doesn't record what the browser was doing underneath.
+
+Marker.io attaches console logs, network requests and environment details to every report without anyone typing them, per its Starter plan feature list. Team adds session replay, custom metadata fields, custom branding and CSV export. MarkLayer has none of that, and its exports stop at a Markdown file or a PNG of the page.
+
+Guest management works differently too. Marker.io scopes guests to specific projects, with admin control over who sees what. MarkLayer's control is per link: whoever has it is in the room, and a link you've claimed with the free account can be switched to view-only.
+
+## What MarkLayer does that Marker.io doesn't
+
+A few MarkLayer features have no counterpart in Marker.io's report model, because they're built for live review rather than ticket filing. Peer-to-peer voice and video calls run in the same room, and joining one needs no install, the same as viewing the page.
+
+One share link can hold up to 50 pages, switched by tabs, so a multi-page site review doesn't need 50 links. Responsive preview checks a page at desktop, tablet and mobile widths without leaving the room. PDFs and images up to 25MB get the same drawing and comment tools as a webpage, although the inspector, measure and multi-select tools need real HTML and skip files.
+
+The inspector also builds a Markdown block for an AI agent, with the element's selector, computed styles and a summary, ready to paste into a prompt. That is a different reader from the one Marker.io's reports are written for, and it's the reader MarkLayer was designed around.
+
+## How many people can use each tool
+
+MarkLayer has no seat count, and joining a room needs no login. Three people or thirty, anyone with the link is in. Marker.io's Starter plan seats three team members plus ten guests scoped to a project, and Team raises that to 15 members and 50 guests (Marker.io's pricing page, checked September 2026).
+
+A Marker.io guest can report and comment inside their assigned projects without a full seat's admin access. MarkLayer has no such split. Whoever opens the link can draw, comment and see every other cursor.
+
+## Setup time
+
+Marker.io needs an account, a project, and either its browser extension or a widget snippet on the site before the first report exists. MarkLayer needs a URL pasted into a box.
+
+That is all the free path asks. A free Chrome extension covers pages behind a login or on localhost, and it stays optional even there. Marker.io's onboarding assumes a team lead installs the widget once for everyone, while MarkLayer assumes each person opens a link and starts drawing. They're built for different first sessions.
+
+## How the AI-agent handoff differs
+
+Both tools now let a coding agent resolve issues rather than only read them. Marker.io's MCP server, per help.marker.io in September 2026, has tools that set an issue to resolved or archived and post a comment, plus tools that pull screenshots, console logs and network requests for context.
+
+MarkLayer's twelve MCP tools let an agent watch a room live, mark a thread in progress, resolve it, dismiss it with a reason or reply, and everyone in the room sees the change as it happens. For each annotation the agent gets a CSS selector, a text fingerprint, computed styles, the detected React, Vue or Svelte component and the thread history. It can also suggest an exact text edit, shown as a diff, and read a page's structure before anyone has annotated it. The one thing it can never do is mark a thread approved; that stays with the person who asked for the change.
+
+## Retention and data handling
+
+Marker.io keeps everything until a person deletes it. Its security page, checked September 2026, says data is "stored permanently" with "full control to delete it at any point," and deleted data leaves its backups within 90 days.
+
+MarkLayer deletes an unclaimed link 90 days after its last view, comment or edit, and any of those resets the clock. Claim the link with the free account and it stays until you delete it. The unclaimed default suits a one-off design review; claiming is how you keep a review as long as Marker.io would.
+
+## Who should not switch from Marker.io
+
+Teams that file bug reports daily against a real backlog, where Jira's status has to stay accurate without someone updating it by hand. That two-way sync is what the Team plan buys, and no free tool replicates it.
+
+The same goes if console errors and network traces are the real payload of most reports. A screenshot with an arrow on it won't tell a developer what a failed request returned. MarkLayer marks up what's visible on the page. If your team needs the rest captured automatically, the [full shortlist of free Marker.io alternatives](/alternatives/marker-io) says which tools do it and at what price.
