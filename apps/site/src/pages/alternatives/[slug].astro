@@ -33,7 +33,7 @@ const a = entry.data;
 const { Content } = await render(entry);
 
 const path = `/alternatives/${entry.id}`;
-const h1 = `Free ${a.target} alternatives`;
+const h1 = a.h1 ?? `Free ${a.target} alternatives`;
 
 /**
  * What someone shopping alternatives actually wants is the prices side by side,
@@ -73,9 +73,9 @@ const breadcrumbs: Crumb[] = [
     productSchema(),
   ]}
 >
-  <Content slot="intro" />
+  <Fragment slot="intro">{a.intro ?? <Content />}</Fragment>
 
-  {a.video && <VideoEmbed video={a.video} title={`Free ${a.target} alternatives demo`} />}
+  <VideoEmbed video={a.video} title={`Free ${a.target} alternatives demo`} />
 
   {/* The summary table carries `bestFor` and the price; the entries below carry
       the prose. Splitting them that way keeps the same fact from appearing
@@ -120,6 +120,8 @@ const breadcrumbs: Crumb[] = [
       </div>
     ))
   }
+
+  {a.intro && <Content />}
 
   <Faq qa={a.faq} />
   <Related title="Related comparisons" links={related} />
