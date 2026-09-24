@@ -1,22 +1,26 @@
 ---
+import { DEMO_VIDEO } from '../lib/site';
 import { youtubeVideoId } from '../lib/video';
 
 interface Props {
-  video: string;
+  video?: string;
   title: string;
 }
 
-const { video, title } = Astro.props;
-const id = youtubeVideoId(video);
+const { video = DEMO_VIDEO, title } = Astro.props;
 ---
 
-<div class="ml-video">
-  <iframe
-    src={`https://www.youtube-nocookie.com/embed/${id}`}
-    title={title}
-    loading="lazy"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    referrerpolicy="strict-origin-when-cross-origin"
-    allowfullscreen
-  ></iframe>
-</div>
+{
+  video && (
+    <div class="ml-video">
+      <iframe
+        src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId(video)}`}
+        title={title}
+        loading="lazy"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        referrerpolicy="strict-origin-when-cross-origin"
+        allowfullscreen
+      ></iframe>
+    </div>
+  )
+}

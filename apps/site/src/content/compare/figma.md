@@ -2,6 +2,7 @@
 order: 15
 title: "Figma Comments vs MarkLayer: Design File vs Live Page"
 description: "Figma comments live on the design file and need a Figma account to leave. MarkLayer comments live on the actual rendered page and need no account at all."
+h1: "Figma vs MarkLayer"
 competitor: "Figma"
 competitorTagline: "the design tool where teams comment on frames and prototypes inside the design file"
 homepage: "https://www.figma.com"

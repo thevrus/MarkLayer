@@ -42,10 +42,19 @@ const articleBase = {
   faq,
 };
 
+/** Per-page overrides for compare and alternatives, whose heading and lede are otherwise generated. */
+const overrides = {
+  /** Replaces the generated heading when the search phrase needs to be in it. */
+  h1: z.string().optional(),
+  /** Takes over the lede (styled for three sentences), so the body renders as ordinary sections. */
+  intro: z.string().optional(),
+};
+
 const compare = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/compare' }),
   schema: z.object({
     ...articleBase,
+    ...overrides,
     competitor: z.string(),
     competitorTagline: z.string(),
     homepage: z.url().optional(),
@@ -60,6 +69,7 @@ const alternatives = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/alternatives' }),
   schema: z.object({
     ...articleBase,
+    ...overrides,
     target: z.string(),
     homepage: z.url().optional(),
     /** One-liner for the /alternatives hub, so the hub does not duplicate this page's intro. */

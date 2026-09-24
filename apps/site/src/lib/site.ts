@@ -2,6 +2,8 @@ export const ORIGIN = 'https://marklayer.app';
 export const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc';
 /** The fallback card, for anything with no heading of its own to draw. */
 export const OG_IMAGE = `${ORIGIN}/og.jpg`;
+/** YouTube id of the product demo, which `VideoEmbed` falls back to. Unset until a demo is published. */
+export const DEMO_VIDEO: string | undefined = undefined;
 
 /**
  * A card drawn for one page: its own heading, set large, with a stroke under the

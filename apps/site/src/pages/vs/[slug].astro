@@ -31,7 +31,7 @@ const c = entry.data;
 const { Content } = await render(entry);
 
 const path = `/vs/${entry.id}`;
-const h1 = `${c.competitor} vs MarkLayer`;
+const h1 = c.h1 ?? `${c.competitor} vs MarkLayer: a free ${c.competitor} alternative`;
 const breadcrumbs: Crumb[] = [
   { name: 'MarkLayer', path: '/' },
   { name: 'Comparisons', path: '/compare' },
@@ -53,9 +53,9 @@ const breadcrumbs: Crumb[] = [
     productSchema(),
   ]}
 >
-  <Content slot="intro" />
+  <Fragment slot="intro">{c.intro ?? <Content />}</Fragment>
 
-  {c.video && <VideoEmbed video={c.video} title={`MarkLayer vs ${c.competitor} demo`} />}
+  <VideoEmbed video={c.video} title={`MarkLayer vs ${c.competitor} demo`} />
 
   {/* Both value columns are ink. The competitor's used to be set in the grey
       metadata step, which dimmed half the data in a table whose entire job is
@@ -112,6 +112,8 @@ const breadcrumbs: Crumb[] = [
     A free Chrome extension is available for the sites the web app cannot embed, such as pages behind a login, but it is
     optional and never required to view a share link. There is no paywall and no trial period.
   </p>
+
+  {c.intro && <Content />}
 
   {
     c.quote && (
