@@ -1,6 +1,6 @@
 ---
 order: 11
-title: "stagewise vs MarkLayer: Localhost Toolbar vs Live Rooms"
+title: "stagewise vs MarkLayer: stagewise Alternative With Live Rooms"
 description: "stagewise points AI agents at UI elements in your local dev server. MarkLayer does that on any URL (localhost, staging, production) and lets non-developers join."
 competitor: "stagewise"
 competitorTagline: "an open-source browser toolbar that lets developers point at UI elements in their local dev app and hand the context to AI coding agents"

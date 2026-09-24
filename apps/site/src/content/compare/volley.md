@@ -1,6 +1,6 @@
 ---
 order: 12
-title: "Volley vs MarkLayer: Screenshot Reviews vs Live Pages"
+title: "Volley vs MarkLayer: Free Volley Alternative on Live Pages"
 description: "Volley captures a screenshot of the page and pins comments on it, from $29/month after a 30-day trial. MarkLayer annotates the live page itself, free."
 competitor: "Volley"
 competitorTagline: "a screenshot-based website feedback tool that layers pinned comments on a capture of the page, with Jira, Trello, and Slack export"

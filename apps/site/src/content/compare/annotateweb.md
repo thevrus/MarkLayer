@@ -1,6 +1,6 @@
 ---
 order: 3
-title: "AnnotateWeb vs MarkLayer: Two No-Install Annotation Tools Compared"
+title: "AnnotateWeb vs MarkLayer: No-Install AnnotateWeb Alternative"
 description: "Both run in the browser with no install and no sign-up. MarkLayer adds threaded comments, multi-page projects, 90-day retention and an MCP server for AI agents; AnnotateWeb adds 8 languages and PNG export."
 competitor: "AnnotateWeb"
 competitorTagline: "a free, browser-based web annotation tool from the co-browsing company Surfly, with multi-language support and no install for either side"

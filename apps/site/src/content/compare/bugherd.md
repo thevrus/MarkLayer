@@ -1,6 +1,6 @@
 ---
 order: 2
-title: "BugHerd vs MarkLayer: Free Alternative to $50/Month"
+title: "BugHerd vs MarkLayer: A Free BugHerd Alternative to $50/Month"
 description: "BugHerd starts at $50/month for 5 members (August 2026). MarkLayer is free, no Kanban, no integrations. Paste the share link into the tracker you already use."
 competitor: "BugHerd"
 competitorTagline: "a paid visual bug tracker that turns annotations into a Kanban-style task board"

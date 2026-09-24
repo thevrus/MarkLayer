@@ -1,6 +1,6 @@
 ---
 order: 13
-title: "Superflow vs MarkLayer: AI Review Credits vs Free Rooms"
+title: "Superflow vs MarkLayer: Free Superflow Alternative, No Credits"
 description: "Superflow pins comments on live sites and sells AI page reviews on credits; free plan is 1 project, 1 seat. MarkLayer is free with no credits or seats."
 competitor: "Superflow"
 competitorTagline: "a paid website review platform with comments pinned to live pages, video and audio recordings, and built-in AI agents that review pages on a credit system"

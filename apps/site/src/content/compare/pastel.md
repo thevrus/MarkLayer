@@ -1,6 +1,6 @@
 ---
 order: 1
-title: "Pastel vs MarkLayer: Free, Open-Source, No Sign-Up"
+title: "Pastel vs MarkLayer: Free Open-Source Pastel Alternative"
 description: "Pastel's free plan stops at one canvas, then it bills per seat. MarkLayer is free and open-source with no limits. Live cursors, link sharing, no account."
 competitor: "Pastel"
 competitorTagline: "a paid visual feedback platform built for design agencies and client review workflows"
