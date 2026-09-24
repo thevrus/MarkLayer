@@ -1,6 +1,6 @@
 ---
 order: 8
-title: "Loom vs MarkLayer: When to Annotate vs Record Video"
+title: "Loom vs MarkLayer: A Free Loom Alternative for Page Feedback"
 description: "Loom records a walkthrough. MarkLayer captures one annotated state with arrows and pinned comments. Free, no sign-up. Pick by what the recipient actually needs."
 competitor: "Loom"
 competitorTagline: "a popular async video tool for screen and webcam recording with viewer reactions and time-stamped comments"

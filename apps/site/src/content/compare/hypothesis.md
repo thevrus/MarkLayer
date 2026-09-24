@@ -1,6 +1,6 @@
 ---
 order: 9
-title: "Hypothesis vs MarkLayer: Text Annotation vs Visual"
+title: "Hypothesis vs MarkLayer: A Visual Hypothesis Alternative"
 description: "Hypothesis is the W3C text-annotation layer for scholarly content. MarkLayer is the visual one, with drawings, arrows, and pinned comments anywhere on a page. Both free and open source."
 competitor: "Hypothesis"
 competitorTagline: "an open-source web annotation layer focused on text-based annotation for academia and research"

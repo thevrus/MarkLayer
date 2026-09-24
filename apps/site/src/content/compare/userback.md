@@ -1,6 +1,6 @@
 ---
 order: 6
-title: "Userback vs MarkLayer: Customer Widget vs Team Tool"
+title: "Userback vs MarkLayer: Free Userback Alternative for Teams"
 description: "Userback embeds a widget on your product for end-user feedback. MarkLayer is the free, no-install web app your team uses to annotate any page, including pages you don't own."
 competitor: "Userback"
 competitorTagline: "a paid feedback platform whose primary use case is collecting feedback FROM your end users via an embedded widget on your own product"

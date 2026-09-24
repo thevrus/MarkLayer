@@ -1,6 +1,6 @@
 ---
 order: 10
-title: "Usersnap vs MarkLayer: Free Annotation vs Feedback Suite"
+title: "Usersnap vs MarkLayer: A Free Usersnap Alternative"
 description: "Usersnap starts around €39/month and its trial caps at 20 feedback items. MarkLayer is free visual annotation on any live page. No widget, no account."
 competitor: "Usersnap"
 competitorTagline: "a paid product-feedback platform that collects bug reports, surveys, and feature requests through a widget embedded on your own product"
