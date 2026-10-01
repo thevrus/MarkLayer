@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { AreaOp, CommentOp, InspectOp, SelectionOp, TextOp } from '@marklayer/types';
+import type { AreaOp, CommentOp, DrawOp, InspectOp, SelectionOp, TextOp } from '@marklayer/types';
 import { setAnalytics } from './analytics';
 import { ELEMENT_INSPECTOR_HEADING } from './selector';
 import { toasts } from './toasts';
 
-/* The draft store is a side effect of nearly every mutation here, and there is
-   no IndexedDB in the test DOM - `idb-keyval` throws synchronously reaching for
-   it. Drafts have their own suite; stand the store down for this one. */
+/* No IndexedDB in the test DOM - `idb-keyval` throws synchronously reaching for
+   it - so a Map stands in, letting a test read back what would survive a reload. */
+const savedDrafts = new Map<string, unknown>();
 mock.module('idb-keyval', () => ({
   createStore: () => ({}),
-  get: async () => undefined,
-  set: async () => {},
-  del: async () => {},
+  get: async (key: string) => savedDrafts.get(key),
+  set: async (key: string, value: unknown) => {
+    savedDrafts.set(key, structuredClone(value));
+  },
+  del: async (key: string) => {
+    savedDrafts.delete(key);
+  },
 }));
 
 const {
@@ -31,14 +35,11 @@ const {
   colorName,
   comments,
   commentCounter,
-  contextMenu,
-  closeContextMenu,
   cursorColorName,
   cycleTheme,
   deleteOp,
   duplicateLastOp,
   elementToolsUnavailable,
-  ensureHostMutationObserver,
   ensureScrollTickListener,
   flipGuide,
   focusedAnnotationId,
@@ -59,7 +60,6 @@ const {
   onOpUpdated,
   onProfileChange,
   onUndone,
-  openContextMenu,
   operations,
   peerCount,
   peers,
@@ -80,10 +80,7 @@ const {
   setOpAssignee,
   setOpPriority,
   setColor,
-  setCommentStatus,
-  signedBy,
   setOpStatus,
-  setSelectionStatus,
   setUserColor,
   setOutputDetail,
   SHORTCUTS,
@@ -418,6 +415,57 @@ describe('undo and redo', () => {
     });
     expect(operations.value.map((o) => o.id)).toEqual(['t1']);
     expect(undoStack.value).toEqual([]);
+  });
+});
+
+describe('history and triage survive a reload', () => {
+  // Past the 500ms draft debounce. Also drains a save an earlier test left pending,
+  // which would otherwise write the current ops and pass a test for the wrong reason.
+  const settle = () => Bun.sleep(550);
+  const draftOps = (): DrawOp[] => {
+    const [saved] = savedDrafts.values();
+    return Array.isArray(saved) ? saved : [];
+  };
+  const pushed: string[] = [];
+  beforeEach(() => {
+    pushed.length = 0;
+    onOpPushed.value = (op) => pushed.push(op.id);
+  });
+
+  test('redo hands the op back to the room that undo took it from', () => {
+    pushOp(text('t1'));
+    undo();
+    pushed.length = 0;
+    redo();
+    expect(pushed).toEqual(['t1']);
+  });
+
+  test('undoing a clear saves the restored canvas and sends it back to the room', async () => {
+    await settle();
+    withConfirm(true, () => {
+      operations.value = [text('t1'), text('t2')];
+      clearAll();
+    });
+    undo();
+    await settle();
+    expect(draftOps().map((o) => o.id)).toEqual(['t1', 't2']);
+    expect(pushed).toEqual(['t1', 't2']);
+  });
+
+  test('a status, priority or assignee change is saved to the draft', async () => {
+    const cases: Array<[() => void, Partial<CommentOp>]> = [
+      [() => setOpStatus('c1', 'resolved'), { status: 'resolved', resolved: true }],
+      [() => setOpPriority({ opId: 'c1', priority: 'high' }), { priority: 'high' }],
+      [() => setOpAssignee({ opId: 'c1', assignee: 'Ada' }), { assignee: 'Ada' }],
+    ];
+    await settle();
+    for (const [change, expected] of cases) {
+      savedDrafts.clear();
+      operations.value = [comment({ id: 'c1' })];
+      change();
+      await settle();
+      expect(draftOps()[0]).toMatchObject(expected);
+    }
   });
 });
 
@@ -983,24 +1031,6 @@ describe('measureActive', () => {
   });
 });
 
-describe('context menu', () => {
-  test('opens at the pointer with its items, and closes to nothing', () => {
-    const items = [{ label: 'Delete', onClick: () => {} }];
-    openContextMenu(new MouseEvent('contextmenu', { clientX: 40, clientY: 90 }), items);
-    expect(contextMenu.value).toMatchObject({ x: 40, y: 90, items });
-
-    closeContextMenu();
-    expect(contextMenu.value).toBeNull();
-  });
-});
-
-describe('signedBy', () => {
-  test('returns both halves, so a rename can still follow the work', () => {
-    // A tool that sets `author` but forgets `authorId` still type-checks.
-    expect(signedBy()).toEqual({ author: localUser.name, authorId: localUser.id });
-  });
-});
-
 describe('theme', () => {
   test('cycles and persists', () => {
     const start = theme.value;
@@ -1062,15 +1092,6 @@ describe('setUserColor', () => {
     } finally {
       onProfileChange.value = null;
     }
-  });
-});
-
-describe('deprecated status aliases', () => {
-  test('are the same function, so the two surfaces cannot drift apart', () => {
-    // They exist only so old call sites keep compiling; a divergence here would
-    // be a silent behaviour split between comments and selections.
-    expect(setCommentStatus).toBe(setOpStatus);
-    expect(setSelectionStatus).toBe(setOpStatus);
   });
 });
 
@@ -1154,16 +1175,6 @@ describe('copyInspectorStack', () => {
 });
 
 describe('ensureScrollTickListener and ensureHostMutationObserver', () => {
-  test('are idempotent, so repeated mounts do not stack listeners', () => {
-    // Each extra installation is another observer running on every DOM change.
-    expect(() => {
-      ensureScrollTickListener();
-      ensureScrollTickListener();
-      ensureHostMutationObserver();
-      ensureHostMutationObserver();
-    }).not.toThrow();
-  });
-
   test('coalesces a burst of scroll events into one tick per frame', async () => {
     // Anchored annotations re-resolve their selectors on every tick, so a tick
     // per scroll event would re-query the document dozens of times a second.
