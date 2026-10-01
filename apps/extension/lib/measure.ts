@@ -101,7 +101,7 @@ interface GuideLike {
 }
 
 /** Pixel distance from a point to a guide line in the same axis. */
-export function guideDistance(orientation: Orientation, position: number, point: { x: number; y: number }) {
+function guideDistance(orientation: Orientation, position: number, point: { x: number; y: number }) {
   return orientation === 'vertical' ? Math.abs(point.x - position) : Math.abs(point.y - position);
 }
 

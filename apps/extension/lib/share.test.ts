@@ -2,11 +2,8 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import type { DrawOp } from '@marklayer/types';
 import {
   claudeMcpCommand,
-  getAnnotationId,
   getRoomId,
   getShareUrl,
-  HOW_IT_WORKS_PATH,
-  HOW_IT_WORKS_URL,
   isLikelyEmbedHostile,
   isShareableUrl,
   loadAnnotations,
@@ -210,22 +207,6 @@ describe('parseUrlHash', () => {
   test('rejects a hash with a missing or extra segment', () => {
     expect(withHash('#ant=1440')).toBeNull();
     expect(withHash('#ant=1440=abc=extra')).toBeNull();
-  });
-});
-
-describe('HOW_IT_WORKS links', () => {
-  test('the absolute url is the app origin plus the path the landing page links to', () => {
-    // The extension dialog and the web info panel are not guaranteed to be
-    // running on marklayer.app, so they need the absolute form of the same page.
-    expect(HOW_IT_WORKS_URL).toBe(`https://marklayer.app${HOW_IT_WORKS_PATH}`);
-    expect(HOW_IT_WORKS_PATH.startsWith('/')).toBe(true);
-  });
-});
-
-describe('getAnnotationId', () => {
-  test('reports the current room without minting one', () => {
-    setAnnotationId('known-room');
-    expect(getAnnotationId()).toBe('known-room');
   });
 });
 

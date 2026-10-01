@@ -1,8 +1,7 @@
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
-import { commitOp } from '../lib/anchor';
-import { activeTool, color, lineWidth } from '../lib/state';
+import { activeTool, color, lineWidth, pushOp } from '../lib/state';
 import type { TextOp } from '../lib/types';
 
 function TextInputOverlay({ x, y, onCommit }: { x: number; y: number; onCommit: (text: string) => void }) {
@@ -82,7 +81,7 @@ export function TextLayer() {
                 lineWidth: lineWidth.value,
                 captureViewport: { width: window.innerWidth, height: window.innerHeight },
               };
-              commitOp(op);
+              pushOp(op);
             }
             input.value = null;
           }}

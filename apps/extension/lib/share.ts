@@ -24,9 +24,6 @@ let currentAnnotationId: string | null = null;
  * minting it (`getRoomId`). Half of `canPushSnapshot` below. */
 let joinedRoom = false;
 
-export function getAnnotationId() {
-  return currentAnnotationId;
-}
 export function setAnnotationId(id: string) {
   currentAnnotationId = id;
   joinedRoom = true;

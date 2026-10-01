@@ -2,7 +2,7 @@ import { batch, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { applyAnchorDelta, commitOp } from '../lib/anchor';
+import { applyAnchorDelta } from '../lib/anchor';
 import {
   circleHitsRect,
   constrainEnd,
@@ -23,6 +23,7 @@ import {
   isDrawingActive,
   lineWidth,
   operations,
+  pushOp,
   SHAPES,
   scrollTick,
   selections,
@@ -303,7 +304,7 @@ export function Canvas() {
             // most of the wire/storage savings of simplification.
             const tol = tool === 'eraser' ? 0.5 : 1.5;
             currentPath.current.points = simplify(currentPath.current.points, tol);
-            commitOp(currentPath.current);
+            pushOp(currentPath.current);
           }
           currentPath.current = null;
         } else if (SHAPES.has(tool)) {
@@ -319,14 +320,14 @@ export function Canvas() {
           };
           if (tool === 'circle') {
             const r = Math.hypot(d.x - s.x, d.y - s.y);
-            if (r > 0) commitOp({ ...base, tool: 'circle', centerX: s.x, centerY: s.y, radius: r });
+            if (r > 0) pushOp({ ...base, tool: 'circle', centerX: s.x, centerY: s.y, radius: r });
           } else if (tool === 'rectangle') {
             if (s.x !== d.x && s.y !== d.y) {
-              commitOp({ ...base, tool: 'rectangle', startX: s.x, startY: s.y, endX: d.x, endY: d.y });
+              pushOp({ ...base, tool: 'rectangle', startX: s.x, startY: s.y, endX: d.x, endY: d.y });
             }
           } else if (tool === 'line' || tool === 'arrow') {
             if (s.x !== d.x || s.y !== d.y) {
-              commitOp({
+              pushOp({
                 ...base,
                 tool: 'line',
                 arrow: tool === 'arrow',
