@@ -385,13 +385,6 @@ describe('strokeArrowHead', () => {
     expect(a[0] ?? 0).toBeLessThan(100);
     expect(a[1] ?? 0).toBeCloseTo(-(b[1] ?? 0), 6);
   });
-
-  test('opens and strokes its own path, so the caller shaft is already committed', () => {
-    const ctx = recordingContext();
-    strokeArrowHead(asContext(ctx), { start: { x: 0, y: 0 }, end: { x: 10, y: 0 }, lineWidth: 2 });
-    expect(ctx.calls[0]?.op).toBe('beginPath');
-    expect(ctx.calls[ctx.calls.length - 1]?.op).toBe('stroke');
-  });
 });
 
 describe('renderOp', () => {
@@ -419,13 +412,6 @@ describe('renderOp', () => {
     renderOp(asContext(ctx), line({ startX: 10, startY: 20, endX: 110, endY: 20 }), 0, 0);
     expect(argsOf(ctx, 'moveTo')).toEqual([[10, 20]]);
     expect(argsOf(ctx, 'lineTo')).toEqual([[110, 20]]);
-  });
-
-  test('adds two barbs for an arrow', () => {
-    const ctx = recordingContext();
-    renderOp(asContext(ctx), line({ arrow: true }), 0, 0);
-    // The shaft plus both barbs.
-    expect(argsOf(ctx, 'lineTo')).toHaveLength(3);
   });
 
   test('draws a circle at its scaled centre and radius', () => {

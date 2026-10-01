@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'bun:test';
-import { blockedDomain, captureServer } from './posthog';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { blockedDomain, captureBlockedSite, captureServer } from './posthog';
 
 describe('blockedDomain', () => {
   test('reduces a subdomain to the site someone can be written to about', () => {
@@ -96,5 +96,46 @@ describe('captureServer', () => {
         expect(called).toBe(false);
       },
     );
+  });
+});
+
+describe('what leaves the worker', () => {
+  const env = { POSTHOG_KEY: 'phc_test', POSTHOG_HOST: 'https://ph.test' };
+  const ctx = { waitUntil() {} };
+  const realFetch = globalThis.fetch;
+  const bodies: string[] = [];
+
+  beforeEach(() => {
+    bodies.length = 0;
+    globalThis.fetch = Object.assign(
+      async (_input: unknown, init?: { body?: unknown }) => {
+        bodies.push(String(init?.body));
+        return new Response(null, { status: 200 });
+      },
+      { preconnect: realFetch.preconnect },
+    );
+  });
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  test('carries no URL', async () => {
+    await captureServer(env, ctx, 'x', {
+      message: 'GET https://intranet.acme.test/a?token=s3cret failed',
+      blocked_domain: 'https://acme.test/private',
+    });
+    const [first] = bodies;
+    expect(first).toBeDefined();
+    for (const leak of ['intranet.acme.test', 's3cret', '/private']) expect(first).not.toContain(leak);
+
+    await captureBlockedSite(env, ctx, {
+      kind: 'http-error',
+      url: 'https://shop.acme.co.uk/cart?session=abc',
+      status: 403,
+    });
+    const second = JSON.parse(bodies[1] ?? '{}');
+    expect(second.properties.blocked_domain).toBe('acme.co.uk');
+    expect(bodies[1]).not.toContain('session=abc');
+    expect(bodies[1]).not.toContain('/cart');
   });
 });

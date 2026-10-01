@@ -105,10 +105,15 @@ describe('freezeDocument', () => {
     expect(idle.played).toBe(0);
   });
 
-  test('ignores an animation with no element target', () => {
+  test("treats an animation with no element target as the page's", () => {
     const orphan = animation({ target: null });
     stubAnimations(document, [orphan]);
-    expect(() => freezeDocument(document)).not.toThrow();
+
+    freezeDocument(document);
+    expect(orphan.paused).toBe(1);
+
+    thawDocument(document);
+    expect(orphan.played).toBe(1);
   });
 
   test('survives an animation that finishes between listing and pausing', () => {

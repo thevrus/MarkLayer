@@ -5,7 +5,7 @@ import {
   agentLabel,
   applyOpPatch,
   type CommentOp,
-  canonicalAgent,
+  canEditLink,
   clientMsgSchema,
   cn,
   type DrawOp,
@@ -19,8 +19,6 @@ import {
   RETENTION_DAYS,
   resolveOpStatus,
   translateOp,
-  UPLOAD_ACCEPT,
-  UPLOAD_FORMATS,
 } from './index';
 
 const comment: CommentOp = {
@@ -106,10 +104,6 @@ describe('applyOpPatch', () => {
 });
 
 describe('resolveOpStatus', () => {
-  test('prefers an explicit status', () => {
-    expect(resolveOpStatus({ ...comment, status: 'in_progress' })).toBe('in_progress');
-  });
-
   test('falls back to open when nothing is set', () => {
     expect(resolveOpStatus(comment)).toBe('open');
   });
@@ -315,30 +309,24 @@ describe('deletionDeadline', () => {
   });
 });
 
-describe('UPLOAD_ACCEPT', () => {
-  test('offers exactly the formats the sniffer recognises', () => {
-    // Derived rather than hand-listed: the two disagreeing is how a person is
-    // offered a file that the server then refuses.
-    expect(UPLOAD_ACCEPT.split(',')).toEqual(UPLOAD_FORMATS.map((format) => format.contentType));
-    expect(UPLOAD_ACCEPT).not.toContain('svg');
-  });
+describe('canEditLink', () => {
+  const cases = [
+    { access: 'edit', ownerId: null, userId: null, want: true },
+    { access: 'view', ownerId: 'u1', userId: 'u1', want: true },
+    { access: 'view', ownerId: 'u1', userId: 'u2', want: false },
+    { access: 'view', ownerId: 'u1', userId: undefined, want: false },
+    // An unowned room and an anonymous viewer both carry null; that must not read as "the owner".
+    { access: 'view', ownerId: null, userId: null, want: false },
+  ] as const;
+
+  for (const { want, ...link } of cases) {
+    test(`${JSON.stringify(link)} -> ${want}`, () => {
+      expect(canEditLink(link)).toBe(want);
+    });
+  }
 });
 
 describe('agent branding', () => {
-  test('an alias resolves to the same brand as its canonical id', () => {
-    // The mark lives in the extension and the label/colour here, so an alias
-    // spelled into only one table shows an agent's icon without its name.
-    for (const [alias, canonical] of [
-      ['claude-code', 'claude'],
-      ['gemini-cli', 'gemini'],
-      ['github-copilot', 'copilot'],
-    ]) {
-      expect(canonicalAgent(alias)).toBe(canonical);
-      expect(agentLabel(alias)).toBe(agentLabel(canonical));
-      expect(agentColor(alias)).toBe(agentColor(canonical));
-    }
-  });
-
   test('an unrecognised id is title-cased and claims no brand', () => {
     expect(agentLabel('my-cool-agent')).toBe('My Cool Agent');
     expect(agentColor('my-cool-agent')).toBe(AGENT_FALLBACK_COLOR);

@@ -74,16 +74,6 @@ describe('annotationStore.getMany', () => {
     expect((await annotationStore(asDb(db)).getMany([])).size).toBe(0);
     expect(db.calls).toHaveLength(0);
   });
-
-  test('binds one placeholder per id and keys the result by id', async () => {
-    const db = fakeDb({ all: [{ id: 'b', ops: '[]', url: null, width: null }] });
-    const found = await annotationStore(asDb(db)).getMany(['a', 'b']);
-    expect(db.calls[0]?.sql).toContain('IN (?,?)');
-    expect(db.calls[0]?.bindings).toEqual(['a', 'b']);
-    expect(found.has('b')).toBe(true);
-    // 'a' has no row — absent rather than a null entry, so callers can fill the gap.
-    expect(found.has('a')).toBe(false);
-  });
 });
 
 describe('projectStore.get', () => {

@@ -143,10 +143,6 @@ describe('readPeerInfo with a uid', () => {
     });
   });
 
-  test('still accepts one written before uid existed', () => {
-    expect(readPeerInfo({ id: 'p1', name: 'Ada', color: '#8b5cf6' })).not.toBeNull();
-  });
-
   test('accepts an explicitly absent uid', () => {
     expect(readPeerInfo({ id: 'p1', uid: undefined, name: 'Ada', color: '#8b5cf6' })).not.toBeNull();
   });

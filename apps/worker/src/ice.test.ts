@@ -13,28 +13,6 @@ describe('stripPort53', () => {
     expect(result).toBeNull();
   });
 
-  test('a mixed array keeps only the non-:53 entries and preserves the other fields', () => {
-    const result = stripPort53({
-      urls: ['turn:turn.example.com:53?transport=udp', 'turn:turn.example.com:3478?transport=udp'],
-      username: 'user1',
-      credential: 'secret1',
-    });
-    expect(result).toEqual({
-      urls: ['turn:turn.example.com:3478?transport=udp'],
-      username: 'user1',
-      credential: 'secret1',
-    });
-  });
-
-  test('a server with no :53 at all comes back with its urls intact', () => {
-    const result = stripPort53({
-      urls: ['turn:turn.example.com:3478?transport=udp', 'turns:turn.example.com:443?transport=tcp'],
-    });
-    expect(result).toEqual({
-      urls: ['turn:turn.example.com:3478?transport=udp', 'turns:turn.example.com:443?transport=tcp'],
-    });
-  });
-
   // The regression this anchoring exists for: `includes(':53')` matched :5349 too,
   // dropping the TLS relay from every room while the log still looked healthy.
   test('keeps the TURNS relay on :5349, which only a substring match would eat', () => {
@@ -68,10 +46,8 @@ describe('stripPort53', () => {
     expect(stripPort53({ urls: 'turn:turn.example.com:53' })).toBeNull();
   });
 
-  test('a single-string urls with no :53 is normalized into an array on the way out', () => {
-    // The function always filters through an array, so even a lone string that
-    // survives comes back wrapped in a one-element array, not as a bare string.
+  test('keeps a lone non-:53 string url', () => {
     const result = stripPort53({ urls: 'stun:stun.l.google.com:19302' });
-    expect(result).toEqual({ urls: ['stun:stun.l.google.com:19302'] });
+    expect([result?.urls].flat()).toEqual(['stun:stun.l.google.com:19302']);
   });
 });

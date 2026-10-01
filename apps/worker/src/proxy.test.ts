@@ -4,6 +4,7 @@ import {
   isChallenged,
   isRefusedSubResource,
   peekBody,
+  proxy,
   relayFetch,
   resetRelayBreaker,
 } from './proxy';
@@ -256,5 +257,45 @@ describe('isChallenged — interstitials with no status, path or title tell', ()
     const head =
       '<html><head><title>How Cloudflare challenges work</title></head><body><p>A challenge container is…</p>';
     expect(isChallenged({ status: 200, head })).toBe(false);
+  });
+});
+
+describe("GET /proxy — a stranger's non-HTML bytes", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  const serve = ({ body, type }: { body: string; type: string }) => {
+    globalThis.fetch = Object.assign(async () => new Response(body, { headers: { 'content-type': type } }), {
+      preconnect: realFetch.preconnect,
+    });
+  };
+  const get = (query: string) =>
+    proxy.request(
+      `/proxy?${query}`,
+      {},
+      // biome-ignore lint/suspicious/noExplicitAny: a fake env with no bindings; the route only reads optional ones.
+      {} as any,
+      // biome-ignore lint/suspicious/noExplicitAny: ditto for the execution context.
+      { waitUntil() {}, passThroughOnException() {} } as any,
+    );
+
+  test('come back sandboxed', async () => {
+    const target = encodeURIComponent('https://example.com/x.svg');
+    for (const query of [`url=${target}&raw=1`, `url=${target}`]) {
+      serve({ body: '<svg onload=alert(1)>', type: 'image/svg+xml' });
+      const res = await get(query);
+      expect(res.headers.get('content-security-policy')).toContain('sandbox');
+      expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+      expect(res.headers.get('content-type')).toBe('image/svg+xml');
+    }
+  });
+
+  test('a PDF without raw is handed to the document viewer', async () => {
+    serve({ body: '%PDF-1.4', type: 'application/pdf' });
+    const res = await get(`url=${encodeURIComponent('https://example.com/a.pdf')}`);
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe('/doc?url=https%3A%2F%2Fexample.com%2Fa.pdf');
   });
 });

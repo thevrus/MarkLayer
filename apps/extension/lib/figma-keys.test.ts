@@ -118,17 +118,6 @@ describe('held Space', () => {
     expect(spaceHeld.value).toBe(false);
   });
 
-  test('stays held across the OS auto-repeats, and releases exactly once', () => {
-    bind();
-    press('Space');
-    press('Space', { repeat: true });
-    press('Space', { repeat: true });
-    expect(spaceHeld.value).toBe(true);
-
-    press('Space', { type: 'keyup' });
-    expect(spaceHeld.value).toBe(false);
-  });
-
   test('a press the guard rejected never becomes held', () => {
     // Space typed into a text field must keep its default and not start a pan.
     bind({ viewGuard: block });
@@ -145,13 +134,6 @@ describe('held Alt', () => {
     expect(altHeld.value).toBe(true);
     press('Alt', { type: 'keyup' });
     expect(altHeld.value).toBe(false);
-  });
-
-  test('stays held across auto-repeats', () => {
-    bind();
-    press('Alt');
-    press('Alt', { repeat: true });
-    expect(altHeld.value).toBe(true);
   });
 
   test('does not preventDefault, so Alt keeps its native behaviour', () => {

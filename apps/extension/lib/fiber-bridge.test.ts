@@ -42,11 +42,16 @@ beforeEach(() => {
 
 describe('bridgePayload installation', () => {
   test('installs only once, so a re-injection does not double-answer', () => {
-    // Two listeners would each dispatch a result and the second would win,
-    // which is fine, but the guard is what keeps that from compounding.
-    expect(window.__ml_bridge_installed).toBe(true);
     bridgePayload();
-    expect(window.__ml_bridge_installed).toBe(true);
+    let answers = 0;
+    const count = () => answers++;
+    window.addEventListener('marklayer-result', count);
+    try {
+      detectFrameworkComponent(withFiber([named('Card')]));
+    } finally {
+      window.removeEventListener('marklayer-result', count);
+    }
+    expect(answers).toBe(1);
   });
 });
 

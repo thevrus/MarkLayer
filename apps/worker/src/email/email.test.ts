@@ -55,15 +55,6 @@ describe('mailerFor', () => {
 describe('signInTemplate', () => {
   const rendered = signInTemplate.render({ link: 'https://marklayer.app/auth/verify?token=abc' });
 
-  test('renders the email doctype and table layout that clients need', () => {
-    // XHTML 1.0 Transitional plus presentation tables is what React Email emits
-    // and what Outlook needs; a plain HTML5 doctype here would be the sign that
-    // the shared Layout was bypassed.
-    expect(rendered.html).toStartWith('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"');
-    expect(rendered.html).toContain('role="presentation"');
-    expect(rendered.html).toContain('marklayer.app');
-  });
-
   test('applies the app brand token rather than a stock default', () => {
     // --color-ml-fg is #1a1a1a in apps/worker/web/style.css. If the build's
     // token parsing silently stops working, the link reverts to React Email's

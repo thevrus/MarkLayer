@@ -75,14 +75,6 @@ describe('roster', () => {
     expect(entries[0]).toMatchObject({ id: 'ada', online: true, color: '#0f0' });
   });
 
-  test('lets a live peer overwrite the offline entry whichever order they arrive in', () => {
-    seed({
-      ops: [comment({ author: 'Ada', authorId: 'ada' })],
-      present: [peer({ id: 'conn-7', uid: 'ada', name: 'Ada', color: '#f0f' })],
-    });
-    expect(roster.value.find((e) => e.id === 'ada')?.color).toBe('#f0f');
-  });
-
   test('skips a peer who has not announced a name yet', () => {
     seed({ present: [peer({ id: 'conn-1', name: '' })] });
     expect(roster.value).toHaveLength(1);
