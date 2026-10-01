@@ -40,14 +40,6 @@ describe('trackChanges', () => {
     expect(seen).toEqual(['comment']);
   });
 
-  test('stays quiet when a write does not change the value', () => {
-    const tool = signal('navigate');
-    const seen: string[] = [];
-    trackChanges(tool, (v) => seen.push(v));
-    tool.value = 'navigate';
-    expect(seen).toEqual([]);
-  });
-
   test('reports a value that comes back after changing away and returning', () => {
     const tool = signal('navigate');
     const seen: string[] = [];

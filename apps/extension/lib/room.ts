@@ -17,9 +17,10 @@ export const isReadonly = computed(() => canEditFromRoom.value === false);
 /** Point this browser at an existing room and fold its ops in. Merged, not assigned:
  * a joiner has usually drawn something already, and replacing it has no undo. */
 export async function joinRoom({ id }: { id: string }): Promise<boolean> {
-  setAnnotationId(id);
   const remote = await loadAnnotations(id);
   if (!remote || !Array.isArray(remote)) return false;
+  // Bound only once the room answers: a typo'd id would otherwise become the next share's target.
+  setAnnotationId(id);
   operations.value = mergeOps({ local: operations.value, remote });
   activeRoomId.value = id;
   return true;

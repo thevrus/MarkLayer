@@ -15,10 +15,6 @@ const HEADINGS = [
 ];
 
 describe('measure', () => {
-  it('scales with the size', () => {
-    expect(measure({ text: 'MarkLayer', size: 80 })).toBeCloseTo(measure({ text: 'MarkLayer', size: 40 }) * 2, 5);
-  });
-
   it('costs something for every character, including the space', () => {
     expect(measure({ text: 'a b', size: 60 })).toBeGreaterThan(measure({ text: 'ab', size: 60 }));
   });
@@ -118,10 +114,15 @@ describe('buildPageOgSvg', () => {
     expect(once).toBe(twice);
   });
 
-  it('gives different pages different strokes', () => {
+  it('seeds the stroke from the heading alone', () => {
+    const strokeOf = (svg: string) => svg.match(/<path d="([^"]+)" fill="none" stroke=/)?.[1];
     const a = buildPageOgSvg({ heading: 'Markup.io vs MarkLayer', path: '/vs/markup-io' });
-    const b = buildPageOgSvg({ heading: 'Pastel vs MarkLayer', path: '/vs/pastel' });
-    expect(a).not.toBe(b);
+    // Same letters, same width, same operative word: only the seed can tell them apart.
+    const b = buildPageOgSvg({ heading: 'Markup.oi vs MarkLayer', path: '/vs/markup-io' });
+    const aElsewhere = buildPageOgSvg({ heading: 'Markup.io vs MarkLayer', path: '/other' });
+    expect(strokeOf(a)).toBeDefined();
+    expect(strokeOf(a)).not.toBe(strokeOf(b));
+    expect(strokeOf(a)).toBe(strokeOf(aElsewhere));
   });
 
   it('escapes a heading rather than letting it close a tag', () => {

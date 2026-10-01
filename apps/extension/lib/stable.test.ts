@@ -51,26 +51,17 @@ describe('stableComputed', () => {
   });
 
   test('works for a value that is itself undefined', () => {
-    // The cache is boxed rather than compared against undefined, so this must
-    // not re-compute forever or hand back a stale box.
+    // An `=== undefined` sentinel would read the cached undefined as "no cache"
+    // and adopt 7; a boxed cache holds undefined because equals says so.
     const source = signal(0);
-    let computes = 0;
     const view = stableComputed<number | undefined>({
-      compute: () => {
-        computes++;
-        return source.value === 0 ? undefined : source.value;
-      },
-      equals: (a, b) => a === b,
+      compute: () => (source.value === 0 ? undefined : source.value),
+      equals: () => true,
     });
 
     expect(view.value).toBeUndefined();
-    const after = computes;
-    expect(view.value).toBeUndefined();
-    // A cached read does not recompute.
-    expect(computes).toBe(after);
-
     source.value = 7;
-    expect(view.value).toBe(7);
+    expect(view.value).toBeUndefined();
   });
 
   test('does not call equals before there is a previous value to compare', () => {

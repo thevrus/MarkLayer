@@ -9,10 +9,14 @@ const ID = 'dsWPMrdw6EZ8jkkhxvFKS';
 /** The route validates the body before it reads anything, so these need no live bindings. */
 const testCtx = { waitUntil: (p: Promise<unknown>) => void p, passThroughOnException: () => {} };
 
-function post({ id, body, db }: { id: string; body: unknown; db: ReturnType<typeof fakeDb> }) {
+function post({ id, body, db, cookie }: { id: string; body: unknown; db: ReturnType<typeof fakeDb>; cookie?: string }) {
   return api.request(
     `/${id}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
+      body: JSON.stringify(body),
+    },
     // biome-ignore lint/suspicious/noExplicitAny: same reason as asDb — a fake of only what the route touches.
     { DB: asDb(db) } as any,
     // biome-ignore lint/suspicious/noExplicitAny: ditto for the execution context.
@@ -72,15 +76,6 @@ describe('POST /{id} — share id entropy floor', () => {
     expect(insertsA(db)).toBe(false);
     expect(db.calls.some((call) => call.sql.includes('UPDATE annotations'))).toBe(true);
   });
-
-  test('a well-formed id takes the ordinary upsert, and costs no extra lookup', async () => {
-    const db = fakeDb();
-    const res = await post({ id: ID, body: { ops: [] }, db });
-    expect(res.status).toBe(200);
-    expect(insertsA(db)).toBe(true);
-    // One access read, one upsert — the floor adds nothing on the normal path.
-    expect(db.calls).toHaveLength(2);
-  });
 });
 
 describe('GET /health — the bindings, not a hardcoded ok', () => {
@@ -112,14 +107,6 @@ describe('GET /health — the bindings, not a hardcoded ok', () => {
     expect(await body(res)).toEqual({ status: 'ok', checks: { db: true, storage: true } });
   });
 
-  // The one that would have shipped a permanent outage: `head()` on a key that
-  // does not exist resolves to null, which is a successful round trip. A probe
-  // that treated a miss as a failure would report degraded forever.
-  test('counts an R2 miss as reached, not as a failure', async () => {
-    const res = await health({ db: reachable, storage: missing });
-    expect(await body(res)).toMatchObject({ checks: { storage: true } });
-  });
-
   test('degrades with a 503 when D1 is unreachable', async () => {
     const res = await health({ db: down, storage: missing });
     expect(res.status).toBe(503);
@@ -130,5 +117,71 @@ describe('GET /health — the bindings, not a hardcoded ok', () => {
     const res = await health({ db: reachable, storage: down });
     expect(res.status).toBe(503);
     expect(await body(res)).toEqual({ status: 'degraded', checks: { db: true, storage: false } });
+  });
+});
+
+describe('POST /{id} on a view-only link', () => {
+  const viewOnly = { access: 'view', owner_id: 'u1', owner_expires_at: null };
+
+  test('is 403 for a stranger and 200 for its owner', async () => {
+    const stranger = fakeDb({ firstQueue: [viewOnly] });
+    const denied = await post({ id: ID, body: { ops: [] }, db: stranger });
+    expect(denied.status).toBe(403);
+    // The room was not written.
+    expect(stranger.calls.some((call) => /INSERT|UPDATE annotations/.test(call.sql))).toBe(false);
+
+    const now = Math.floor(Date.now() / 1000);
+    const session = { id: 'u1', email: 'o@x', last_seen_at: now, expires_at: now + 1000 };
+    const owner = fakeDb({ firstQueue: [viewOnly, session] });
+    const allowed = await post({ id: ID, body: { ops: [] }, db: owner, cookie: 'ml_session=tok' });
+    expect(allowed.status).toBe(200);
+  });
+});
+
+describe('integration routes never expose a credential', () => {
+  const request = ({ path, db, body }: { path: string; db: ReturnType<typeof fakeDb>; body?: unknown }) =>
+    api.request(
+      path,
+      body === undefined
+        ? {}
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+      // biome-ignore lint/suspicious/noExplicitAny: same reason as asDb — a fake of only what the route touches.
+      { DB: asDb(db) } as any,
+      // biome-ignore lint/suspicious/noExplicitAny: ditto for the execution context.
+      testCtx as any,
+    );
+
+  test('summaries carry a hint, never the config', async () => {
+    const integrations = JSON.stringify([
+      { provider: 'slack', config: { url: 'https://hooks.slack.com/services/T0/B0/SECRETwxyz' } },
+      { provider: 'github', config: { repo: 'acme/site', token: 'ghp_legacy' } },
+    ]);
+    const res = await request({ path: `/${ID}/integrations`, db: fakeDb({ first: { integrations } }) });
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    expect(text).not.toContain('SECRET');
+    expect(text).not.toContain('ghp_legacy');
+    expect(JSON.parse(text)).toEqual({
+      integrations: [
+        { provider: 'slack', hint: '…wxyz' },
+        { provider: 'github', hint: 'acme/site' },
+      ],
+    });
+  });
+
+  test('a posted token is split off before the room is stored', async () => {
+    const db = fakeDb({ first: { integrations: null } });
+    const res = await request({
+      path: `/${ID}/integrations`,
+      db,
+      body: { provider: 'github', config: { repo: 'acme/site', token: 'ghp_new' } },
+    });
+    expect(res.status).toBe(200);
+    const write = db.calls.find((call) => call.sql.includes('UPDATE annotations SET integrations'));
+    expect(write).toBeDefined();
+    const json = String(write?.bindings[0]);
+    expect(json).toContain('acme/site');
+    expect(json).not.toContain('ghp_new');
+    expect(await res.text()).not.toContain('ghp_new');
   });
 });

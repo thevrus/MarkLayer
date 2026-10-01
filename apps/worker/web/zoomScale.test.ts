@@ -49,4 +49,8 @@ describe('stepping between large stops', () => {
     expect(nextLargeStop({ from: 0.1, dir: 1 })).toBe(0.5);
     expect(nextLargeStop({ from: 0.1, dir: -1 })).toBeNull();
   });
+
+  it('a missing or empty stored zoom is not a stop', () => {
+    for (const stored of [Number(null), Number(''), 0, -0.5]) expect(zoomStop(stored)).toBeNull();
+  });
 });

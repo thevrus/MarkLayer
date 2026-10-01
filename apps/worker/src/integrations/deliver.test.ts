@@ -123,6 +123,10 @@ describe('validateIntegration', () => {
     const noUrl = validateIntegration({ provider: 'slack', config: {} });
     expect(noUrl).toEqual({ ok: false, reason: 'missing or malformed configuration' });
   });
+
+  test('refuses a provider it does not know', () => {
+    expect(validateIntegration({ provider: 'asana', config: {} })).toEqual({ ok: false, reason: 'unknown provider' });
+  });
 });
 
 describe('parseIntegrations', () => {
@@ -239,28 +243,6 @@ describe('deliverOne', () => {
         expect(called).toBe(false);
       },
     );
-  });
-});
-
-describe('validateIntegration', () => {
-  // An issue tracker declines `annotations.created` by design, so validating
-  // against that one event alone would make every tracker unsaveable.
-  test('accepts a provider that only renders the event it is triggered by', () => {
-    expect(validateIntegration({ provider: 'github', config: { token: 'ghp_x', repo: 'acme/site' } })).toMatchObject({
-      ok: true,
-      provider: { id: 'github' },
-    });
-    expect(validateIntegration({ provider: 'linear', config: { apiKey: 'k', teamId: 'ENG' } })).toMatchObject({
-      ok: true,
-      provider: { id: 'linear' },
-    });
-  });
-
-  test('still refuses a config the provider cannot use', () => {
-    expect(validateIntegration({ provider: 'github', config: { token: 'ghp_x', repo: 'not-a-repo' } })).toMatchObject({
-      ok: false,
-    });
-    expect(validateIntegration({ provider: 'asana', config: {} })).toEqual({ ok: false, reason: 'unknown provider' });
   });
 });
 

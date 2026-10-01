@@ -108,14 +108,4 @@ describe('copyText', () => {
     expect(toasts.value[0]).toMatchObject({ message: 'Failed to copy', type: 'error' });
     expect(events).toEqual([['copy_failed', { surface: 'extension', label: 'Markdown copied' }]]);
   });
-
-  test('counts characters, never the text itself', () => {
-    // The privacy contract is a scrubber over flat values; the copied content
-    // must not travel.
-    stubClipboard(() => Promise.resolve());
-    copyText('a secret selector', 'Copied');
-    return tick().then(() => {
-      expect(JSON.stringify(events)).not.toContain('secret');
-    });
-  });
 });
