@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mutationErr, projectAnnotation, targetFromParts } from '@marklayer/agent-tools';
+import { projectAnnotation } from '@marklayer/agent-tools';
 import { areaOpSchema, commentOpSchema, inspectOpSchema, opAnchor, selectionOpSchema } from '@marklayer/types';
 import { parseRoomRef } from './server';
 
@@ -310,45 +310,5 @@ describe('opAnchor', () => {
       rect: { x: 3, y: 4, width: 10, height: 10 },
     });
     expect(opAnchor(op)).toEqual({ x: 3, y: 4 });
-  });
-});
-
-describe('targetFromParts', () => {
-  test('builds a target when all three parts are given', () => {
-    expect(targetFromParts({ selector: '.card', tag: 'div', markdown: '<div class="card">' })).toEqual({
-      selector: '.card',
-      tag: 'div',
-      markdown: '<div class="card">',
-    });
-  });
-
-  test('is undefined when none are given', () => {
-    expect(targetFromParts({})).toBeUndefined();
-  });
-
-  // CreateInput's schema-level refine is what actually rejects a partial triple
-  // at the tool boundary; this only covers the builder's own fallback.
-  test('is undefined given only a partial triple', () => {
-    expect(targetFromParts({ selector: '.card' })).toBeUndefined();
-  });
-});
-
-describe('mutationErr', () => {
-  // The bug this guards: every mutator reported a refused write as "annotation
-  // not found", sending an agent to look for something that was there all along.
-  /** Joined rather than indexed: `content[0]` is optional to the checker. */
-  const textOf = (res: ReturnType<typeof mutationErr>) => res.content.map((c) => c.text).join('');
-
-  test('names the view-only link when the room refuses writes', () => {
-    const res = mutationErr({ room: { viewOnly: true }, id: 'op1' });
-    expect(res.isError).toBe(true);
-    expect(textOf(res)).toContain('view-only');
-    expect(textOf(res)).not.toContain('not found');
-  });
-
-  test('still reports a genuinely missing id as not found', () => {
-    const res = mutationErr({ room: { viewOnly: false }, id: 'op1' });
-    expect(res.isError).toBe(true);
-    expect(textOf(res)).toContain('annotation not found');
   });
 });

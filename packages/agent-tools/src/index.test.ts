@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { AnnotationOp, CommentOp } from '@marklayer/types';
-import { callRoomTool, describedSchema, type RoomOps } from './index';
+import { callRoomTool, classifyOp, describedSchema, type RoomOps } from './index';
 
 const comment = (over: Partial<CommentOp> = {}): CommentOp => ({
   id: 'op-1',
@@ -85,6 +85,13 @@ describe('callRoomTool', () => {
     expect(body(result).error).toContain('view-only');
   });
 
+  test('reports a refused write on a writable link as a missing annotation', async () => {
+    const room = fakeRoom({ acknowledge: () => false });
+    const result = await run('marklayer_acknowledge', { id: 'op-1' }, room);
+    expect(result?.isError).toBe(true);
+    expect(body(result).error).toBe('annotation not found: op-1');
+  });
+
   test('refuses to act on a connection that cannot carry the write', async () => {
     const room = fakeRoom({ checkLive: () => 'socket closed' });
     const result = await run('marklayer_reply', { id: 'op-1', text: 'hi' }, room);
@@ -119,11 +126,66 @@ describe('callRoomTool', () => {
   });
 
   test('takes the element triple all or none', async () => {
+    const created: Parameters<RoomOps['create']>[0][] = [];
+    const room = fakeRoom({
+      create: (a) => {
+        created.push(a);
+        return { id: 'new-1' };
+      },
+    });
     const partial = { text: 'hi', x: 0, y: 0, selector: '#a' };
-    expect((await run('marklayer_create_annotation', partial))?.isError).toBe(true);
+    expect((await run('marklayer_create_annotation', partial, room))?.isError).toBe(true);
     const whole = { text: 'hi', x: 0, y: 0, selector: '#a', tag: 'button', markdown: '`<button>`' };
-    expect(body(await run('marklayer_create_annotation', whole)).id).toBe('new-1');
+    expect(body(await run('marklayer_create_annotation', whole, room)).id).toBe('new-1');
+    await run('marklayer_create_annotation', { text: 'hi', x: 0, y: 0 }, room);
+    expect(created.map((a) => a.target)).toEqual([
+      { selector: '#a', tag: 'button', markdown: '`<button>`' },
+      undefined,
+    ]);
   });
+});
+
+describe('classifyOp', () => {
+  const AGENT = 'claude-code';
+  const agentThread = comment({ id: 'mine', author: AGENT });
+  const humanThread = comment({ id: 'theirs', author: 'Grace' });
+  const ops = [agentThread, humanThread];
+  const reply = (over: Partial<CommentOp>) => comment({ id: 'r-1', author: 'Ada', text: 'yes, do that', ...over });
+
+  const cases: { name: string; op: CommentOp; want: 'new' | 'handoff' | null; parent?: CommentOp }[] = [
+    {
+      name: 'a reply on the agent’s own thread hands it over',
+      op: reply({ parentId: 'mine' }),
+      want: 'handoff',
+      parent: agentThread,
+    },
+    { name: 'the agent’s own reply does not wake it', op: reply({ parentId: 'mine', author: AGENT }), want: null },
+    {
+      name: 'a reply that @mentions the agent on someone else’s thread hands it over',
+      op: reply({ parentId: 'theirs', mentions: [{ id: AGENT, name: 'Claude' }] }),
+      want: 'handoff',
+      parent: humanThread,
+    },
+    {
+      name: 'a mention matches on id, not on the display name',
+      op: reply({ parentId: 'theirs', mentions: [{ id: 'someone-else', name: AGENT }] }),
+      want: null,
+    },
+    { name: 'two people talking under a human thread reach nobody', op: reply({ parentId: 'theirs' }), want: null },
+    { name: 'a reply to a thread the room does not hold is ignored', op: reply({ parentId: 'gone' }), want: null },
+    { name: 'a new root comment is new work', op: comment({ id: 'fresh', author: 'Ada' }), want: 'new' },
+  ];
+
+  for (const c of cases) {
+    test(c.name, () => {
+      const event = classifyOp({ op: c.op, ops: [...ops, c.op], agentId: AGENT });
+      if (c.want === null) return expect(event).toBeNull();
+      expect(event?.kind).toBe(c.want);
+      if (c.want === 'new') return expect(event?.op.id).toBe(c.op.id);
+      expect(event?.op.id).toBe(c.parent?.id);
+      expect(event?.reply?.id).toBe(c.op.id);
+    });
+  }
 });
 
 describe('describedSchema', () => {

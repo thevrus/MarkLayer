@@ -178,7 +178,7 @@ const targetParts = {
 };
 
 /** Builds the `target` block once a schema carrying `targetTripleCheck` has already guaranteed all-or-none. */
-export function targetFromParts({
+function targetFromParts({
   selector,
   tag,
   markdown,
@@ -229,7 +229,7 @@ export const SuggestInput = z
  * first as "not found" sent an agent hunting for a missing annotation when the
  * real answer was that the owner made the link view-only.
  */
-export function mutationErr({ room, id }: { room: { viewOnly: boolean }; id: string }): ToolContent {
+function mutationErr({ room, id }: { room: { viewOnly: boolean }; id: string }): ToolContent {
   return room.viewOnly
     ? err(`this link is view-only, so nothing can be changed through it: ${id}`)
     : err(`annotation not found: ${id}`);
@@ -580,6 +580,17 @@ export interface RoomOps {
   }): Awaitable<{ id: string } | null>;
 }
 
+/** Tools that wait on or write to the room, so a dead socket has to fail them rather than hang or no-op. */
+const NEEDS_LIVE_ROOM = new Set([
+  'marklayer_watch_annotations',
+  'marklayer_acknowledge',
+  'marklayer_resolve',
+  'marklayer_dismiss',
+  'marklayer_reply',
+  'marklayer_create_annotation',
+  'marklayer_suggest_edit',
+]);
+
 /**
  * Run one tool against a room. `null` means the name is not one of these — the
  * caller owns anything transport-specific (the stdio server's connect_room has
@@ -596,10 +607,11 @@ export async function callRoomTool({
   room: RoomOps;
   apiBase: string;
 }): Promise<ToolContent | null> {
-  const live = (): ToolContent | null => {
+  // Checked once, up front: a case that forgot it was how watch looped forever on an empty batch.
+  if (NEEDS_LIVE_ROOM.has(name)) {
     const dead = room.checkLive();
-    return dead ? err(dead) : null;
-  };
+    if (dead) return err(dead);
+  }
 
   switch (name) {
     case 'marklayer_read_page': {
@@ -661,8 +673,6 @@ export async function callRoomTool({
     case 'marklayer_acknowledge': {
       const parsed = IdInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
-      const dead = live();
-      if (dead) return dead;
       if (!(await room.acknowledge(parsed.data.id))) return mutationErr({ room, id: parsed.data.id });
       return ok({ id: parsed.data.id, status: 'in_progress' });
     }
@@ -670,8 +680,6 @@ export async function callRoomTool({
     case 'marklayer_resolve': {
       const parsed = ResolveInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
-      const dead = live();
-      if (dead) return dead;
       if (!(await room.resolve(parsed.data.id, parsed.data.summary))) return mutationErr({ room, id: parsed.data.id });
       return ok({ id: parsed.data.id, status: 'resolved' });
     }
@@ -679,8 +687,6 @@ export async function callRoomTool({
     case 'marklayer_dismiss': {
       const parsed = DismissInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
-      const dead = live();
-      if (dead) return dead;
       if (!(await room.dismiss(parsed.data.id, parsed.data.reason))) return mutationErr({ room, id: parsed.data.id });
       return ok({ id: parsed.data.id, status: 'dismissed', reason: parsed.data.reason });
     }
@@ -688,8 +694,6 @@ export async function callRoomTool({
     case 'marklayer_reply': {
       const parsed = ReplyInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
-      const dead = live();
-      if (dead) return dead;
       if (!(await room.reply(parsed.data.id, parsed.data.text))) return mutationErr({ room, id: parsed.data.id });
       return ok({ id: parsed.data.id, replied: true });
     }
@@ -698,8 +702,6 @@ export async function callRoomTool({
       const parsed = CreateInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
       const { text, x, y, priority, selector, tag, markdown } = parsed.data;
-      const dead = live();
-      if (dead) return dead;
       const created = await room.create({ text, x, y, priority, target: targetFromParts({ selector, tag, markdown }) });
       if (!created) return err(createFailure({ room, what: 'annotation' }));
       return ok({ id: created.id, status: 'open' });
@@ -709,8 +711,6 @@ export async function callRoomTool({
       const parsed = SuggestInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
       const { text, suggestion, rects, comment, priority, selector, tag, markdown } = parsed.data;
-      const dead = live();
-      if (dead) return dead;
       const created = await room.suggestEdit({
         text,
         suggestion,
