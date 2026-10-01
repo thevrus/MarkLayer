@@ -3,7 +3,7 @@ import { activeTool, isDrawingTool } from '@ext/lib/state';
 import { cn, DEMO_ROOM } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { embedInView, embedPointerOver, isMobileDevice } from '../signals';
+import { embedInView, isMobileDevice } from '../signals';
 
 const POSTER_ALT =
   'MarkLayer open on the Wikipedia article for Web annotation. The opening sentence is highlighted in pink, an arrow is drawn from the text toward the language switcher, and a numbered comment pin sits on the title. The MarkLayer toolbar floats over the page and the share bar shows one other person online.';
@@ -98,16 +98,7 @@ export function DemoWindow() {
   };
 
   return (
-    <div
-      ref={box}
-      class="relative min-h-0 flex-1 bg-white"
-      onPointerEnter={() => {
-        embedPointerOver.value = true;
-      }}
-      onPointerLeave={() => {
-        embedPointerOver.value = false;
-      }}
-    >
+    <div ref={box} class="relative min-h-0 flex-1 bg-white">
       <img
         src="/product-review-wikipedia.webp"
         width={1440}

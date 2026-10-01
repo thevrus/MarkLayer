@@ -103,7 +103,7 @@ function rollLetters({
 export function ChannelCycle() {
   const wordRef = useRef<HTMLSpanElement>(null);
   const [index, setIndex] = useState(0);
-  const [widths, setWidths] = useState<number[] | null>(null);
+  const [slot, setSlot] = useState<{ widths: number[]; trail: number } | null>(null);
   const mounted = useRef(false);
 
   useLayoutEffect(() => {
@@ -125,12 +125,24 @@ export function ChannelCycle() {
       letterSpacing: cs.letterSpacing,
     });
     el.parentElement?.appendChild(probe);
+    // Negative tracking pulls the last letter's advance in but not its ink, so the
+    // slot gives that much back on the right, or the wash ends short of the glyph.
+    const trail = Math.max(0, -(Number.parseFloat(cs.letterSpacing) || 0));
     const measured = CHANNELS.map((channel) => {
-      probe.textContent = channel.name;
-      return Math.ceil(probe.getBoundingClientRect().width);
+      // One inline-block per letter, as rendered below: a single text run would
+      // measure with kerning the split word never gets.
+      probe.replaceChildren(
+        ...channel.name.split('').map((ch) => {
+          const letter = document.createElement('span');
+          letter.style.display = 'inline-block';
+          letter.textContent = ch;
+          return letter;
+        }),
+      );
+      return Math.ceil(probe.getBoundingClientRect().width + trail);
     });
     probe.remove();
-    setWidths(measured);
+    setSlot({ widths: measured, trail });
   }, []);
 
   // Plays the per-letter entrance whenever the word changes. Skipped on
@@ -189,10 +201,10 @@ export function ChannelCycle() {
     <span
       class="relative mx-[0.05em] inline-flex justify-center align-bottom isolate"
       style={
-        widths === null
+        slot === null
           ? undefined
           : {
-              width: `${widths[index]}px`,
+              width: `${slot.widths[index]}px`,
               // Timed to the longest word's full entrance (last letter's delay
               // plus its own duration), not the current word's, so the box
               // never has to outrun a longer word cutting in after a shorter one.
@@ -217,7 +229,12 @@ export function ChannelCycle() {
       {/* aria-hidden: split into one span per letter, this would otherwise be
           read out spelled ("S l a c k") instead of as the word. The sr-only
           span carries the real accessible name instead. */}
-      <span ref={wordRef} class="inline-flex items-baseline text-white" aria-hidden="true">
+      <span
+        ref={wordRef}
+        class="inline-flex items-baseline text-white"
+        style={slot ? { paddingRight: `${slot.trail}px` } : undefined}
+        aria-hidden="true"
+      >
         {/* Keyed by cycle, not by position: every swap mounts fresh spans, which
             is what lets the exit hold `fill: 'forwards'` and never be cancelled
             — the letters it froze are gone before the new word paints. */}

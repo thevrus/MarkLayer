@@ -13,7 +13,7 @@ import { HERO_PIN_ID } from './content';
  * after first paint — measuring in a plain mount effect put the pin ~300px
  * high, above the headline instead of on the field.
  */
-export function useHeroPin(heroFormRef: { current: HTMLFormElement | null }): void {
+export function useHeroPin(heroFormRef: { current: HTMLElement | null }): void {
   useEffect(() => {
     let cancelled = false;
 
@@ -32,8 +32,11 @@ export function useHeroPin(heroFormRef: { current: HTMLFormElement | null }): vo
       // the button's own corner returned the pin and that corner was dead. It
       // still reads as attached to the field at this distance, and it no longer
       // sits on top of the page's primary action.
-      const x = r.right + window.scrollX + 30;
-      const y = r.top + r.height / 2 + window.scrollY;
+      // A narrow window leaves no room beside the field, so the pin rises just
+      // above its end instead of being cut by the viewport edge.
+      const roomy = r.right + 48 <= document.documentElement.clientWidth;
+      const x = (roomy ? r.right + 30 : r.right - 22) + window.scrollX;
+      const y = (roomy ? r.top + r.height / 2 : r.top - 20) + window.scrollY;
       const seeded = operations.peek().find((op) => op.id === HERO_PIN_ID);
       if (seeded) {
         if (seeded.tool !== 'comment' || (seeded.x === x && seeded.y === y)) return;
@@ -63,9 +66,12 @@ export function useHeroPin(heroFormRef: { current: HTMLFormElement | null }): vo
       clearTimeout(timer);
       timer = setTimeout(place, 120);
     };
-    document.fonts.ready.then(() => {
-      requestAnimationFrame(place);
-    });
+    // The field rises in on a transform; measuring mid-entrance put the pin 12px low.
+    document.fonts.ready
+      .then(() => Promise.allSettled(heroFormRef.current?.getAnimations().map((a) => a.finished) ?? []))
+      .then(() => {
+        requestAnimationFrame(place);
+      });
     window.addEventListener('resize', onResize);
     return () => {
       cancelled = true;

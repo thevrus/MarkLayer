@@ -86,9 +86,14 @@
      page is a document, and a document is white; every off-white tried here read
      as a tint nobody chose. It also means the only colour anywhere on the page
      comes from the annotation marks, which is the one place colour carries
-     meaning. `-deep` is the single tone step down, used for the footer floor. */
+     meaning. The footer sits on it too, edged by the frame's bottom seam. */
   --color-ml-board: #fff;
-  --color-ml-board-deep: #f5f5f5;
+  /* Half a step off the board: a hovered frame cell and the demo's desk. */
+  --color-ml-board-raised: #fafafa;
+  /* The landing frame: hairline rails and seams, and the darker registration
+     marks where they cross. */
+  --color-ml-rule: #00000014;
+  --color-ml-rule-mark: #00000040;
   --color-ml-input: oklch(1 0 0 / 0.85);
   --color-ml-input-border: oklch(0 0 0 / 0.12);
   /* Glass overlay surfaces (toolbar, panels, popovers) */
@@ -106,9 +111,9 @@
      is not an annotation mark — because here green IS the datum: a status line
      set in ink says nothing the words do not already say. It borrows the
      approved-thread green rather than minting a swatch, so it follows the theme
-     for free (#0a7d33 light, #00c853 dark: 4.82:1 on the floor, 7.78:1 on it in
-     the dark). The brighter --ds-green-700 reads at 2.81 on the floor and would
-     put the label under the AA text floor. */
+     for free (#0a7d33 light: 5.26:1 on the white footer). The brighter
+     --ds-green-700 reads at 3.06 there and would put the label under the AA
+     text floor. */
   --color-ml-live: var(--ds-green-900);
   /* Spring easing for entrance/exit motion. */
   --ease-ml-spring: cubic-bezier(0.16, 1, 0.3, 1);
@@ -122,9 +127,14 @@
 
      `--ml-font-ui` is Geist, and it stays Geist: it is the extension's UI font
      and the toolbar on this page is the real toolbar. `--ml-font-voice` is the
-     page talking. */
+     page talking: Arial, set the way figma.com sets its own face, display at a
+     regular 400 and tracked in by size. Arial first rather than Helvetica Neue
+     so every platform renders the same face; it is installed everywhere, so
+     it costs no download. */
   --ml-font-ui: "Geist", "Geist Fallback", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
-  --ml-font-voice: var(--ml-font-ui);
+  --ml-font-voice: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  /* The wordmark and the URL field are product chrome inside the voice, so they ask for Geist back. */
+  --font-ui: var(--ml-font-ui);
 
   /* ── The type scale ──
      Every size in the product's own UI comes from this ladder, and nothing
@@ -141,7 +151,7 @@
   --text-micro: 0.625rem; /* 10 — badge counts, avatar initials, guide readouts */
   --text-mini: 0.6875rem; /* 11 — measure chips, key hints */
   --text-meta: 0.75rem; /* 12 — the secondary line in every popover */
-  /* The same 12px at reading leading, for the fine print on the floor — the
+  /* The same 12px at reading leading, for the footer's fine print: the
      trademark notice and the colophon. Mirrors `--text-fine` in apps/site, because
      that footer and this one are one design rendered twice. */
   --text-fine: 0.75rem;
@@ -150,21 +160,22 @@
   --text-ui-lg: 0.875rem; /* 14 — controls that have to carry */
   --text-body: 0.9375rem; /* 15 — prose in the web app */
   --text-lede: 1.0625rem; /* 17 */
+  /* 20 — the subline under the landing headline. */
+  --text-intro: 1.25rem;
+  --text-intro--line-height: 1.4;
   --text-heading: 1.1875rem; /* 19 */
   --text-title: 1.5rem; /* 24 */
 
-  /* The landing page's display steps. Each carries its own leading: a
-     headline's line-height belongs to its size, not to the markup. */
-  --text-hero: clamp(38px, 5.6vw, 80px);
+  /* The landing page's two display steps, on figma.com's ratios: the hero (its
+     56-64px h1), and the section head, where the claim and its support run on
+     as one paragraph at one size (its 24-32px two-tone block). Leading and
+     tracking belong to the size, so each step carries its own. */
+  --text-hero: clamp(40px, 4.6vw, 72px);
   --text-hero--line-height: 1;
-  --text-closing: clamp(36px, 5.8vw, 68px);
-  --text-closing--line-height: 1;
-  --text-statement: clamp(32px, 4.8vw, 56px);
-  --text-statement--line-height: 1.02;
-  --text-section: clamp(30px, 4.4vw, 50px);
-  --text-section--line-height: 1.04;
-  --text-subsection: clamp(26px, 3.2vw, 38px);
-  --text-subsection--line-height: 1.06;
+  --text-hero--letter-spacing: -0.045em;
+  --text-statement: clamp(24px, 2.3vw, 36px);
+  --text-statement--line-height: 1.2;
+  --text-statement--letter-spacing: -0.03em;
 
   /* Tracking and leading by role, for the same reason: a value repeated in
      twelve class strings is a decision nobody can change in one place. */
@@ -173,7 +184,7 @@
   --tracking-ui: -0.01em; /* UI titles and labels */
   --tracking-label: 0.011em; /* small mono and meta labels, opened up to read */
   --leading-body: 1.55; /* comment and annotation prose */
-  --leading-prose: 1.65; /* the landing page's paragraphs */
+  --leading-prose: 1.5; /* the landing page's paragraphs: the floor for body copy */
 
   /* ── The page container ──
      One width for the whole product, shared with apps/site (its
@@ -182,7 +193,7 @@
      signature wordmark all changed width when a visitor crossed between them.
      The per-section inner widths below this one are content measures, not the
      container, and stay as they are. */
-  --container-page: 90rem; /* 1440 */
+  --container-page: 100rem; /* 1600 */
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -505,11 +516,11 @@
    on a floor, where it becomes a halo bloom bolted onto a dot.
 
    Most of the movement is in SCALE, and the opacity trough stops at 0.85, for a
-   contrast reason: the dot is 6px of #0a7d33 on a #f5f5f5 floor, and opacity
-   composites it toward that floor. At 0.5 it rendered #80b994 — 2.07:1, under
-   the 3:1 floor for non-text — so a third of every cycle the dot read as a dead
-   grey-green pip rather than a live green one. 0.85 lands on #2d8f50 at 3.74:1
-   and stays unmistakably green; scale carries the breath instead, because
+   contrast reason: the dot is 6px of #0a7d33 on white, and opacity composites
+   it toward the page. At 0.5 it renders #84be99 at 2.14:1, under the 3:1 floor
+   for non-text, so a third of every cycle the dot read as a dead grey-green
+   pip rather than a live green one. 0.85 lands on #2f9052 at 4.01:1 and stays
+   unmistakably green; scale carries the breath instead, because
    shrinking a dot costs no contrast at all.
 
    Only those two properties move, so the dot is a rendered, fully-visible circle
@@ -738,22 +749,20 @@
 .lp-voice {
   font-family: var(--ml-font-voice);
 }
+/* Underlines at the font's own position and weight, so a link in a 36px head
+   and one in 13px fine print are drawn in proportion rather than at one guess. */
+.lp-voice a {
+  text-underline-position: from-font;
+  text-decoration-thickness: from-font;
+}
 
-/* Display register.
-
-   One class owns every line the page says in its own voice, so the display
-   setting is defined once rather than re-typed on seven headings that then
-   drift apart.
-
-   Geist is variable 400-700 and the display weight is 500. Presence at these
-   sizes comes from scale and fit, not from mass: 600 read as underset only
-   because the type itself was too small, and 700 at 90px reads as heavy rather
-   than confident. Set large and tracked tight, a medium weight is what looks
-   composed — the size does the shouting so the weight does not have to. */
+/* Display register: one class for every line the page says in its own voice.
+   A regular 400, as figma.com sets its heads: hierarchy comes from size and
+   tone, not mass. Tracking is not set here: it rides each `--text-*` step,
+   and an unlayered declaration would override the utility's. */
 .lp-display {
-  font-family: var(--ml-font-ui);
-  font-weight: 500;
-  letter-spacing: -0.055em;
+  font-family: var(--ml-font-voice);
+  font-weight: 400;
 }
 
 /* The primary call to action: one flat black surface. This was a gradient fill
@@ -782,21 +791,128 @@
   box-shadow: var(--ds-shadow-border-small);
 }
 
+/* ── The frame ──
+   The page is set inside hairline rails, its sections divided by seams, with a
+   registration mark wherever a seam meets a rail: the canvas a MarkLayer guide
+   is drawn on. Rails and marks only from `sm`; a phone keeps the seams alone. */
+@media (min-width: 640px) {
+  .lp-frame {
+    position: relative;
+    border-inline: 1px solid var(--color-ml-rule);
+    border-bottom: 1px solid var(--color-ml-rule);
+  }
+}
+.lp-cell {
+  position: relative;
+  border-top: 1px solid var(--color-ml-rule);
+}
+/* 11px marks centred on the 1px line: offsets are from the padding box, so -6px
+   puts the mark's middle pixel exactly on the border it straddles. */
+@media (min-width: 640px) {
+  .lp-cell::before,
+  .lp-cell::after,
+  .lp-frame::before,
+  .lp-frame::after {
+    content: "";
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    pointer-events: none;
+    background:
+      linear-gradient(var(--color-ml-rule-mark), var(--color-ml-rule-mark)) center / 1px 100% no-repeat,
+      linear-gradient(var(--color-ml-rule-mark), var(--color-ml-rule-mark)) center / 100% 1px no-repeat;
+  }
+  .lp-cell::before,
+  .lp-cell::after {
+    top: -6px;
+  }
+  /* The frame's top seam sits under the glass nav, which would cut these to a T. */
+  .lp-frame > .lp-cell:first-child::before,
+  .lp-frame > .lp-cell:first-child::after {
+    content: none;
+  }
+  .lp-frame::before,
+  .lp-frame::after {
+    bottom: -6px;
+  }
+  .lp-cell::before,
+  .lp-frame::before {
+    left: -6px;
+  }
+  .lp-cell::after,
+  .lp-frame::after {
+    right: -6px;
+  }
+}
+
+/* ── The nav ──
+   Glass over the page, and it steps out of the way while the demo holds the
+   screen, as the toolbar does. Its hairline is always drawn and doubles as the
+   frame's top seam, so the first cell drops its own. */
+.lp-nav {
+  /* A short blur: a long one drags dark shapes from just off-screen into the
+     bar's top edge as a smudge. */
+  background: color-mix(in srgb, var(--color-ml-board) 72%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
+  backdrop-filter: saturate(180%) blur(14px);
+  box-shadow: inset 0 -1px 0 var(--color-ml-rule);
+  transition:
+    translate 320ms var(--ease-ml-spring),
+    visibility 0s;
+}
+/* Hidden only once it has slid out, so its links leave the tab order too. */
+.lp-nav[data-away] {
+  translate: 0 -100%;
+  visibility: hidden;
+  transition:
+    translate 320ms var(--ease-ml-spring),
+    visibility 0s 320ms;
+}
+.lp-frame > .lp-cell:first-child {
+  border-top: 0;
+}
+
+/* A comparison cell: the hover is a tonal step and the arrow leaning out. */
+.lp-compare {
+  transition: background-color 160ms ease;
+}
+.lp-compare:hover {
+  background-color: var(--color-ml-board-raised);
+}
+.lp-compare-arrow {
+  transition:
+    translate 220ms var(--ease-ml-spring),
+    color 160ms ease;
+}
+.lp-compare:hover .lp-compare-arrow {
+  translate: 2px -2px;
+  color: var(--color-ml-fg);
+}
+
+/* The FAQ toggle is the frame's own registration mark, turned to a cross when open. */
+.lp-faq-mark {
+  transition: rotate 260ms var(--ease-ml-spring);
+}
+details[open] .lp-faq-mark {
+  rotate: 45deg;
+}
+.lp-faq summary::-webkit-details-marker {
+  display: none;
+}
+
 /* ── The demo stage ──
-   A desktop wallpaper with a macOS window on it, holding the live board. The
-   chrome is sized in container units so titlebar, lights and radius scale with
-   the desk. The window's shadow is cast downward from one light, as a real
-   window's is, not bloomed around.
+   A wallpaper desk with the live viewer on it. The viewer carries its own chrome,
+   so the window is just its edge: radius in container units so it scales with
+   the desk, and a shadow cast downward from one light rather than bloomed.
 
    Below `sm`, without scroll-driven animation, or with reduced motion, this is
-   a framed figure in the page column. Otherwise `.lp-stage` breaks out to the
-   viewport and becomes a runway: the pin holds for 1.2 screens, and the desk
-   rides the stage's view timeline — it grows from the page column (the same
-   spine as the heading above it, so nothing is inset from the copy) to the full
-   viewport over the first third, holds, and zooms back out over the last third,
-   so the release hands the reader a small desk scrolling away and the sections
-   below arrive as they always did. The wallpaper stays around the
-   window at every size. `scale` is the whole expansion and nothing else
+   a framed figure in the page column. Otherwise `.lp-stage-run` breaks out to
+   the viewport and becomes a runway, with the caption after it in flow: the
+   pin holds for 1.2 screens, and the desk rides the run's view timeline: it
+   grows from the content spine to the full viewport over the first third,
+   holds, and zooms back out over the last third, so the release hands the
+   reader a small desk scrolling away. The desk stays around the window at
+   every size. `scale` is the whole expansion and nothing else
    animates: the desk is laid out at viewport size from the start, so the room
    inside never reflows — an animated padding once resized the iframe on every
    scroll frame, and the page inside visibly re-laid itself out. */
@@ -806,11 +922,12 @@
   overflow: hidden;
   border-radius: 1rem;
   aspect-ratio: 16 / 10;
+  background-color: var(--color-ml-board-raised);
   /* The resting width of the runway desk, as a ratio of the viewport it is laid
-     out at: the page column, so its edges land on the same spine as the heading
-     above it. CSS has no length-over-length division and `scale` takes a number,
-     so tan(atan2(a, b)) does the division. */
-  --lp-rest: tan(atan2(min(100vw, var(--container-page)) - 5rem, 100vw));
+     out at: the frame's content spine (gutter plus cell padding, 5rem a side),
+     so its edges line up with the copy. CSS has no length-over-length division
+     and `scale` takes a number, so tan(atan2(a, b)) does the division. */
+  --lp-rest: tan(atan2(min(100vw, var(--container-page)) - 10rem, 100vw));
 }
 .lp-desk-pad {
   position: absolute;
@@ -823,31 +940,16 @@
   height: 100%;
   overflow: hidden;
   background: #fff;
-  border-radius: clamp(6px, 1.15cqw, 12px);
+  border-radius: clamp(8px, 1.15cqw, 14px);
   box-shadow:
-    0 0 0 0.5px #0000004d,
-    0 1px 2px #00000029,
-    0 16px 40px -14px #00000066;
-}
-.lp-window-bar {
-  height: clamp(20px, 3.4cqw, 36px);
-  padding-inline: clamp(8px, 1.35cqw, 14px);
-  gap: clamp(5px, 0.75cqw, 8px);
-  background: #e8e8e8;
-  box-shadow:
-    inset 0 0.5px 0 #ffffffb3,
-    inset 0 -0.5px 0 #00000024;
-}
-.lp-light {
-  width: clamp(7px, 1.15cqw, 12px);
-  height: clamp(7px, 1.15cqw, 12px);
-  border-radius: 9999px;
-  box-shadow: inset 0 0 0 0.5px #0000002e;
+    0 0 0 1px #00000014,
+    0 1px 2px #0000000f,
+    0 12px 32px -16px #00000038;
 }
 
 @media (min-width: 640px) and (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
-    .lp-stage {
+    .lp-stage-run {
       width: 100vw;
       margin-inline: calc(50% - 50vw);
       height: 220svh;
@@ -866,11 +968,9 @@
       animation-timeline: --lp-stage;
       animation-range: contain 0% contain 100%;
     }
-    /* The caption belongs to the released state; under the pin it would sit
-       behind the desk. */
+    /* The released desk rests inset in its pin, which already spaces the caption. */
     .lp-stage figcaption {
       margin-top: 0;
-      padding-top: 1rem;
     }
   }
 }
@@ -906,11 +1006,37 @@
 /* Dragging a PDF onto the field borrows the focus ring rather than introducing a
    dashed outline: the page has one emphasis primitive and a drop target is not a
    reason to invent a second. */
-.lp-field:focus-within,
+.lp-field:not(button):focus-within,
+button.lp-field:focus-visible,
 .lp-field[data-dropping="true"] {
   box-shadow:
     0 0 0 1px var(--ds-focus-color),
     0 0 0 4px color-mix(in srgb, var(--ds-focus-color) 22%, transparent);
+}
+/* The PDF and image fields are one button: it keeps the field's ring, not a second outline,
+   and only on keyboard focus so a click to the file picker leaves no ring behind. */
+button.lp-field:focus-visible {
+  outline: none;
+}
+
+/* The source switcher's thumb: the field's own white surface, slid under the active segment.
+   Only the position moves; the segments share a width, so nothing grows or pops. */
+.lp-seg-thumb {
+  position: absolute;
+  top: var(--active-tab-top);
+  left: 0;
+  width: var(--active-tab-width);
+  height: var(--active-tab-height);
+  translate: var(--active-tab-left) 0;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: var(--ds-shadow-border-small);
+  transition: translate 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-seg-thumb {
+    transition: none;
+  }
 }
 
 /* Everything else keeps one ring, drawn as an outline so it follows each
@@ -923,17 +1049,6 @@
 }
 .lp-field:focus-within :focus-visible {
   outline: none;
-}
-
-/* The one hover the page has, and it does not move: a card lifts by tightening
-   its own ring, never by translating up under a shadow bloom. */
-.lp-panel-i {
-  transition: box-shadow 160ms ease;
-}
-.lp-panel-i:hover {
-  box-shadow:
-    0 0 0 1px #00000024,
-    0 2px 2px #0000000a;
 }
 
 /* ── The highlight mark ──
@@ -976,12 +1091,13 @@
 /* ── The footer signature wordmark ──
 
    Full-bleed, centred, cut at about half its cap height and dissolved into the
-   floor rather than stopped at a line.
+   page rather than stopped at a line.
 
    SIZING. "MarkLayer" set in Geist 500 at -0.03em measures 4.7552x its own
-   font-size (measured in the browser, not guessed), so 21vw is the size at which
-   the word's ink spans the viewport. Keep the two in step: change the weight or
-   the tracking and this number is wrong.
+   font-size (measured in the browser, not guessed), so 21cqw is the size at
+   which the word's ink spans the footer. The footer is the container, not the
+   viewport: `vw` counts a classic scrollbar and clipped the last "r". Keep the
+   two in step: change the weight or the tracking and this number is wrong.
 
    CENTRING. The ink is sized to fit rather than to overshoot, so there is no
    overflow to centre. That matters: an overshooting nowrap line does not
@@ -1011,7 +1127,7 @@
    would put a visible band across the glyphs — which is the failure this is
    built to avoid. */
 .lp-wordmark-clip {
-  font-size: 21vw;
+  font-size: 21cqw;
   height: 0.6em;
   overflow: hidden;
   text-align: center;
@@ -1050,6 +1166,8 @@
 .lp-wordmark {
   display: block;
   margin-top: -0.125em;
+  /* Named, not inherited: the sizing and the cut above are Geist's metrics, and the page voice is not Geist. */
+  font-family: var(--ml-font-ui);
   font-size: 1em;
   font-weight: 500;
   line-height: 1;
@@ -1094,16 +1212,6 @@
   100% {
     transform: scale(1);
   }
-}
-
-/* The landing page swaps the visitor's system pointer for their own MarkLayer
- * peer cursor (SelfCursor), so the page they are reading is already the product.
- * Only set while SelfCursor knows where the pointer is, so nobody is ever left
- * with no cursor at all. Form fields keep the native caret — an I-beam is
- * information, not decoration — and SelfCursor hides itself over them. */
-html.ml-cursor-swapped,
-html.ml-cursor-swapped *:not(input, textarea, [contenteditable]) {
-  cursor: none;
 }
 
 /* Dock-style spring on the peer avatar group — hovering one avatar lifts it

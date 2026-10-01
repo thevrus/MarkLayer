@@ -2,44 +2,93 @@ import { CommentPopover } from '@ext/components/CommentPopover';
 import { InspectorLayer } from '@ext/components/InspectorLayer';
 import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
+import { AgentMark } from '@ext/lib/agents';
 import { activeTool, color, comments as commentsComputed, isDrawingTool, lineWidth, selections } from '@ext/lib/state';
 import type { TextOp } from '@ext/lib/types';
-import { cn, UPLOAD_ACCEPT } from '@marklayer/types';
-import { useSignal } from '@preact/signals';
+import { agentLabel, cn } from '@marklayer/types';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
-import { ArrowRight, ChevronDown, Monitor, Search } from 'lucide-preact';
+import { ArrowUpRight, type LucideIcon, Monitor } from 'lucide-preact';
 import { nanoid } from 'nanoid';
-import { useRef } from 'preact/hooks';
+import type { ComponentChildren } from 'preact';
 import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
 import { FakeCursors } from './FakeCursors';
 import { frameViewport } from './iframeOverlay';
 import { ChromeIcon, ChromeStoreLink } from './landing/ChromeStoreLink';
-import { MOMENTS, NAV_LINKS } from './landing/content';
+import {
+  AGENT_IDS,
+  AGENT_MOMENTS,
+  COMPARISON_NAMES,
+  COMPARISONS,
+  FAQ,
+  FEATURES,
+  MOMENTS,
+  NAV_LINKS,
+} from './landing/content';
 import { DemoStage } from './landing/DemoStage';
-import { useHeroPin } from './landing/useHeroPin';
+import { HeroSource } from './landing/HeroSource';
+import { McpCommand } from './landing/McpCommand';
 import { useLandingCanvas } from './landing/useLandingCanvas';
 import { useLandingPresence } from './landing/useLandingPresence';
 import { useLandingShortcuts } from './landing/useLandingShortcuts';
-import { useLandingUpload } from './landing/useLandingUpload';
-import { SelfCursor } from './SelfCursor';
 import { GithubLink, ICON_LINK_CLS, Logo, TextInputOverlay } from './shared';
-import {
-  commentPopover,
-  embedInView,
-  isMobileDevice,
-  navigateTo,
-  pushDeviceOp,
-  selectionPopover,
-  textInput,
-  urlReady,
-} from './signals';
+import { commentPopover, embedInView, isMobileDevice, pushDeviceOp, selectionPopover, textInput } from './signals';
 import { STATUS_LABEL, systemStatus } from './status';
 import { WebCommentPin } from './WebCommentPin';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
+
+/* One display step for every section head and one reading step for every
+   paragraph, so no section sets its own scale. The measure is in ems so it
+   holds about fifty characters a line at every size the step takes. */
+const HEAD_CLS = 'lp-display mx-auto max-w-[26em] text-center text-statement text-balance text-ml-fg';
+const BODY_CLS = 'm-0 text-lede leading-prose text-ml-fg/60';
+
+/* A row of lead-in claims. Three across only from `lg`: at `sm` a third of the
+   column left each cell about 100px of text. */
+const MOMENTS_ROW_CLS = 'lp-cell grid divide-y divide-ml-rule lg:grid-cols-3 lg:divide-x lg:divide-y-0';
+const MOMENT_CLS = 'px-6 py-10 text-pretty sm:px-10 sm:py-14';
+/* The lead-in takes the paragraph's leading: on its own first line it would set
+   a shorter line box and sit 2px above its neighbours' lead-ins. */
+const LEAD_CLS = 'inline text-lede leading-prose font-semibold text-ml-fg';
+
+/** A section head as figma.com sets one: the claim in ink, its support run on after it in grey, at one size. */
+function SectionHead({ title, children }: { title: ComponentChildren; children?: ComponentChildren }) {
+  return (
+    <div class={HEAD_CLS}>
+      <h2 class="inline">{title}</h2>
+      {children && (
+        <>
+          {' '}
+          <p class="m-0 inline text-ml-fg/50">{children}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A bold lead-in running on into its sentence: the form every claim cell takes. */
+function LeadIn({
+  title,
+  desc,
+  icon: Icon,
+  class: extra,
+}: {
+  title: string;
+  desc: string;
+  icon?: LucideIcon;
+  class?: string;
+}) {
+  return (
+    <div class={cn(MOMENT_CLS, extra)}>
+      {/* One size and one stroke for the row, so the text below starts on the same line in every cell. */}
+      {Icon && <Icon size={24} strokeWidth={1.5} class="mb-6 block text-ml-fg" aria-hidden="true" />}
+      <h3 class={LEAD_CLS}>{title}</h3> <p class={cn(BODY_CLS, 'inline')}>{desc}</p>
+    </div>
+  );
+}
 
 /**
  * The marketing page, which is also a live board: every mark on the first screen
@@ -52,14 +101,9 @@ import { WebSelectionPopover } from './WebSelectionPopover';
  * six concerns interleaved above the JSX.
  */
 export function Landing() {
-  const heroFormRef = useRef<HTMLFormElement>(null);
   const { canvasRef, onDown } = useLandingCanvas();
-  const { fileInputRef, uploading, uploadFile } = useLandingUpload();
-  // Drag state belongs to the drop zone below, which is the only thing that reads it.
-  const dropping = useSignal(false);
   useLandingShortcuts();
   useLandingPresence();
-  useHeroPin(heroFormRef);
 
   const tool = activeTool.value;
   const showCanvas = isDrawingTool(tool) && tool !== 'comment' && tool !== 'text' && tool !== 'selection';
@@ -69,494 +113,325 @@ export function Landing() {
 
   return (
     <>
-      {/* The board.
-
-          The page is not a page *about* an annotation tool; it is a page that
-          has been annotated. Every mark on this first screen is real — the
-          canvas is the product's canvas, the toolbar is the product's toolbar,
-          the strokes are real ops and the highlight under the headline is the
-          highlighter tool's own 40%-alpha swipe. Nothing here is a drawing of
-          the product pretending to be the product. */}
+      {/* The board. Every mark on the first screen is real: the canvas, the
+          toolbar and the strokes are the product's own, on its real op stream. */}
       <div class="ml-force-light lp-voice relative min-h-screen overflow-x-clip lp-board">
-        {/* No page-wide column. The content column used to be 800px wide on any
-            viewport, which read as a narrow tube down the middle of a dead white
-            field — packed inside, empty outside. Each section now owns its own
-            width, and the live annotation layer gets the outer margins. */}
-        <main class="min-h-screen sm:min-h-0">
-          {/* The first screen is composed as one frame: nav, hero and the board
-              line share a 100svh column, so the fold ends where the composition
-              ends instead of letting the next section peek in 151px high and
-              unaligned. */}
-          <div class="relative flex flex-col sm:min-h-[100svh]">
-            {/* The demo cursors belong to this frame and scroll away with it. */}
-            <FakeCursors />
-
-            {/* Nav. It carries real navigation now — the page previously had a
-                logo, two icons and no links at all, while the footer carried
-                twenty. Contained to the same column the hero sits in, so the
-                wordmark and the headline share one left margin. */}
-            <nav class="lp-fade-up relative z-1 mx-auto flex w-full max-w-page items-center justify-between gap-6 px-6 pt-6 sm:px-10">
-              <a href="/" class="flex items-center gap-2.5 no-underline">
-                <Logo size={34} />
-                {/* Solid ink. A gradient clipped into the wordmark is decoration
-                  the eye reads as a rendering artifact at this size. The
-                  wordmark tracks the mark's size so the lockup keeps its
-                  proportion instead of the glyph outgrowing the name. */}
-                <span class="text-heading font-medium tracking-brand text-ml-fg">MarkLayer</span>
+        {/* Glass, sticky, and on the frame's rails: the wordmark starts on the
+            left rail and the install button ends on the right one. */}
+        <header class="lp-nav sticky top-0 z-2147483647" data-away={embedInView.value ? 'true' : undefined}>
+          <nav class="mx-auto flex h-14 w-full max-w-page items-center justify-between gap-6 px-6 sm:px-10">
+            <a href="/" class="flex items-center gap-2 no-underline">
+              <Logo size={26} />
+              <span class="font-ui text-lede font-semibold tracking-brand text-ml-fg">MarkLayer</span>
+            </a>
+            <div class="flex items-center gap-0.5 sm:gap-1">
+              <div class="mr-1 hidden items-center sm:flex">
+                {NAV_LINKS.map(({ label, href }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    class="whitespace-nowrap rounded-full px-3 py-1.5 text-body text-ml-fg/75 no-underline transition-colors hover:bg-ml-fg/[0.05] hover:text-ml-fg"
+                  >
+                    {label}
+                  </a>
+                ))}
+              </div>
+              <a
+                href="https://www.producthunt.com/posts/marklayer"
+                target="_blank"
+                rel="noopener"
+                class={cn(ICON_LINK_CLS, 'text-ml-fg/60 hover:text-ml-fg')}
+              >
+                <span class="sr-only">Product Hunt</span>
+                <svg class="size-[18px] fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M13.604 8.4h-3.405V12h3.405a1.8 1.8 0 0 0 0-3.6ZM12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0Zm1.604 14.4h-3.405V18H7.801V6h5.804a4.2 4.2 0 0 1 0 8.4Z" />
+                </svg>
               </a>
-              <div class="flex items-center gap-0.5 sm:gap-1">
-                {/* From 640, not 768. Below that the links existed only in the
-                    footer, which put every comparison and use-case page behind a
-                    full-page scroll on the widths most likely to be a small
-                    laptop. */}
-                <div class="mr-1 hidden items-center sm:flex">
-                  {NAV_LINKS.map(({ label, href }) => (
-                    <a
-                      key={href}
-                      href={href}
-                      class="rounded-full px-3 py-1.5 text-ui-lg text-ml-fg/70 no-underline transition-colors hover:bg-ml-fg/[0.05] hover:text-ml-fg"
-                    >
-                      {label}
-                    </a>
-                  ))}
-                </div>
+              <GithubLink dark />
+              {!isMobileDevice && (
                 <a
-                  href="https://www.producthunt.com/posts/marklayer"
+                  href={CHROME_STORE_URL}
                   target="_blank"
                   rel="noopener"
-                  class={cn(ICON_LINK_CLS, 'text-ml-fg/60 hover:text-ml-fg')}
+                  class="lp-cta ml-2 hidden h-8 items-center whitespace-nowrap rounded-full px-3.5 text-body text-white no-underline transition-colors lg:inline-flex"
+                  onClick={() => capture('extension_install_clicked', { at: 'nav' })}
                 >
-                  <span class="sr-only">Product Hunt</span>
-                  <svg class="size-[18px] fill-current" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M13.604 8.4h-3.405V12h3.405a1.8 1.8 0 0 0 0-3.6ZM12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0Zm1.604 14.4h-3.405V18H7.801V6h5.804a4.2 4.2 0 0 1 0 8.4Z" />
-                  </svg>
+                  Add to Chrome
                 </a>
-                <GithubLink dark />
-              </div>
-            </nav>
+              )}
+            </div>
+          </nav>
+        </header>
 
-            {/* Hero. Left-anchored on the same margin as the wordmark, not
-                centred: seven stacked centre-aligned rows floating in an empty
-                field is the default hero stack, and it left the whole right of
-                the screen reading as dead space rather than as board. The copy
-                holds the left; the board's working area — where the marks and
-                the other people's cursors are — holds the right. */}
-            <section class="relative mx-auto flex w-full max-w-page flex-1 flex-col justify-center px-6 pb-28 pt-14 sm:px-10 sm:pb-36 sm:pt-8">
-              <div class="max-w-[1080px]">
-                {/* Two lines, never three — the measure is set wide enough that
-                  the longest channel word ("WhatsApp") still lands on line two
-                  rather than starting a third. The display statement spans the
-                  column while the action block below it stays on a reading
-                  measure, so the fold is a wide headline over a left-anchored
-                  column rather than a text block with dead space beside it.
+        <main>
+          <div class="mx-auto w-full max-w-page sm:px-10">
+            <div class="lp-frame">
+              {/* The hero owns the fold: nav plus this cell is exactly one screen. */}
+              <section class="lp-cell flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-center px-6 pt-16 pb-20 text-center sm:px-10 sm:pt-10 sm:pb-40">
+                {/* The demo cursors belong to the fold and scroll away with it. */}
+                <FakeCursors />
 
-                  The cycling word carries a live highlighter mark (see
-                  ChannelCycle) which holds the slot through the ~300ms the
-                  glyphs spend at zero opacity — before, the headline showed a
-                  hole mid-swap. */}
-                {/* The two lines are explicit, and `text-balance` is
-                  deliberately absent.
-
-                  Left to wrap on its own the headline re-broke every time the
-                  channel word swapped — "WhatsApp" is far wider than "Email", so
-                  the line count changed under it and the entire page below
-                  jumped on a 2.6s loop. Balancing made it worse, because
-                  `text-wrap: balance` recomputes the break points on every width
-                  change rather than holding them.
-
-                  Splitting the lines by hand means only line two contains the
-                  cycling slot, and that line is measured to hold the longest
-                  channel name at the largest step of the clamp, so the block's
-                  height is constant and the only thing that ever moves is
-                  "Thread." sliding sideways — which is the intended effect.
-
-                  Line one still wraps below ~430px, so the phone rendering is
-                  three lines rather than two. That is fine and it is not the
-                  bug this fixes: the wrap there is the same on every tick,
-                  because it depends on the fixed prefix and not on which
-                  channel word happens to be in the slot. */}
+                {/* Two explicit lines, no `text-balance`: only line two holds the
+                    cycling word, so the block's height never changes as it swaps. */}
                 <h1 class="lp-display lp-fade-up text-hero text-ml-fg" style={{ animationDelay: '0.05s' }}>
                   <span class="block">{copy.headlinePrefix}</span>
                   <span class="block">
                     {copy.headlineJoiner} <ChannelCycle /> {copy.headlineSuffix}
                   </span>
                 </h1>
-              </div>
 
-              <p
-                class="lp-fade-up mt-6 max-w-[44ch] text-lede leading-body text-ml-fg/70"
-                style={{ animationDelay: '0.1s' }}
-              >
-                Send your client one link. They comment straight on the live page in their own browser, without signing
-                up or installing anything.
-              </p>
+                <p
+                  class="lp-fade-up mt-6 max-w-[48ch] text-intro text-ml-fg/60 text-balance"
+                  style={{ animationDelay: '0.1s' }}
+                >
+                  Send your client one link. They comment straight on the live page in their own browser, without
+                  signing up or installing anything.
+                </p>
 
-              {isMobileDevice ? (
+                {isMobileDevice ? (
+                  <div
+                    class="lp-fade-up lp-panel mt-10 w-full max-w-[400px] rounded-2xl px-5 py-6"
+                    style={{ animationDelay: '0.3s' }}
+                  >
+                    <Monitor size={22} class="mx-auto mb-3 text-ml-fg/60" aria-hidden="true" />
+                    <p class="m-0 mb-1 text-ui-lg font-semibold text-ml-fg">Desktop only</p>
+                    <p class="m-0 text-ui text-ml-fg/60">Open this page on your computer to get started.</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Pasting a URL delivers the product in one step; the install
+                        is the higher-friction ask, so it sits in the nav. */}
+                    <HeroSource />
+
+                    {/* Verifiable claims only: the licence link goes to the repo. */}
+                    <p
+                      class="lp-fade-up mt-9 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-ui text-ml-fg/60"
+                      style={{ animationDelay: '0.25s' }}
+                    >
+                      {/* Below `lg` the nav has no room for its install button, so the fold keeps one. */}
+                      <a
+                        href={CHROME_STORE_URL}
+                        target="_blank"
+                        rel="noopener"
+                        class="inline-flex items-center gap-1.5 text-ml-fg/60 no-underline transition-colors hover:text-ml-fg lg:hidden"
+                        onClick={() => capture('extension_install_clicked', { at: 'hero' })}
+                      >
+                        <ChromeIcon />
+                        Add to Chrome
+                      </a>
+                      <span aria-hidden="true" class="lg:hidden">
+                        ·
+                      </span>
+                      <span>No account needed</span>
+                      <span aria-hidden="true">·</span>
+                      <a
+                        href="https://github.com/thevrus/MarkLayer"
+                        target="_blank"
+                        rel="noopener"
+                        class="text-ml-fg/60 hover:text-ml-fg transition-colors underline underline-offset-2 decoration-ml-fg/30"
+                      >
+                        Apache-2.0
+                      </a>
+                      <span aria-hidden="true">·</span>
+                      <span>Self-hostable</span>
+                    </p>
+                  </>
+                )}
+
+                {/* Without this line, strangers' cursors over the copy read as a
+                    rendering fault. Sits above the docked toolbar, on its centre line. */}
                 <div
-                  class="lp-fade-up lp-panel mt-9 max-w-[400px] rounded-xl px-5 py-5"
+                  class="lp-fade-up pointer-events-none absolute inset-x-0 bottom-6 hidden justify-center px-6 sm:flex sm:bottom-27"
                   style={{ animationDelay: '0.3s' }}
                 >
-                  <Monitor size={22} class="text-ml-fg/60 mb-3" aria-hidden="true" />
-                  <p class="text-ui-lg font-semibold text-ml-fg m-0 mb-1">Desktop only</p>
-                  <p class="text-ui text-ml-fg/60 m-0">Open this page on your computer to get started.</p>
-                </div>
-              ) : (
-                <>
-                  {/* The URL box leads, the extension follows. Installing is the
-                    high-friction ask — a store visit and a permissions prompt —
-                    while pasting a URL delivers the product in one step with
-                    nothing to install. Leading with the install asked cold
-                    traffic to commit before anything had been demonstrated. */}
-                  <form
-                    ref={heroFormRef}
-                    class="lp-fade-up mt-9 max-w-[520px]"
-                    style={{ animationDelay: '0.15s' }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      dropping.value = true;
-                    }}
-                    onDragLeave={(e) => {
-                      // Fires when crossing into a child too; ignore those or the
-                      // ring flickers as the pointer moves across the field.
-                      const to = e.relatedTarget;
-                      if (to instanceof Node && e.currentTarget.contains(to)) return;
-                      dropping.value = false;
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      dropping.value = false;
-                      const file = e.dataTransfer?.files?.[0];
-                      if (file) void uploadFile(file);
-                    }}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const el = e.currentTarget.elements.namedItem('url');
-                      if (!(el instanceof HTMLInputElement)) return;
-                      const input = el.value.trim();
-                      if (!input) return;
-                      let url = input;
-                      if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-                      navigateTo({ url, source: 'hero_form' });
-                    }}
-                  >
-                    {/* Pill, on the page's one elevation primitive: a hairline
-                      ring and a 2px contact shadow, the same treatment every
-                      other object on the board gets. The focus state tightens
-                      the ring rather than adding a second one outside it. */}
-                    <div
-                      class="lp-panel lp-field flex items-center gap-3 rounded-full py-2 pl-5 pr-2"
-                      data-dropping={dropping.value ? 'true' : undefined}
-                    >
-                      <Search size={17} class="text-ml-fg/60 shrink-0" aria-hidden="true" />
-                      {/* 16px under `sm`: iOS Safari zooms the whole page when a
-                        focused field's text is under 16px, and this is the first
-                        thing anyone taps on the homepage. */}
-                      {/* A placeholder is not a label — it is the only thing
-                        naming this field, and it disappears the moment anyone
-                        types. The hero composition has no room for a visible
-                        label above the pill, so the name is carried for screen
-                        readers instead of being left unsaid. */}
-                      <input
-                        name="url"
-                        type="text"
-                        inputMode="url"
-                        aria-label="Page URL to annotate"
-                        placeholder="Paste any URL to annotate…"
-                        autocomplete="url"
-                        class="h-10 flex-1 bg-transparent border-none text-ml-fg text-base sm:text-body placeholder:text-ml-fg/60 outline-none"
-                        onInput={(e) => {
-                          const v = e.currentTarget.value.trim();
-                          urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
-                        }}
-                      />
-                      <button
-                        type="submit"
-                        aria-label="Go"
-                        class={cn(
-                          'shrink-0 w-11 h-11 sm:w-10 sm:h-10 rounded-full grid place-items-center border-none cursor-pointer transition-colors duration-200',
-                          urlReady.value
-                            ? 'text-ml-btn-fg bg-ml-btn hover:bg-[#383838]'
-                            : 'text-ml-fg/60 bg-ml-fg/[0.05] hover:bg-ml-fg/[0.09]',
-                        )}
-                      >
-                        <ArrowRight size={16} aria-hidden="true" />
-                      </button>
-                    </div>
-                  </form>
-
-                  <div
-                    class="lp-fade-up mt-3.5 flex flex-wrap items-center gap-x-4 gap-y-2 text-ui-lg text-ml-fg/60"
-                    style={{ animationDelay: '0.2s' }}
-                  >
-                    <span>Or try one:</span>
-                    {[
-                      { name: 'Wikipedia', url: 'https://en.wikipedia.org/wiki/Web_annotation' },
-                      { name: 'Hacker News', url: 'https://news.ycombinator.com' },
-                      { name: 'Product Hunt', url: 'https://www.producthunt.com/products/marklayer' },
-                    ].map(({ name, url }) => (
-                      <button
-                        key={name}
-                        type="button"
-                        onClick={() =>
-                          navigateTo({ url, source: `suggestion_${name.toLowerCase().replace(/\s+/g, '_')}` })
-                        }
-                        class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-ui-lg text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
-                      >
-                        {name}
-                      </button>
-                    ))}
-                    <span>or</span>
-                    {/* Same underlined-text treatment as the suggestions beside
-                      it: a local file is another way in, not a second action
-                      worth its own filled button. */}
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      class="-my-3 inline-flex min-h-11 cursor-pointer items-center rounded border-none bg-transparent py-3 text-ui-lg text-ml-fg/70 underline underline-offset-2 decoration-ml-fg/30 transition-colors hover:text-ml-fg"
-                    >
-                      {uploading.value ? 'Uploading…' : 'open a PDF or image'}
-                    </button>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept={UPLOAD_ACCEPT}
-                      hidden
-                      onChange={(e) => {
-                        const file = e.currentTarget.files?.[0];
-                        // Cleared so picking the same file twice still fires.
-                        e.currentTarget.value = '';
-                        if (file) void uploadFile(file);
-                      }}
-                    />
-                  </div>
-
-                  {/* One quiet line, not a second filled button. A filled
-                    primary next to an outlined secondary is a preset, and the
-                    fold already has its one clear action above. The install ask
-                    is real but secondary here; it gets the filled treatment
-                    once, in the closing section. Verifiable claims only — the
-                    licence link goes to the repo. */}
-                  <p
-                    class="lp-fade-up mt-9 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-ui text-ml-fg/60"
-                    style={{ animationDelay: '0.25s' }}
-                  >
-                    <a
-                      href={CHROME_STORE_URL}
-                      target="_blank"
-                      rel="noopener"
-                      class="inline-flex items-center gap-1.5 text-ml-fg/70 no-underline transition-colors hover:text-ml-fg"
-                      onClick={() => capture('extension_install_clicked', { at: 'hero' })}
-                    >
-                      <ChromeIcon />
-                      Add to Chrome
-                    </a>
-                    <span aria-hidden="true">·</span>
-                    <span>No account, ever</span>
-                    <span aria-hidden="true">·</span>
-                    <a
-                      href="https://github.com/thevrus/MarkLayer"
-                      target="_blank"
-                      rel="noopener"
-                      class="text-ml-fg/60 hover:text-ml-fg transition-colors underline underline-offset-2 decoration-ml-fg/30"
-                    >
-                      Apache-2.0
-                    </a>
-                    <span aria-hidden="true">·</span>
-                    <span>Self-hostable</span>
+                  <p class="m-0 text-ui text-ml-fg/60">
+                    This page is a live MarkLayer board.{' '}
+                    <span class="text-ml-fg">Pick a tool below and draw on it.</span>
                   </p>
-                </>
-              )}
-            </section>
+                </div>
+              </section>
 
-            {/* The fold's floor, and the one line that makes the whole first
-                screen legible: the toolbar docked below is the extension's own,
-                and the strokes it draws are real ops on this page. Without it,
-                three strangers' cursors drifting over the copy read as a
-                rendering fault instead of as the product demonstrating itself.
-                Sits above the docked toolbar and shares its centre line. */}
-            <div
-              class="lp-fade-up pointer-events-none absolute inset-x-0 bottom-6 hidden justify-center px-6 sm:flex sm:bottom-27"
-              style={{ animationDelay: '0.3s' }}
-            >
-              <p class="m-0 text-ui text-ml-fg/60">
-                This page is a live MarkLayer board. <span class="text-ml-fg">Pick a tool below and draw on it.</span>
-              </p>
+              {/* The proof: the real viewer on a shared room, which scroll grows to
+                  the whole screen. The heading's second clause is a tonal step, not
+                  a colour. */}
+              <section class="lp-cell px-6 pt-24 pb-14 sm:px-10 sm:pt-32 sm:pb-16">
+                <SectionHead title="Three things it does that a screenshot in a thread cannot.">
+                  Somebody else&rsquo;s page, opened from a link and marked up in the browser. No install on either end.
+                </SectionHead>
+                <div class="mt-12 sm:mt-14">
+                  <DemoStage />
+                </div>
+              </section>
+
+              {/* Three cells on one row: each claim is a single paragraph, so the
+                  lead-ins share a baseline whatever the copy length. */}
+              <section class={MOMENTS_ROW_CLS}>
+                {MOMENTS.map((m) => (
+                  <LeadIn key={m.title} {...m} />
+                ))}
+              </section>
+
+              {/* The agent handoff. The command is the install, not a room: pointing a visitor's
+                  agent at the public demo board would feed it strangers' comments. */}
+              <section class="lp-cell px-6 pt-24 pb-20 text-center sm:px-10 sm:pt-32 sm:pb-24">
+                <SectionHead title="Hand the review to your coding agent.">
+                  Give it a share link and ask it to watch the room. It reads each comment, replies, and resolves what
+                  it fixed.
+                </SectionHead>
+                <div class="mt-12">
+                  <McpCommand />
+                </div>
+                <p class="mt-5 text-ui text-ml-fg/60">
+                  Or skip the install: every page link also answers at its own <code class="font-mono">/mcp</code>{' '}
+                  address.
+                </p>
+                <div class="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-ui text-ml-fg/60">
+                  <span id="lp-agents" class="text-ml-fg">
+                    Any MCP client, including
+                  </span>
+                  <ul
+                    aria-labelledby="lp-agents"
+                    class="m-0 flex list-none flex-wrap items-center justify-center gap-x-6 gap-y-3 p-0"
+                  >
+                    {AGENT_IDS.map((id) => (
+                      <li key={id} class="m-0 inline-flex items-center gap-1.5 p-0">
+                        <AgentMark id={id} size={15} />
+                        {agentLabel(id)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </section>
+
+              <section class={MOMENTS_ROW_CLS}>
+                {AGENT_MOMENTS.map((m) => (
+                  <LeadIn key={m.title} {...m} />
+                ))}
+              </section>
+
+              <section class="lp-cell px-6 py-24 sm:px-10 sm:py-32">
+                <SectionHead title="Everything else a review needs.">
+                  All of it free. The{' '}
+                  <a href="/features" class="text-ml-fg underline underline-offset-2 decoration-ml-fg/30">
+                    features page
+                  </a>{' '}
+                  has the rest, down to every shortcut.
+                </SectionHead>
+              </section>
+
+              {/* Seams drawn by `gap-px` over the rule colour, as in the comparisons row. */}
+              <section class="lp-cell grid gap-px bg-ml-rule md:grid-cols-2 xl:grid-cols-4">
+                {FEATURES.map((f) => (
+                  <LeadIn key={f.title} {...f} class="bg-ml-board" />
+                ))}
+              </section>
+
+              <section class="lp-cell px-6 py-24 sm:px-10 sm:py-32">
+                <SectionHead
+                  title={
+                    <>
+                      Free alternative <span class="text-ml-fg/50">to {COMPARISON_NAMES}.</span>
+                    </>
+                  }
+                />
+                {/* The pricing claims live in home-copy.json, shared with HomeContent.astro. */}
+                <div class="mx-auto mt-12 grid max-w-[960px] gap-x-14 gap-y-5 md:grid-cols-2">
+                  <p class={cn(BODY_CLS, 'text-pretty')}>{copy.pricingFacts}</p>
+                  <p class={cn(BODY_CLS, 'text-pretty')}>
+                    MarkLayer is free because of its licence, not a pricing policy that could change. The code is
+                    Apache-2.0 and you can self-host it.{' '}
+                    <a
+                      href="/guides/free-website-annotation-tools"
+                      class="text-ml-fg underline underline-offset-2 decoration-ml-fg/30"
+                    >
+                      See the full audit
+                    </a>
+                    , checked against each vendor&rsquo;s live pricing page.
+                  </p>
+                </div>
+                <p class="mx-auto mt-10 max-w-[62ch] text-center text-ui leading-prose text-balance text-ml-fg/60">
+                  See{' '}
+                  <a href="/compare" class="text-ml-fg/60 underline hover:text-ml-fg/80">
+                    every head-to-head comparison
+                  </a>
+                  ,{' '}
+                  <a href="/alternatives" class="text-ml-fg/60 underline hover:text-ml-fg/80">
+                    free alternatives by tool
+                  </a>
+                  , or the no-extension flow for{' '}
+                  <a href="/for/staging-feedback-no-extension" class="text-ml-fg/60 underline hover:text-ml-fg/80">
+                    client feedback on a staging site
+                  </a>
+                  .
+                </p>
+              </section>
+
+              {/* One row of head-to-heads. `gap-px` over the rule colour draws the
+                  inner seams, so no cell carries a border of its own. */}
+              <nav aria-label="Comparisons" class="lp-cell grid grid-cols-2 gap-px bg-ml-rule sm:grid-cols-4">
+                {COMPARISONS.map(({ name, href }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    class="lp-compare relative flex flex-col gap-1 bg-ml-board px-6 py-7 no-underline sm:px-10 sm:py-9"
+                  >
+                    <span class="text-ui text-ml-fg/60">MarkLayer vs</span>
+                    <span class="text-heading text-ml-fg">{name}</span>
+                    <ArrowUpRight
+                      size={16}
+                      class="lp-compare-arrow absolute top-7.5 right-6 text-ml-fg/50 sm:top-9.5 sm:right-8"
+                      aria-hidden="true"
+                    />
+                  </a>
+                ))}
+              </nav>
+
+              <section class="lp-cell px-6 py-24 sm:px-10 sm:py-32">
+                <SectionHead title="Questions people ask first." />
+                <div class="lp-faq mx-auto mt-12 max-w-[760px] divide-y divide-ml-rule border-y border-ml-rule">
+                  {FAQ.map((item) => (
+                    <details key={item.q}>
+                      <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-6 py-5 text-lede text-ml-fg">
+                        {item.q}
+                        <svg
+                          class="lp-faq-mark shrink-0 text-ml-fg/60"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 14 14"
+                          fill="none"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M7 1.5v11M1.5 7h11"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </summary>
+                      <p class={cn(BODY_CLS, 'max-w-[62ch] pb-6 text-pretty')}>{item.a}</p>
+                    </details>
+                  ))}
+                </div>
+              </section>
+
+              {/* The close, and the only full-size install button on the page. It
+                  takes the hero's step, so the page ends at the size it opened at. */}
+              <section class="lp-cell px-6 py-24 text-center sm:px-10 sm:py-32">
+                <h2 class="lp-display mx-auto mb-12 max-w-[16em] text-hero text-balance text-ml-fg">
+                  Start annotating any page on the web.
+                </h2>
+                <ChromeStoreLink label="Add to Chrome" at="closing" />
+                <p class="mt-4 text-ui text-ml-fg/60">Free to use &middot; No sign-up required</p>
+              </section>
             </div>
           </div>
 
-          {/* The proof. One real session, shown large, with the three claims
-              named underneath it on a shared grid.
-
-              This replaced an eight-cell grid of icon + label + sentence, each
-              cell ringed in a hairline — eight things at identical weight is no
-              hierarchy at all — and then a left-spine version whose artifacts
-              were small objects parked beside the copy, which was tidy and
-              completely inert. The page under review is the point; the copy
-              names what you are already looking at.
-
-              Opens left, on the same spine as the hero and the wordmark. The
-              sections below it each open differently on purpose: one with a
-              bare sentence, one as a two-column split, one centred. A page
-              where every section starts with a heading in the same place at the
-              same size reads as a template. */}
-          <section class="mx-auto w-full max-w-page px-6 pt-24 pb-20 sm:px-10 sm:pt-32 sm:pb-28">
-            <h2 class="lp-display max-w-[840px] text-statement text-balance text-ml-fg">
-              Three things it does that a screenshot in a thread cannot.
-            </h2>
-            <p class="mt-5 max-w-[52ch] text-lede leading-body text-ml-fg/70 text-pretty">
-              Somebody else&rsquo;s page, opened from a link and marked up in the browser. No install on either end.
-            </p>
-
-            {/* The product, live, not a picture of it.
-
-                This slot has been through three versions: three small objects
-                parked beside three paragraphs (inert), a hand-built "page under
-                review" card (a wireframe), then a real screenshot. The
-                screenshot is still the poster, but what a visitor sees is the
-                actual viewer on the actual Wikipedia article, in a room every
-                visitor shares, wiped hourly by the worker. Scroll pins it and
-                grows it to the whole screen; click it and draw. */}
-            <DemoStage />
-
-            {/* Equal columns on one grid: every title sits on the same line
-                and every description starts on the same line, whatever the
-                copy length, so a longer sentence in one column can never push
-                its neighbours out of step. */}
-            <div class="mt-20 grid grid-cols-1 gap-x-12 gap-y-10 sm:mt-24 sm:grid-cols-3 sm:grid-rows-[auto_auto]">
-              {MOMENTS.map((m) => (
-                <div key={m.title} class="grid gap-y-2.5 sm:row-span-2 sm:grid-rows-subgrid">
-                  <h3 class="text-lede font-semibold tracking-display text-ml-fg">{m.title}</h3>
-                  <p class="m-0 text-body leading-prose text-ml-fg/70 text-pretty">{m.desc}</p>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Switching from another tool. Opens with the sentence itself — no
-              heading above it, no tracked-caps kicker. The claim is the whole
-              section, so wrapping it in a section head would just be a label
-              restating the line underneath it. */}
-          <section class="mx-auto w-full max-w-page px-6 py-20 sm:px-10 sm:py-28">
-            <h2 class="lp-display max-w-[800px] text-section text-balance text-ml-fg">
-              Free alternative to BugHerd, Marker.io, Pastel, and Markup.io.
-            </h2>
-            {/* The durability argument, not just the price. The pricing claims
-                live in home-copy.json, shared with HomeContent.astro. */}
-            <div class="mt-8 grid max-w-[1000px] gap-x-14 gap-y-5 md:grid-cols-2">
-              <p class="m-0 text-body leading-prose text-ml-fg/70 text-pretty">{copy.pricingFacts}</p>
-              <p class="m-0 text-body leading-prose text-ml-fg/70 text-pretty">
-                MarkLayer is free by licence rather than by current pricing policy, so it cannot be withdrawn from under
-                a client workflow: the code is Apache-2.0 and you can self-host it.{' '}
-                <a
-                  href="/guides/free-website-annotation-tools"
-                  class="underline underline-offset-2 decoration-ml-fg/30"
-                >
-                  See the full audit
-                </a>
-                , checked against each vendor&rsquo;s live pricing page.
-              </p>
-            </div>
-            <p class="mt-8 max-w-[62ch] text-ui leading-prose text-ml-fg/60">
-              See{' '}
-              <a href="/compare" class="text-ml-fg/60 underline hover:text-ml-fg/80">
-                all 10 head-to-head comparisons
-              </a>
-              ,{' '}
-              <a href="/alternatives" class="text-ml-fg/60 underline hover:text-ml-fg/80">
-                free alternatives by tool
-              </a>
-              , or the no-extension flow for{' '}
-              <a href="/for/staging-feedback-no-extension" class="text-ml-fg/60 underline hover:text-ml-fg/80">
-                client feedback on a staging site
-              </a>
-              .
-            </p>
-          </section>
-
-          {/* FAQ. A two-column split — the heading holds the left, the answers
-              the right — so this section opens differently again from the two
-              above it. Rows are separated by a surface step, not by the
-              hairline rule that used to sit on top of each one: a bare
-              unrounded line used to fake structure is the cheapest divider
-              there is, and four of them stacked read as a table. */}
-          <section class="mx-auto w-full max-w-page px-6 pb-20 sm:px-10 sm:pb-28">
-            <div class="grid gap-x-16 gap-y-8 md:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-              <h2 class="lp-display text-subsection text-balance text-ml-fg">Questions people ask first.</h2>
-              <div class="flex flex-col gap-2">
-                {[
-                  {
-                    q: 'Does the other person need the extension installed?',
-                    a: 'No. Anyone can view your annotations via the share link. No install required.',
-                  },
-                  { q: 'Is it really free?', a: 'Yes. No account, no paywall, no trial period.' },
-                  {
-                    q: 'Does it work on any website?',
-                    a: 'Yes. Production, staging, internal tools, localhost, third-party pages.',
-                  },
-                  {
-                    q: 'Does it work on localhost?',
-                    a: 'Yes, with the Chrome extension. It draws in your browser, so your dev server never has to be reachable from the internet. Share links do need a public URL, so point collaborators at staging or a tunnel.',
-                  },
-                  {
-                    q: 'Can multiple people annotate at the same time?',
-                    a: 'Yes. Real-time cursors let you collaborate live on any page.',
-                  },
-                ].map((item) => (
-                  <details key={item.q} class="lp-panel lp-panel-i group rounded-xl px-5 py-4">
-                    <summary class="-my-2 flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-lg py-2 text-body font-medium text-ml-fg">
-                      {item.q}
-                      <ChevronDown
-                        size={16}
-                        class="shrink-0 text-ml-fg/60 transition-transform duration-200 group-open:rotate-180"
-                        aria-hidden="true"
-                      />
-                    </summary>
-                    <p class="mt-3 mb-0 text-ui-lg leading-relaxed text-ml-fg/70">{item.a}</p>
-                  </details>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* The close. The one centred moment on the page, and the only place
-              the install ask gets the filled treatment — the fold carries it as
-              a quiet inline link instead, so a filled primary never sits beside
-              an outlined secondary anywhere here. */}
-          <section class="px-6 pt-24 pb-20 text-center sm:px-10 sm:pt-32 sm:pb-24">
-            <h2 class="lp-display mx-auto mb-8 max-w-[720px] text-closing text-balance text-ml-fg">
-              Start annotating any page on the web.
-            </h2>
-            <ChromeStoreLink label="Add to Chrome" at="closing" />
-            <p class="mt-4 text-ui text-ml-fg/60">Free to use &middot; No sign-up required</p>
-          </section>
-
-          {/* The floor.
-
-              The same footer the marketing pages close with
-              (apps/site/src/components/SiteFooter.astro): same columns, same
-              copy, same spacing, all of it read from `@site/lib/footer`. The
-              two renderers differ only in the width of the column they sit in
-              — this page's sections run to 1120px, an article's to 760 — and
-              each footer stays on its own page's spine rather than one of them
-              being flung wider than everything above it.
-
-              It used to carry eleven hand-picked comparison and use-case links
-              and no trademark line, so the footer changed shape the moment you
-              clicked out of `/`. Those pages are one click away through the
-              hubs that replace them, and the prerendered `/`
-              (HomeContent.astro) still links them all inline for the crawlers
-              that never run this bundle.
-
-              This is the one place a hard surface break is meant: the page
-              steps onto its own floor instead of being ruled off with a
-              hairline.
-
-              The gutter sits inside the capped box here, exactly as it does in
-              every section above. It used to live on the <footer> itself with
-              the cap on the inner div, which centred that cap 40px further out
-              — so at 1440 the page's content spine was at 200px and the
-              footer's at 160px, and the whole block read as slipped. */}
-          <footer class="relative overflow-hidden bg-ml-board-deep pt-16 pb-7">
+          {/* The same footer the marketing pages close with (SiteFooter.astro),
+              read from `@site/lib/footer`. White, on the board, with the
+              frame's bottom seam as its edge; the gutter sits inside the capped
+              box so its columns start on the rail. */}
+          <footer class="@container relative overflow-hidden pt-16 pb-7">
             <div class="mx-auto w-full max-w-page px-6 sm:px-10">
               {/* A grid, not `flex-wrap`: wrapping drops the fourth column onto
                   its own row as soon as the links grow, leaving three columns
@@ -657,7 +532,7 @@ export function Landing() {
             </div>
 
             {/* The signature wordmark: full-bleed, cut at roughly half the cap
-                height, dissolving into the floor.
+                height, dissolving into the page.
 
                 It sits outside the page's capped container on purpose — this is
                 the one element that is meant to touch both edges, so it takes
@@ -717,8 +592,12 @@ export function Landing() {
           )}
         </div>
 
-        {/* Selection highlights */}
-        <div class="absolute inset-0 z-2147483645 pointer-events-none overflow-hidden">
+        {/* Selection highlights. A hovered or held card steps up to the comment
+            layer's z and wins on DOM order, or the pins and canvas cover it. */}
+        <div
+          class="absolute inset-0 z-2147483645 pointer-events-none overflow-hidden
+                 has-[[data-marker]:hover]:z-2147483646 has-[[data-held]]:z-2147483646"
+        >
           {selections.value.map((op) => (
             <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={0} />
           ))}
@@ -789,7 +668,6 @@ export function Landing() {
 
         <Toasts offset="below-bar" />
       </div>
-      <SelfCursor />
     </>
   );
 }
