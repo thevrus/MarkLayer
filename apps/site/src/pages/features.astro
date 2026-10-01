@@ -77,7 +77,7 @@ const qa: QA[] = [
   },
   {
     q: 'What can an AI coding agent do with a MarkLayer link?',
-    a: 'Twelve things, over the marklayer-mcp server. An agent can join the room, read the page, list and watch annotations, acknowledge one so the human sees it is being worked on, resolve it with a summary, dismiss it with a reason, reply with a question, leave comments of its own, and propose an exact text edit rendered as a diff. Install it with: claude mcp add marklayer -- npx -y marklayer-mcp',
+    a: 'Twelve things, over MCP. An agent can join the room, read the page, list and watch annotations, acknowledge one so the human sees it is being worked on, resolve it with a summary, dismiss it with a reason, reply with a question, leave comments of its own, and propose an exact text edit rendered as a diff. Every share link is the server, at its own address plus /mcp, so connecting needs nothing installed: claude mcp add --transport http marklayer https://marklayer.app/s/<id>/mcp. The same tools ship on npm as marklayer-mcp for clients that only run local servers.',
   },
   {
     q: 'Can I get my comments out of MarkLayer?',
@@ -236,10 +236,15 @@ const qa: QA[] = [
 
   <h2>What an AI coding agent can do with a link</h2>
   <p>
-    MarkLayer ships an MCP server, <code>marklayer-mcp</code>, that turns a review into a work queue an agent can
-    actually work through rather than just read. Install it in Claude Code with one line:
+    Every share link is also an MCP server, at the same address plus <code>/mcp</code>. It turns a review into a work
+    queue an agent can actually work through rather than just read, and connecting Claude Code needs nothing installed:
   </p>
-  <pre><code>claude mcp add marklayer -- npx -y marklayer-mcp</code></pre>
+  <pre><code>claude mcp add --transport http marklayer https://marklayer.app/s/&lt;id&gt;/mcp</code></pre>
+  <p>
+    The share panel on every link shows that command with the id filled in. For a client that only runs local servers,
+    the same tools ship on npm as <code>marklayer-mcp</code>, installed once for every room:
+    <code>claude mcp add marklayer -- npx -y marklayer-mcp</code>.
+  </p>
   <div class="ml-scroll-x">
     <table>
       <caption>The twelve tools an AI agent gets over MCP</caption>

@@ -6,7 +6,15 @@ When users annotate any webpage with MarkLayer, your agent receives the comments
 
 ## Install
 
-A standard stdio MCP server — no Claude-specific wiring, works with any MCP client (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, etc.).
+You may not need to. Every MarkLayer share link is already a remote MCP server at the same address plus `/mcp`, so a client that supports remote (Streamable HTTP) servers connects with nothing installed:
+
+```bash
+claude mcp add --transport http marklayer https://marklayer.app/s/abc123/mcp
+```
+
+Append `?agent=cursor`, or any name, so the people in the room see who is working; it defaults to `agent`. That endpoint is bound to its room, so it has every tool below except `marklayer_connect_room`.
+
+This package is the stdio version of the same tools, with no Claude-specific wiring. Use it when a client cannot reach remote servers, or when you want one install that covers every room (Claude Code, Cursor, Windsurf, VS Code, Codex CLI, etc.):
 
 ```bash
 # Claude Code:
@@ -46,6 +54,7 @@ The agent will call `marklayer_watch_annotations` in a loop and process incoming
 |------|-------------|
 | `marklayer_connect_room` | Connect to a room by share URL or bare id. |
 | `marklayer_room_info` | Page URL, viewport width, timestamps. |
+| `marklayer_read_page` | The page's headings, text, links and controls, with selectors. Lets the agent review a page nobody has annotated yet. |
 | `marklayer_list_annotations` | List annotations, optionally filtered by status. |
 | `marklayer_get_annotation` | Full detail + reply thread for one annotation. |
 | `marklayer_watch_annotations` | Block until new annotations arrive, return a batch. |

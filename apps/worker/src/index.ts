@@ -1,6 +1,6 @@
 import { DEMO_ROOM, isNewShareId, isUploadId, MAX_UPLOAD_BYTES, RETENTION_DAYS, uploadPath } from '@marklayer/types';
-import LLMS_TXT from '@site/content/agent/llms.txt?raw';
-import LLMS_FULL_TXT from '@site/content/agent/llms-full.txt?raw';
+import LLMS_SOURCE from '@site/content/agent/llms.txt?raw';
+import LLMS_FULL_SOURCE from '@site/content/agent/llms-full.txt?raw';
 import ROBOTS_TXT from '@site/content/agent/robots.txt?raw';
 import SKILL_MD from '@site/content/agent/SKILL.md?raw';
 import { API_CATALOG, MCP_SERVER_CARD, SKILL_PATH, skillIndex } from '@site/lib/agent';
@@ -377,6 +377,16 @@ app.get('/f/:id', async (c) => {
 // these paths for its standalone deploy), but `run_worker_first` claims them
 // here, so the Worker is what actually answers in production — reading the same
 // files rather than restating them is the only thing keeping the two honest.
+// The llms files come from apps/site's dist so its build-time `{{version}}` fill applies. The glob
+// is empty until the site has been built once, and dev then falls back to the raw source.
+const builtLlms = import.meta.glob<string>(['../../site/dist/llms.txt', '../../site/dist/llms-full.txt'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+});
+const LLMS_TXT = builtLlms['../../site/dist/llms.txt'] ?? LLMS_SOURCE;
+const LLMS_FULL_TXT = builtLlms['../../site/dist/llms-full.txt'] ?? LLMS_FULL_SOURCE;
+
 app.get('/robots.txt', (c) => c.body(ROBOTS_TXT, 200, dayCached('text/plain')));
 
 app.get('/llms.txt', (c) => c.body(LLMS_TXT, 200, dayCached('text/plain; charset=utf-8')));

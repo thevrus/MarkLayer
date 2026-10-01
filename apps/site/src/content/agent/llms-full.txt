@@ -169,13 +169,19 @@ feedback layer in front of one, not a project management system.
 
 ## AI Coding Agent Integration (MCP)
 
-MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that bridges visual feedback to AI coding agents. When a designer or PM annotates a page, the agent receives the comments as a structured work queue: it can acknowledge each item, post replies, resolve with a summary, or dismiss with a reason. Status updates appear live to the human in their browser.
+Every MarkLayer share link is an MCP (Model Context Protocol) server that bridges visual feedback to AI coding agents. When a designer or PM annotates a page, the agent receives the comments as a structured work queue: it can acknowledge each item, post replies, resolve with a summary, or dismiss with a reason. Status updates appear live to the human in their browser.
 
-Install in Claude Code:
+Every share link is itself a remote MCP server (Streamable HTTP) at the link plus /mcp, so connecting needs nothing installed:
+
+    claude mcp add --transport http marklayer https://marklayer.app/s/abc123/mcp
+
+Add ?agent=<name> to that URL to set the name the humans see on the agent's work (default: agent). The endpoint is bound to its room, so it serves every tool below except marklayer_connect_room.
+
+For clients that only run local servers, install the stdio package in Claude Code:
 
     claude mcp add marklayer -- npx -y marklayer-mcp
 
-Pre-connect to a specific room:
+Pre-connect it to a specific room:
 
     claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123
 
@@ -287,7 +293,7 @@ To create N share links for N URLs, loop the POST. There is no batch endpoint an
 - **Database:** Cloudflare D1 (SQLite)
 - **Real-time:** WebSockets via Cloudflare Durable Objects
 - **Storage:** Cloudflare R2 for OG images
-- **Agent bridge:** MCP server (marklayer-mcp) for AI coding agent integration
+- **Agent bridge:** a remote MCP server at every share link's /mcp address, plus the marklayer-mcp stdio package
 - **Build:** Bun workspaces, Turborepo, Vite
 
 ## How It Works
@@ -338,7 +344,7 @@ Q: What is the inspector tool?
 A: Point at any element on a page and MarkLayer captures its CSS selector, computed dimensions, and a markdown block formatted for AI coding agents. Paste the prompt into Claude Code or another agent and it has the context needed to make the edit.
 
 Q: Can I hand annotations to an AI coding agent?
-A: Yes. MarkLayer publishes an MCP server (marklayer-mcp on npm) that connects to a share link and exposes annotations as a structured work queue. Agents like Claude Code can watch for new comments and acknowledge, resolve, dismiss, or reply.
+A: Yes. Every share link is also a remote MCP server at its own /mcp address, and the same tools ship on npm as marklayer-mcp. Either one exposes the link's annotations as a structured work queue. Agents like Claude Code can watch for new comments and acknowledge, resolve, dismiss, or reply.
 
 Q: Can an AI assistant create MarkLayer share links for me programmatically (e.g. one link per page in a list of 10 URLs)?
 A: Yes. There is a public, unauthenticated POST endpoint at https://marklayer.app/api/{id}. Hand the user's LLM a list of URLs and it can loop a POST per URL with a fresh id each time, then return one https://marklayer.app/s/{id} share link per page. See the "Programmatic Link Creation" section above for the full request body, examples in curl/JS/Python, and notes on id strength and TTL.

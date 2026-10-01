@@ -36,6 +36,7 @@ const resolves = (path) => {
 const STALE_RETENTION = /(?:cleaned up|persist(?:s)? for|deleted) 30 days/;
 
 let linkCount = 0;
+const indexable = new Set();
 
 for (const file of htmlFiles) {
   const html = await readFile(join(DIST, file), 'utf8');
@@ -53,6 +54,7 @@ for (const file of htmlFiles) {
   // 2. Indexable pages need a canonical, a title and a meta description.
   const noindex = /name="robots"[^>]*content="[^"]*noindex/.test(html);
   if (!noindex) {
+    indexable.add(page === '/index' ? '/' : page.replace(/\/index$/, ''));
     if (!/rel="canonical"/.test(html)) errors.push(`${page}: missing <link rel="canonical">`);
     if (!/<meta name="description"/.test(html)) errors.push(`${page}: missing meta description`);
     const title = html.match(/<title>([^<]*)<\/title>/)?.[1]?.trim();
@@ -135,6 +137,66 @@ if (shellHtml !== null) {
           '      It must be in apps/site/src/components/home/HomeContent.astro — JS-only copy is invisible to AI crawlers.',
       );
     }
+  }
+}
+
+// 9. No unfilled `{{word}}` placeholder reaches an agent. The Worker inlines
+//    robots.txt and SKILL.md from source and llms*.txt from dist (apps/worker/src/index.ts),
+//    so a placeholder the site build fills only in dist must never be read from source.
+const SITE = resolve(DIST, '..');
+const AGENT_TEXT = [
+  'src/content/agent/robots.txt',
+  'src/content/agent/SKILL.md',
+  'dist/llms.txt',
+  'dist/llms-full.txt',
+  'dist/pricing.md',
+];
+const agentText = new Map(
+  await Promise.all(AGENT_TEXT.map(async (rel) => [rel, await readFile(join(SITE, rel), 'utf8')])),
+);
+for (const [rel, text] of agentText) {
+  for (const [placeholder] of text.matchAll(/\{\{\s*\w+\s*\}\}/g)) {
+    errors.push(`${rel}: unfilled placeholder ${placeholder} would be served verbatim`);
+  }
+}
+
+// 10. The sitemap lists every indexable page exactly once, and nothing else
+//     besides the Worker-served agent files.
+const SITEMAP_EXTRAS = new Set(['/llms.txt', '/llms-full.txt']);
+const sitemap = distSet.has('sitemap.xml') ? await readFile(join(DIST, 'sitemap.xml'), 'utf8') : '';
+if (!sitemap) errors.push('dist/sitemap.xml is missing');
+const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, loc]) => new URL(loc).pathname);
+const locSet = new Set(locs);
+for (const path of locSet) {
+  if (locs.indexOf(path) !== locs.lastIndexOf(path)) errors.push(`sitemap.xml: duplicate <loc> ${path}`);
+  if (!resolves(path)) errors.push(`sitemap.xml: <loc> ${path} does not resolve to a built page`);
+  else if (!indexable.has(path) && !SITEMAP_EXTRAS.has(path)) {
+    errors.push(`sitemap.xml: <loc> ${path} is not an indexable page`);
+  }
+}
+for (const path of indexable) {
+  if (!locSet.has(path)) errors.push(`sitemap.xml: indexable page ${path} is missing from the sitemap`);
+}
+
+// 11. Absolute links in the agent text resolve too. Agents follow these without
+//     ever seeing an <a href>, so check 1 never reaches them.
+//     The Worker serves the paths in wrangler.jsonc's `run_worker_first`, so those
+//     are skipped: `/x/*` entries are prefixes, the rest exact. Read by regex, not
+//     JSON.parse, because the file is JSONC and its comments hold `//` in URLs.
+const wrangler = await readFile(resolve(SITE, '../worker/wrangler.jsonc'), 'utf8');
+const workerFirst = [
+  ...(wrangler.match(/"run_worker_first"\s*:\s*\[([^\]]*)\]/)?.[1] ?? '').matchAll(/"([^"]+)"/g),
+].map(([, entry]) => entry);
+if (workerFirst.length === 0) errors.push('wrangler.jsonc: could not read assets.run_worker_first');
+const WORKER_EXACT = new Set(workerFirst.filter((e) => !e.endsWith('/*')));
+const WORKER_PREFIXES = workerFirst.filter((e) => e.endsWith('/*')).map((e) => e.slice(0, -1));
+// "/" is worker-first, so the bare origin is skipped; it resolves anyway.
+for (const [rel, text] of agentText) {
+  if (!rel.startsWith('dist/')) continue;
+  for (const [, raw = ''] of text.matchAll(/https:\/\/marklayer\.app(\/[^\s)\]>"'`]*)?/g)) {
+    const path = raw.replace(/[?#].*$/, '').replace(/[.,:;]+$/, '') || '/';
+    if (WORKER_EXACT.has(path) || WORKER_PREFIXES.some((p) => path.startsWith(p))) continue;
+    if (!resolves(path)) errors.push(`${rel}: broken absolute link -> https://marklayer.app${path}`);
   }
 }
 

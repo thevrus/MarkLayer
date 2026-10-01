@@ -3,10 +3,11 @@ order: 8
 title: "Bug Report MCP Servers Compared: 5 Tools (2026)"
 description: "Marker.io, BugHerd, Jam, Usersnap, and MarkLayer all ship MCP servers for AI coding agents. What each agent can read, and which loops it can close. Compared."
 h1: "MCP servers for bug reports and visual feedback, compared"
+nav: "MCP servers for bug reports"
 intro: "An MCP server lets an AI coding agent read your bug reports and annotations directly, instead of you pasting screenshots into a chat. Five visual-feedback tools ship one as of August 2026. They differ on the question that matters: can the agent only read the feedback, or can it work the feedback?"
 bottomLine: "All five tools let an agent read feedback over MCP. Marker.io exposes the richest report data (console and network logs) but keeps the agent read-only. Jam is a one-way link handoff. BugHerd allows task triage in beta. MarkLayer is the only one with a live two-way loop: the agent watches a room, marks annotations in progress, resolves them, and replies, with every status change visible to the humans watching."
 published: 2026-08-15
-modified: 2026-09-04
+modified: 2026-10-01
 faq:
   - q: "What is an MCP server for bug tracking?"
     a: "MCP (Model Context Protocol) is the open standard AI assistants use to call external tools. A bug tracker's MCP server exposes its reports as tools an agent can call, so Claude Code or Cursor can pull a bug's details, screenshots, selectors, or logs directly instead of a human copy-pasting them into the chat."
@@ -24,7 +25,7 @@ As of August 2026, verified against each vendor's published documentation:
 
 | Tool | Agent can read | Agent can act | Price floor |
 | --- | --- | --- | --- |
-| **MarkLayer** | Annotations with CSS selector, text fingerprint, computed styles, detected React/Vue/Svelte component, thread history | Watch live, acknowledge, resolve, dismiss, reply | Free |
+| **MarkLayer** | Annotations with CSS selector, text fingerprint, computed styles, detected React/Vue/Svelte component, thread history, and the page itself | Watch live, acknowledge, resolve, dismiss, reply, leave its own comments, suggest text edits | Free |
 | **Marker.io** | Reports with screenshots, console logs, network requests, browser/OS | Read and draft only; cannot resolve or reply | $59/mo ($39 annual) |
 | **BugHerd** | Task details with screenshots, CSS selectors, browser/OS, severity | List, create, update tasks (beta) | $50/mo (5 members) |
 | **Jam.dev** | A pasted Jam link: console, network, user actions, video transcript | Nothing; one-way handoff | Free tier |
@@ -38,13 +39,13 @@ Two design decisions separate the field.
 
 ## Connecting an agent
 
-Every tool here uses a one-line install. MarkLayer's, for Claude Code:
+Every tool here uses a one-line install. MarkLayer's needs no install at all, because the share link is the server. For Claude Code:
 
 ```
-claude mcp add marklayer -- npx -y marklayer-mcp --room <room-id>
+claude mcp add --transport http marklayer https://marklayer.app/s/<room-id>/mcp
 ```
 
-Cursor, Codex, Windsurf, and other MCP clients take the same `npx -y marklayer-mcp` command in their MCP configuration. The server is published on npm as `marklayer-mcp`, and each MarkLayer share page shows the command with the room id filled in.
+Any client that accepts a remote server URL takes the same address. For clients that only run local servers, the same tools are published on npm as `marklayer-mcp` (`npx -y marklayer-mcp --room <room-id>`). Each MarkLayer share page shows both, with the room id filled in.
 
 For the step-by-step setup, the full tool reference, and troubleshooting the first connection, see [the Claude Code MCP setup guide](/guides/claude-code-visual-feedback).
 

@@ -3,11 +3,12 @@ order: 1
 title: "Annotate localhost and Hand the Element to Your AI Agent"
 description: "Click an element on your localhost dev server and hand your AI coding agent its selector, styles, and component name over MCP. Free, with no account."
 h1: "Point an AI coding agent at a UI element on your local dev server"
+nav: "Localhost and AI agents"
 audience: "developers running a local dev server alongside an AI coding agent"
 bottomLine: "Install the MarkLayer extension, open your localhost dev server, drop a pin or inspect an element, and run one \"claude mcp add\" command. The agent reads the annotation with its selector and component name, fixes the code, and resolves the pin in place. Free, no account. Share links need a publicly reachable URL, so use staging or a tunnel when you want someone else to see the page too."
 problem: "The gap is that your coding agent cannot see your screen. You know exactly which element is wrong, because you are looking at it, but conveying that costs a paragraph of prose, a screenshot the agent reads imprecisely, or a hand-copied selector from devtools. Then the agent goes quiet, and you have no idea whether it understood which element you meant until the diff lands."
 published: 2026-01-23
-modified: 2026-09-04
+modified: 2026-10-01
 why:
   - "The extension annotates localhost directly. It draws on the page in your browser, so there is no proxy or tunnel involved and your dev server never has to be reachable from the internet."
   - "The inspector captures a CSS selector, a text fingerprint, computed styles, and the detected React, Vue, or Svelte component: the context an agent needs to find the code, not just the pixel."
@@ -23,7 +24,7 @@ steps:
   - name: "Say what should change"
     text: "Type the instruction on the annotation: \"this card should align with the one above it.\" The element context travels with your sentence, so you never describe the location in prose."
   - name: "Connect your agent once"
-    text: "Open Share and copy the connect command: \"claude mcp add marklayer -- npx -y marklayer-mcp --room <id>\". Run it in the project directory. Cursor, Codex, and Windsurf take the same npx command in their MCP config."
+    text: "Open Share and copy the Claude Code command: \"claude mcp add --transport http marklayer https://marklayer.app/s/<id>/mcp\". Run it in the project directory. Nothing gets installed, because the share link is the MCP server. Clients that only run local servers take the npx command from the same panel."
   - name: "Let the agent work the room"
     text: "Ask the agent to watch the room. It pulls each annotation with its selector and component name, marks the one it is working on as in progress, edits the code, and resolves the pin with a summary reply."
   - name: "Reload and confirm"
@@ -38,7 +39,7 @@ faq:
   - q: "What exactly does the agent receive?"
     a: "For each annotation: your instruction, the CSS selector, a text fingerprint that survives DOM changes, the element position and size, computed styles, and the detected React, Vue, or Svelte component name where one is found. Console and network logs are not captured today."
   - q: "Which agents can connect?"
-    a: "Anything that speaks MCP. Claude Code has a one-line install; Cursor, Codex, Windsurf, and other MCP clients take the same \"npx -y marklayer-mcp --room <id>\" command in their MCP config. The server is published on npm as marklayer-mcp."
+    a: "Anything that speaks MCP. A client that accepts a remote server URL connects to the share link plus /mcp with nothing installed, and Claude Code does it in one command. Clients that only run local servers take \"npx -y marklayer-mcp --room <id>\" in their MCP config, from the marklayer-mcp package on npm."
   - q: "Can the agent close annotations on its own?"
     a: "Yes. The MCP server exposes acknowledge, resolve, dismiss, and reply, so the agent can mark work in progress, resolve a pin with a summary, dismiss one with a reason, or ask a question without changing status. Every change shows up live for the humans in the room. There's a fifth status, approved, reserved for the human confirming the fix; see the [full MCP setup guide](/guides/claude-code-visual-feedback) for the complete tool reference."
 ---
