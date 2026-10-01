@@ -9,6 +9,8 @@
  * one seen by everybody.
  */
 
+import { type CommentStatus, type DrawOp, isAnnotationOp, isSettled, resolveOpStatus } from '@marklayer/types';
+
 /**
  * The Polar checkout the card opens — the "Support MarkLayer" product, priced
  * pay-what-you-want with a $3 floor and $5 prefilled.
@@ -109,6 +111,23 @@ export function shouldOfferSupport({ record, hasCheckout }: { record: SupportRec
   if (record.asked || record.supported) return false; // once means once
   if (record.days.length < DAYS_BEFORE_ASKING) return false;
   return record.mcp || record.shares >= SHARES_BEFORE_ASKING;
+}
+
+/**
+ * Whether a thread an agent claimed just settled, by the agent or by the person
+ * signing it off: the MCP user's saved share. First sightings are recorded, not
+ * counted, so a room that loads settled says nothing. `seen` is updated in place.
+ */
+export function agentWorkLanded({ seen, ops }: { seen: Map<string, CommentStatus>; ops: readonly DrawOp[] }): boolean {
+  let landed = false;
+  for (const op of ops) {
+    if (!isAnnotationOp(op) || !op.assignedAgent) continue;
+    const status = resolveOpStatus(op);
+    const before = seen.get(op.id);
+    if (before !== undefined && !isSettled(before) && isSettled(status)) landed = true;
+    seen.set(op.id, status);
+  }
+  return landed;
 }
 
 /** Today in the local calendar, which is the unit "distinct days of use" is counted in. */

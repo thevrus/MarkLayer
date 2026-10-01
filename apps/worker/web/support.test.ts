@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { parseSupportRecord, recordSignal, type SupportRecord, shouldOfferSupport } from './support';
+import type { CommentOp, CommentStatus } from '@marklayer/types';
+import { agentWorkLanded, parseSupportRecord, recordSignal, type SupportRecord, shouldOfferSupport } from './support';
 
 const fresh: SupportRecord = { days: [], shares: 0, mcp: false, asked: false, supported: false };
 const veteran: SupportRecord = { ...fresh, days: ['2026-08-01', '2026-08-04', '2026-08-09'] };
@@ -93,5 +94,45 @@ describe('parseSupportRecord', () => {
   test('round-trips a real record', () => {
     const r: SupportRecord = { days: ['2026-08-01'], shares: 4, mcp: true, asked: false, supported: false };
     expect(parseSupportRecord(JSON.stringify(r))).toEqual(r);
+  });
+});
+
+describe('agentWorkLanded: the moment an agent finished something', () => {
+  const comment = (over: Partial<CommentOp> = {}): CommentOp => ({
+    id: 'c1',
+    color: '#000',
+    lineWidth: 2,
+    tool: 'comment',
+    num: 1,
+    text: 'Fix the nav',
+    x: 0,
+    y: 0,
+    ts: 0,
+    assignedAgent: 'mcp-claude',
+    ...over,
+  });
+
+  test('an agent resolving what it picked up', () => {
+    const seen = new Map<string, CommentStatus>();
+    expect(agentWorkLanded({ seen, ops: [comment({ status: 'in_progress' })] })).toBe(false);
+    expect(agentWorkLanded({ seen, ops: [comment({ status: 'resolved' })] })).toBe(true);
+  });
+
+  test('not work that was already settled when the room loaded', () => {
+    const seen = new Map<string, CommentStatus>();
+    expect(agentWorkLanded({ seen, ops: [] })).toBe(false);
+    expect(agentWorkLanded({ seen, ops: [comment({ status: 'resolved' })] })).toBe(false);
+  });
+
+  test('not a settled thread moving on to approved', () => {
+    const seen = new Map<string, CommentStatus>();
+    agentWorkLanded({ seen, ops: [comment({ status: 'resolved' })] });
+    expect(agentWorkLanded({ seen, ops: [comment({ status: 'approved' })] })).toBe(false);
+  });
+
+  test('not a thread no agent took on', () => {
+    const seen = new Map<string, CommentStatus>();
+    agentWorkLanded({ seen, ops: [comment({ assignedAgent: undefined })] });
+    expect(agentWorkLanded({ seen, ops: [comment({ assignedAgent: undefined, status: 'resolved' })] })).toBe(false);
   });
 });

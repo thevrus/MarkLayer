@@ -6,11 +6,22 @@
  * its tests.
  */
 
-import { toast } from '@ext/lib/state';
+import { operations, toast } from '@ext/lib/state';
+import type { CommentStatus } from '@marklayer/types';
+import { effect } from '@preact/signals';
 import { SUPPORT_CHANNEL, SUPPORT_PAID } from '@site/lib/site';
 import { capture } from './analytics';
 import { type SupportTrigger, showSupportDialog } from './signals';
-import { noteSupportSignal, POLAR_CHECKOUT_URL, readSupportRecord, shouldOfferSupport } from './support';
+import {
+  agentWorkLanded,
+  noteSupportSignal,
+  POLAR_CHECKOUT_URL,
+  readSupportRecord,
+  shouldOfferSupport,
+} from './support';
+
+/** Quiet time after the last thing an agent settles, so the card follows a batch instead of interrupting it. */
+const AGENT_QUIET_MS = 4000;
 
 /** Open the card and count it. The only place `support_card_shown` is emitted. */
 export function openSupportCard(trigger: SupportTrigger): void {
@@ -24,12 +35,33 @@ export function openSupportCard(trigger: SupportTrigger): void {
  * Call at a pause after something worked — never mid-task. Safe to call as often
  * as you like: the record decides, and it can only say yes once.
  */
-export function maybeOfferSupport(): void {
+export function maybeOfferSupport(trigger: 'auto' | 'agent' = 'auto'): void {
+  // `asked` is only written on dismissal, so a second call while the card is up
+  // would pass the record and count the same showing twice.
+  if (showSupportDialog.value !== null) return;
   const eligible = shouldOfferSupport({
     record: readSupportRecord(),
     hasCheckout: POLAR_CHECKOUT_URL.length > 0,
   });
-  if (eligible) openSupportCard('auto');
+  if (eligible) openSupportCard(trigger);
+}
+
+/**
+ * Offer the card once an agent has finished work it took on in this room.
+ * Returns its disposer, which also drops an offer still waiting for quiet.
+ */
+export function watchAgentWork(): () => void {
+  const seen = new Map<string, CommentStatus>();
+  let timer: number | undefined;
+  const stop = effect(() => {
+    if (!agentWorkLanded({ seen, ops: operations.value })) return;
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => maybeOfferSupport('agent'), AGENT_QUIET_MS);
+  });
+  return () => {
+    stop();
+    window.clearTimeout(timer);
+  };
 }
 
 /**
