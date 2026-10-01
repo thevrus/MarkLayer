@@ -17,7 +17,7 @@ export const MCP_VERSION: string = mcpPkg.version;
 export const SKILL_PATH = '/.well-known/agent-skills/marklayer-annotations/SKILL.md';
 
 const SKILL_DESCRIPTION =
-  'Create MarkLayer annotation share links over a no-auth HTTP API, and process a human’s webpage annotations as a work queue via the marklayer-mcp server.';
+  'Create MarkLayer annotation share links over a no-auth HTTP API, and process a human’s webpage annotations as a work queue over MCP, at the share link’s own /mcp address or via the marklayer-mcp package.';
 
 /** RFC 9727 API catalog: points agents at the share API's spec, docs and health check. */
 export const API_CATALOG = {
@@ -31,11 +31,13 @@ export const API_CATALOG = {
   ],
 };
 
+/** The stdio install, roomless: the agent is handed a room later by link. The landing shows it too. */
+export const MCP_INSTALL = 'claude mcp add marklayer -- npx -y marklayer-mcp';
+
 /**
- * MCP Server Card (SEP-1649). MarkLayer's MCP server ships as a stdio process
- * over npm (marklayer-mcp), not a hosted HTTP endpoint, so the stdio transport
- * is described honestly rather than advertising a Streamable-HTTP URL that does
- * not exist. The tool list mirrors apps/mcp/src/server.ts.
+ * MCP Server Card (SEP-1649). The stdio package is the one fixed address; the
+ * Streamable-HTTP endpoint is per room, so it goes in the registry's `remotes`
+ * shape with the room as a URL variable. server-card.test.ts pins `tools`.
  */
 export const MCP_SERVER_CARD = {
   serverInfo: { name: 'marklayer-mcp', version: MCP_VERSION },
@@ -43,11 +45,25 @@ export const MCP_SERVER_CARD = {
     type: 'stdio',
     command: 'npx',
     args: ['-y', 'marklayer-mcp'],
-    install: 'claude mcp add marklayer -- npx -y marklayer-mcp',
+    install: MCP_INSTALL,
     package: 'https://www.npmjs.com/package/marklayer-mcp',
   },
+  remotes: [
+    {
+      type: 'streamable-http',
+      url: `${ORIGIN}/s/{room}/mcp`,
+      install: `claude mcp add --transport http marklayer ${ORIGIN}/s/{room}/mcp`,
+      variables: {
+        room: {
+          description: `The id in a share link (${ORIGIN}/s/{room}). The endpoint serves that one room, so it has every tool but marklayer_connect_room.`,
+          isRequired: true,
+        },
+      },
+    },
+  ],
   capabilities: { tools: true, resources: false, prompts: false },
   tools: [
+    'marklayer_read_page',
     'marklayer_connect_room',
     'marklayer_room_info',
     'marklayer_list_annotations',
@@ -57,6 +73,8 @@ export const MCP_SERVER_CARD = {
     'marklayer_resolve',
     'marklayer_dismiss',
     'marklayer_reply',
+    'marklayer_create_annotation',
+    'marklayer_suggest_edit',
   ],
   documentation: 'https://github.com/thevrus/MarkLayer/tree/main/apps/mcp',
 };

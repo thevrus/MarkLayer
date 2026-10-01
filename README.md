@@ -34,7 +34,7 @@
 
 MarkLayer turns any webpage into a collaborative review surface. Instead of passing screenshots back and forth, send a link. Teammates or clients can open the original page in their own browser, leave feedback where it belongs, and see changes land live. So can an AI agent: each comment arrives with the exact element it refers to already attached.
 
-- **For AI-assisted work**: connect [`marklayer-mcp`](apps/mcp) and hand an agent a live queue of annotations to acknowledge, fix, and resolve. Or inspect an element yourself for a stable selector and an AI-ready markdown snapshot.
+- **For AI-assisted work**: give an agent the share link over MCP and it works the annotations as a live queue: acknowledge, fix, resolve. Nothing to install. Or inspect an element yourself for a stable selector and an AI-ready markdown snapshot.
 - **For client feedback**: let clients point to exactly what they mean, without an account or extension.
 - **For design review**: sketch ideas, highlight details, and keep the conversation attached to the page.
 - **For QA**: pin reproducible issues to the actual UI, then share a clean link with the team.
@@ -43,7 +43,7 @@ MarkLayer turns any webpage into a collaborative review surface. Instead of pass
 
 1. **Open a page**: paste any public URL at [marklayer.app](https://marklayer.app), or use the Chrome extension on the page you are already viewing — including a page on your own `localhost` dev server, which never has to be reachable from the internet.
 2. **Make the feedback visible**: draw, highlight text, measure space, pin a threaded comment, or inspect an element.
-3. **Share one link**: collaborators join the same board and see cursors, marks, replies, and calls in real time. Point an AI agent at it instead, and `marklayer-mcp` turns the thread into a work queue.
+3. **Share one link**: collaborators join the same board and see cursors, marks, replies, and calls in real time. Point an AI agent at the same link over MCP instead, and the thread becomes its work queue.
 
 No sign-up. No trial clock. No client install.
 
@@ -51,7 +51,7 @@ No sign-up. No trial clock. No client install.
 
 | | |
 |---|---|
-| **Send an agent to work the page** | Connect `marklayer-mcp`, a standard MCP server, so an AI agent can watch annotations and acknowledge, fix, and resolve them live. |
+| **Send an agent to work the page** | Every share link is also a remote MCP server, so an AI agent can watch annotations and acknowledge, fix, and resolve them live, or review the page and leave notes of its own. |
 | **Annotate freely** | Pen, highlighter, eraser, shapes, arrows, text, and text-selection highlights. |
 | **Keep feedback in context** | Pin threaded comments to the page, reply inline, and track status. |
 | **Review live** | Real-time cursors, drawings, and comments via WebSocket, plus peer-to-peer voice and video chat. |
@@ -64,17 +64,25 @@ No sign-up. No trial clock. No client install.
 
 Every annotation is part of a structured queue: an agent can read it, act on it, and report back, the same way a human would.
 
-**Connect over MCP.** [`marklayer-mcp`](apps/mcp) is a standard stdio MCP server: no Claude-specific wiring, works with Claude Code, Cursor, Windsurf, VS Code, Codex CLI, or any MCP client.
+**Connect over MCP, with nothing installed.** Every share link is also a remote MCP server. Add `/mcp` to it:
+
+~~~bash
+claude mcp add --transport http marklayer https://marklayer.app/s/<id>/mcp
+~~~
+
+Any client that accepts a remote (Streamable HTTP) server URL takes the same address. Add `?agent=cursor`, or any name, so the people in the room can see who is doing the work. The share panel on every link shows the command with the id filled in.
+
+If a client only runs local servers, [`marklayer-mcp`](apps/mcp) has the same tools as a stdio package, installed once for every room:
 
 ~~~bash
 claude mcp add marklayer -- npx -y marklayer-mcp
 ~~~
 
-Then just ask: *"Watch my MarkLayer annotations. For each one, acknowledge it, make the fix, then resolve it with a summary."* The agent calls `marklayer_watch_annotations` in a loop, and the human watches every status change land live. The full toolset (`connect_room`, `list_annotations`, `watch_annotations`, `acknowledge`, `resolve`, `dismiss`, `reply`, `create_annotation`, `suggest_edit`) is documented in [apps/mcp](apps/mcp/README.md).
+Then just ask: *"Watch my MarkLayer annotations. For each one, acknowledge it, make the fix, then resolve it with a summary."* The agent calls `marklayer_watch_annotations` in a loop, and the human watches every status change land live. It can go first, too: `read_page` hands it the page's text and controls with their selectors, so an agent asked to review a page leaves its own comments and suggests exact copy edits as diffs. The full toolset is documented in [apps/mcp](apps/mcp/README.md).
 
 **Every mark carries the context an agent needs.** Inspecting an element captures its CSS selector, computed styles, parent layout, and framework component info as a markdown snapshot, so a comment arrives with the exact node attached instead of a vague description.
 
-**No install, no server.** On a browser agent with WebMCP support, the same list, acknowledge, resolve, and reply actions are exposed straight from the page via `document.modelContext`. Nothing to configure.
+**Or from inside the browser.** On a browser agent with WebMCP support, the same list, acknowledge, resolve, and reply actions are exposed straight from the page via `document.modelContext`. Nothing to configure.
 
 **Agents can open their own boards, too.** The share id is the access token, so minting a room is one unauthenticated POST, handy for seeding a review per URL ahead of time:
 
@@ -84,7 +92,7 @@ curl -X POST https://marklayer.app/api/$ID \
   -d '{"ops":[],"url":"https://example.com","width":1440}'
 ~~~
 
-**Discoverable machine-first.** [`/llms.txt`](https://marklayer.app/llms.txt), [`/llms-full.txt`](https://marklayer.app/llms-full.txt), [`/.well-known/api-catalog`](https://marklayer.app/.well-known/api-catalog), and a full [OpenAPI spec](https://marklayer.app/api/openapi.json) describe the whole surface for an agent that's never seen MarkLayer before.
+**Discoverable machine-first.** [`/llms.txt`](https://marklayer.app/llms.txt), [`/llms-full.txt`](https://marklayer.app/llms-full.txt), [`/.well-known/api-catalog`](https://marklayer.app/.well-known/api-catalog), an [MCP server card](https://marklayer.app/.well-known/mcp/server-card.json), an [agent skill](https://marklayer.app/.well-known/agent-skills/index.json), and a full [OpenAPI spec](https://marklayer.app/api/openapi.json) describe the whole surface for an agent that's never seen MarkLayer before.
 
 ## Built to respect the reviewer's time and privacy
 
@@ -129,7 +137,7 @@ For the Chrome extension in development:
 | Backend | Cloudflare Workers, Hono, Durable Objects |
 | Storage | D1 (SQLite), R2 |
 | Real-time | WebSockets, WebRTC |
-| Agent integration | MCP (stdio server), WebMCP, OpenAPI |
+| Agent integration | MCP (remote at every share link, plus a stdio package), WebMCP, OpenAPI |
 
 ### Scripts
 
@@ -156,7 +164,7 @@ Found a bug or have an idea? [Open an issue](https://github.com/thevrus/MarkLaye
 
 <p align="center">
   <a href="https://marklayer.app">Try MarkLayer</a> ·
-  <a href="https://www.npmjs.com/package/marklayer-mcp">Connect an agent</a> ·
+  <a href="#built-for-ai-agents">Connect an agent</a> ·
   <a href="https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc">Add to Chrome</a> ·
   <a href="https://github.com/thevrus/MarkLayer/issues">Report a bug</a> ·
   <a href="https://github.com/thevrus/MarkLayer/issues">Request a feature</a>

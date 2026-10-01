@@ -71,9 +71,15 @@ the share link can see its last four characters and remove it.
 
 ## For AI coding agents (MCP)
 
-MarkLayer ships an MCP (Model Context Protocol) server, marklayer-mcp, that turns annotations into a structured work queue for AI coding agents like Claude Code. Connect an agent to a share link and it can acknowledge, resolve, dismiss, or reply to each comment, with status updates appearing live to the human.
+Every MarkLayer share link is an MCP (Model Context Protocol) server that turns annotations into a structured work queue for AI coding agents like Claude Code. Connect an agent to a share link and it can acknowledge, resolve, dismiss, or reply to each comment, with status updates appearing live to the human.
 
-Install in Claude Code: claude mcp add marklayer -- npx -y marklayer-mcp
+Every share link is itself a remote MCP server (Streamable HTTP) at the link plus /mcp, so connecting needs nothing installed:
+
+    claude mcp add --transport http marklayer https://marklayer.app/s/{id}/mcp
+
+Add ?agent=<name> to that URL to set the name the humans see on the agent's work. The endpoint is bound to its room, so it serves every tool below except marklayer_connect_room.
+
+For clients that only run local servers, the same tools ship as a stdio package: claude mcp add marklayer -- npx -y marklayer-mcp
 
 The twelve tools:
 - marklayer_connect_room: join a share link, by URL or bare id
@@ -304,7 +310,7 @@ Q: Can I review more than one page on a single link?
 A: Yes. A share link can hold a project of up to 50 pages, each with its own annotations, switched through a tab strip at the top of the viewer. Add a page by pasting its URL. The Markdown export covers the whole project in one document with a section per page.
 
 Q: Can I send annotations to an AI coding agent?
-A: Yes. MarkLayer ships an MCP server (marklayer-mcp) that lets agents like Claude Code watch a share link and process comments as a work queue.
+A: Yes. Every share link is also an MCP server, at the link plus /mcp, that lets agents like Claude Code watch it and process comments as a work queue.
 
 Q: Can an AI assistant generate MarkLayer links for me programmatically?
 A: Yes. POST to https://marklayer.app/api/{id} with { ops: [], url, width: 1440, expires_in: 2592000 } and the share link is https://marklayer.app/s/{id}. No auth, no SDK. See the "Programmatic link creation" section above.

@@ -3,13 +3,14 @@ order: 9
 title: "Claude Code, Codex, Cursor & Windsurf: Visual Feedback via MCP"
 description: "Connect Claude Code, Codex, Cursor, or Windsurf to a MarkLayer room so it reads annotations left on a live webpage, works them, and resolves each one with a status the human reviewer sees live. Full setup per client, tool reference, and troubleshooting."
 h1: "Give your AI coding agent visual feedback from a live webpage"
-intro: "An AI coding agent cannot see your screen, so the usual workaround is a paragraph describing which element is wrong, or a screenshot it reads imprecisely. Connecting it to a MarkLayer room instead gives it the actual annotation: the instruction, the CSS selector, and the element context, plus a way to mark its own progress that the human reviewer sees update live on the page. Claude Code has the shortest path in (one CLI command); Codex, Cursor, and Windsurf take the same server through their own config file."
-bottomLine: "Run one command (`claude mcp add`, `codex mcp add`, or a few lines of config for Cursor and Windsurf), point it at a MarkLayer room, and tell the agent to watch it. The server exposes nine tools; the two that matter for a first run are marklayer_watch_annotations (to pull feedback as it arrives) and marklayer_resolve (to close it out with a summary the human sees as a reply). No API key, no dashboard, no account on either side."
+nav: "Connect an AI coding agent"
+intro: "An AI coding agent cannot see your screen, so the usual workaround is a paragraph describing which element is wrong, or a screenshot it reads imprecisely. Connecting it to a MarkLayer room instead gives it the actual annotation: the instruction, the CSS selector, and the element context, plus a way to mark its own progress that the human reviewer sees update live on the page. The shortest path needs nothing installed: every share link is also an MCP server, so Claude Code connects with one command. Codex, Cursor, and Windsurf take the same server through their own config file."
+bottomLine: "Run one command (`claude mcp add`, `codex mcp add`, or a few lines of config for Cursor and Windsurf), point it at a MarkLayer room, and tell the agent to watch it. The server exposes twelve tools; the two that matter for a first run are marklayer_watch_annotations (to pull feedback as it arrives) and marklayer_resolve (to close it out with a summary the human sees as a reply). No API key, no dashboard, no account on either side."
 published: 2026-09-04
-modified: 2026-09-04
+modified: 2026-10-01
 faq:
   - q: "How do I connect Claude Code to MarkLayer?"
-    a: "Run `claude mcp add marklayer -- npx -y marklayer-mcp` once in your project directory. That registers the server with no room attached; the agent calls marklayer_connect_room with a share URL the first time you ask it to watch a page. To skip that step, add the room up front: `claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123`."
+    a: "Fastest: `claude mcp add --transport http marklayer https://marklayer.app/s/abc123/mcp`, using your own share link plus /mcp. Nothing is installed, and the agent is already in that room. For one install that works with any room, run `claude mcp add marklayer -- npx -y marklayer-mcp` once in your project directory. That registers the server with no room attached; the agent calls marklayer_connect_room with a share URL the first time you ask it to watch a page. To skip that step, add the room up front: `claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123`."
   - q: "What exactly does Claude Code receive from an annotation?"
     a: "Depends on the kind. A comment carries the reviewer's text and, for a plain sticky note, nothing else; if it was pinned to an element, it carries a target block with a CSS selector, a text fingerprint, and the detected React, Vue, or Svelte component name. Area and selection annotations carry the same element target without a comment thread. Inspect annotations are the element context alone, no instruction attached, for when someone just wants to hand the agent a specific node."
   - q: "Can Claude Code mark an annotation as done without a human doing it?"
@@ -19,7 +20,7 @@ faq:
   - q: "Does the agent need the page to be public?"
     a: "The room does, not the page. A share link works for any URL the MarkLayer extension or web app can reach, including localhost, staging behind basic auth, or production. Rooms themselves live on marklayer.app regardless of what page they're annotating, so the agent connects to the room the same way whether the underlying page is public or not."
   - q: "Does this work with MCP clients other than these four?"
-    a: "Any MCP-capable client should work: the server speaks the standard stdio transport, so it's a matter of adding a command (npx) and args (-y marklayer-mcp, optionally --room <url>) wherever that client keeps its MCP config. Zed, Aider, Gemini CLI, Amazon Q Developer, Cline, and Roo Code all support that transport; the file name and location are the only things that differ from Claude Code, Codex, Cursor, and Windsurf."
+    a: "Any MCP-capable client should work. One that accepts a remote server URL can use the share link plus /mcp directly. Otherwise the npm package speaks the standard stdio transport, so it's a matter of adding a command (npx) and args (-y marklayer-mcp, optionally --room <url>) wherever that client keeps its MCP config. Zed, Aider, Gemini CLI, Amazon Q Developer, Cline, and Roo Code all support that transport; the file name and location are the only things that differ from Claude Code, Codex, Cursor, and Windsurf."
   - q: "What if the MCP server won't connect on the first try?"
     a: "Almost always a cold `npx` download outlasting the client's startup timeout, not a bug in the room or the annotation. Run `npx -y marklayer-mcp --help` once to warm the npm cache, then reconnect; or install it globally with `npm i -g marklayer-mcp` so there's no download on start. A 'room is not connected' error later in a long session means the WebSocket dropped from idling — call marklayer_connect_room again with the same URL to reattach, no new room needed."
 ---
@@ -27,16 +28,16 @@ faq:
 ## The setup, in order
 
 1. **Get a room.** Annotate any page with the MarkLayer extension or at marklayer.app, then open Share. The link (`https://marklayer.app/s/<id>`) is the room.
-2. **Register the server once.** In your project directory: `claude mcp add marklayer -- npx -y marklayer-mcp` for Claude Code, or the Codex, Cursor, or Windsurf equivalent further down this page. This adds the server with no room attached.
-3. **Point the agent at the room.** Either pass `--room <share-url>` on that same command to connect at startup, or leave it off and tell the agent the URL in your prompt; it calls `marklayer_connect_room` itself.
+2. **Connect the agent.** The quickest way is `claude mcp add --transport http marklayer https://marklayer.app/s/<id>/mcp`, which joins that room with nothing installed; the share panel shows it with your id filled in. For one install that covers every room, register the npm package instead: `claude mcp add marklayer -- npx -y marklayer-mcp`, or the Codex, Cursor, or Windsurf equivalent further down this page.
+3. **Point the agent at the room.** The URL already did, so skip this step. With the npm package, either pass `--room <share-url>` on that same command to connect at startup, or leave it off and tell the agent the URL in your prompt; it calls `marklayer_connect_room` itself.
 4. **Ask it to watch.** A prompt like "watch my MarkLayer annotations, fix each one, resolve it with a summary" is enough. The agent loops on `marklayer_watch_annotations`, which blocks until something new arrives.
 5. **Watch it work from the page.** Every `marklayer_acknowledge`, `marklayer_resolve`, `marklayer_dismiss`, or `marklayer_reply` call updates the pin's status live for anyone else who has the room open, no refresh needed.
 
-## The nine tools
+## The twelve tools
 
 | Tool | What it does |
 | --- | --- |
-| `marklayer_connect_room` | Connect by share URL or bare room id. Replaces any prior room. |
+| `marklayer_connect_room` | Connect by share URL or bare room id. Replaces any prior room. Only the npm package has it: a share link's /mcp address is already bound to its room. |
 | `marklayer_room_info` | Page URL, viewport width, timestamps for the connected room. |
 | `marklayer_list_annotations` | List annotations, filterable by status. |
 | `marklayer_get_annotation` | Full detail and reply thread for one annotation. |
@@ -45,6 +46,9 @@ faq:
 | `marklayer_resolve` | Mark resolved; the optional summary posts as a reply. |
 | `marklayer_dismiss` | Mark dismissed with a reason, shown to the human. |
 | `marklayer_reply` | Post a reply with no status change, for a clarifying question. |
+| `marklayer_read_page` | The page's headings, text, links and controls, each with its selector. Lets the agent review a page before anyone has annotated it. |
+| `marklayer_create_annotation` | Leave a comment of its own, anchored to an element, with an optional priority. |
+| `marklayer_suggest_edit` | Propose exact replacement text for a selection, shown to the human as a diff. |
 
 Four annotation kinds can arrive through any of these: **comment** (a threaded note, optionally pinned to an element), **area** and **selection** (a region or element marked without necessarily attaching text), and **inspect** (element context alone, no instruction, for handing over a specific node with nothing else attached). Anything pinned to an element carries a `target` block: CSS selector, a text fingerprint that survives DOM changes, and the detected framework component where one exists, which is what actually lets the agent find the file to edit rather than guess from a description.
 
@@ -52,11 +56,21 @@ Four annotation kinds can arrive through any of these: **comment** (a threaded n
 
 Most write-ups of this flow mention four states: open, in progress, resolved, dismissed. There's a fifth, **approved**, and it's not one the agent can set. It's reserved for the person who filed the annotation confirming the fix actually works after `resolved` was posted. Filtering `marklayer_list_annotations` by status and skipping `approved` results is the practical use: those are closed by a human who already checked, and re-touching them wastes a turn.
 
+## Connect by URL, with nothing installed
+
+Every share link answers MCP at its own address plus `/mcp`, over the Streamable HTTP transport. Claude Code takes it in one line:
+
+```bash
+claude mcp add --transport http marklayer https://marklayer.app/s/abc123/mcp
+```
+
+Any other client that accepts a remote server URL takes the same address. Add `?agent=cursor`, or any name, to the end so the comment author and the assignee badge say which agent is working; without it the room shows a generic "agent". The endpoint belongs to one room, so it has every tool except `marklayer_connect_room`, and a second room means adding a second server. The npm package below is the one-install alternative, and the only option for a client that runs local servers alone.
+
 ## Any URL, not just localhost
 
 The room lives on marklayer.app regardless of what it's pointed at. That means the identical setup connects the agent to a live production page, a staging URL behind basic auth, or a local dev server — the difference is only in how the page itself was annotated (the extension for localhost and authed pages, no install at all for a public URL). If your workflow is specifically "point at an element in my own dev server, nothing else," the [localhost + AI agent walkthrough](/for/localhost-ai-agents) covers that narrower case start to finish; this page is the setup reference for any of them.
 
-Every client below runs the same server, the same nine tools, and the same rooms and statuses. Only the config file's location and format change, and dropping `--room <url>` from any of them registers the server with no room attached, so the agent calls `marklayer_connect_room` itself once you give it a share link in the prompt.
+Codex, Cursor, and Windsurf can also take the share link's `/mcp` URL as a remote server in their own MCP settings; the share panel offers it under "Cursor, Codex, Windsurf". The blocks below set up the npm package instead, which works on any version of them. Every client below runs the same npm package, the same twelve tools, and the same rooms and statuses. Only the config file's location and format change, and dropping `--room <url>` from any of them registers the server with no room attached, so the agent calls `marklayer_connect_room` itself once you give it a share link in the prompt.
 
 ## Add the MCP server to Codex CLI
 
