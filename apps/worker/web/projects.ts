@@ -82,6 +82,9 @@ export async function createAnnotationFor(url: string): Promise<string | null> {
   return res?.ok ? id : null;
 }
 
+/** A typed address as a fetchable URL: `example.com` means https. */
+export const withScheme = (url: string): string => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+
 /**
  * Navigate to a new URL.
  * - In project mode (`/p/:id`): append a new page to the project and switch to it (no full reload).

@@ -48,6 +48,7 @@ import {
   setPresenting,
   showInfoPanel,
   viewerZoom,
+  withScheme,
 } from './signals';
 import { openSupportCard } from './support-ui';
 import { connected } from './useRealtimeSync';
@@ -134,10 +135,9 @@ function UrlField() {
         title="Edit URL and press Enter to navigate"
         onKeyDown={(e) => {
           if (e.key !== 'Enter') return;
-          let url = e.currentTarget.value.trim();
+          const url = e.currentTarget.value.trim();
           if (!url) return;
-          if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-          navigateTo({ url, source: 'url_bar' });
+          navigateTo({ url: withScheme(url), source: 'url_bar' });
         }}
         onFocus={(e) => e.currentTarget.select()}
       />

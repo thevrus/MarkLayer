@@ -14,6 +14,7 @@ import {
   projectLoading,
   projectPages,
   saveProject,
+  withScheme,
 } from './signals';
 
 function hostnameOf(url: string | null, fallback: string): string {
@@ -96,9 +97,9 @@ export function ProjectTabs() {
 
   const submitAdd = async (e: Event) => {
     e.preventDefault();
-    let url = newUrl.trim();
-    if (!url) return;
-    if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+    const typed = newUrl.trim();
+    if (!typed) return;
+    const url = withScheme(typed);
     projectLoading.value = true;
     const newPageId = await createAnnotationFor(url);
     if (!newPageId) {
