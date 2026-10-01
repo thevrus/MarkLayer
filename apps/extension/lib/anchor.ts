@@ -1,14 +1,7 @@
-import {
-  type CaptureViewport,
-  type DrawOp,
-  isAnchorableOp,
-  opAnchorPoint,
-  type SelectionRect,
-  type TargetElement,
-} from '@marklayer/types';
+import type { CaptureViewport, SelectionRect, TargetElement } from '@marklayer/types';
 import { scrollOffset } from './scroller';
-import { captureTarget, pickElementAtPoint, textFingerprint } from './selector';
-import { anchorGeneration, pushOp } from './state';
+import { textFingerprint } from './selector';
+import { anchorGeneration } from './state';
 
 // Re-anchor element-bound ops against the page's CURRENT layout using the
 // optional selector + offsetX/offsetY recorded at capture time; fall back to
@@ -240,30 +233,6 @@ export function applyAnchorDelta(
     scaleY: anchor.scaleY,
     strategy: anchor.strategy,
   };
-}
-
-// Bind a freshly-committed op to whatever page element sits under its
-// representative point (see `opAnchorPoint`) so it survives responsive reflow.
-// No-op when the op has no anchor point, already carries a target, or nothing
-// real sits under it — the op is then stored exactly as it was.
-//
-// Deliberately NOT folded into `pushOp`: the web viewer shares that write path
-// but renders the annotated page inside an iframe, so resolving against the
-// top-level document there would anchor ops to the viewer chrome.
-export function attachTarget(op: DrawOp, ctx?: AnchorContext): void {
-  if (!isAnchorableOp(op) || op.target) return;
-  const anchor = opAnchorPoint(op);
-  if (!anchor) return;
-  const win = ctx?.win ?? window;
-  const o = scrollOffset(win);
-  const el = pickElementAtPoint(anchor.x - o.x, anchor.y - o.y, ctx?.doc);
-  if (el) op.target = captureTarget({ el, anchor });
-}
-
-/** Bind a finished op to the element under its anchor, then commit it. */
-export function commitOp(op: DrawOp, ctx?: AnchorContext): void {
-  attachTarget(op, ctx);
-  pushOp(op);
 }
 
 export interface ReprojectedRects {

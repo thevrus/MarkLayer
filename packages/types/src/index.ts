@@ -620,50 +620,14 @@ export const isAnchorableOp = (op: DrawOp): op is AnchorableOp =>
 export const opsArraySchema = z.array(drawOpSchema);
 
 /**
- * The op's representative anchor point in document px — the coordinate that was
- * resolved against the target element at capture time. Renderers use it to
- * measure how far that anchor has drifted and shift the whole op by the delta.
- *
- * The switch is exhaustive on purpose: a new tool has to declare its anchor
- * point (or explicitly opt out) rather than compile, ship, and silently never
- * anchor. Ops that return null carry their own geometry (area/selection rects,
- * inspect rect) or span the viewport (guides).
- */
-export function opAnchorPoint(op: DrawOp): Point | null {
-  switch (op.tool) {
-    case 'pen':
-    case 'eraser':
-    case 'highlight':
-      return op.points[0] ?? null;
-    case 'rectangle':
-    case 'line':
-      return { x: op.startX, y: op.startY };
-    case 'circle':
-      return { x: op.centerX, y: op.centerY };
-    case 'text':
-      return { x: op.x, y: op.y };
-    case 'comment':
-    case 'selection':
-    case 'area':
-    case 'inspect':
-    case 'guide':
-      return null;
-    default: {
-      const _exhaustive: never = op;
-      return _exhaustive;
-    }
-  }
-}
-
-/**
  * `op` shifted by a viewport delta, or null for the ops that cannot meaningfully
  * be moved as a copy: a comment owns a thread, a selection owns a text range, an
  * inspect owns an element handoff, a guide owns an axis, and an eraser stroke is a
  * subtraction from the strokes beneath it.
  *
  * Which fields of an op are coordinates is op-schema knowledge, so it lives here
- * beside `opAnchorPoint` rather than in a host — the `never` guard then makes a new
- * tool declare how it translates instead of compiling and silently not moving.
+ * rather than in a host — the `never` guard then makes a new tool declare how it
+ * translates instead of compiling and silently not moving.
  * The caller owns identity: it supplies the new `id` and decides what happens to
  * `target` (a re-resolved element anchor would snap the copy back and eat the delta).
  */
@@ -709,9 +673,9 @@ export function isAnnotationOp(op: DrawOp): op is AnnotationOp {
 /**
  * Where this annotation sits: its top-left in document px.
  *
- * Distinct from `opAnchorPoint`, which is the element-anchoring coordinate and
- * is deliberately null for exactly these ops. This is the human answer — where
- * the panel scrolls to, where the board sorts by, where a reply pin lands.
+ * Distinct from the element anchor in `target`, which re-resolves against layout.
+ * This is the human answer — where the panel scrolls to, where the board sorts
+ * by, where a reply pin lands.
  *
  * Here rather than in a host because four surfaces ask it — the panel, the
  * board, the detail view and the MCP server — and each deriving it separately is

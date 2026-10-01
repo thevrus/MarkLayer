@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { getContainerLines, getDistanceOverlay, guideDistance, nextAnchorElement, pickGuideAtPoint } from './measure';
+import { getContainerLines, getDistanceOverlay, nextAnchorElement, pickGuideAtPoint } from './measure';
 
 const rect = (left: number, top: number, width: number, height: number) => ({ left, top, width, height });
 
@@ -72,21 +72,6 @@ describe('getContainerLines', () => {
     const lines = getContainerLines(rect(500, 400, 100, 80), rect(0, 0, 400, 300));
     expect(lines.top.x).toBe(400);
     expect(lines.left.y).toBe(300);
-  });
-});
-
-describe('guideDistance', () => {
-  // A swapped axis here stays invisible until a guide refuses to be grabbed, so
-  // pin both orientations to the coordinate they actually read.
-  test('a vertical guide is measured against x, a horizontal one against y', () => {
-    const point = { x: 100, y: 500 };
-    expect(guideDistance('vertical', 90, point)).toBe(10);
-    expect(guideDistance('horizontal', 90, point)).toBe(410);
-  });
-
-  test('is unsigned, so a guide on either side of the cursor is equally near', () => {
-    expect(guideDistance('vertical', 110, { x: 100, y: 0 })).toBe(10);
-    expect(guideDistance('vertical', 90, { x: 100, y: 0 })).toBe(10);
   });
 });
 
