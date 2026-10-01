@@ -1,4 +1,5 @@
 import { trackChanges } from '@ext/lib/analytics';
+import type { RectLike } from '@ext/lib/measure';
 import {
   annotatedUrl,
   areas,
@@ -49,6 +50,8 @@ export const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAge
 export const iframeScrollY = signal(0);
 /** CSS transform scale — how much the locked container is visually scaled to fit the viewer */
 export const cssScale = signal(1);
+/** The frame's box in the viewport, for layers portalled over it. Kept by `useFrameRectTracker`. */
+export const frameRect = signal<RectLike | null>(null);
 /**
  * Bumped (RAF-debounced) when the proxied iframe's DOM mutates so element-anchored
  * annotation components re-resolve their selectors against the new layout.

@@ -25,11 +25,38 @@ export const GUIDE_PANEL = `oklch(0.22 0.015 200 / 0.96)`;
 export const GUIDE_PANEL_FG = `oklch(0.88 0.12 ${HUE_GUIDE})`;
 export const GUIDE_HIT_PX = 8;
 
+// A guide is page content, so it sits a layer under the chrome (toolbar and panels are
+// z-2147483646). At the top z the pill covered the toolbar whenever a guide ran under it.
+const GUIDE_LAYER = 'fixed z-2147483645';
+
+/**
+ * The readout beside the cursor. While placing it also names the modifier: a one-time
+ * hint was the only place Shift-for-vertical was written down.
+ */
+export const guideReadout = ({
+  dragGuide,
+  orientation,
+  preview,
+}: {
+  dragGuide: { orientation: Orientation; position: number } | null | undefined;
+  orientation: Orientation;
+  /** The doc-space cursor while a preview line shows, else null. */
+  preview: { x: number; y: number } | null;
+}): string | null => {
+  const at = (o: Orientation, position: number) => `${o === 'vertical' ? 'x' : 'y'}: ${Math.round(position)}px`;
+  if (dragGuide) return at(dragGuide.orientation, dragGuide.position);
+  if (!preview) return null;
+  const placing = at(orientation, orientation === 'vertical' ? preview.x : preview.y);
+  return orientation === 'horizontal' ? `${placing} · Shift for vertical` : placing;
+};
+
+/** Our own UI: the tool stands down over it, so a panel gets no preview and a click in it drops nothing. */
+const isOwnUi = (t: EventTarget | null) => t instanceof Element && isExtensionElement(t);
+
 // `screenPosition` is in viewport coords — callers subtract the current scroll offset
 // from the guide's stored document coord. `bounds` (optional) clips the line to a host
-// container — e.g. the web viewer's iframe rect — so guides don't bleed over the Topbar.
-// Vertical lines clip top/height (Topbar sits above iframe); horizontal lines keep full
-// viewport width since there's no left/right chrome in either layout.
+// container (e.g. the web viewer's frame), so a guide never runs across the chrome, the
+// grey stage or a panel docked beside the frame.
 const lineStyle = (
   orientation: Orientation,
   screenPosition: number,
@@ -42,7 +69,7 @@ const lineStyle = (
       return { left: screenPosition, top: bounds.top, width: 0, height: bounds.height, borderLeft: border };
     }
     if (screenPosition < bounds.top || screenPosition > bounds.top + bounds.height) return null;
-    return { left: 0, top: screenPosition, width: '100vw', height: 0, borderTop: border };
+    return { left: bounds.left, top: screenPosition, width: bounds.width, height: 0, borderTop: border };
   }
   return orientation === 'vertical'
     ? { left: screenPosition, top: 0, width: 0, height: '100vh', borderLeft: border }
@@ -66,7 +93,7 @@ export function GuideLine({
   const thickness = hovered || selected ? 2 : 1;
   const style = lineStyle(orientation, screenPosition, bounds, `${thickness}px solid ${color}`);
   if (!style) return null;
-  return <div class="fixed z-2147483645 pointer-events-none" style={style} />;
+  return <div class={`${GUIDE_LAYER} pointer-events-none`} style={style} />;
 }
 
 export function GuidePreview({
@@ -80,17 +107,24 @@ export function GuidePreview({
 }) {
   const style = lineStyle(orientation, position, bounds, `1px dashed ${GUIDE_COLOR_PREVIEW}`);
   if (!style) return null;
-  return <div class="fixed z-2147483645 pointer-events-none" style={style} />;
+  return <div class={`${GUIDE_LAYER} pointer-events-none`} style={style} />;
 }
 
+// Room the longest readout needs past the cursor. Nearer the right or bottom edge than this,
+// the tag flips to the cursor's other side, so it is never sliced.
+const READOUT_ROOM = { x: 240, y: 32 };
+
 export function GuidePositionTag({ x, y, text }: { x: number; y: number; text: string }) {
+  const dx = x > window.innerWidth - READOUT_ROOM.x ? 'calc(-100% - 8px)' : '8px';
+  const dy = y > window.innerHeight - READOUT_ROOM.y ? 'calc(-100% - 8px)' : '8px';
   return (
+    // Rides the cursor like a tooltip, so unlike the line it tops the chrome; it never takes a click.
     <div
-      class="fixed z-2147483647 pointer-events-none font-mono text-micro tabular-nums"
+      class="fixed z-2147483647 pointer-events-none font-mono text-micro tabular-nums whitespace-nowrap"
       style={{
         left: x,
         top: y,
-        transform: 'translate(8px, 8px)',
+        transform: `translate(${dx}, ${dy})`,
         padding: '2px 6px',
         borderRadius: 4,
         background: GUIDE_PANEL,
@@ -110,8 +144,6 @@ const stopEvent = (e: Event) => {
 };
 const PILL_BTN = 'inline-flex items-center gap-1 px-2 py-1 cursor-pointer hover:brightness-110';
 
-// `data-marklayer-overlay` marker so window-level mousedown handlers skip clicks on our UI
-// (otherwise they'd create a phantom guide alongside the action).
 export function GuidePill({
   orientation,
   screenPosition,
@@ -134,8 +166,7 @@ export function GuidePill({
       : { left: anchor.x, top: screenPosition, transform: 'translate(0, -50%)' };
   return (
     <div
-      data-marklayer-overlay="true"
-      class="fixed z-2147483647 inline-flex items-center font-mono text-micro tabular-nums rounded-md overflow-hidden"
+      class={`${GUIDE_LAYER} inline-flex items-center font-mono text-micro tabular-nums rounded-md overflow-hidden`}
       style={{
         ...style,
         background: GUIDE_PANEL,
@@ -181,9 +212,9 @@ export function GuideHint({ bounds }: { bounds?: RectLike }) {
     : { left: '50%', top: 20, transform: 'translate(-50%, 0)' };
   return (
     <div
-      class="fixed z-2147483647 pointer-events-none
+      class={`${GUIDE_LAYER} pointer-events-none
              px-3 py-1.5 text-mini font-medium tracking-label rounded-lg
-             animate-[fadeInDown_180ms_ease-out] font-mono whitespace-nowrap"
+             animate-[fadeInDown_180ms_ease-out] font-mono whitespace-nowrap`}
       style={{
         ...containerStyle,
         background: GUIDE_PANEL,
@@ -214,17 +245,25 @@ export function GuideLayer() {
     ensureScrollTickListener();
 
     const onMove = (e: MouseEvent) => {
-      cursor.value = { x: e.clientX, y: e.clientY };
       const id = dragId.peek();
+      // A drag keeps going across the toolbar; a hover over it is not a placement.
+      if (!id && isOwnUi(e.target)) {
+        cursor.value = null;
+        return;
+      }
+      cursor.value = { x: e.clientX, y: e.clientY };
       if (id) {
         const g = guides.peek().find((p) => p.id === id);
         if (g) updateGuide(id, g.orientation === 'vertical' ? e.clientX + window.scrollX : e.clientY + window.scrollY);
       }
     };
 
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget && !dragId.peek()) cursor.value = null;
+    };
+
     const onDown = (e: MouseEvent) => {
-      if (e.target instanceof Element && (isExtensionElement(e.target) || e.target.closest('[data-marklayer-overlay]')))
-        return;
+      if (isOwnUi(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
       const docPoint = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
@@ -282,6 +321,7 @@ export function GuideLayer() {
     );
 
     window.addEventListener('mousemove', onMove, true);
+    window.addEventListener('mouseout', onOut, true);
     window.addEventListener('mousedown', onDown, true);
     window.addEventListener('mouseup', onUp, true);
     window.addEventListener('blur', onBlur);
@@ -289,6 +329,7 @@ export function GuideLayer() {
       unbindKeysDown();
       unbindKeysUp();
       window.removeEventListener('mousemove', onMove, true);
+      window.removeEventListener('mouseout', onOut, true);
       window.removeEventListener('mousedown', onDown, true);
       window.removeEventListener('mouseup', onUp, true);
       window.removeEventListener('blur', onBlur);
@@ -347,6 +388,7 @@ export function GuideLayer() {
       : selected.position - sy
     : 0;
   const dragGuide = dragId.value ? guides.value.find((g) => g.id === dragId.value) : null;
+  const readout = guideReadout({ dragGuide, orientation, preview: showPreview ? docCursor : null });
 
   return (
     <>
@@ -361,13 +403,7 @@ export function GuideLayer() {
         />
       ))}
       {showPreview && <GuidePreview orientation={orientation} position={previewPos} />}
-      {isGuideTool && cur && dragGuide && (
-        <GuidePositionTag
-          x={cur.x}
-          y={cur.y}
-          text={`${dragGuide.orientation === 'vertical' ? 'x' : 'y'}: ${Math.round(dragGuide.position)}px`}
-        />
-      )}
+      {isGuideTool && cur && readout && <GuidePositionTag x={cur.x} y={cur.y} text={readout} />}
       {isGuideTool && selected && !dragging && (
         <GuidePill
           orientation={selected.orientation}

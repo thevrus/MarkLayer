@@ -5,7 +5,7 @@ import type { CaptureViewport, PageAnchor, Point, TargetElement } from '@marklay
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { capturePageAnchor, isPagedDocument, resolvePageAnchor } from './docAnchor';
-import { cssScale, iframeScrollY } from './signals';
+import { cssScale, frameRect, iframeScrollY } from './signals';
 
 // Cross-realm: iframe DOM nodes are instances of the iframe's Element, not the host's,
 // so `e.target instanceof Element` always returns false. Check nodeType instead.
@@ -160,8 +160,8 @@ export function useIframeOverlay(
 }
 
 /**
- * rAF-batch a refresh callback whenever the iframe scrolls, content rescales, or the window resizes.
- * Subscription is gated on `active()` so tools only listen while engaged.
+ * rAF-batch a refresh callback whenever the iframe scrolls, content rescales, the frame moves,
+ * or the window resizes. Subscription is gated on `active()` so tools only listen while engaged.
  */
 export function useIframeRectSync(active: () => boolean, refresh: () => void) {
   const refreshRef = useRef(refresh);
@@ -176,12 +176,57 @@ export function useIframeRectSync(active: () => boolean, refresh: () => void) {
     };
     const unsubScroll = iframeScrollY.subscribe(sync);
     const unsubScale = cssScale.subscribe(sync);
+    const unsubFrame = frameRect.subscribe(sync);
     window.addEventListener('resize', sync);
     return () => {
       cancelAnimationFrame(raf);
       unsubScroll();
       unsubScale();
+      unsubFrame();
       window.removeEventListener('resize', sync);
+    };
+  });
+}
+
+/**
+ * Keeps `frameRect` on the frame's box. The frame moves without an event of its own (a device
+ * switch, a panel docking beside it, the stage scrolling sideways), so this watches what moves
+ * it: sizes in the device frame's row, children joining that row, and scrolling.
+ */
+export function useFrameRectTracker({
+  frameRef,
+  viewerRef,
+}: {
+  frameRef: { current: HTMLIFrameElement | null };
+  viewerRef: { current: HTMLElement | null };
+}) {
+  // Reads no signal (`peek` only), so it runs once per mount.
+  useSignalEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+    const read = () => {
+      const r = frame.getBoundingClientRect();
+      const b = frameRect.peek();
+      if (b && b.left === r.left && b.top === r.top && b.width === r.width && b.height === r.height) return;
+      frameRect.value = { left: r.left, top: r.top, width: r.width, height: r.height };
+    };
+    read();
+    const row = viewerRef.current?.parentElement;
+    const resize = new ResizeObserver(read);
+    const watch = () => {
+      resize.observe(frame);
+      if (row) for (const el of [row, ...row.children]) resize.observe(el);
+    };
+    watch();
+    const joins = new MutationObserver(watch);
+    if (row) joins.observe(row, { childList: true });
+    window.addEventListener('scroll', read, true);
+    window.addEventListener('resize', read);
+    return () => {
+      resize.disconnect();
+      joins.disconnect();
+      window.removeEventListener('scroll', read, true);
+      window.removeEventListener('resize', read);
     };
   });
 }

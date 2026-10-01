@@ -5,6 +5,7 @@ import {
   GuidePill,
   GuidePositionTag,
   GuidePreview,
+  guideReadout,
 } from '@ext/components/GuideLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { pickGuideAtPoint } from '@ext/lib/measure';
@@ -25,7 +26,7 @@ import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { createPortal } from 'preact/compat';
 import { tinykeys } from 'tinykeys';
 import { isElementNode, useIframeOverlay } from './iframeOverlay';
-import { cssScale, iframeScrollY } from './signals';
+import { cssScale, frameRect, iframeScrollY } from './signals';
 
 /** The frame's scroll offset, or none while the frame is not up. */
 const off = (win: Window | null | undefined) => (win ? scrollOffset(win) : { x: 0, y: 0 });
@@ -41,9 +42,8 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
   };
 
   const toHostViewport = (x: number, y: number): { x: number; y: number } => {
-    const frame = frameRef.current;
-    if (!frame) return { x, y };
-    const fr = frame.getBoundingClientRect();
+    const fr = frameRect.peek();
+    if (!fr) return { x, y };
     const s = cssScale.value;
     return { x: fr.left + x * s, y: fr.top + y * s };
   };
@@ -63,7 +63,6 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
 
   const handlePointerDown = (e: MouseEvent, iframeX: number, iframeY: number) => {
     if (activeTool.value !== 'guide') return;
-    if (e.target instanceof Element && e.target.closest('[data-marklayer-overlay]')) return;
     e.preventDefault();
     e.stopPropagation();
     const docPoint = toIframeDoc(iframeX, iframeY);
@@ -123,7 +122,12 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     const onUp = () => {
       dragId.value = null;
     };
+    // Off the frame, onto our chrome or out of the window: no line to place there.
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget && !dragId.peek()) cursor.value = null;
+    };
     win.addEventListener('mousemove', onMove, true);
+    win.addEventListener('mouseout', onOut, true);
     win.addEventListener('mousedown', onDown, true);
     win.addEventListener('mouseup', onUp, true);
     const unbindDown = tinykeys(win as Window, keyBindings);
@@ -131,6 +135,7 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     return () => {
       try {
         win.removeEventListener('mousemove', onMove, true);
+        win.removeEventListener('mouseout', onOut, true);
         win.removeEventListener('mousedown', onDown, true);
         win.removeEventListener('mouseup', onUp, true);
         unbindDown();
@@ -141,28 +146,11 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     };
   });
 
-  // Host fallback: catches keys and (if focus is outside the iframe) mouse events.
-  // Cleanup also doubles as the tool-switch state reset.
+  // Keys follow focus, so they bind here too; the pointer stays with the frame. Over it the
+  // host only ever hears our own chrome, and reading that as the page dropped a guide under
+  // every click in a menu. Cleanup doubles as the tool-switch state reset.
   useSignalEffect(() => {
     if (activeTool.value !== 'guide') return;
-    const hostToIframeLocal = (hostX: number, hostY: number) => {
-      const frame = frameRef.current;
-      if (!frame) return null;
-      const fr = frame.getBoundingClientRect();
-      const inside = hostX >= fr.left && hostX <= fr.right && hostY >= fr.top && hostY <= fr.bottom;
-      const s = cssScale.value;
-      return { x: (hostX - fr.left) / s, y: (hostY - fr.top) / s, inside };
-    };
-    const onMove = (e: MouseEvent) => {
-      const local = hostToIframeLocal(e.clientX, e.clientY);
-      if (!local) return;
-      handlePointerMove(local.x, local.y);
-    };
-    const onDown = (e: MouseEvent) => {
-      const local = hostToIframeLocal(e.clientX, e.clientY);
-      if (!local?.inside) return;
-      handlePointerDown(e, local.x, local.y);
-    };
     const onUp = () => {
       dragId.value = null;
     };
@@ -170,15 +158,11 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
       shift.value = false;
       dragId.value = null;
     };
-    window.addEventListener('mousemove', onMove, true);
-    window.addEventListener('mousedown', onDown, true);
     window.addEventListener('mouseup', onUp, true);
     window.addEventListener('blur', onBlur);
     const unbindDown = tinykeys(window, keyBindings);
     const unbindUp = tinykeys(window, keyBindingsUp, { event: 'keyup' });
     return () => {
-      window.removeEventListener('mousemove', onMove, true);
-      window.removeEventListener('mousedown', onDown, true);
       window.removeEventListener('mouseup', onUp, true);
       window.removeEventListener('blur', onBlur);
       unbindDown();
@@ -203,15 +187,12 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     const dragged = id ? guides.value.find((g) => g.id === id) : null;
     let target: { orientation: Orientation } | null | undefined = dragged;
     const cur2 = cursor.value;
-    if (!target && cur2) {
-      const f = frameRef.current;
-      const r = f?.getBoundingClientRect();
+    const r = frameRect.value;
+    if (!target && cur2 && r) {
       const sc = cssScale.value;
-      const w = f?.contentWindow;
-      if (r) {
-        const pt = { x: (cur2.x - r.left) / sc + off(w).x, y: (cur2.y - r.top) / sc + off(w).y };
-        target = pickGuideAtPoint(pt, guides.value, GUIDE_HIT_PX) ?? null;
-      }
+      const w = frameRef.current?.contentWindow;
+      const pt = { x: (cur2.x - r.left) / sc + off(w).x, y: (cur2.y - r.top) / sc + off(w).y };
+      target = pickGuideAtPoint(pt, guides.value, GUIDE_HIT_PX) ?? null;
     }
     if (!target) return null;
     return target.orientation === 'vertical' ? 'ew-resize' : 'ns-resize';
@@ -235,20 +216,20 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
 
   void iframeScrollY.value;
 
-  const frame = frameRef.current;
-  const fr = frame?.getBoundingClientRect();
+  const bounds = frameRect.value;
+  if (!bounds) return null;
   const s = cssScale.value;
-  const win = frame?.contentWindow;
-  const docCursor = cur && fr ? { x: (cur.x - fr.left) / s + off(win).x, y: (cur.y - fr.top) / s + off(win).y } : null;
-  const docToHost = (ori: Orientation, docPos: number): number => {
-    if (!fr) return docPos;
-    return ori === 'vertical' ? fr.left + (docPos - off(win).x) * s : fr.top + (docPos - off(win).y) * s;
-  };
+  const win = frameRef.current?.contentWindow;
+  const docCursor = cur
+    ? { x: (cur.x - bounds.left) / s + off(win).x, y: (cur.y - bounds.top) / s + off(win).y }
+    : null;
+  const docToHost = (ori: Orientation, docPos: number): number =>
+    ori === 'vertical' ? bounds.left + (docPos - off(win).x) * s : bounds.top + (docPos - off(win).y) * s;
   const hoveredGuide = docCursor ? pickGuideAtPoint(docCursor, guides.value, GUIDE_HIT_PX) : null;
   const showPreview = isGuideTool && !dragging && cur && !hoveredGuide;
   const selected = guides.value.find((g) => g.id === selectedGuideId.value) ?? null;
   const dragGuide = dragId.value ? guides.value.find((g) => g.id === dragId.value) : null;
-  const bounds = fr ? { top: fr.top, left: fr.left, width: fr.width, height: fr.height } : undefined;
+  const readout = guideReadout({ dragGuide, orientation, preview: showPreview ? docCursor : null });
 
   return createPortal(
     <>
@@ -264,22 +245,15 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
         />
       ))}
       {showPreview && <GuidePreview orientation={orientation} position={previewPos} bounds={bounds} />}
-      {isGuideTool && cur && dragGuide && (
-        <GuidePositionTag
-          x={cur.x}
-          y={cur.y}
-          text={`${dragGuide.orientation === 'vertical' ? 'x' : 'y'}: ${Math.round(dragGuide.position)}px`}
-        />
-      )}
+      {isGuideTool && cur && readout && <GuidePositionTag x={cur.x} y={cur.y} text={readout} />}
       {isGuideTool && selected && !dragging && (
         <GuidePill
           orientation={selected.orientation}
           screenPosition={docToHost(selected.orientation, selected.position)}
           bounds={bounds}
           onFlip={(e) => {
-            if (!fr) return;
-            const iframeX = (e.clientX - fr.left) / s;
-            const iframeY = (e.clientY - fr.top) / s;
+            const iframeX = (e.clientX - bounds.left) / s;
+            const iframeY = (e.clientY - bounds.top) / s;
             const newPos = selected.orientation === 'vertical' ? iframeY + off(win).y : iframeX + off(win).x;
             flipGuide(selected.id, newPos);
           }}
