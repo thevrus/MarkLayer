@@ -135,3 +135,11 @@ export function useSelectionDismiss({
     },
   };
 }
+
+/**
+ * Root class for a layer of placed markers. Each layer is its own `fixed` stacking
+ * context at one z, so DOM order alone decided overlap and a hovered card sat under
+ * the next layer's highlights. The layer holding a hovered or held marker steps up.
+ */
+export const MARKER_LAYER =
+  'fixed inset-0 z-2147483646 has-[[data-marker]:hover]:z-2147483647 has-[[data-held]]:z-2147483647';

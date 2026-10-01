@@ -5,7 +5,7 @@ import { reprojectRects } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
-import { useEdgeClamp, useSelectionDismiss } from '../lib/popover';
+import { MARKER_LAYER, useEdgeClamp, useSelectionDismiss } from '../lib/popover';
 import { hexToRgba } from '../lib/renderer';
 import { captureTarget, isExtensionElement } from '../lib/selector';
 import { fileUrl, uploadFile } from '../lib/share';
@@ -96,9 +96,11 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           pointer-transparent so an annotated paragraph on someone else's page
           keeps its own links and text selection. */}
       <div
-        class={cn('absolute pointer-events-auto group/sel', triage.rootCls)}
+        class={cn('absolute pointer-events-auto hover:z-50 group/sel', triage.rootCls)}
         style={{ left: markerX, top: markerY }}
         data-anchor-drift={strategy === 'text' ? 'text' : undefined}
+        data-marker
+        data-held={triage.held || undefined}
         onContextMenu={(e) =>
           openContextMenu(e, [
             {
@@ -370,7 +372,7 @@ export function SelectionLayer() {
   }, [onMouseUp]);
 
   return (
-    <div class="fixed inset-0 z-2147483646 pointer-events-none">
+    <div class={cn(MARKER_LAYER, 'pointer-events-none')}>
       {/* Existing selection highlights */}
       {selections.value.map((s) => (
         <SelectionHighlight key={s.id} op={s} />

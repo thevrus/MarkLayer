@@ -205,6 +205,8 @@ export function useTriageHold() {
   const [open, setOpen] = useState(false);
   return {
     onOpenChange: setOpen,
+    /** Set as `data-held` on the pin, so its layer stays lifted with the pointer on the menu. */
+    held: open,
     /** Keep the pin above its neighbours while a menu is out. */
     rootCls: open && 'z-50',
     /** The card is pointer-transparent until hovered; a live menu counts as hovered. */

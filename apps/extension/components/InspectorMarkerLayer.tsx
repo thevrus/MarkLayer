@@ -2,6 +2,7 @@ import { cn } from '@marklayer/types';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
+import { MARKER_LAYER } from '../lib/popover';
 import {
   copyText,
   deleteOp,
@@ -67,6 +68,7 @@ function InspectorMarker({ op }: { op: InspectOp }) {
       <div
         class="absolute pointer-events-auto group/inspect"
         style={{ left: x - 6, top: y - 6, width: 16, height: 16 }}
+        data-marker
         onContextMenu={onContextMenu}
       >
         <div
@@ -128,7 +130,7 @@ export function InspectorMarkerLayer() {
   const ops = inspects.value;
   if (!ops.length) return null;
   return (
-    <div class="fixed inset-0 z-2147483646 pointer-events-none">
+    <div class={cn(MARKER_LAYER, 'pointer-events-none')}>
       {ops.map((op) => (
         <InspectorMarker key={op.id} op={op} />
       ))}
