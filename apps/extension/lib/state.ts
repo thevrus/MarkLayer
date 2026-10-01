@@ -392,8 +392,7 @@ export function relabelOwnWork(): number {
   // every layer for a rename that touched nothing — the common case.
   if (!patches.length) return 0;
   operations.value = relabelled;
-  for (const { opId, patch } of patches) onOpUpdated.value?.(opId, patch);
-  drafts.scheduleSave();
+  for (const p of patches) emitOpUpdated(p);
   // Said out loud because it is a bulk edit of work already on the page, and
   // because it fires from a settle timer as well as from closing the card.
   toast(`Updated your name on ${patches.length} annotation${patches.length === 1 ? '' : 's'}`);
@@ -418,6 +417,12 @@ export const onOpPushed = signal<((op: DrawOp) => void) | null>(null);
  * generically before persisting / broadcasting.
  */
 export const onOpUpdated = signal<((opId: string, patch: Record<string, unknown>) => void) | null>(null);
+
+/** Send a local edit to peers and the draft together: forgetting the save loses the edit on reload. */
+function emitOpUpdated({ opId, patch }: { opId: string; patch: Record<string, unknown> }) {
+  onOpUpdated.value?.(opId, patch);
+  drafts.scheduleSave();
+}
 export const onUndone = signal<((opId: string) => void) | null>(null);
 export const onCleared = signal<(() => void) | null>(null);
 export const onCursorMove = signal<((x: number, y: number, tool: string) => void) | null>(null);
@@ -1076,7 +1081,7 @@ export function setOpStatus(opId: string, status: CommentStatus) {
     return { ...op, ...p };
   });
   if (patch) {
-    onOpUpdated.value?.(opId, patch);
+    emitOpUpdated({ opId, patch });
     // The triage half of the product: whether shared annotations get worked, or just left.
     track('annotation_status_changed', { status });
   }
@@ -1091,7 +1096,7 @@ export function setOpPriority({ opId, priority }: { opId: string; priority: Comm
     return { ...op, priority };
   });
   if (changed) {
-    onOpUpdated.value?.(opId, { priority });
+    emitOpUpdated({ opId, patch: { priority } });
     track('annotation_prioritized', { priority: priority ?? 'none' });
   }
 }
@@ -1105,15 +1110,10 @@ export function setOpAssignee({ opId, assignee }: { opId: string; assignee: stri
     return { ...op, assignee };
   });
   if (changed) {
-    onOpUpdated.value?.(opId, { assignee });
+    emitOpUpdated({ opId, patch: { assignee } });
     track('annotation_assigned', { cleared: assignee === null });
   }
 }
-
-/** @deprecated Use setOpStatus instead */
-export const setCommentStatus = setOpStatus;
-/** @deprecated Use setOpStatus instead */
-export const setSelectionStatus = setOpStatus;
 
 const BROWSERS: [string, string][] = [
   ['Firefox/', 'Firefox'],
@@ -1188,6 +1188,9 @@ export function undo() {
   if (!ops.length && last && 'type' in last) {
     operations.value = last.ops;
     undoStack.value = stack.slice(0, -1);
+    // The clear already emptied the room and deleted the draft; the wire has no bulk restore.
+    for (const op of last.ops) onOpPushed.value?.(op);
+    drafts.scheduleSave();
     return;
   }
   const removed = ops[ops.length - 1];
@@ -1206,6 +1209,8 @@ export function redo() {
   if (!last || 'type' in last) return;
   operations.value = [...operations.value, last];
   undoStack.value = stack.slice(0, -1);
+  // Undo deleted it from the room, so redo has to push it back like a new op.
+  onOpPushed.value?.(last);
   undoRedoFlash.value++;
   drafts.scheduleSave();
 }
@@ -1293,10 +1298,7 @@ function patchGuide(id: string, patch: Partial<Pick<GuideOp, 'orientation' | 'po
     applied = true;
     return { ...op, ...patch };
   });
-  if (applied) {
-    onOpUpdated.value?.(id, patch);
-    drafts.scheduleSave();
-  }
+  if (applied) emitOpUpdated({ opId: id, patch });
 }
 
 export function updateGuide(id: string, position: number) {
