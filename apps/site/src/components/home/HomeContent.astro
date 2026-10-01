@@ -25,7 +25,7 @@ import { CHROME_STORE_URL } from '../../lib/site';
   the free Chrome extension for in-place annotation on sites behind a login or with strict embed policies. Share a
   single link. Viewers need no extension or account.
   <strong
-    >You never create an account or pay for a plan. Annotations are cleaned up 90 days after their last activity, and
+    >You never have to create an account or pay for a plan. Annotations are cleaned up 90 days after their last activity, and
     any comment or view resets that clock.</strong
   >
 </p>
@@ -62,12 +62,13 @@ import { CHROME_STORE_URL } from '../../lib/site';
     <a href="/pricing">pricing page</a>.
   </li>
   <li>
-    <strong>100% anonymous.</strong> No sign-up, no email
-    verification, no profile, no login. A random local display name is
-    generated in your browser.
+    <strong>Anonymous by default.</strong> No sign-up, no email
+    verification, no profile. A random local display name is generated
+    in your browser. Signing in is optional, and only manages links you
+    own.
   </li>
   <li>
-    <strong>No data collection.</strong> Annotations stay on your
+    <strong>Local until shared.</strong> Annotations stay on your
     device until you explicitly share them.
     <a href="/privacy">Privacy policy</a>.
   </li>
@@ -136,7 +137,9 @@ import { CHROME_STORE_URL } from '../../lib/site';
     or Vue component behind it, as a copy-ready prompt. The
     <code>marklayer-mcp</code> server gives an agent twelve tools to
     watch a room, acknowledge, resolve, dismiss and reply, with every
-    status change visible to the human.
+    status change visible to the human. Every page link is also a
+    remote MCP server at its own <code>/mcp</code> address, so an agent
+    connects with nothing installed.
   </li>
   <li>
     <strong>Works on any website.</strong> Production, staging,
@@ -363,8 +366,10 @@ import { CHROME_STORE_URL } from '../../lib/site';
   </dd>
   <dt>Is MarkLayer anonymous?</dt>
   <dd>
-    Yes. No sign-up, no email, no profile, no login. MarkLayer
+    Yes, by default. No sign-up, no email, no profile. MarkLayer
     generates a random local display name stored only in your browser.
+    Signing in with an email link is optional, and only manages links
+    you own.
   </dd>
   <dt>Do I need to create an account?</dt>
   <dd>
@@ -418,6 +423,12 @@ import { CHROME_STORE_URL } from '../../lib/site';
     Yes. Real-time live cursors and voice chat let unlimited
     collaborators work together on any page.
   </dd>
+  <dt>Can I keep a link private?</dt>
+  <dd>
+    Links are unguessable and unlisted. If you sign in with an email
+    link (optional), you can make one view-only or set when it
+    expires.
+  </dd>
   <dt>Is MarkLayer open source?</dt>
   <dd>
     Yes. The full source is on
@@ -433,11 +444,11 @@ import { CHROME_STORE_URL } from '../../lib/site';
     href={CHROME_STORE_URL}
     >Add to Chrome</a
   >
-  · 100% free · 100% anonymous · No sign-up
+  · 100% free · Anonymous by default · No sign-up
 </p>
 <p>
   <small
-    >Last updated: <time datetime="2026-05-18">May 18, 2026</time> ·
+    >Last updated: <time datetime="2026-10-01">October 1, 2026</time> ·
     MarkLayer is open source on
     <a href="https://github.com/thevrus/MarkLayer">GitHub</a>.</small
   >
