@@ -758,7 +758,8 @@ export class AnnotationRoom extends DurableObject<Env> {
       // Flush immediately when the last peer leaves — otherwise a recent mutation
       // (e.g. an MCP agent's status change) could be lost if the DO is evicted
       // before the 3s alarm fires.
-      if (this.dirty) pending.push(this.alarm());
+      // A failed flush leaves the room dirty; the fresh alarm retries it instead of failing the close.
+      if (this.dirty) pending.push(this.alarm().catch(() => this.scheduleFlush()));
     }
     await Promise.all(pending);
   }
@@ -815,9 +816,15 @@ export class AnnotationRoom extends DurableObject<Env> {
     // Independent: the ops write touches a different column from the one the
     // notification flush reads, and neither needs the other's result. Settled
     // rather than raced so a failing send cannot swallow the persist.
+    // Cleared up front so an op landing mid-write keeps the room dirty.
     const write = this.dirty && this.ops ? annotationStore(this.env.DB).putOps({ id, ops: this.ops }) : null;
     if (write) this.dirty = false;
-    await Promise.allSettled([write, this.flushNotifications(id)]);
+    const [persisted] = await Promise.allSettled([write, this.flushNotifications(id)]);
+    if (persisted.status === 'rejected') {
+      // Thrown so the runtime retries the alarm; swallowed, the ops since the last good flush were gone.
+      this.dirty = true;
+      throw persisted.reason;
+    }
   }
 
   /**
