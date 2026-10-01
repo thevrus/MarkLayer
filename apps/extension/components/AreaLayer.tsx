@@ -8,6 +8,7 @@ import { reprojectBox } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { MARKER_LAYER } from '../lib/popover';
 import { constrainEnd, hexToRgba } from '../lib/renderer';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
 import {
@@ -119,6 +120,7 @@ function AreaShape({ op }: { op: AreaOp }) {
       <div
         class="absolute pointer-events-auto group/area"
         style={{ left: x - 4, top: y - 4, width: 12, height: 12 }}
+        data-marker
         onContextMenu={onAreaContextMenu}
       >
         <div class="w-3 h-3 rounded-full ring-2 ring-(--ds-background-100)" style={{ background: stroke }} />
@@ -385,7 +387,7 @@ export function AreaLayer() {
 
   return (
     <div
-      class="fixed inset-0 z-2147483646"
+      class={MARKER_LAYER}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

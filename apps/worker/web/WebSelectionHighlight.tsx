@@ -75,9 +75,11 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
       {/* The marker is the interactive part, so the page underneath keeps its own
           text selection — the same trade the extension's highlights make. */}
       <div
-        class={cn('absolute pointer-events-auto group/sel', triage.rootCls)}
+        class={cn('absolute pointer-events-auto hover:z-50 group/sel', triage.rootCls)}
         style={{ left: markerX, top: markerY }}
         data-anchor-drift={strategy === 'text' ? 'text' : undefined}
+        data-marker
+        data-held={triage.held || undefined}
         onContextMenu={(e) =>
           openContextMenu(e, [
             {

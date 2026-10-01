@@ -119,6 +119,8 @@ export function CommentPin({ op }: { op: CommentOp }) {
       data-doc-x={op.x}
       data-doc-y={op.y}
       data-anchor-drift={strategy === 'text' ? 'text' : undefined}
+      data-marker
+      data-held={triage.held || undefined}
       onContextMenu={onContextMenu}
     >
       <div class="relative -translate-x-1/2 -translate-y-1/2">
