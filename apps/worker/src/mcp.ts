@@ -20,7 +20,6 @@ import {
   type DrawOp,
   normalizeSuggestion,
   opAnchor,
-  opsArraySchema,
   resolveOpStatus,
   type SelectionOp,
   type SelectionRect,
@@ -83,8 +82,7 @@ export class WorkerRoom implements RoomOps {
       color: agentColor(this.agentId),
     });
     const snapshot = await this.stub.agentSnapshot(this.roomId);
-    const parsed = opsArraySchema.safeParse(snapshot.ops);
-    this.ops = parsed.success ? parsed.data : [];
+    this.ops = snapshot.ops;
     this.meta = {
       url: snapshot.url,
       width: snapshot.width,

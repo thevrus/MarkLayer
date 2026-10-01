@@ -620,6 +620,19 @@ export const isAnchorableOp = (op: DrawOp): op is AnchorableOp =>
 export const opsArraySchema = z.array(drawOpSchema);
 
 /**
+ * Stored ops, read per op rather than all-or-nothing: one op from a newer client
+ * (a tool this build has never seen) must not blank the whole room. Writes stay
+ * strict through `opsArraySchema`.
+ */
+export const parseOps = (raw: unknown): DrawOp[] =>
+  Array.isArray(raw)
+    ? raw.flatMap((o) => {
+        const parsed = drawOpSchema.safeParse(o);
+        return parsed.success ? [parsed.data] : [];
+      })
+    : [];
+
+/**
  * `op` shifted by a viewport delta, or null for the ops that cannot meaningfully
  * be moved as a copy: a comment owns a thread, a selection owns a text range, an
  * inspect owns an element handoff, a guide owns an axis, and an eraser stroke is a

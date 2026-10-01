@@ -11,7 +11,7 @@ import {
   drawOpSchema,
   normalizeSuggestion,
   opAnchor,
-  opsArraySchema,
+  parseOps,
   resolveOpStatus,
   type SelectionOp,
   type SelectionRect,
@@ -419,8 +419,7 @@ export class RoomClient {
   private handleMessage(msg: { type?: string; [k: string]: unknown }): void {
     switch (msg.type) {
       case 'init': {
-        const parsed = opsArraySchema.safeParse(msg.ops);
-        this.ops = parsed.success ? parsed.data : [];
+        this.ops = parseOps(msg.ops);
         this.meta = {
           url: typeof msg.url === 'string' ? msg.url : null,
           width: typeof msg.width === 'number' ? msg.width : null,

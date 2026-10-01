@@ -7,7 +7,7 @@ import {
   type DrawOp,
   effectiveExpiresAt,
   type LinkAccess,
-  opsArraySchema,
+  parseOps,
   RTC_MESSAGE_TYPES,
   type RtcMessageType,
 } from '@marklayer/types';
@@ -299,13 +299,12 @@ export class AnnotationRoom extends DurableObject<Env> {
   }
 
   async agentSnapshot(id: string): Promise<AgentSnapshot> {
-    const raw = await this.getOps(id);
-    const parsed = opsArraySchema.safeParse(raw);
+    const ops = parseOps(await this.getOps(id));
     // The owner may have flipped the link since this isolate loaded it, and an
     // HTTP agent has no `init` message to carry a later value to it.
     await this.refreshAccess(id);
     return {
-      ops: parsed.success ? parsed.data : [],
+      ops,
       url: this.url,
       width: this.width,
       createdAt: this.createdAt,
