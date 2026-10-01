@@ -54,8 +54,30 @@ describe('parseFetchableUrl', () => {
     ['file:///etc/passwd', 'scheme'],
     ['javascript:alert(1)', 'scheme'],
     ['http://169.254.169.254/latest/meta-data/', 'blocked'],
+    // IPv6 literals wrapping a private IPv4. WHATWG URL rewrites the dotted tail
+    // to hex (`[::ffff:a9fe:a9fe]`), so the guard must judge the embedded bits.
+    ['http://[::ffff:169.254.169.254]/', 'blocked'],
+    ['http://[::ffff:127.0.0.1]/', 'blocked'],
+    ['http://[::ffff:10.0.0.1]/', 'blocked'],
+    ['http://[::ffff:192.168.1.1]/', 'blocked'],
+    ['http://[::ffff:100.64.0.1]/', 'blocked'],
+    ['http://[0:0:0:0:0:ffff:172.16.0.1]/', 'blocked'],
+    ['http://[64:ff9b::a9fe:a9fe]/', 'blocked'], // NAT64 well-known prefix
+    ['http://[64:ff9b::10.0.0.1]/', 'blocked'],
+    ['http://[::127.0.0.1]/', 'blocked'], // IPv4-compatible (deprecated)
+    ['http://[2002:a9fe:a9fe::]/', 'blocked'], // 6to4
+    ['http://[2002:c0a8:101::1]/', 'blocked'],
   ];
   test.each(rejected)('rejects %s as %s', (raw, reason) => {
     expect(parseFetchableUrl(raw)).toEqual({ ok: false, reason });
+  });
+
+  test.each([
+    'http://[2606:4700::1111]/',
+    'http://[::ffff:8.8.8.8]/',
+    'http://[64:ff9b::808:808]/',
+    'http://[2002:808:808::1]/',
+  ])('allows public IPv6 %s', (raw) => {
+    expect(parseFetchableUrl(raw).ok).toBe(true);
   });
 });
