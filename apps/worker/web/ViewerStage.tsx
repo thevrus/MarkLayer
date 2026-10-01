@@ -9,7 +9,7 @@ import { classifyProxyError } from '../src/proxy-errors';
 import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
 import { CursorLayer } from './CursorLayer';
 import { frameSrc, isUploadPath } from './docSource';
-import { captureAnchors, frameViewport } from './iframeOverlay';
+import { captureAnchors, frameViewport, useFrameRectTracker } from './iframeOverlay';
 import { HOME_LINK_PROPS, Logo, TextInputOverlay } from './shared';
 import {
   commentPopover,
@@ -451,7 +451,9 @@ function DeviceFrame() {
 export function ViewerStage() {
   const {
     actions: { buildExportData, scrollToAnnotation },
+    meta: { frameRef, viewerRef },
   } = useViewerFrame();
+  useFrameRectTracker({ frameRef, viewerRef });
   const panels = { onScrollTo: scrollToAnnotation, getExportData: buildExportData };
   const desktop = deviceMode.value === 'desktop';
 
