@@ -3,6 +3,7 @@ order: 10
 title: "MarkLayer for Marketers: Annotate Landing Pages & Campaigns"
 description: "Annotate landing pages, competitor teardowns, and campaign builds in the browser, then share one link with the team. Free, with no sign-up required."
 h1: "MarkLayer for Marketers"
+nav: "Marketers"
 audience: "marketers and growth teams"
 bottomLine: "For marketers, MarkLayer is a free annotation layer for landing pages, competitor sites, ad creatives, and dashboards. Pin hypotheses, suggest copy edits, and run teardowns directly on the live page. No PDF screenshots, no sign-up for stakeholders."
 problem: "Marketing review cycles fragment fast: landing page mockups in Figma, copy in a Google Doc, competitive teardowns in Slack screenshots, dashboard insights in another deck. By the time anyone reads the feedback, the page has changed and the comments are decoupled from what they referenced."

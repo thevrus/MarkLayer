@@ -3,6 +3,7 @@ order: 8
 title: "MarkLayer for Researchers: Annotate & Share Web Sources"
 description: "Annotate articles, dataset pages, and archived sources in the browser, then share one link with the source intact. Free, open source, and no account."
 h1: "MarkLayer for Researchers"
+nav: "Researchers"
 audience: "researchers and academics"
 bottomLine: "For researchers, MarkLayer is a free annotation layer over any web source, PDF or figure. Highlight, comment, and share with collaborators via a single link. No account, no per-seat fee, no central database holding your reading history."
 problem: "Reference managers (Zotero, Mendeley) handle PDFs well but treat dynamic web sources as second-class. Hypothesis works for text but not for visual annotation of charts, infographics, or layouts. Most paid alternatives charge per-seat for what should be a basic web utility."

@@ -83,6 +83,8 @@ const useCases = defineCollection({
   schema: z.object({
     ...articleBase,
     h1: z.string(),
+    /** Short sidebar label, for a heading too long to sit in a 240px column. */
+    nav: z.string().optional(),
     audience: z.string(),
     problem: z.string(),
     why: z.array(z.string()),
@@ -100,6 +102,8 @@ const guides = defineCollection({
   schema: z.object({
     ...articleBase,
     h1: z.string(),
+    /** Short sidebar label, for a heading too long to sit in a 240px column. */
+    nav: z.string().optional(),
     intro: z.string(),
   }),
 });

@@ -3,17 +3,23 @@ import type { Crumb } from '../lib/schema';
 
 interface Props {
   crumbs: Crumb[];
+  /** Replaces the default bottom margin, for a row that sets its own spacing. */
+  class?: string;
+  /** Drop the current page's crumb on a phone, where it wraps to three lines
+      right above the same words as the h1. */
+  compact?: boolean;
 }
 
-const { crumbs } = Astro.props;
+const { crumbs, class: className = 'mb-6', compact = false } = Astro.props;
+const tail = (i: number) => (compact && i === crumbs.length - 1 && !crumbs[i]?.path ? 'max-sm:hidden' : undefined);
 ---
 
-<nav class="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-meta" aria-label="Breadcrumb">
+<nav class:list={['flex flex-wrap items-center gap-x-2 gap-y-1 text-label text-meta', className]} aria-label="Breadcrumb">
   {
     crumbs.map((c, i) => (
       <>
         {i > 0 && (
-          <span class="text-faint" aria-hidden="true">
+          <span class:list={['text-faint', tail(i)]} aria-hidden="true">
             /
           </span>
         )}
@@ -22,7 +28,7 @@ const { crumbs } = Astro.props;
             {c.name}
           </a>
         ) : (
-          <span class="text-ink">{c.name}</span>
+          <span class:list={['text-ink', tail(i)]}>{c.name}</span>
         )}
       </>
     ))

@@ -3,6 +3,7 @@ order: 2
 title: "MarkLayer for Design Review: Visual Feedback on Live Sites"
 description: "Review designs on the live site instead of trading screenshots in Slack. Pin comments to the real elements and share one link. Free, with no sign-up."
 h1: "MarkLayer for Design Review"
+nav: "Design review"
 audience: "designers and design teams"
 bottomLine: "For design review, MarkLayer replaces the screenshot-and-annotate dance with a single share link to the actual live page. Reviewers see your drawings, arrows, and threaded comments overlaid on the real product. No install, no account, no per-seat fee for clients."
 problem: "Most design review tools force you out of the live product. You screenshot, paste, annotate, then explain what changed. Context lost at every step. Stakeholders argue about which version they're looking at. Comments get stranded in tools nobody opens twice."

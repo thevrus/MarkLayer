@@ -3,6 +3,7 @@ order: 3
 title: "MarkLayer for QA & Bug Reporting: Annotate Bugs in Context"
 description: "Circle the bug on the live page instead of pasting screenshots into Jira. Share a link that keeps the note on the real element. Free, with no account."
 h1: "MarkLayer for QA Bug Reporting"
+nav: "QA and bug reports"
 audience: "QA engineers and developers"
 bottomLine: "For QA, MarkLayer replaces screenshot-with-arrows-in-Preview with a share link to the actual broken page. Devs land on the same URL with your annotations overlaid. It doesn't capture browser metadata or console errors. For that, BugHerd or Jam are heavier-duty alternatives."
 problem: "Screenshot-based bug reports lose context. Devs can't tell what state the page was in. Repro steps get out of sync. Half the issue thread is the developer asking what URL you were on, what viewport, what data."

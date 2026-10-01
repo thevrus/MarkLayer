@@ -4,6 +4,7 @@ import { unified } from '@astrojs/markdown-remark';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
+import { rehypeCodeBlocks } from './src/lib/rehype-code-blocks.mjs';
 import { rehypeScrollTables } from './src/lib/rehype-scroll-tables.mjs';
 import { WORKER_DEV } from './src/lib/site';
 
@@ -20,8 +21,9 @@ export default defineConfig({
   build: { format: 'file' },
   trailingSlash: 'never',
 
-  // No integrations: every page here is static HTML with zero client JS. `/` is
-  // the app shell — the SPA bundle is built by apps/worker, not here. See
+  // No integrations: every page here is static HTML, and the few scripts on it
+  // (search, copy, the outline's scroll-spy) only enhance markup that already
+  // works without them. `/` is the app shell — the SPA bundle is built by apps/worker, not here. See
   // docs/adr/0002 for why the app cannot be prerendered as a Preact island.
 
   markdown: {
@@ -38,8 +40,15 @@ export default defineConfig({
     // in Markdown bodies only, so the same page would mix ' and ’.
     processor: unified({
       smartypants: false,
-      rehypePlugins: [[rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }], rehypeScrollTables],
+      rehypePlugins: [
+        [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }],
+        rehypeScrollTables,
+        rehypeCodeBlocks,
+      ],
     }),
+    // Token colours come from `--astro-code-*` in global.css, on the site's own
+    // ink ladder. The default github-dark dropped a black slab into a white page.
+    shikiConfig: { theme: 'css-variables' },
   },
 
   vite: {

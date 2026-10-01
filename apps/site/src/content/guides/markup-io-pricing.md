@@ -3,6 +3,7 @@ order: 7
 title: "Markup.io Pricing in 2026: The $29 to $79 Change"
 description: "Markup.io discontinued its free plan in early 2025 and moved Pro from $29 to $79/month. What the plans include now, and what former free-tier users can do."
 h1: "Markup.io pricing in 2026: what changed and what it costs now"
+nav: "Markup.io pricing"
 intro: "Markup.io ran one of the best-known free tiers in visual feedback until early 2025, when the free plan was discontinued and Pro rose from $29 to $79 per month. This page tracks the current published pricing and the practical options for teams the change displaced, verified against markup.io's pricing page in August 2026."
 bottomLine: "Markup.io today: no free plan, a 14-day trial, Pro at $79/month with unlimited users but a single workspace, and a custom-priced Enterprise tier for multiple workspaces and SAML SSO. Whether it's worth it hinges on the unlimited-users flat price: strong value for big teams in one workspace, weak value for freelancers and multi-client agencies, who have been the loudest to leave."
 published: 2026-08-15

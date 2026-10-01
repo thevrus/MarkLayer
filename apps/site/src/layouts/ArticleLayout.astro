@@ -1,10 +1,16 @@
 ---
 import BaseHead from '../components/BaseHead.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
+import DocsNav from '../components/DocsNav.astro';
+import PagerArrow from '../components/PagerArrow.astro';
+import SearchTrigger from '../components/SearchTrigger.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import { getDocsNav } from '../lib/docs-nav';
+import { askAi } from '../lib/footer';
+import { outline } from '../lib/outline';
 import { breadcrumbSchema, type Crumb } from '../lib/schema';
-import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, pageOgImage, sectionFor } from '../lib/site';
+import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, pageOgImage } from '../lib/site';
 
 interface Props {
   title: string;
@@ -25,6 +31,27 @@ const crumbs: Crumb[] = breadcrumbs ?? [{ name: 'MarkLayer', path: '/' }, { name
 // itself, and the title is written for a search result, tail and all.
 const ogImage = pageOgImage({ heading: h1, path });
 const allSchema: (object | null)[] = [...schema, breadcrumbSchema(crumbs)];
+
+const nav = await getDocsNav();
+const sequence = nav.flatMap((g) => g.links);
+const at = sequence.findIndex((l) => l.href === path);
+const prev = at > 0 ? sequence[at - 1] : undefined;
+const next = at >= 0 ? sequence[at + 1] : undefined;
+const PAGER = [
+  { link: prev, dir: 'prev', label: 'Previous' },
+  { link: next, dir: 'next', label: 'Next' },
+] as const;
+
+// Rendered to a string once, so the outline can be read off the same HTML the
+// page prints and every heading in it can be given an id to link to.
+const body = outline(await Astro.slots.render('default'));
+const toc = body.entries;
+
+/* Asked of the assistants the footer already links, but about THIS page: the
+   question points at the URL, so the answer starts from what the page says. */
+const OPEN_IN = askAi(`Read ${ORIGIN}${path} and help me with questions about it.`).filter((a) =>
+  ['ChatGPT', 'Claude', 'Perplexity'].includes(a.label),
+);
 ---
 
 <html lang="en">
@@ -40,58 +67,283 @@ const allSchema: (object | null)[] = [...schema, breadcrumbSchema(crumbs)];
     </BaseHead>
   </head>
   <body>
-    <div class="ml-shell">
-      <SiteHeader current={sectionFor(path)} />
-      <Breadcrumbs crumbs={crumbs} />
-      <h1>{h1}</h1>
-      {/* The byline is overridable because not every page is an article reviewed on
-          a date. A release page states the version and the day it shipped, which is
-          the fact a reader came for; "Last updated: August 2026" under a changelog
-          entry is both vaguer and less true. */}
-      <p class="ml-meta mt-0 mb-7">
+    <SiteHeader path={path} />
+    <div class="ml-docs">
+      <aside class="ml-docs-side">
+        <DocsNav nav={nav} path={path}>
+          <SearchTrigger />
+        </DocsNav>
+      </aside>
+
+      <main class="ml-shell" id="content" data-ml-article>
+        <div class="ml-docs-top" data-ml-copy-skip>
+          <Breadcrumbs crumbs={crumbs} class="m-0" compact />
+          <div class="ml-actions">
+            {/* Hidden until the script can make it work. The row reserves its
+                height either way, so revealing it moves nothing. */}
+            <button type="button" class="ml-actions-copy" data-ml-copy-page hidden>
+              <svg
+                class="ml-i-copy"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+              </svg>
+              <svg
+                class="ml-i-done"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6 9 17l-5-5"></path>
+              </svg>
+              <span aria-live="polite" data-ml-copy-label>Copy page</span>
+            </button>
+            <details class="ml-actions-more">
+              <summary aria-label="Open this page in an assistant">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path
+                    d="M3 4.75 6 7.75l3-3"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </summary>
+              <div class="ml-actions-menu">
+                {
+                  OPEN_IN.map((a) => (
+                    <a class="ml-actions-item" href={a.href} target="_blank" rel="noopener noreferrer">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d={a.path} />
+                      </svg>
+                      Open in {a.label}
+                    </a>
+                  ))
+                }
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <h1>{h1}</h1>
+        {/* The byline is overridable because not every page is an article reviewed on
+            a date. A release page states the version and the day it shipped, which is
+            the fact a reader came for; "Last updated: August 2026" under a changelog
+            entry is both vaguer and less true. */}
+        <p class="ml-meta mt-0 mb-7" data-ml-copy-skip>
+          {
+            Astro.slots.has('byline') ? (
+              <slot name="byline" />
+            ) : (
+              <Fragment>
+                By <a href="/about">Dean Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
+              </Fragment>
+            )
+          }
+        </p>
+        {/* A div, not a p: the intro arrives as rendered Markdown that already emits
+            its own <p>, and Astro 7's compiler no longer silently repairs nested
+            paragraphs. The child margin reset keeps the spacing identical. */}
+        <div class="ml-lede"><slot name="intro" /></div>
+        {/* Top rule only. The next section's heading draws its own rule, and a
+            closing rule here left two hairlines stacked with dead space between
+            them, which reads as a mistake rather than a frame. */}
         {
-          Astro.slots.has('byline') ? (
-            <slot name="byline" />
-          ) : (
+          bottomLine && (
+            <div class="ml-bottom-line">
+              <p class="ml-meta m-0 mb-2">Bottom line</p>
+              <p class="text-lede m-0 text-pretty text-ink">{bottomLine}</p>
+            </div>
+          )
+        }
+
+        {
+          toc.length > 2 && (
+            <details class="ml-toc-inline">
+              <summary>
+                On this page
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path
+                    d="M4.5 2.75 7.75 6 4.5 9.25"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </summary>
+              <ul>
+                {toc.map((t) => (
+                  <li class="m-0 max-w-none p-0">
+                    <a class="ml-toc-link" href={`#${t.id}`} data-depth={t.depth} set:html={t.html} />
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )
+        }
+
+        <Fragment set:html={body.html} />
+
+        {/* The web app leads. This block is the closing CTA on ~50 static pages,
+            and it used to offer only the Chrome Store — which is what taught
+            crawlers and answer engines that MarkLayer is "the extension one",
+            the disqualifying read on any "no install" query. The no-install path
+            is the real product surface; the extension is the fallback. */}
+        <h2 id="try-marklayer" data-ml-copy-end>Try MarkLayer</h2>
+        <p>
+          Paste any URL at <a href={ORIGIN}>marklayer.app</a> and annotate the live page in your browser. No install, no
+          account, no sign-up. Recipients of your share links don't need to install anything either.
+        </p>
+        <a class="ml-cta mt-2" href={ORIGIN}>Annotate a page</a>
+        <p class="ml-meta mt-4">
+          Or <a href={CHROME_STORE_URL}>add the free Chrome extension</a> for sites the web app cannot embed, such as
+          pages behind a login.
+        </p>
+
+        {
+          (prev || next) && (
+            <nav class="ml-pager" aria-label="Previous and next page">
+              {PAGER.map(({ link, dir, label }) =>
+                link ? (
+                  <a class="ml-pager-cell" href={link.href} data-dir={dir} rel={dir}>
+                    <span class="ml-pager-label">
+                      {dir === 'next' && label}
+                      <PagerArrow dir={dir} />
+                      {dir === 'prev' && label}
+                    </span>
+                    <span class="ml-pager-title">{link.title}</span>
+                  </a>
+                ) : (
+                  <span class="hidden sm:block" aria-hidden="true" />
+                ),
+              )}
+            </nav>
+          )
+        }
+      </main>
+
+      <aside class="ml-docs-toc" aria-label="On this page">
+        {
+          toc.length > 1 && (
             <Fragment>
-              By <a href="/about">Dean Rusin</a> &middot; Last updated: {formatLastUpdated(modified)}
+              <p class="ml-toc-title">On this page</p>
+              <ul class="ml-docnav-list">
+                {toc.map((t) => (
+                  <li>
+                    <a class="ml-toc-link" href={`#${t.id}`} data-depth={t.depth} data-ml-toc set:html={t.html} />
+                  </li>
+                ))}
+              </ul>
             </Fragment>
           )
         }
-      </p>
-      {/* A div, not a p: the intro arrives as rendered Markdown that already emits
-          its own <p>, and Astro 7's compiler no longer silently repairs nested
-          paragraphs. The child margin reset keeps the spacing identical. */}
-      <div class="ml-lede"><slot name="intro" /></div>
-      {/* Top rule only. The next section's heading draws its own rule, and a
-          closing rule here left two hairlines stacked with dead space between
-          them, which reads as a mistake rather than a frame. */}
-      {
-        bottomLine && (
-          <div class="ml-bottom-line">
-            <p class="ml-meta m-0 mb-2">Bottom line</p>
-            <p class="text-lede m-0 text-pretty text-ink">{bottomLine}</p>
-          </div>
-        )
-      }
-      <slot />
-
-      {/* The web app leads. This block is the closing CTA on ~50 static pages,
-          and it used to offer only the Chrome Store — which is what taught
-          crawlers and answer engines that MarkLayer is "the extension one",
-          the disqualifying read on any "no install" query. The no-install path
-          is the real product surface; the extension is the fallback. */}
-      <h2>Try MarkLayer</h2>
-      <p>
-        Paste any URL at <a href={ORIGIN}>marklayer.app</a> and annotate the live page in your browser. No install, no
-        account, no sign-up. Recipients of your share links don't need to install anything either.
-      </p>
-      <a class="ml-cta mt-2" href={ORIGIN}>Annotate a page</a>
-      <p class="ml-meta mt-4">
-        Or <a href={CHROME_STORE_URL}>add the free Chrome extension</a> for sites the web app cannot embed, such as
-        pages behind a login.
-      </p>
+      </aside>
     </div>
     <SiteFooter />
   </body>
 </html>
+
+<script>
+  import { tinykeys } from 'tinykeys';
+  import { pageMarkdown } from '../lib/page-markdown';
+
+  const article = document.querySelector('[data-ml-article]');
+
+  /* Copy the page, and every code block, with a moment of "Copied" in the label. */
+  const wireCopy = ({ button, text }: { button: HTMLElement; text: () => string }) => {
+    if (!navigator.clipboard) return;
+    button.hidden = false;
+    button.addEventListener('click', () => {
+      navigator.clipboard.writeText(text()).then(() => {
+        const slot = button.querySelector('[data-ml-copy-label]');
+        const before = slot?.textContent ?? '';
+        button.dataset.copied = '';
+        if (slot) slot.textContent = 'Copied';
+        setTimeout(() => {
+          delete button.dataset.copied;
+          if (slot) slot.textContent = before;
+        }, 1600);
+      });
+    });
+  };
+
+  const page = document.querySelector<HTMLButtonElement>('[data-ml-copy-page]');
+  if (page && article) wireCopy({ button: page, text: () => pageMarkdown(article) });
+
+  for (const button of document.querySelectorAll<HTMLButtonElement>('[data-ml-copy-code]')) {
+    const code = button.closest('.ml-code')?.querySelector('pre');
+    if (code) wireCopy({ button, text: () => code.textContent ?? '' });
+  }
+
+  /* The assistant menu is a <details>, so it opens without a script; this only
+     gives it the dismissals a menu is expected to have. */
+  const more = document.querySelector<HTMLDetailsElement>('.ml-actions-more');
+  if (more) {
+    document.addEventListener('pointerdown', (e) => {
+      if (more.open && e.target instanceof Node && !more.contains(e.target)) more.open = false;
+    });
+    tinykeys(more, {
+      Escape: () => {
+        if (!more.open) return;
+        more.open = false;
+        more.querySelector('summary')?.focus();
+      },
+    });
+  }
+
+  /* The sidebar lists every page, so the current one can sit far below its fold
+     (the twelfth alternative). Bring it into view, inside the sidebar only. */
+  const side = document.querySelector<HTMLElement>('.ml-docs-side');
+  const here = side?.querySelector<HTMLElement>('[aria-current="page"]');
+  if (side && here && here.offsetTop + here.offsetHeight > side.clientHeight) {
+    side.scrollTop = here.offsetTop - side.clientHeight / 3;
+  }
+
+  /* The outline follows the reader: the lit entry is the last section whose
+     heading has scrolled past the top fifth of the screen. */
+  const links = [...document.querySelectorAll<HTMLAnchorElement>('[data-ml-toc]')];
+  const targets = links.map((a) => document.getElementById(decodeURIComponent(a.hash.slice(1))));
+  if (links.length > 0) {
+    let frame = 0;
+    const spy = () => {
+      frame = 0;
+      const line = window.innerHeight * 0.2;
+      let lit = -1;
+      targets.forEach((t, i) => {
+        if (t && t.getBoundingClientRect().top <= line) lit = i;
+      });
+      // At the very bottom, the last section is the one being read even if its
+      // heading never reaches the line.
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) lit = links.length - 1;
+      links.forEach((a, i) => {
+        if (i === lit) a.setAttribute('aria-current', 'true');
+        else a.removeAttribute('aria-current');
+      });
+    };
+    addEventListener(
+      'scroll',
+      () => {
+        frame ||= requestAnimationFrame(spy);
+      },
+      { passive: true },
+    );
+    spy();
+  }
+</script>

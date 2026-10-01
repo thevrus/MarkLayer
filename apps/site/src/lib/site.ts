@@ -83,7 +83,7 @@ export const SECTIONS = [
   { key: 'support', label: 'Support', href: '/support', prefixes: ['/support'] },
 ] as const;
 
-export type Section = (typeof SECTIONS)[number]['key'];
+type Section = (typeof SECTIONS)[number]['key'];
 
 /** `/vs/pastel` → `compare`, `/for/qa` → `use-cases`. Undefined outside the nav. */
 export function sectionFor(path: string): Section | undefined {

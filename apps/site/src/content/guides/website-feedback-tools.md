@@ -3,6 +3,7 @@ order: 1
 title: "Website Feedback Tools in 2026: 21 Compared, Prices Checked"
 description: "Twenty-one website feedback tools compared on price, whether the reviewer needs an account or an extension, and what happens to your comments. August 2026."
 h1: "Website feedback tools in 2026, twenty-one compared"
+nav: "Website feedback tools"
 intro: "I make one of the tools in this table, so read the table before you read me. Twenty-one tools that let someone comment on a live webpage, compared on four things: what the cheapest paid plan costs, whether the reviewer needs an account, whether the reviewer needs a browser extension, and what happens to the comments afterwards. Every figure was read off the vendor's own pricing page on 29 August 2026."
 bottomLine: "Three of the twenty-one cost nothing outright: MarkLayer, AnnotateWeb (which deletes annotations after two minutes idle) and Hypothesis (text only, account required). Paid plans start far lower than the roundups ranking for this query suggest, at $8 a month for Webvizio, $14 for BugSmash and Jam, $16 for Huddlekit. The $39 to $79 tier is priced for automatic console and network capture and two-way sync into Jira or Linear. That is the part MarkLayer does not do at all."
 published: 2026-08-29

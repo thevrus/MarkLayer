@@ -3,6 +3,7 @@ order: 5
 title: "MarkLayer for Remote Teams: Visual Collaboration on Any Page"
 description: "Replace 'imagine I am pointing at the header' with live cursors on the real page. Share one link and review together or async. Free, with no sign-up."
 h1: "MarkLayer for Remote Teams"
+nav: "Remote teams"
 audience: "remote and distributed teams"
 bottomLine: "For remote teams, MarkLayer replaces \"imagine I'm pointing at this thing\" Zoom calls with a shared canvas where every cursor is visible. Annotations persist after the call so async teammates can pick up where the live session left off. No seat limits, no sign-up."
 problem: "Remote design and product reviews lose precision. \"Make this thing here a bit smaller\" doesn't survive the Zoom-call-to-Jira-ticket translation. Async review threads fragment across Slack, Notion, and email."

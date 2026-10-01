@@ -3,6 +3,7 @@ order: 10
 title: "Send Website Feedback to Jira, Linear, Slack or GitHub"
 description: "MarkLayer posts annotations automatically to Slack, Teams, Discord and a webhook, and can file any single one as a Jira, Linear or GitHub issue. What arrives where, where the tokens live, and the one-way limit worth knowing before you rely on it."
 h1: "Sending MarkLayer annotations to Jira, Linear, Slack and more"
+nav: "Send to Jira, Linear, Slack"
 intro: "MarkLayer can send annotations to seven places: Slack, Microsoft Teams, Discord, a generic webhook, Linear, GitHub and Jira. The four chat destinations post automatically as feedback arrives. The three issue trackers wait for you to pick one annotation and file it. Nothing about a filed issue's later status flows back into MarkLayer, in either direction."
 bottomLine: "Slack, Teams, Discord and a generic webhook post automatically, every new batch of annotations going out with no one touching a button. Linear, GitHub and Jira are manual: pick one annotation, file it as a single issue, and MarkLayer hands you the link. All seven connections are one-way. A comment marked resolved in MarkLayer and a ticket marked closed in Jira are two separate facts kept by two separate systems, and nothing keeps them in sync."
 published: 2026-09-17

@@ -5,6 +5,7 @@ import Related from '../../components/Related.astro';
 import VideoEmbed from '../../components/VideoEmbed.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getAlternatives, getComparisons, relatedLinks } from '../../lib/collections';
+import { compareH1 } from '../../lib/docs-nav';
 import { articleSchema, type Crumb, faqSchema, productSchema } from '../../lib/schema';
 
 export async function getStaticPaths() {
@@ -31,7 +32,7 @@ const c = entry.data;
 const { Content } = await render(entry);
 
 const path = `/vs/${entry.id}`;
-const h1 = c.h1 ?? `${c.competitor} vs MarkLayer: a free ${c.competitor} alternative`;
+const h1 = compareH1(entry);
 const breadcrumbs: Crumb[] = [
   { name: 'MarkLayer', path: '/' },
   { name: 'Comparisons', path: '/compare' },

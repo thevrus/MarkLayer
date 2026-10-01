@@ -1,0 +1,16 @@
+---
+interface Props {
+  dir: 'prev' | 'next';
+}
+
+const PATHS = {
+  prev: 'M9.5 6h-7m0 0L5.75 2.75M2.5 6l3.25 3.25',
+  next: 'M2.5 6h7m0 0L6.25 2.75M9.5 6 6.25 9.25',
+};
+
+const { dir } = Astro.props;
+---
+
+<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+  <path d={PATHS[dir]} stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>

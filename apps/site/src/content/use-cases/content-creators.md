@@ -3,6 +3,7 @@ order: 9
 title: "MarkLayer for Content Creators: Visual Feedback on Drafts"
 description: "Get feedback on a draft or a published article without a Google Doc round trip. Comment directly on the live page and share one link. Free, no account."
 h1: "MarkLayer for Content Creators"
+nav: "Content creators"
 audience: "content creators, writers, and editors"
 bottomLine: "For content creators, MarkLayer replaces \"track changes in a Google Doc\" with annotations on the actual rendered article. Typography, spacing, CTAs, and copy all in their final visual context. Free, no sign-up for editors or stakeholders."
 problem: "Reviewing articles in Google Docs strips away the visual context. Fonts, spacing, images, sidebars, CTAs. Comments end up disconnected from how the article actually renders. By the time the article is on the CMS preview, feedback fragments across Slack, email, and tracked changes that no longer match the published version."

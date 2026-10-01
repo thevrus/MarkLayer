@@ -2,7 +2,6 @@
 import ArticleLayout from '../layouts/ArticleLayout.astro';
 import { getComparisons } from '../lib/collections';
 import { articleSchema } from '../lib/schema';
-import { plainText } from '../lib/markdown';
 import dates from '../data/page-dates.json';
 
 const comparisons = await getComparisons();
@@ -38,7 +37,10 @@ const h1 = 'MarkLayer comparisons';
       competitor — the only word that differs, and the one people are actually
       looking for — carries the ink. The link text itself is unchanged, so the
       anchor still reads "MarkLayer vs Markup.io" to a crawler or a screen
-      reader; only the emphasis inside it moves. */}
+      reader; only the emphasis inside it moves.
+
+      The blurb is the description, not the body: a long-form body flattened
+      into one <p> turned the list into a wall with its `##` headings as text. */}
   <h2>All comparisons</h2>
   {
     comparisons.map((c) => (
@@ -48,7 +50,7 @@ const h1 = 'MarkLayer comparisons';
             <span class="font-normal text-meta">MarkLayer vs</span> {c.data.competitor}
           </a>
         </h3>
-        <p>{plainText(c.body ?? '')}</p>
+        <p>{c.data.description}</p>
       </div>
     ))
   }

@@ -3,6 +3,7 @@ order: 0
 title: "How MarkLayer Works: A Plain-English Guide"
 description: "No account, no jargon. What happens when you close the page, how to get your share link back, who can see your marks, and how long they last."
 h1: "How MarkLayer works, in plain English"
+nav: "How MarkLayer works"
 intro: "MarkLayer has no sign-up, which is the whole point, but it also means there is no inbox of past work to fall back on. This guide answers the questions that come up in the first five minutes: where your marks are stored, what survives closing the tab, and how to find the link again."
 bottomLine: "On marklayer.app the link exists before you draw anything: it is in the address bar the moment the page loads, and every mark saves to it as you work, so copying that URL is the only step you must not skip. In the Chrome extension your marks stay on your own computer until you press Share, which is what creates the link. Either way there are no accounts, so the link is the only handle on your work: paste it somewhere you will look again."
 published: 2026-08-23
