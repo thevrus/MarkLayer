@@ -35,6 +35,7 @@ export {
   projectPages,
   saveProject,
   uploadFile,
+  withScheme,
 } from './projects';
 
 // Every path that frames a page writes `pageUrl` — the legacy view param, the
