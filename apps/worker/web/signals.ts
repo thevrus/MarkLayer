@@ -89,9 +89,6 @@ export const isLanding = signal(true);
 
 /** True while an embedded room holds most of the screen, so the host page's own toolbar can step aside. */
 export const embedInView = signal(false);
-/** True while the pointer is over an embedded room: the host page's drawn cursor yields to the room's. */
-export const embedPointerOver = signal(false);
-export const urlReady = signal(false);
 export const commentPopover = signal<{ x: number; y: number } | null>(null);
 export const textInput = signal<{ x: number; y: number } | null>(null);
 export const selectionPopover = signal<{

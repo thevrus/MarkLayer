@@ -61,6 +61,8 @@ export default defineConfig({
     proxy: {
       '^/(compare|use-cases|about|privacy|404|sitemap\\.xml|pricing(\\.md)?)$': SITE_DEV_SERVER,
       '^/(vs|for|alternatives|guides)(/.*)?$': SITE_DEV_SERVER,
+      // The webfonts live in apps/site/public too; without this :5173 renders every face as its Arial fallback.
+      '^/fonts/': SITE_DEV_SERVER,
     },
   },
 });

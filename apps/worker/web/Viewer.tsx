@@ -70,6 +70,7 @@ import {
   projectLoading,
   projectPages,
   pushDeviceOp,
+  STILL_FRAME,
   selectionPopover,
   sharing,
   showBoard,
@@ -706,7 +707,10 @@ export default function Viewer() {
     const availW = dev === 'desktop' ? containerW : Math.max(MIN_DEVICE_FIT_WIDTH, containerW - dockedPanelsWidth());
     const refW = dev === 'desktop' ? originalWidth.value || availW : DEVICE_WIDTHS[dev];
     const z = viewerZoom.value;
-    const cs = !refW || !availW ? 1 : z === 'auto' ? Math.min(MAX_AUTO_UPSCALE, availW / refW) : z;
+    // The landing's embedded room fills a desk as wide as the screen; upscaling a
+    // narrower capture there reads as zoomed in, so it only ever fits down.
+    const ceiling = STILL_FRAME ? 1 : MAX_AUTO_UPSCALE;
+    const cs = !refW || !availW ? 1 : z === 'auto' ? Math.min(ceiling, availW / refW) : z;
     if (cssScale.value !== cs) cssScale.value = cs;
     const canvasW = refW;
     const canvasH = Math.round(viewerH / cs);
