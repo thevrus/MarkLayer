@@ -6,16 +6,17 @@ import Logo from './Logo.astro';
 const year = new Date().getFullYear();
 ---
 
-{/* The floor. Full width and a tone step down, the same break `/` makes at the
-    bottom of the page — not a hairline rule under white. The columns sit on the
-    same `--container-page` box as the article above, so the footer starts on the
-    left edge every paragraph starts on.
+{/* The footer, white and closed off by the landing frame's bottom seam, the
+    same edge `/` ends on. The columns sit on the same `--container-page` box
+    and gutter as the article above, so the footer starts on the left edge every
+    paragraph starts on.
 
     Structure, copy and spacing are shared with the app shell's own footer in
     apps/worker/web/Landing.tsx; the links come from lib/footer.ts and the two
     renderers differ only in the width of the column they sit in. Change one,
     change the other. */}
 <footer class="ml-floor">
+  <div class="ml-floor-seam" aria-hidden="true"></div>
   <div class="ml-floor-inner">
     {/* A grid, not `flex-wrap`. Wrapping put the fourth column on its own row as
         soon as the links grew, which left three columns and an orphan sitting

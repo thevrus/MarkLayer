@@ -3,6 +3,7 @@ order: 4
 title: "MarkLayer for Client Feedback: No Install Required"
 description: "Send clients a link instead of an email thread. They comment on the live page in any browser, with no account and no extension. Free for every project."
 h1: "MarkLayer for Client Feedback"
+nav: "Client feedback"
 audience: "solo web designers, freelancers, and agencies running client review rounds"
 bottomLine: "For client feedback, MarkLayer removes the onboarding step entirely. Clients click a link and see the annotated draft in any browser, without creating an account or installing anything. It is free for every engagement, so there is no per-seat math as you take on more clients. Being open source also helps it clear security review on the client side."
 problem: "A round of revisions usually starts with an email that says \"can you make the button blue?\" without saying which button, on which page. Then come the screenshots with no URL attached, and the reply asking which screen they were on. The other option is signing the client up for a platform they did not ask for, which they resist, so the revision round stretches while you work out what they actually meant."

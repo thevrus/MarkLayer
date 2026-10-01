@@ -5,6 +5,7 @@ import Related from '../../components/Related.astro';
 import VideoEmbed from '../../components/VideoEmbed.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getAlternatives, getComparisons, getCompetitorPrices, relatedLinks } from '../../lib/collections';
+import { alternativesH1 } from '../../lib/docs-nav';
 import { articleSchema, type Crumb, faqSchema, productSchema } from '../../lib/schema';
 
 export async function getStaticPaths() {
@@ -33,7 +34,7 @@ const a = entry.data;
 const { Content } = await render(entry);
 
 const path = `/alternatives/${entry.id}`;
-const h1 = a.h1 ?? `Free ${a.target} alternatives`;
+const h1 = alternativesH1(entry);
 
 /**
  * What someone shopping alternatives actually wants is the prices side by side,

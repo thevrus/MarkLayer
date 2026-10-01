@@ -1,0 +1,29 @@
+---
+/* The field-shaped search button at the top of the docs sidebar. The phone bar
+   has its own icon-only one, in SiteHeader. */
+---
+
+<button
+  type="button"
+  class="ml-search-trigger"
+  commandfor="ml-search"
+  command="show-modal"
+  data-ml-search-open
+  aria-haspopup="dialog"
+>
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    aria-hidden="true"
+  >
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </svg>
+  Search
+  <kbd class="ml-kbd" data-ml-kbd>⌘K</kbd>
+</button>

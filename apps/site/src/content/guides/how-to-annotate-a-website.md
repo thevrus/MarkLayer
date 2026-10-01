@@ -3,6 +3,7 @@ order: 2
 title: "How to Annotate a Website: 4 Methods and Their Limits"
 description: "Four ways to annotate a website: built-in markup, a browser extension, a share link, and developer tools. What each can do, and what each one breaks on."
 h1: "How to annotate a website, four ways"
+nav: "Annotate a website"
 intro: "To annotate a website you have four options: mark up a capture using tools already on your computer, install a browser extension that draws on the live page, open the page through a web annotator and send someone the link, or use your browser's developer tools. Which one is right turns almost entirely on whether anyone else has to reply. I make one of the tools mentioned below, and it is named as one option inside one method rather than as the answer."
 bottomLine: "If the annotation is for you, your computer already does it: Edge's Web capture (Ctrl + Shift + S) draws on a full-page screenshot, and on a Mac, Safari's File > Print > PDF opens in Preview's Markup. Chrome has no built-in annotation at all and Firefox's screenshot tool captures without drawing. But every built-in method produces a static file, so the moment someone else has to reply, all four of them stop working and you need a tool that annotates the live page."
 published: 2026-08-29

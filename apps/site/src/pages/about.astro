@@ -28,8 +28,8 @@ const description =
     />
   </head>
   <body>
+    <SiteHeader path="/about" />
     <div class="ml-shell">
-      <SiteHeader />
       <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'About' }]} />
       <h1>{h1}</h1>
       <p class="ml-meta mt-0 mb-8">Last reviewed: {formatLastUpdated(modified)}</p>

@@ -12,28 +12,14 @@
  * Kept as a local plugin rather than a dependency: it is one visit over the
  * tree, and the class it applies is defined in this project's own stylesheet.
  */
-export function rehypeScrollTables() {
-  return (tree) => {
-    const walk = (node) => {
-      if (!Array.isArray(node.children)) return;
+import { wrapElements } from './rehype-wrap.mjs';
 
-      for (let i = 0; i < node.children.length; i++) {
-        const child = node.children[i];
-        if (child.type !== 'element') continue;
-
-        if (child.tagName === 'table') {
-          node.children[i] = {
-            type: 'element',
-            tagName: 'div',
-            properties: { className: ['ml-scroll-x'] },
-            children: [child],
-          };
-          continue;
-        }
-        walk(child);
-      }
-    };
-
-    walk(tree);
-  };
-}
+export const rehypeScrollTables = wrapElements({
+  tagName: 'table',
+  wrap: (table) => ({
+    type: 'element',
+    tagName: 'div',
+    properties: { className: ['ml-scroll-x'] },
+    children: [table],
+  }),
+});

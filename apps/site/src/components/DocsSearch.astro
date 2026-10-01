@@ -1,0 +1,195 @@
+---
+import type { DocLink, DocsNav } from '../lib/docs-nav';
+
+interface Props {
+  nav: DocsNav;
+}
+
+const { nav } = Astro.props;
+
+/* The sidebar's sections, plus the pages that live outside it, so a search for
+   "price" or "privacy" still lands somewhere. */
+const OUTSIDE: DocLink[] = [
+  { href: '/pricing', label: 'Pricing', title: 'Pricing', keywords: 'free cost price plans self-host' },
+  { href: '/support', label: 'Support', title: 'Support the project', keywords: 'donate sponsor pay' },
+  { href: '/about', label: 'About', title: 'About MarkLayer', keywords: 'author editorial who' },
+  { href: '/privacy', label: 'Privacy', title: 'Privacy', keywords: 'data retention tracking' },
+];
+const sections = nav.map((g, i) => ({ label: g.label, links: i === 0 ? [...g.links, ...OUTSIDE] : g.links }));
+
+let n = 0;
+const key = (l: DocLink, group: string) => `${l.title} ${l.label} ${group} ${l.keywords}`.toLowerCase();
+---
+
+{/* Every page is listed in the markup, so the palette is a working index of the
+    site before the script runs; the script only filters it. `closedby` gives a
+    backdrop click its close where the browser supports it, and the script covers
+    the rest. */}
+<dialog id="ml-search" class="ml-search" aria-label="Search the site" closedby="any">
+  <div class="ml-search-field">
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m20 20-3.5-3.5"></path>
+    </svg>
+    <input
+      id="ml-search-input"
+      class="ml-search-input"
+      type="text"
+      enterkeyhint="go"
+      placeholder="Search guides, comparisons, use cases"
+      autocomplete="off"
+      spellcheck="false"
+      autofocus
+      role="combobox"
+      aria-expanded="true"
+      aria-controls="ml-search-results"
+      aria-autocomplete="list"
+      aria-label="Search the site"
+    />
+    <form method="dialog">
+      <button class="ml-search-esc" aria-label="Close search">Esc</button>
+    </form>
+  </div>
+  <div id="ml-search-results" class="ml-search-results" role="listbox" aria-label="Pages">
+    {
+      sections.map((s, gi) => (
+        <div role="group" aria-labelledby={`ml-sg-${gi}`} data-ml-search-group>
+          <p id={`ml-sg-${gi}`} class="ml-search-group-label">
+            {s.label}
+          </p>
+          {s.links.map((l) => (
+            <a
+              id={`ml-sr-${n++}`}
+              class="ml-search-item"
+              href={l.href}
+              role="option"
+              aria-selected="false"
+              data-ml-search-item
+              data-k={key(l, s.label)}
+            >
+              <span>{l.title}</span>
+            </a>
+          ))}
+        </div>
+      ))
+    }
+    <p class="ml-search-empty" data-ml-search-empty hidden>No pages match that.</p>
+  </div>
+</dialog>
+
+<script>
+  import { tinykeys } from 'tinykeys';
+
+  const dialog = document.getElementById('ml-search');
+  const input = document.getElementById('ml-search-input');
+  const list = document.getElementById('ml-search-results');
+
+  if (dialog instanceof HTMLDialogElement && input instanceof HTMLInputElement && list) {
+    const items = [...list.querySelectorAll<HTMLAnchorElement>('[data-ml-search-item]')];
+    const groups = [...list.querySelectorAll<HTMLElement>('[data-ml-search-group]')];
+    const empty = list.querySelector<HTMLElement>('[data-ml-search-empty]');
+    let shown = items;
+    let active = -1;
+
+    const select = ({ index, scroll }: { index: number; scroll: boolean }) => {
+      shown[active]?.setAttribute('aria-selected', 'false');
+      active = index;
+      const el = shown[index];
+      if (!el) {
+        input.removeAttribute('aria-activedescendant');
+        return;
+      }
+      el.setAttribute('aria-selected', 'true');
+      input.setAttribute('aria-activedescendant', el.id);
+      if (scroll) el.scrollIntoView({ block: 'nearest' });
+    };
+
+    /* Every word has to appear somewhere in the page's title, label, section or
+       keywords. The order stays the sidebar's, which is editorial. */
+    const filter = () => {
+      const terms = input.value.toLowerCase().split(/\s+/).filter(Boolean);
+      for (const el of items) {
+        const k = el.dataset.k ?? '';
+        el.hidden = !terms.every((t) => k.includes(t));
+        el.setAttribute('aria-selected', 'false');
+      }
+      for (const g of groups) g.hidden = !g.querySelector('[data-ml-search-item]:not([hidden])');
+      shown = items.filter((el) => !el.hidden);
+      if (empty) empty.hidden = shown.length > 0;
+      active = -1;
+      list.scrollTop = 0;
+      select({ index: shown.length > 0 ? 0 : -1, scroll: false });
+    };
+
+    const open = () => {
+      if (!dialog.open) dialog.showModal();
+      input.focus();
+      input.select();
+    };
+
+    for (const trigger of document.querySelectorAll('[data-ml-search-open]')) {
+      trigger.addEventListener('click', open);
+    }
+    // `closedby="any"` covers this where it ships; a click on the backdrop lands
+    // on the dialog element itself, never on its content.
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+    input.addEventListener('input', filter);
+    list.addEventListener('pointermove', (e) => {
+      const el = e.target instanceof Element ? e.target.closest('[data-ml-search-item]') : null;
+      const index = el instanceof HTMLAnchorElement ? shown.indexOf(el) : -1;
+      if (index >= 0 && index !== active) select({ index, scroll: false });
+    });
+
+    const step = (by: number) => (e: KeyboardEvent) => {
+      e.preventDefault();
+      if (shown.length > 0) select({ index: (active + by + shown.length) % shown.length, scroll: true });
+    };
+    tinykeys(input, {
+      ArrowDown: step(1),
+      ArrowUp: step(-1),
+      Enter: (e) => {
+        const el = shown[active];
+        if (!el) return;
+        e.preventDefault();
+        el.click();
+      },
+    });
+    // ⌘K answers from anywhere, a focused field included, and in the capture
+    // phase so nothing on the page can swallow it first. "/" keeps tinykeys'
+    // default and skips fields, so a "/" typed into one stays a "/".
+    tinykeys(
+      window,
+      {
+        '$mod+KeyK': (e) => {
+          e.preventDefault();
+          if (dialog.open) dialog.close();
+          else open();
+        },
+      },
+      { capture: true, ignore: (e) => e.repeat || e.isComposing },
+    );
+    tinykeys(window, {
+      '/': (e) => {
+        e.preventDefault();
+        open();
+      },
+    });
+
+    filter();
+
+    if (!/Mac|iPhone|iPad/.test(navigator.userAgent)) {
+      for (const kbd of document.querySelectorAll('[data-ml-kbd]')) kbd.textContent = 'Ctrl K';
+    }
+  }
+</script>

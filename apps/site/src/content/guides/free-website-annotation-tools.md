@@ -3,6 +3,7 @@ order: 5
 title: "Free Website Annotation Tools in 2026: What Free Includes"
 description: "Thirteen website annotation tools checked: which are free forever, which cap a free tier, and which only offer a trial. From vendor pricing pages, September 2026."
 h1: "The best free website annotation tools in 2026, audited"
+nav: "Free annotation tools"
 intro: "Three tools in this category have no paid tier at all: MarkLayer, Hypothesis and AnnotateWeb. Everything else marketed as free caps a canvas, a seat or a monthly credit count before the bill starts. Each limit below was read off the vendor's own pricing or help page on 24 September 2026."
 bottomLine: "Three tools have no paid tier behind them at all: MarkLayer (no account and no seat cap; an unclaimed link idles out after 90 days), Hypothesis (unlimited annotation, but text only and an account is required) and AnnotateWeb (deletes work after 2 minutes idle). Everything else billed as free is a capped tier sitting in front of a paid plan. Markup.io, BugHerd, Marker.io and Feedbucket have no permanent free plan at all, only a trial."
 published: 2026-08-15

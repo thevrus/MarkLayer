@@ -3,6 +3,7 @@ order: 6
 title: "Website Feedback Without Logins: Tools That Skip Accounts"
 description: "Reviewers abandon feedback when a signup wall appears. Which annotation tools let reviewers, and which let authors, skip the account entirely. Audited for 2026."
 h1: "Collecting website feedback without making anyone log in"
+nav: "Feedback without a login"
 intro: "The fastest way to lose a review round is to put a signup form in front of the reviewer. Most feedback tools solved half of this: the reviewer gets guest access, while the person running the review still needs an account, a workspace, and a plan. Here is who requires what, audited in August 2026."
 bottomLine: "Nearly every feedback tool now offers no-login guest access for reviewers; that fight is won. The account has just moved to the other side of the table: the author still signs up, configures a workspace, and pays per seat. MarkLayer is the exception that drops the account on both sides: creating a review and leaving feedback are equally anonymous, and the link is the entire onboarding."
 published: 2026-08-15

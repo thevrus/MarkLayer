@@ -3,6 +3,7 @@ order: 7
 title: "MarkLayer for Educators: Annotate Web Resources for Class"
 description: "Pre-annotate any web page for a lesson, then share one link students open in any browser. No accounts and no installs for the class. Free and open source."
 h1: "MarkLayer for Educators"
+nav: "Educators"
 audience: "teachers and educators"
 bottomLine: "For educators, MarkLayer is a free way to pre-annotate any web resource and share it with students via a single link. No district account setup, no per-student license, no plugin install for the class. Just an annotated page that opens in any browser."
 problem: "Sharing a web article with a class means writing 'read paragraphs 3-7' in the assignment description, then fielding emails when students get lost on the page. Most annotation tools require district IT to approve a new platform, every student to register, and parental consent forms to file."

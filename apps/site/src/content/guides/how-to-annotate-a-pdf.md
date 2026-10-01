@@ -3,6 +3,7 @@ order: 3
 title: "How to Annotate a PDF Free, With No Account (2026)"
 description: "Four free ways to mark up a PDF: Preview on a Mac, Edge on Windows, Acrobat Reader, and the browser. Plus the one thing none of them do, which is let a second person reply."
 h1: "How to annotate a PDF for free"
+nav: "Annotate a PDF"
 intro: "You can write on a PDF for free right now, with software already installed, and no account. Preview does it on a Mac. Edge does it on Windows. Acrobat Reader does it on both. Where all three fall over is the second person: each one saves your marks into a file, and a file cannot hold a reply. Here is each route, and what to use when the review is a conversation rather than a note to yourself."
 bottomLine: "Annotating a PDF alone is a solved problem and has been for years. Use Preview's Markup on a Mac, the PDF reader in Microsoft Edge on Windows, or the free Adobe Acrobat Reader on either. None costs anything, none needs a login, and all three write the marks into the file. Annotating a PDF with other people is the part that is still broken, because emailing a marked-up file produces two forks and no thread. For that, open the PDF behind a link with an annotation layer over it and send the link, so every comment and its answer stay pinned to the page they are about."
 published: 2026-09-17

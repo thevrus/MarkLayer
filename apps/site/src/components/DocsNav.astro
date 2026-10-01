@@ -1,0 +1,41 @@
+---
+import { type DocsNav, isCurrent } from '../lib/docs-nav';
+
+interface Props {
+  nav: DocsNav;
+  path: string;
+}
+
+const { nav, path } = Astro.props;
+---
+
+{/* One shape all the way down: every section is a quiet label over its pages,
+    and every page is the same row. Nothing folds — a sidebar of closed headings
+    hides the one thing it is for, and the list scrolls on its own. */}
+<nav aria-label="Documentation">
+  <slot />
+  {
+    nav.map((g) => (
+      <div class="ml-docnav-group">
+        {/* Named on the list rather than through an id: the phone menu renders a
+            second copy of this nav, and ids would collide. */}
+        <p class="ml-docnav-label" aria-hidden="true">
+          {g.label}
+        </p>
+        <ul class="ml-docnav-list" aria-label={g.label}>
+          {g.links.map((l) => (
+            <li>
+              <a
+                class="ml-docnav-link"
+                href={l.href}
+                aria-current={isCurrent({ href: l.href, path }) ? 'page' : undefined}
+              >
+                {l.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))
+  }
+</nav>
