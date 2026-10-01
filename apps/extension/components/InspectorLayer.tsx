@@ -261,14 +261,21 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
   const downRoom = innerHeight - state.rect.top - margin;
   const upRoom = state.rect.bottom - margin;
   const growUp = upRoom > downRoom;
+  // Short of room, the panel slides along the viewport instead of shrinking to it: capped
+  // at the room beside the element, a mid-screen pick on a laptop scrolled its own body.
+  // `100%` in `translate` is the panel's own height.
   const posStyle: Record<string, string | number> = {
     left: Math.max(margin, panelX),
-    maxHeight: Math.max(200, growUp ? upRoom : downRoom),
+    maxHeight: innerHeight - 2 * margin,
   };
   if (growUp) {
-    posStyle.bottom = Math.max(margin, innerHeight - state.rect.bottom);
+    const bottom = Math.max(margin, innerHeight - state.rect.bottom);
+    posStyle.bottom = bottom;
+    posStyle.translate = `0 max(0px, calc(100% - ${innerHeight - margin - bottom}px))`;
   } else {
-    posStyle.top = Math.max(margin, state.rect.top);
+    const top = Math.max(margin, state.rect.top);
+    posStyle.top = top;
+    posStyle.translate = `0 min(0px, calc(${innerHeight - margin - top}px - 100%))`;
   }
   const offset = dragOffset.value;
   if (offset) {
@@ -377,7 +384,7 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
           </div>
           <code
             class="block text-meta text-(--ds-gray-1000) bg-(--ds-gray-alpha-100) border border-(--ds-gray-alpha-400)
-                   rounded-md px-3 py-2 wrap-break-word font-mono leading-body select-all max-h-17 overflow-y-auto"
+                   rounded-md px-3 py-2 wrap-break-word font-mono leading-body select-all"
           >
             {state.selector}
           </code>
