@@ -79,7 +79,7 @@ import {
   viewerZoom,
 } from './signals';
 import { noteSupportSignal } from './support';
-import { maybeOfferSupport, openSupportCard, watchSupportPaid } from './support-ui';
+import { maybeOfferSupport, openSupportCard, watchAgentWork, watchSupportPaid } from './support-ui';
 import { connected, emitRipple, localPeerId, serverUrl, serverWidth, useRealtimeSync } from './useRealtimeSync';
 import { ViewerTopBar } from './ViewerChrome';
 import {
@@ -117,9 +117,11 @@ function AuthoringChrome() {
     // reason: only somebody who could be asked can have paid, so a read-only
     // guest neither sees the card nor hears back about one.
     const stopWatchingPaid = watchSupportPaid();
+    const stopWatchingAgents = watchAgentWork();
     return () => {
       onSupport.value = null;
       stopWatchingPaid();
+      stopWatchingAgents();
     };
   }, []);
 
