@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import {
   captureTarget,
+  detectTailwind,
   ELEMENT_INSPECTOR_HEADING,
   FINGERPRINT_LEN,
   formatForAI,
@@ -371,6 +372,35 @@ describe('captureTarget', () => {
     layout(pick('#copy'), { x: 0, y: 0, width: 10, height: 10 });
     const target = captureTarget({ el: pick('#copy'), selectedText: 'Ship\n  faster' });
     expect(target.markdown).toContain('**Selected text:** "Ship faster"');
+  });
+});
+
+describe('detectTailwind', () => {
+  const docWith = (style: string, attrs = '') => {
+    const doc = document.implementation.createHTMLDocument('');
+    doc.head.innerHTML = `<style ${attrs}>${style}</style>`;
+    return doc;
+  };
+
+  test("finds a page's own preflight", () => {
+    expect(detectTailwind(docWith('*, ::before { --tw-ring-offset-width: 0px; }'))).toBe(true);
+  });
+
+  test('does not count the rules WXT hoists out of our shadow root', () => {
+    const ours = docWith('*, ::before { --tw-translate-x: 0; }', 'wxt-shadow-root-document-styles="x"');
+    expect(detectTailwind(ours)).toBe(false);
+  });
+
+  test('answers per document, not once per module', () => {
+    expect(detectTailwind(docWith('* { --tw-shadow: 0 0 #0000; }'))).toBe(true);
+    expect(detectTailwind(docWith('body { margin: 0; }'))).toBe(false);
+  });
+
+  test('a stylesheet landing after the first ask still counts', () => {
+    const doc = docWith('body { margin: 0; }');
+    expect(detectTailwind(doc)).toBe(false);
+    doc.head.insertAdjacentHTML('beforeend', '<style>* { --tw-ring-color: #000; }</style>');
+    expect(detectTailwind(doc)).toBe(true);
   });
 });
 

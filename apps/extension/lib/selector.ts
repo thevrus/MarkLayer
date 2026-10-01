@@ -450,32 +450,40 @@ const NON_TEXT_TAGS = new Set(['img', 'video', 'audio', 'iframe', 'canvas', 'svg
 const FLEX_LAYOUT_KEYS = ['flex-direction', 'align-items', 'justify-content', 'flex-wrap', 'gap'] as const;
 const GRID_LAYOUT_KEYS = ['grid-template-columns', 'grid-template-rows', 'gap'] as const;
 
-let _tailwindCache: boolean | null = null;
+// Per document, not per module: the web viewer's frame navigates under one long-lived module.
+// A no is kept only until the sheet count moves, so a stylesheet still loading cannot pin it.
+const tailwindPages = new WeakMap<Document, { found: boolean; sheets: number }>();
+
+function sheetHasTailwind(sheet: CSSStyleSheet | null): boolean {
+  if (!sheet) return false;
+  try {
+    const rules = sheet.cssRules;
+    const limit = Math.min(rules.length, 50);
+    for (let i = 0; i < limit; i++) {
+      if (rules[i]?.cssText.includes('--tw-')) return true;
+    }
+  } catch {
+    // Cross-origin stylesheet: can't read
+  }
+  return false;
+}
 
 /**
  * Detect whether the page uses Tailwind by sniffing its preflight signature in any
  * accessible stylesheet — Tailwind 3+ emits `--tw-*` custom properties on `*` selectors.
- * Cached at module level (fresh per page navigation, since content scripts are re-injected).
  * Skips cross-origin stylesheets (cssRules access throws).
  */
 export function detectTailwind(doc: Document = document): boolean {
-  if (_tailwindCache !== null) return _tailwindCache;
-  for (const sheet of doc.styleSheets) {
-    try {
-      const rules = sheet.cssRules;
-      const limit = Math.min(rules.length, 50);
-      for (let i = 0; i < limit; i++) {
-        if (rules[i]?.cssText.includes('--tw-')) {
-          _tailwindCache = true;
-          return true;
-        }
-      }
-    } catch {
-      // Cross-origin stylesheet — can't read
-    }
-  }
-  _tailwindCache = false;
-  return false;
+  const known = tailwindPages.get(doc);
+  if (known && (known.found || known.sheets === doc.styleSheets.length)) return known.found;
+  // Not our own Tailwind: WXT hoists the overlay's `@property --tw-*` rules into the page, as
+  // they do nothing inside a shadow root (wxt/utils/content-script-ui/shadow-root). Counted,
+  // they made every page read as Tailwind.
+  const found = Array.from(
+    doc.querySelectorAll<HTMLStyleElement | HTMLLinkElement>('style, link[rel~="stylesheet"]'),
+  ).some((el) => !el.hasAttribute('wxt-shadow-root-document-styles') && sheetHasTailwind(el.sheet));
+  tailwindPages.set(doc, { found, sheets: doc.styleSheets.length });
+  return found;
 }
 
 /**
