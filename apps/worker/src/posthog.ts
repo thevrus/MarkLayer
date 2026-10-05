@@ -39,8 +39,13 @@ interface ExceptionEntry {
 
 type CaptureProps = Record<string, string | number | boolean | null | undefined | readonly ExceptionEntry[]>;
 
-/** Absolute URLs, protocol-relative URLs, and bare `host.tld/…` references. */
-const URL_IN_TEXT = /\b(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|www\.)\S+|\b[a-z0-9-]+(?:\.[a-z0-9-]+)+(?::\d+)?(?:\/\S*)?/gi;
+/**
+ * Absolute URLs, protocol-relative URLs, and bare `host.tld/…` references. Labels
+ * take `_` (`_dmarc.acme.com` is a real host) and the tail takes `?` and `#`, or
+ * both leaked past the match.
+ */
+const URL_IN_TEXT =
+  /\b(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|www\.)\S+|\b[a-z0-9_-]+(?:\.[a-z0-9_-]+)+(?::\d+)?(?:[/?#]\S*)?/gi;
 
 /** Free-text (error messages) is the usual way a URL sneaks in. Cap it too. */
 const MAX_TEXT_LEN = 200;
@@ -64,14 +69,21 @@ const BARE_DOMAIN = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z][a-z0-9-]*$/;
  */
 const DOMAIN_KEY = 'blocked_domain';
 
+/** The Error Tracking issue a blocked site is filed under. */
+const blockedIssue = (domain: string) => ({
+  $exception_fingerprint: `proxy-blocked:${domain}`,
+  $issue_name: `Proxy blocked by ${domain}`,
+});
+
 function scrub(props: CaptureProps): CaptureProps {
+  // Exact strings only: the domain and the issue keys built from it. Redacting the
+  // domain out of those filed every blocked site under one `<redacted>` issue.
+  const raw = props[DOMAIN_KEY];
+  const exempt: Record<string, string> =
+    typeof raw === 'string' && BARE_DOMAIN.test(raw) ? { [DOMAIN_KEY]: raw, ...blockedIssue(raw) } : {};
   const out: CaptureProps = {};
   for (const [key, value] of Object.entries(props)) {
-    if (typeof value !== 'string') {
-      out[key] = value;
-      continue;
-    }
-    out[key] = key === DOMAIN_KEY && BARE_DOMAIN.test(value) ? value : scrubValue(value);
+    out[key] = typeof value !== 'string' || exempt[key] === value ? value : scrubValue(value);
   }
   return out;
 }
@@ -178,6 +190,9 @@ export function blockedDomain(raw: string | URL): string | null {
 /** What refused us, and how. One value per way a site can turn the proxy away. */
 export type BlockKind = 'firewall-challenge' | 'http-error' | 'fetch-threw';
 
+/** A page that is not there refused nobody; `proxy_page_fetched` still counts it. */
+const ABSENT = new Set([404, 410]);
+
 interface BlockReport {
   kind: BlockKind;
   /** The URL that failed. Reduced to its registrable domain before it leaves. */
@@ -208,6 +223,7 @@ export function captureBlockedSite(
   ctx: { waitUntil(promise: Promise<unknown>): void },
   report: BlockReport,
 ) {
+  if (report.kind === 'http-error' && ABSENT.has(report.status ?? 0)) return;
   const domain = blockedDomain(report.url);
   if (!domain) return;
 
@@ -219,17 +235,15 @@ export function captureBlockedSite(
     $exception_list: [
       {
         type: BLOCK_TYPES[report.kind],
-        value: scrubValue(
-          `${domain} refused the proxy${detail ? ` (${detail})` : ''}${report.message ? `: ${report.message}` : ''}`,
-        ),
+        // `scrub` does not walk this nested list, so the free text is scrubbed here.
+        value: `${domain} refused the proxy${detail ? ` (${detail})` : ''}${report.message ? `: ${scrubValue(report.message)}` : ''}`,
         mechanism: { handled: true, synthetic: true },
       },
     ],
     // One issue per site, not per failure mode: a host that answers a challenge
     // today and a 403 tomorrow is still the same site to fix and the same people
     // to write to.
-    $exception_fingerprint: `proxy-blocked:${domain}`,
-    $issue_name: `Proxy blocked by ${domain}`,
+    ...blockedIssue(domain),
     blocked_domain: domain,
     reason: report.kind,
     status: report.status,
