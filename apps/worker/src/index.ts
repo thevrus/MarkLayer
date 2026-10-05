@@ -96,6 +96,12 @@ function shareDescription({ domain, ops }: { domain: string; ops: unknown[] }): 
 
 app.route('/api', api);
 
+/**
+ * The shell names this build's hashed chunks and a deploy deletes the last build's, so a
+ * cached shell 404s on its lazy imports. Revalidated on every open, as Vite recommends.
+ */
+const SHELL_CACHE = 'no-cache';
+
 // Shared annotation page — injects dynamic OG tags then serves the SPA
 app.get('/s/:id', async (c) => {
   const annotationId = c.req.param('id');
@@ -149,7 +155,7 @@ app.get('/s/:id', async (c) => {
     .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`)
     .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${reqUrl.href}" />`);
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': SHELL_CACHE },
   });
 });
 
@@ -191,7 +197,7 @@ app.get('/p/:id', async (c) => {
     .replace(/<meta name="twitter:image"[^>]*>/, `<meta name="twitter:image" content="${ogImage}">`)
     .replace(/<link rel="canonical"[^>]*>/, `<link rel="canonical" href="${reqUrl.href}" />`);
   return new Response(html, {
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600' },
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': SHELL_CACHE },
   });
 });
 
