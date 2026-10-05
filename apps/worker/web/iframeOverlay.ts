@@ -22,6 +22,14 @@ export function toViewportRect(frame: HTMLIFrameElement, el: Element): DOMRect {
 }
 
 /**
+ * The framed page's window, or null once the page has navigated out of the proxy:
+ * the frame is cross-origin from then on, and touching its window throws.
+ */
+export function sameOriginWindow(frame: HTMLIFrameElement | null): Window | null {
+  return frame?.contentDocument ? frame.contentWindow : null;
+}
+
+/**
  * The viewport an annotation was captured in. That is the framed page's own
  * viewport, not the host window's — the host chrome and the CSS zoom are ours,
  * not the annotated page's, so recording them would misdescribe the capture.

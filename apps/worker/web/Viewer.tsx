@@ -43,7 +43,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import type { ExportData } from './AnnotationPanel';
 import { capture } from './analytics';
-import { frameViewport, isElementNode } from './iframeOverlay';
+import { frameViewport, isElementNode, sameOriginWindow } from './iframeOverlay';
 import { ProjectTabs } from './ProjectTabs';
 import { SupportDialog } from './SupportDialog';
 import {
@@ -405,16 +405,21 @@ export default function Viewer() {
           onCursorMove.value?.(e.clientX, e.clientY + scrollOffset(win).y, activeTool.value);
         });
         // Hand tool: the framed page is its own scroller, and it sits behind a CSS
-        // scale, so a screen-space drag delta has to be divided back out.
+        // scale, so a screen-space drag delta has to be divided back out. Both handlers
+        // outlive this page, so they look the window up rather than keep `win`.
         panScrollBy.value = (dx: number, dy: number) => {
+          const w = sameOriginWindow(frame);
+          if (!w) return;
           const s = cssScale.value || 1;
-          scrollPageBy(win, dx / s, dy / s);
+          scrollPageBy(w, dx / s, dy / s);
         };
         // Follow mode: scroll iframe to followed peer's Y
         onFollowScroll.value = (y: number) => {
+          const w = sameOriginWindow(frame);
+          if (!w) return;
           programmaticScroll.current = true;
           if (scrollSettle.current) clearTimeout(scrollSettle.current);
-          scrollPageTo(win, { top: Math.max(0, y - win.innerHeight / 2), behavior: 'smooth' });
+          scrollPageTo(w, { top: Math.max(0, y - w.innerHeight / 2), behavior: 'smooth' });
           // The flag is cleared by the scroll handler once the events stop, so a
           // scroll of any length stays recognised as ours for its whole duration.
         };
