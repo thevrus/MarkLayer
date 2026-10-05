@@ -6,6 +6,20 @@ import { initAnalytics } from './analytics';
 import { isLanding, STILL_FRAME } from './signals';
 import './style.css';
 
+// A deploy deletes the last build's chunks, so a tab opened before it fails its next lazy
+// import. Reload into the new build, at most once a minute so a chunk that is genuinely
+// unreachable (offline, blocked) still surfaces as an error instead of a reload loop.
+const RELOADED_AT = 'marklayer:chunk-reload';
+window.addEventListener('vite:preloadError', () => {
+  try {
+    if (Date.now() - Number(sessionStorage.getItem(RELOADED_AT)) < 60_000) return;
+    sessionStorage.setItem(RELOADED_AT, String(Date.now()));
+  } catch {
+    return;
+  }
+  location.reload();
+});
+
 effect(() => {
   const t = theme.value;
   const cls = document.documentElement.classList;
