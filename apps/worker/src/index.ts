@@ -393,7 +393,7 @@ const builtLlms = import.meta.glob<string>(['../../site/dist/llms.txt', '../../s
 const LLMS_TXT = builtLlms['../../site/dist/llms.txt'] ?? LLMS_SOURCE;
 const LLMS_FULL_TXT = builtLlms['../../site/dist/llms-full.txt'] ?? LLMS_FULL_SOURCE;
 
-app.get('/robots.txt', (c) => c.body(ROBOTS_TXT, 200, dayCached('text/plain')));
+app.get('/robots.txt', (c) => c.body(ROBOTS_TXT, 200, dayCached('text/plain; charset=utf-8')));
 
 app.get('/llms.txt', (c) => c.body(LLMS_TXT, 200, dayCached('text/plain; charset=utf-8')));
 
