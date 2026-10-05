@@ -3,7 +3,7 @@ import { effect } from '@preact/signals';
 import { render } from 'preact';
 import { App } from './App';
 import { initAnalytics } from './analytics';
-import { isLanding } from './signals';
+import { isLanding, STILL_FRAME } from './signals';
 import './style.css';
 
 effect(() => {
@@ -19,7 +19,7 @@ effect(() => {
 initAnalytics({
   key: import.meta.env.DEV ? undefined : import.meta.env.VITE_PUBLIC_POSTHOG_KEY,
   host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
-  surface: isLanding.peek() ? 'landing' : 'viewer',
+  surface: isLanding.peek() ? 'landing' : STILL_FRAME ? 'demo' : 'viewer',
 });
 
 const root = document.getElementById('app')!;
