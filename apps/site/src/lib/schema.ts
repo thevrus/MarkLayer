@@ -10,6 +10,10 @@ const AUTHOR = {
   sameAs: ['https://github.com/thevrus'],
 } as const;
 
+// Google's Rich Results Test rejects a bare day as a DateTime and asks for a zone.
+// Content only records the day, so it is pinned to UTC midnight.
+const dateTime = (day: string) => (/^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T00:00:00Z` : day);
+
 export function articleSchema(p: {
   h1: string;
   description: string;
@@ -22,8 +26,8 @@ export function articleSchema(p: {
     '@type': 'Article',
     headline: p.h1,
     description: p.description,
-    datePublished: p.published,
-    dateModified: p.modified,
+    datePublished: dateTime(p.published),
+    dateModified: dateTime(p.modified),
     author: AUTHOR,
     publisher: {
       '@type': 'Organization',
@@ -147,7 +151,7 @@ export function softwareReleaseSchema(p: {
     operatingSystem: 'Chrome, Firefox, Edge, Brave',
     softwareVersion: p.version,
     releaseNotes: `${ORIGIN}${p.path}`,
-    datePublished: p.date,
+    datePublished: dateTime(p.date),
     description: p.summary,
     url: ORIGIN,
     image: { '@type': 'ImageObject', url: OG_IMAGE },
