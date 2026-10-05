@@ -138,4 +138,27 @@ describe('what leaves the worker', () => {
     expect(bodies[1]).not.toContain('session=abc');
     expect(bodies[1]).not.toContain('/cart');
   });
+
+  test('files each blocked site as its own issue', async () => {
+    // The scrubber once redacted the domain out of the fingerprint too, so every
+    // site that refused us collapsed into one "Proxy blocked by <redacted>" issue.
+    captureBlockedSite(env, ctx, {
+      kind: 'fetch-threw',
+      url: 'https://staging-x9f2.acme.com/internal',
+      message: 'connect to staging-x9f2.acme.com:443 failed',
+    });
+    const { properties } = JSON.parse(bodies[0] ?? '{}');
+    expect(properties.$exception_fingerprint).toBe('proxy-blocked:acme.com');
+    expect(properties.$issue_name).toBe('Proxy blocked by acme.com');
+    expect(properties.$exception_list[0].value).toStartWith('acme.com refused the proxy');
+    // Letting the domain through must not let the subdomain through with it.
+    expect(bodies[0]).not.toContain('staging-x9f2');
+
+    captureBlockedSite(env, ctx, {
+      kind: 'fetch-threw',
+      url: 'https://acme.com/',
+      message: 'lookup _dmarc.acme.com and é.acme.com as ops@acme.com, then acme.com?t=s3cret',
+    });
+    for (const leak of ['_dmarc', 'é.acme.com', 'ops@acme.com', 's3cret']) expect(bodies[1]).not.toContain(leak);
+  });
 });
