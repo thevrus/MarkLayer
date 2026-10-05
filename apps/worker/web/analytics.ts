@@ -167,6 +167,9 @@ export function initAnalytics({ key, host, surface: from }: { key?: string; host
   // what makes their events countable on the web. See @ext/lib/analytics.
   setAnalytics({ sink: capture, surface: from });
 
+  // The demo frame shares the visitor with the landing page around it, so its
+  // own pageview doubled every landing visit and dragged bounce rate toward zero.
+  const pageEvents = from !== 'demo';
   const load = async () => {
     const mod = await import('posthog-js');
     posthog = mod.default as Posthog;
@@ -175,8 +178,8 @@ export function initAnalytics({ key, host, surface: from }: { key?: string; host
       defaults: '2026-01-30',
       ip: false,
       autocapture: false,
-      capture_pageview: true,
-      capture_pageleave: true,
+      capture_pageview: pageEvents,
+      capture_pageleave: pageEvents,
       capture_exceptions: true,
       // No person records: events are counted, nobody is profiled. Also stops
       // posthog-js writing the identity cookie, so the viewer stays cookieless.

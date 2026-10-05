@@ -1,6 +1,6 @@
 # Tracking plan
 
-**Tool:** PostHog (cloud). **Last updated:** 2026-08-18.
+**Tool:** PostHog (cloud). **Last updated:** 2026-10-02.
 
 MarkLayer is open source and people point it at pages we have no business
 knowing about: localhost, internal staging, unlisted docs, URLs with a session
@@ -19,7 +19,8 @@ event stops informing a decision, delete it rather than leave it collecting.
 | Autocapture | Blanket click/input capture is exactly the aggressive tracking this project should not ship. |
 | Person profiles, cookies, `identify()` | `person_profiles: 'never'` client-side and `$process_person_profile: false` server-side. Events are counters; there is no per-user record to join or export. |
 | Any analytics in the extension | It holds host permissions on every page you visit. Telemetry there is unjustifiable, so there is none. Product signal is derived server-side instead. |
-| Tracking the marketing pages | `apps/site` is `output: 'static'` with zero client JS. Keeping it that way is worth more than the pageview data. |
+| Tracking the marketing pages | The content pages in `apps/site` are static with zero client JS. Keeping it that way is worth more than the pageview data. The one exception is `/`, which boots the web app and is tracked. |
+| A pageview from the landing's demo frame | `/s/<demo room>?still=1` is the real viewer in an iframe, same origin and so the same visitor as the page around it. It boots as `surface: 'demo'`, which reports no `$pageview`/`$pageleave` and keeps its tool clicks out of the `viewer` numbers; before 2026-10-02 it doubled every desktop landing visit and pulled bounce rate toward zero. |
 | Sending annotated URLs, hostnames, room IDs, or page text | The sensitive surface. Enforced centrally, not per call site. |
 
 ## Enforcement

@@ -17,7 +17,7 @@ export type AnalyticsProps = Record<string, string | number | boolean | null | u
 export type AnalyticsSink = (event: string, props?: AnalyticsProps) => void;
 
 /** Which build is reporting. The landing demo is its own surface: its tool clicks are interest, not work. */
-export type Surface = 'extension' | 'viewer' | 'landing';
+export type Surface = 'extension' | 'viewer' | 'landing' | 'demo';
 
 // Plain values, not signals: they are written once at startup and nothing derives
 // from them. As signals they made every effect that calls `track()` subscribe to
