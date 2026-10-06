@@ -5,7 +5,6 @@ import { getSelector, snapshotElement } from '@ext/lib/selector';
 import { activeTool, addToInspectorStack, inspectorStack, outputDetail, toast } from '@ext/lib/state';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { createPortal } from 'preact/compat';
-import { useRef } from 'preact/hooks';
 import { isElementNode, toViewportRect, useIframeOverlay, useIframeRectSync } from './iframeOverlay';
 import { cssScale } from './signals';
 
@@ -59,13 +58,8 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
   const selected = useSignal<SelectedEl[]>([]);
   // Bumped on iframe rect-sync events so outlines reposition with the page.
   const tick = useSignal(0);
-  const winRef = useRef<Window | null>(null);
-  const docRef = useRef<Document | null>(null);
 
   useIframeOverlay(frameRef, ({ win, doc }) => {
-    winRef.current = win;
-    docRef.current = doc;
-
     const onPointerDown = (e: PointerEvent) => {
       if (activeTool.value !== 'multiInspect') return;
       if (e.button !== 0) return;
