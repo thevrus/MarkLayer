@@ -102,9 +102,27 @@ app.route('/api', api);
  */
 const SHELL_CACHE = 'no-cache';
 
+// Lightweight per-IP throttle for the public endpoints below (share pages,
+// uploads): Cloudflare's edge protection caps raw traffic volume, not
+// per-caller abuse of routes that do real DB/R2 work. Best-effort — the map
+// resets whenever an isolate recycles — but cheap enough to blunt a single
+// source hammering these.
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const rateLimitHits = new Map<string, number[]>();
+function isRateLimited(c: Context, bucket: string, max: number): boolean {
+  const ip = c.req.header('CF-Connecting-IP') ?? 'unknown';
+  const key = `${bucket}:${ip}`;
+  const now = Date.now();
+  const hits = (rateLimitHits.get(key) ?? []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  hits.push(now);
+  rateLimitHits.set(key, hits);
+  return hits.length > max;
+}
+
 // Shared annotation page — injects dynamic OG tags then serves the SPA
 app.get('/s/:id', async (c) => {
   const annotationId = c.req.param('id');
+  if (isRateLimited(c, 'share', 120)) return c.text('Too many requests', 429);
   const reqUrl = new URL(c.req.url);
   const annotations = annotationStore(c.env.DB);
 
@@ -162,6 +180,7 @@ app.get('/s/:id', async (c) => {
 // Shared project page (multi-page annotation bundle)
 app.get('/p/:id', async (c) => {
   const projectId = c.req.param('id');
+  if (isRateLimited(c, 'share', 120)) return c.text('Too many requests', 429);
   const reqUrl = new URL(c.req.url);
   let domain = 'a project';
   let pageCount = 0;
@@ -310,6 +329,7 @@ app.get('/ws/:id', async (c) => {
 // Anonymous file upload, so a share can annotate a local PDF or image and not
 // just a public URL. The id itself is the access token, same as an annotation's.
 app.post('/f', async (c) => {
+  if (isRateLimited(c, 'upload', 20)) return c.text('Too many requests', 429);
   const reader = c.req.raw.body?.getReader();
   if (!reader) return c.text('Empty body', 400);
 
@@ -353,6 +373,7 @@ app.post('/f', async (c) => {
 
 app.get('/f/:id', async (c) => {
   const id = c.req.param('id');
+  if (isRateLimited(c, 'file', 120)) return c.text('Too many requests', 429);
   if (!isUploadId(id)) return c.notFound();
 
   const object = await c.env.FILE_BUCKET.get(id);
