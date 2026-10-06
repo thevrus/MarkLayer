@@ -2,7 +2,7 @@ import { theme } from '@ext/lib/state';
 import { effect } from '@preact/signals';
 import { render } from 'preact';
 import { App } from './App';
-import { initAnalytics } from './analytics';
+import { initAnalytics, markReloading } from './analytics';
 import { isLanding, STILL_FRAME } from './signals';
 import './style.css';
 
@@ -17,6 +17,7 @@ window.addEventListener('vite:preloadError', () => {
   } catch {
     return;
   }
+  markReloading();
   location.reload();
 });
 
