@@ -25,10 +25,6 @@ import type { DrawOp, Peer } from './types';
 /** Mirrors `capture` in apps/worker/web/analytics.ts — kept local since shared code has no transport of its own. */
 type CaptureFn = (event: string, props?: AnalyticsProps) => void;
 
-/** Mirrors `SupportSignal` in apps/worker/web/support.ts — duplicated because that
- * module is web-app only and shared code must not depend on it. */
-type SupportSignal = 'used' | 'shared' | 'mcp' | 'asked' | 'supported';
-
 export const connected = signal(false);
 /** Unix timestamp (seconds) when the annotation was first created */
 export const createdAt = signal<number | null>(null);
@@ -206,8 +202,8 @@ export interface ConnectRoomHooks {
   onPresentChange?: Signal<((on: boolean) => void) | null>;
   /** Analytics sink — omitted where nothing reports (see `@ext/lib/analytics`). */
   capture?: CaptureFn;
-  /** Folds a usage signal into the local ask-for-support record — web viewer only. */
-  noteSupportSignal?: (signal: SupportSignal) => void;
+  /** Folds an agent's presence into the local ask-for-support record (apps/worker/web/support.ts) — web viewer only. */
+  noteSupportSignal?: (signal: 'mcp') => void;
 }
 
 export interface ConnectRoomOptions {
