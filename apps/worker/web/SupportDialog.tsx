@@ -7,8 +7,14 @@ import { cn } from '@marklayer/types';
 import { CHROME_STORE_URL } from '@site/lib/site';
 import { CircleCheck, X } from 'lucide-preact';
 import { capture } from './analytics';
-import { showSupportDialog } from './signals';
-import { MONTHLY_COST_USD, noteSupportSignal, POLAR_CHECKOUT_URL } from './support';
+import { isUnprompted, showSupportDialog } from './signals';
+import {
+  MONTHLY_COST_USD,
+  NOTES_BEFORE_ASKING,
+  noteSupportSignal,
+  POLAR_CHECKOUT_URL,
+  readSupportRecord,
+} from './support';
 
 /**
  * Web-app only, deliberately. In the extension this renders inside a content
@@ -16,9 +22,9 @@ import { MONTHLY_COST_USD, noteSupportSignal, POLAR_CHECKOUT_URL } from './suppo
  * record written there scatters across every site the user visits and is never
  * readable again. The ask also does not belong on top of someone else's page.
  *
- * The one time this is ever shown, someone is being asked for money by a tool
- * that promised them nothing would be asked. So: first person, no adjectives,
- * one action, and an honest way out that costs them nothing.
+ * Unprompted, this is shown at most twice, and someone is being asked for money
+ * by a tool that promised them nothing would be asked. So: first person, no
+ * adjectives, one action, and an honest way out that costs them nothing.
  *
  * The header is a painted public park, and it is the argument rather than
  * decoration: a park is free to walk into and expensive to keep open, which is
@@ -33,20 +39,23 @@ const cost = MONTHLY_COST_USD === null ? '' : ` It runs about $${MONTHLY_COST_US
 export function SupportDialog() {
   const canCheckout = POLAR_CHECKOUT_URL.length > 0;
   const trigger = showSupportDialog.value;
+  // Read as it opens, before this showing's answer lands in it.
+  const record = trigger === null ? null : readSupportRecord();
+  const notes = record && record.notes >= NOTES_BEFORE_ASKING ? record.notes : 0;
+
+  // Any close is an answer, even on a card they opened themselves: they have seen
+  // it, and the bar and settings entries keep the door open.
+  const answer = (choice: 'later' | 'never') => {
+    showSupportDialog.value = null;
+    noteSupportSignal(choice === 'never' ? 'optedOut' : 'answered');
+    capture('support_card_dismissed', { trigger, answer: choice });
+  };
 
   return (
     <Dialog.Root
       open={trigger !== null}
       onOpenChange={(open: boolean) => {
-        // Dismissing is an answer, and it is recorded so the unprompted ask
-        // never returns. Closing one they opened themselves counts the same —
-        // they have seen it, and the bar and settings entries mean the door
-        // stays open, so "once" costs them nothing.
-        if (!open) {
-          showSupportDialog.value = null;
-          noteSupportSignal('asked');
-          capture('support_card_dismissed', { trigger });
-        }
+        if (!open) answer('later');
       }}
     >
       <Dialog.Portal container={portalContainer.value ?? undefined}>
@@ -105,7 +114,10 @@ export function SupportDialog() {
             <Dialog.Title className="m-0 text-title font-semibold tracking-[-0.032em] leading-tight text-balance text-(--ds-gray-1000)">
               Thanks for using MarkLayer
             </Dialog.Title>
+            {/* Their own count is the plainest proof it worked for them. A floor:
+                notes from before this browser started counting are not in it. */}
             <Dialog.Description className="mt-2.5 mb-0 text-ui leading-normal text-(--ds-gray-900)">
+              {notes > 0 && `You have made ${notes.toLocaleString()} notes so far. `}
               It is free for everyone, and it will stay free. I pay for the servers myself.{cost} MarkLayer makes no
               money, on purpose:
             </Dialog.Description>
@@ -137,11 +149,7 @@ export function SupportDialog() {
             ) : null}
 
             {/* The escape route is a text link, never a second button: most
-                people will not pay, and a review is worth real money here.
-
-                The closing promise is load-bearing, and it is true: dismissing
-                writes `asked`, so the unprompted card never comes back. Saying
-                so is what makes this a single ask, not the start of a campaign. */}
+                people will not pay, and a review is worth real money here. */}
             <p class="mt-3 mb-0 text-meta leading-snug text-(--ds-gray-900)">
               {canCheckout ? 'Or help for free: a ' : 'Free way to help: a '}
               <a
@@ -149,15 +157,36 @@ export function SupportDialog() {
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => {
-                  noteSupportSignal('asked');
+                  // The card says a review helps just as much, so it ends the ask just as a payment does.
+                  noteSupportSignal('supported');
                   capture('support_review_clicked', { trigger });
                 }}
                 class="text-(--ds-gray-1000) underline underline-offset-2 decoration-(--ds-gray-alpha-400) hover:decoration-(--ds-gray-1000)"
               >
                 Web Store review
               </a>{' '}
-              helps just as much. Either way, I will only ask this once.
+              helps just as much.
             </p>
+
+            {/* A promise `shouldOfferSupport` keeps, and what makes this two asks rather than a campaign. */}
+            {isUnprompted(trigger) && record ? (
+              <p class="mt-2 mb-0 text-meta leading-snug text-(--ds-gray-900)">
+                {record.answers === 0 ? (
+                  <>
+                    I may ask one more time in a month.{' '}
+                    <button
+                      type="button"
+                      onClick={() => answer('never')}
+                      class="cursor-pointer underline underline-offset-2 decoration-(--ds-gray-alpha-400) hover:text-(--ds-gray-1000) hover:decoration-(--ds-gray-1000)"
+                    >
+                      Don't ask again
+                    </button>
+                  </>
+                ) : (
+                  'This is the last time I will ask. Thank you either way.'
+                )}
+              </p>
+            ) : null}
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

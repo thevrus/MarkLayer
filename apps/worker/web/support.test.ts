@@ -1,23 +1,56 @@
 import { describe, expect, test } from 'bun:test';
 import type { CommentOp, CommentStatus } from '@marklayer/types';
-import { agentWorkLanded, parseSupportRecord, recordSignal, type SupportRecord, shouldOfferSupport } from './support';
+import {
+  agentWorkLanded,
+  parseSupportRecord,
+  recordSignal,
+  type SupportRecord,
+  type SupportSignal,
+  shouldOfferSupport,
+} from './support';
 
-const fresh: SupportRecord = { days: [], shares: 0, mcp: false, asked: false, supported: false };
-const veteran: SupportRecord = { ...fresh, days: ['2026-08-01', '2026-08-04', '2026-08-09'] };
+const fresh: SupportRecord = {
+  days: [],
+  shares: 0,
+  mcp: false,
+  notes: 0,
+  answers: 0,
+  answeredOn: null,
+  notesAtAnswer: 0,
+  supported: false,
+};
+const veteran: SupportRecord = { ...fresh, days: ['2026-08-01', '2026-08-04'] };
 
-const offer = (record: SupportRecord) => shouldOfferSupport({ record, hasCheckout: true });
+const offer = (record: SupportRecord, date = '2026-08-10') => shouldOfferSupport({ record, hasCheckout: true, date });
+const fold = (record: SupportRecord, signals: SupportSignal[], date?: string) =>
+  signals.reduce((r, signal) => recordSignal({ record: r, signal, date }), record);
+const times = (n: number, signal: SupportSignal): SupportSignal[] => Array<SupportSignal>(n).fill(signal);
+/** 25 notes, the first card answered on 2026-09-01, then `since` more notes. */
+const answeredOnce = (since = 30) =>
+  fold({ ...veteran, shares: 1 }, [...times(25, 'noted'), 'answered', ...times(since, 'noted')], '2026-09-01');
 
 describe('shouldOfferSupport — who never sees it', () => {
   test('somebody who has not authored anything yet', () => {
     expect(offer({ ...fresh, shares: 12, mcp: true })).toBe(false);
   });
 
-  test('somebody who came back but has not used it with anyone', () => {
-    expect(offer({ ...veteran, shares: 0 })).toBe(false);
+  test('somebody who came back but has not used it with anyone or for anything', () => {
+    expect(offer({ ...veteran, shares: 0, notes: 19 })).toBe(false);
   });
 
-  test('somebody already asked, no matter how much they use it', () => {
-    expect(offer({ ...veteran, shares: 99, mcp: true, asked: true })).toBe(false);
+  test('somebody who left every note on one day, however many', () => {
+    // One long review of one page, not a habit.
+    expect(offer({ ...veteran, days: ['2026-08-01'], notes: 200 })).toBe(false);
+  });
+
+  test('somebody who said not to ask again', () => {
+    const declined = fold({ ...veteran, shares: 1 }, ['optedOut', ...times(99, 'noted')], '2026-09-01');
+    expect(offer(declined, '2027-01-01')).toBe(false);
+  });
+
+  test('somebody already answered twice, no matter how much they use it', () => {
+    const twice = fold(answeredOnce(), ['answered', ...times(99, 'noted')], '2026-11-01');
+    expect(offer(twice, '2027-06-01')).toBe(false);
   });
 
   test('somebody who already supported', () => {
@@ -42,20 +75,45 @@ describe('shouldOfferSupport — who does', () => {
     // The share is the bar; a second calendar day is only a return visit.
     expect(offer({ ...fresh, days: ['2026-08-01'], shares: 1 })).toBe(true);
   });
+
+  test('somebody who never shares, but keeps leaving notes on a second day', () => {
+    expect(offer({ ...veteran, notes: 20 })).toBe(true);
+  });
+});
+
+describe('shouldOfferSupport — the second and last ask', () => {
+  test('a month after the first answer, with real use since', () => {
+    expect(offer(answeredOnce(), '2026-10-01')).toBe(true);
+  });
+
+  test('not a day before the month is out', () => {
+    expect(offer(answeredOnce(), '2026-09-30')).toBe(false);
+  });
+
+  test('not on notes left before the first answer', () => {
+    // 54 in all clears 30, but only 29 came after the answer.
+    expect(offer(answeredOnce(29), '2026-10-01')).toBe(false);
+  });
+
+  test('a record from the one-ask days waits a month from its next visit', () => {
+    let r = parseSupportRecord('{"days":["2026-08-01"],"shares":1,"asked":true}');
+    r = fold(r, times(30, 'noted'));
+    // Undated: there is no month to have waited out yet, whatever the notes.
+    expect(offer(r, '2027-01-01')).toBe(false);
+    r = fold(r, ['used'], '2026-10-05');
+    expect(offer(r, '2026-10-20')).toBe(false);
+    expect(offer(r, '2026-11-04')).toBe(true);
+  });
 });
 
 describe('recordSignal', () => {
   test('counts a day once however many times it is used', () => {
-    let r = fresh;
-    for (let i = 0; i < 20; i++) r = recordSignal({ record: r, signal: 'used', date: '2026-08-01' });
-    expect(r.days).toEqual(['2026-08-01']);
+    expect(fold(fresh, times(20, 'used'), '2026-08-01').days).toEqual(['2026-08-01']);
   });
 
   test('stops counting shares once the bar is cleared', () => {
-    let r = fresh;
-    for (let i = 0; i < 20; i++) r = recordSignal({ record: r, signal: 'shared' });
     // A bar to clear, not a tally of what somebody sent.
-    expect(r.shares).toBe(1);
+    expect(fold(fresh, times(20, 'shared')).shares).toBe(1);
   });
 
   test('stops collecting dates once it has enough to answer the question', () => {
@@ -64,18 +122,12 @@ describe('recordSignal', () => {
       r = recordSignal({ record: r, signal: 'used', date });
     }
     // The record answers "enough distinct days?" — it is not a usage log.
-    expect(r.days).toEqual(['2026-08-01']);
-  });
-
-  test('supporting also marks asked, so the card cannot return', () => {
-    const r = recordSignal({ record: veteran, signal: 'supported' });
-    expect(r.asked).toBe(true);
-    expect(offer(r)).toBe(false);
+    expect(r.days).toEqual(['2026-08-01', '2026-08-02']);
   });
 
   test('does not mutate the record it was given', () => {
     const before = { ...veteran, days: [...veteran.days] };
-    recordSignal({ record: veteran, signal: 'shared' });
+    recordSignal({ record: veteran, signal: 'used', date: '2026-09-01' });
     expect(veteran).toEqual(before);
   });
 });
@@ -86,13 +138,13 @@ describe('parseSupportRecord', () => {
     expect(parseSupportRecord(raw)).toEqual(fresh);
   });
 
-  test('a truthy-but-wrong flag does not silently suppress the card', () => {
-    // Only a literal `true` counts: a corrupt record must not read as "asked".
-    expect(parseSupportRecord('{"asked":"yes"}').asked).toBe(false);
+  test('a corrupt flag or count neither suppresses the card nor buys an extra ask', () => {
+    // Only a literal `true` counts as a flag, and only a whole number >= 0 as a count.
+    expect(parseSupportRecord('{"asked":"yes","supported":"true","answers":-1,"notes":2.5}')).toEqual(fresh);
   });
 
   test('round-trips a real record', () => {
-    const r: SupportRecord = { days: ['2026-08-01'], shares: 4, mcp: true, asked: false, supported: false };
+    const r = answeredOnce();
     expect(parseSupportRecord(JSON.stringify(r))).toEqual(r);
   });
 });
