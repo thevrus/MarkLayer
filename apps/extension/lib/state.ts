@@ -438,6 +438,11 @@ export const onProfileChange = signal<((name: string, color: string) => void) | 
  * this; the extension leaves it null and the row simply is not there.
  */
 export const onSupport = signal<(() => void) | null>(null);
+/**
+ * Called with each op this person makes in this tab: never one from a room (their
+ * other tab included), a redo, or the app's seeded demo. Web app only, like `onSupport`.
+ */
+export const onOpMade = signal<((op: DrawOp) => void) | null>(null);
 
 // Toasts
 
@@ -1025,7 +1030,9 @@ export function pushOp(op: DrawOp, { seeded = false }: { seeded?: boolean } = {}
   if (undoStack.value.length) undoStack.value = [];
   onOpPushed.value?.(op);
   drafts.scheduleSave();
-  if (!seeded) track('annotation_created', { tool: op.tool, reply: 'parentId' in op && Boolean(op.parentId) });
+  if (seeded) return;
+  track('annotation_created', { tool: op.tool, reply: 'parentId' in op && Boolean(op.parentId) });
+  onOpMade.value?.(op);
 }
 
 /** Create and push a reply to an existing comment */
