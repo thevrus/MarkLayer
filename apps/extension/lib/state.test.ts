@@ -56,6 +56,7 @@ const {
   markersVisible,
   measureActive,
   moveTool,
+  onOpMade,
   onOpPushed,
   onOpUpdated,
   onProfileChange,
@@ -171,6 +172,7 @@ beforeEach(() => {
   onOpPushed.value = null;
   onOpUpdated.value = null;
   onUndone.value = null;
+  onOpMade.value = null;
 });
 
 describe('derived op views', () => {
@@ -222,6 +224,14 @@ describe('pushOp', () => {
     expect(undoStack.value).toHaveLength(1);
     pushOp(text('t2'));
     expect(undoStack.value).toEqual([]);
+  });
+
+  test("reports what this person made, never the app's own seeded ops", () => {
+    const made: string[] = [];
+    onOpMade.value = (op) => made.push(op.id);
+    pushOp(comment({ id: 'c1' }));
+    pushOp(comment({ id: 'demo' }), { seeded: true });
+    expect(made).toEqual(['c1']);
   });
 });
 
