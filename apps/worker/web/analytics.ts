@@ -12,6 +12,7 @@
 
 import { type AnalyticsProps, type Surface, setAnalytics } from '@ext/lib/analytics';
 import { parseShareRef, type ShareRef } from '@ext/lib/share';
+import type { CaptureResult } from 'posthog-js';
 
 type Props = AnalyticsProps;
 type Role = 'editor' | 'viewer';
@@ -24,6 +25,8 @@ const queue: Array<[string, Props | undefined]> = [];
 let posthog: Posthog | null = null;
 /** Set once analytics can never load — opted out, no key, or the import failed. */
 let dropping = false;
+/** Set once the tab is reloading onto a new build; the outgoing one's errors are not worth reporting. */
+let reloading = false;
 let surface: Surface = 'viewer';
 
 /**
@@ -151,6 +154,10 @@ export function captureOnce(event: string, props?: Props): void {
   capture(event, props);
 }
 
+export function markReloading(): void {
+  reloading = true;
+}
+
 export function initAnalytics({ key, host, surface: from }: { key?: string; host?: string; surface: Surface }): void {
   surface = from;
   // Ahead of the opt-out return below: the URL gets cleaned whether or not
@@ -181,6 +188,9 @@ export function initAnalytics({ key, host, surface: from }: { key?: string; host
       capture_pageview: pageEvents,
       capture_pageleave: pageEvents,
       capture_exceptions: true,
+      // main.tsx's stale-chunk reload lets the failed import throw on its way out, so
+      // without this every tab it rescues also files an error.
+      before_send: (e: CaptureResult | null) => (reloading && e?.event === '$exception' ? null : e),
       // No person records: events are counted, nobody is profiled. Also stops
       // posthog-js writing the identity cookie, so the viewer stays cookieless.
       person_profiles: 'never',
