@@ -16,7 +16,8 @@ import {
 } from '@ext/lib/state';
 import type { SelectionOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
-import { cssScale, fileUrl, iframeMutationTick, uploadFile } from './signals';
+import { cardFlip } from './iframeOverlay';
+import { fileUrl, iframeMutationTick, uploadFile } from './signals';
 
 interface Props {
   op: SelectionOp;
@@ -46,9 +47,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
   const firstRect = scaledRects[0];
   const markerX = Math.max(2, anchorX * s - 22);
   const markerY = anchorY * s - scrollY + (firstRect ? (firstRect.height * s) / 2 - 8 : -8);
-  const cs = cssScale.value;
-  const flipH = (markerX + 340) * cs > window.innerWidth;
-  const flipV = (markerY + 400) * cs > window.innerHeight;
+  const { flipH, flipV } = cardFlip({ x: markerX, y: markerY, reach: { x: 340, y: 400 } });
   // Replies hang off the selection's stored anchor, not the reprojected one.
   const replyAnchor = op.rects[0];
 
