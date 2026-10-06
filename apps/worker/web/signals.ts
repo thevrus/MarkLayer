@@ -105,14 +105,19 @@ export const selectionPopover = signal<{
  * How the support card came to be open, or `null` when it is closed.
  *
  * One signal rather than an `open` boolean beside a `trigger`, so the two can
- * never disagree about which ask is on screen. `auto` (after a share) and `agent`
- * (after an agent's work lands) are the earned, once-ever offer; `bar`, `menu`
- * and `panel` are the person asking for it themselves.
+ * never disagree about which ask is on screen. `auto` (after a share), `agent`
+ * (after an agent's work lands) and `notes` (at a pause between notes) are the
+ * earned, unprompted offer; `bar`, `menu` and `panel` are the person asking for
+ * it themselves.
  *
  * Web-app only by design (see support.ts), so it lives here rather than in the
  * shared extension state.
  */
-export type SupportTrigger = 'auto' | 'agent' | 'bar' | 'menu' | 'panel';
+const UNPROMPTED = ['auto', 'agent', 'notes'] as const;
+export type UnpromptedTrigger = (typeof UNPROMPTED)[number];
+export type SupportTrigger = UnpromptedTrigger | 'bar' | 'menu' | 'panel';
+export const isUnprompted = (trigger: SupportTrigger | null): trigger is UnpromptedTrigger =>
+  UNPROMPTED.some((t) => t === trigger);
 export const showSupportDialog = signal<SupportTrigger | null>(null);
 /** `?readonly=1` — the URL's own way to ask for a view-only session, independent
  * of whatever the room says about who may edit. Read once, like `parseViewParam`:

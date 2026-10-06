@@ -6,12 +6,12 @@
  * its tests.
  */
 
-import { operations, toast } from '@ext/lib/state';
-import type { CommentStatus } from '@marklayer/types';
+import { onOpMade, operations, toast } from '@ext/lib/state';
+import { type CommentStatus, isAnnotationOp } from '@marklayer/types';
 import { effect } from '@preact/signals';
 import { SUPPORT_CHANNEL, SUPPORT_PAID } from '@site/lib/site';
 import { capture } from './analytics';
-import { type SupportTrigger, showSupportDialog } from './signals';
+import { STILL_FRAME, type SupportTrigger, showSupportDialog, type UnpromptedTrigger } from './signals';
 import {
   agentWorkLanded,
   noteSupportSignal,
@@ -22,22 +22,27 @@ import {
 
 /** Quiet time after the last thing an agent settles, so the card follows a batch instead of interrupting it. */
 const AGENT_QUIET_MS = 4000;
+/** Quiet time after the last note, so the card lands between notes rather than on one. */
+const NOTE_QUIET_MS = 10_000;
 
 /** Open the card and count it. The only place `support_card_shown` is emitted. */
 export function openSupportCard(trigger: SupportTrigger): void {
+  const { answers, notes } = readSupportRecord();
   showSupportDialog.value = trigger;
-  capture('support_card_shown', { trigger });
+  capture('support_card_shown', { trigger, ask: answers + 1, notes });
 }
 
 /**
  * Offer the card if this person qualifies, and stay silent otherwise.
  *
  * Call at a pause after something worked — never mid-task. Safe to call as often
- * as you like: the record decides, and it can only say yes once.
+ * as you like: the record decides, and an answer moves it past each ask.
  */
-export function maybeOfferSupport(trigger: 'auto' | 'agent' = 'auto'): void {
-  // `asked` is only written on dismissal, so a second call while the card is up
-  // would pass the record and count the same showing twice.
+export function maybeOfferSupport(trigger: UnpromptedTrigger = 'auto'): void {
+  // The landing page's demo is a playground, and a modal in its hero the worst place to ask.
+  if (STILL_FRAME) return;
+  // The answer is only written on dismissal, so a second call while the card is
+  // up would pass the record and count the same showing twice.
   if (showSupportDialog.value !== null) return;
   const eligible = shouldOfferSupport({
     record: readSupportRecord(),
@@ -62,6 +67,40 @@ export function watchAgentWork(): () => void {
     stop();
     window.clearTimeout(timer);
   };
+}
+
+/**
+ * Count this person's notes, and offer the card at the first real pause once
+ * they qualify. Returns its disposer, which also drops an offer still waiting.
+ */
+export function watchNotes(): () => void {
+  let timer: number | undefined;
+  // Pen strokes and labels are marks, not notes; a reply is a note.
+  onOpMade.value = (op) => {
+    if (!isAnnotationOp(op)) return;
+    noteSupportSignal('noted');
+    window.clearTimeout(timer);
+    // Still typing is not a pause. The next note re-arms this, so a skipped offer is only postponed.
+    timer = window.setTimeout(() => {
+      if (!isTyping()) maybeOfferSupport('notes');
+    }, NOTE_QUIET_MS);
+  };
+  return () => {
+    onOpMade.value = null;
+    window.clearTimeout(timer);
+  };
+}
+
+function isTyping(): boolean {
+  let el = document.activeElement;
+  // Focus inside the framed page reads as the <iframe> itself. The proxy serves
+  // it same-origin, so look inside it.
+  while (el instanceof HTMLIFrameElement) el = el.contentDocument?.activeElement ?? null;
+  if (!el) return false;
+  // Not `instanceof HTMLElement`: an element from the frame belongs to the frame's realm.
+  return (
+    el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || ('isContentEditable' in el && el.isContentEditable === true)
+  );
 }
 
 /**

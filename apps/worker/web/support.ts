@@ -1,14 +1,15 @@
 /**
- * When, if ever, to offer the support card — and the record that guarantees
- * "once" means once.
+ * When, if ever, to offer the support card — and the record that keeps the ask
+ * to the two times the card promises.
  *
  * The product's whole promise is no account and no friction, so the ask has to
  * behave the same way: it appears for people the tool has demonstrably worked
- * for, a single time, and never again once answered either way. Everything here
- * is deliberately conservative. A prompt nobody resents is worth far more than
- * one seen by everybody.
+ * for, at most twice and a month apart, and never again after "Don't ask again"
+ * or any help. Everything here is deliberately conservative. A prompt nobody
+ * resents is worth far more than one seen by everybody.
  */
 
+import { lsGet, lsSet } from '@ext/lib/storage';
 import { type CommentStatus, type DrawOp, isAnnotationOp, isSettled, resolveOpStatus } from '@marklayer/types';
 
 /**
@@ -50,6 +51,19 @@ const DAYS_BEFORE_ASKING = 1;
  * One is the signal: at three, 4 people qualified where 31 had shared at all.
  */
 const SHARES_BEFORE_ASKING = 1;
+/**
+ * Annotations that qualify somebody who never shares — about 80% of authors,
+ * whom the share bar can never reach. Spread over `NOTE_DAYS`, so one long review
+ * of one page is not mistaken for using the tool.
+ */
+export const NOTES_BEFORE_ASKING = 20;
+const NOTE_DAYS = 2;
+const DAYS_KEPT = Math.max(DAYS_BEFORE_ASKING, NOTE_DAYS);
+/** Answers that end the unprompted ask for good: the first, and one more a month on. */
+const MAX_ANSWERS = 2;
+/** The second ask needs a month, and new use since the first answer — not the old total. */
+const DAYS_BEFORE_ASKING_AGAIN = 30;
+const NOTES_BEFORE_ASKING_AGAIN = 30;
 
 const STORAGE_KEY = 'ml-support';
 
@@ -65,13 +79,28 @@ export interface SupportRecord {
   shares: number;
   /** They connected the MCP server: a developer wiring this into real work. */
   mcp: boolean;
-  /** They have already been asked. Set once, never cleared. */
-  asked: boolean;
-  /** They opened the checkout. Never ask someone who already supported. */
+  /** Annotations made in this browser. Uncapped: the card shows it back to them. */
+  notes: number;
+  /** Times the card was closed without helping, prompted or not. "Don't ask again" jumps it to the cap. */
+  answers: number;
+  /** Day of the latest answer, which the second ask waits a month from. */
+  answeredOn: string | null;
+  /** `notes` at the latest answer. */
+  notesAtAnswer: number;
+  /** They opened the checkout or the review link. Never ask someone who already helped. */
   supported: boolean;
 }
 
-const EMPTY: SupportRecord = { days: [], shares: 0, mcp: false, asked: false, supported: false };
+const EMPTY: SupportRecord = {
+  days: [],
+  shares: 0,
+  mcp: false,
+  notes: 0,
+  answers: 0,
+  answeredOn: null,
+  notesAtAnswer: 0,
+  supported: false,
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -84,11 +113,18 @@ export function parseSupportRecord(raw: string | null): SupportRecord {
     const parsed: unknown = JSON.parse(raw);
     if (!isRecord(parsed)) return { ...EMPTY };
     const days = Array.isArray(parsed.days) ? parsed.days.filter((d): d is string => typeof d === 'string') : [];
+    // A negative or fractional count is corruption, and `answers: -1` would buy a third ask.
+    const count = (value: unknown) => (typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : 0);
     return {
       days,
-      shares: typeof parsed.shares === 'number' ? parsed.shares : 0,
+      shares: count(parsed.shares),
       mcp: parsed.mcp === true,
-      asked: parsed.asked === true,
+      notes: count(parsed.notes),
+      // Before the second ask existed, an answer was `asked: true` with no date.
+      // It counts as one, and its month starts at the next visit (see 'used').
+      answers: count(parsed.answers) || (parsed.asked === true ? 1 : 0),
+      answeredOn: typeof parsed.answeredOn === 'string' ? parsed.answeredOn : null,
+      notesAtAnswer: count(parsed.notesAtAnswer),
       supported: parsed.supported === true,
     };
   } catch {
@@ -99,18 +135,38 @@ export function parseSupportRecord(raw: string | null): SupportRecord {
 /**
  * Whether to show the card.
  *
- * Two independent qualifications, either of which is enough on its own: they
- * wired up MCP (a developer using this at work), or they have sent someone a
- * share link (they are using it with other people). Both still require a day of
- * authoring, which at this threshold means only that somebody has opened the
- * tool on their own work — a read-only visitor looking at someone else's page is
- * never asked.
+ * The first ask has three independent qualifications, any one enough: they wired
+ * up MCP (a developer using this at work), sent someone a share link (using it
+ * with other people), or kept leaving notes across days (using it alone). All
+ * require a day of authoring, so a read-only visitor looking at someone else's
+ * page is never asked.
+ *
+ * The second and last ask is for whoever is still at it: a month after the first
+ * answer, and with real use since.
  */
-export function shouldOfferSupport({ record, hasCheckout }: { record: SupportRecord; hasCheckout: boolean }): boolean {
+export function shouldOfferSupport({
+  record,
+  hasCheckout,
+  date = today(),
+}: {
+  record: SupportRecord;
+  hasCheckout: boolean;
+  date?: string;
+}): boolean {
   if (!hasCheckout) return false; // nothing to offer
-  if (record.asked || record.supported) return false; // once means once
+  if (record.supported || record.answers >= MAX_ANSWERS) return false;
+  if (record.answers > 0) {
+    // An undated legacy answer has not started its month yet.
+    if (record.answeredOn === null) return false;
+    // Date-only ISO strings parse as UTC midnight; a malformed one is NaN, which never clears the bar.
+    return (
+      (Date.parse(date) - Date.parse(record.answeredOn)) / 86_400_000 >= DAYS_BEFORE_ASKING_AGAIN &&
+      record.notes - record.notesAtAnswer >= NOTES_BEFORE_ASKING_AGAIN
+    );
+  }
   if (record.days.length < DAYS_BEFORE_ASKING) return false;
-  return record.mcp || record.shares >= SHARES_BEFORE_ASKING;
+  if (record.mcp || record.shares >= SHARES_BEFORE_ASKING) return true;
+  return record.notes >= NOTES_BEFORE_ASKING && record.days.length >= NOTE_DAYS;
 }
 
 /**
@@ -136,7 +192,7 @@ export function today(now: Date = new Date()): string {
 }
 
 /** The things worth knowing about, each one folded in by `recordSignal`. */
-export type SupportSignal = 'used' | 'shared' | 'mcp' | 'asked' | 'supported';
+export type SupportSignal = 'used' | 'shared' | 'mcp' | 'noted' | 'answered' | 'optedOut' | 'supported';
 
 /**
  * Fold one signal into the record. Pure, so the decision is testable without a
@@ -145,7 +201,8 @@ export type SupportSignal = 'used' | 'shared' | 'mcp' | 'asked' | 'supported';
  * `days` and `shares` each stop at their threshold: they exist to answer "enough
  * distinct days?" and "shared with anyone?", so a growing list of every date
  * someone used the tool, or a running total of their links, would store more
- * about them than the question needs.
+ * about them than the question needs. `notes` is the exception, because the card
+ * shows that number back to the person it counts.
  */
 export function recordSignal({
   record,
@@ -159,7 +216,8 @@ export function recordSignal({
   const next: SupportRecord = { ...record, days: [...record.days] };
   switch (signal) {
     case 'used':
-      if (!next.days.includes(date) && next.days.length < DAYS_BEFORE_ASKING) next.days.push(date);
+      if (!next.days.includes(date) && next.days.length < DAYS_KEPT) next.days.push(date);
+      if (next.answers > 0 && next.answeredOn === null) next.answeredOn = date;
       break;
     case 'shared':
       if (next.shares < SHARES_BEFORE_ASKING) next.shares += 1;
@@ -167,47 +225,32 @@ export function recordSignal({
     case 'mcp':
       next.mcp = true;
       break;
-    case 'asked':
-      next.asked = true;
+    case 'noted':
+      next.notes += 1;
+      break;
+    case 'answered':
+      next.answers += 1;
+      next.answeredOn = date;
+      next.notesAtAnswer = next.notes;
+      break;
+    case 'optedOut':
+      next.answers = MAX_ANSWERS;
       break;
     case 'supported':
       next.supported = true;
-      next.asked = true;
       break;
   }
   return next;
 }
 
-/**
- * Storage access, tolerant of every way it can be unavailable: a browser with
- * site data blocked, a private window, a content script on a page whose origin
- * denies it. None of those are errors worth surfacing — they just mean nobody
- * gets asked, which is the safe direction to fail in.
- */
-function storage(): Storage | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage;
-  } catch {
-    return null;
-  }
-}
-
+// Best-effort: blocked or unavailable storage only means nobody gets asked, the safe direction to fail in.
 export function readSupportRecord(): SupportRecord {
-  try {
-    return parseSupportRecord(storage()?.getItem(STORAGE_KEY) ?? null);
-  } catch {
-    return { ...EMPTY };
-  }
+  return parseSupportRecord(lsGet(STORAGE_KEY));
 }
 
 /** Fold a signal in and persist it. Returns the new record so callers can act on it immediately. */
 export function noteSupportSignal(signal: SupportSignal): SupportRecord {
   const next = recordSignal({ record: readSupportRecord(), signal });
-  const store = storage();
-  try {
-    store?.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // Quota or a blocked origin. The record is best-effort by design.
-  }
+  lsSet(STORAGE_KEY, JSON.stringify(next));
   return next;
 }
