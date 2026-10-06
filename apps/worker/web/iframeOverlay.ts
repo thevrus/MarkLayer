@@ -42,6 +42,23 @@ export function frameViewport(frame: HTMLIFrameElement | null): CaptureViewport 
 }
 
 /**
+ * Which side a marker's hover card opens on. Bounded by the frame, not the window: marker layers
+ * clip to it, and a scaled-down page (a PDF) is narrower. Fitting neither way, it takes the roomier side.
+ */
+export function cardFlip({ x, y, reach }: { x: number; y: number; reach: Point }) {
+  const cs = cssScale.value;
+  const f = frameRect.value ?? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+  const right = Math.min(f.width, window.innerWidth - f.left);
+  const bottom = Math.min(f.height, window.innerHeight - f.top);
+  const px = x * cs;
+  const py = y * cs;
+  return {
+    flipH: px + reach.x * cs > right && px - Math.max(0, -f.left) > right - px,
+    flipV: py + reach.y * cs > bottom && py - Math.max(0, -f.top) > bottom - py,
+  };
+}
+
+/**
  * A point in the framed page's document space. `anchor` defaults to that same
  * point; pass it when the op's anchor differs from the point worth hit-testing
  * (an area rect is picked at its centre but anchored to its top-left).

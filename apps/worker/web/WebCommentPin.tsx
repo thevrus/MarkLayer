@@ -19,8 +19,8 @@ import {
 import type { CommentOp } from '@ext/lib/types';
 import { agentLabel, cn, isAgentAuthored, isSettled } from '@marklayer/types';
 import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
-import { resolveAnchors } from './iframeOverlay';
-import { cssScale, fileUrl, iframeMutationTick, uploadFile } from './signals';
+import { cardFlip, resolveAnchors } from './iframeOverlay';
+import { fileUrl, iframeMutationTick, uploadFile } from './signals';
 
 interface Props {
   op: CommentOp;
@@ -43,9 +43,7 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
     : { x: op.x, y: op.y, strategy: null };
   const left = docX * s;
   const top = docY * s - scrollY;
-  const cs = cssScale.value;
-  const flipH = (left + 320) * cs > window.innerWidth;
-  const flipV = (top + 400) * cs > window.innerHeight;
+  const { flipH, flipV } = cardFlip({ x: left, y: top, reach: { x: 320, y: 400 } });
   const status = getCommentStatus(op);
   const resolved = status === 'resolved';
   const approved = status === 'approved';
