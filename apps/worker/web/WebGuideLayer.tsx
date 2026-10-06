@@ -25,11 +25,14 @@ import {
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { createPortal } from 'preact/compat';
 import { tinykeys } from 'tinykeys';
-import { isElementNode, useIframeOverlay } from './iframeOverlay';
+import { isElementNode, sameOriginWindow, useIframeOverlay } from './iframeOverlay';
 import { cssScale, frameRect, iframeScrollY } from './signals';
 
-/** The frame's scroll offset, or none while the frame is not up. */
-const off = (win: Window | null | undefined) => (win ? scrollOffset(win) : { x: 0, y: 0 });
+/** The frame's scroll offset, or none while the frame is down or has navigated out of the proxy. */
+const off = (frame: HTMLIFrameElement | null) => {
+  const win = sameOriginWindow(frame);
+  return win ? scrollOffset(win) : { x: 0, y: 0 };
+};
 
 export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const cursor = useSignal<{ x: number; y: number } | null>(null);
@@ -37,8 +40,8 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
   const dragId = useSignal<string | null>(null);
 
   const toIframeDoc = (x: number, y: number) => {
-    const win = frameRef.current?.contentWindow;
-    return { x: x + off(win).x, y: y + off(win).y };
+    const o = off(frameRef.current);
+    return { x: x + o.x, y: y + o.y };
   };
 
   const toHostViewport = (x: number, y: number): { x: number; y: number } => {
@@ -130,8 +133,8 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     win.addEventListener('mouseout', onOut, true);
     win.addEventListener('mousedown', onDown, true);
     win.addEventListener('mouseup', onUp, true);
-    const unbindDown = tinykeys(win as Window, keyBindings);
-    const unbindUp = tinykeys(win as Window, keyBindingsUp, { event: 'keyup' });
+    const unbindDown = tinykeys(win, keyBindings);
+    const unbindUp = tinykeys(win, keyBindingsUp, { event: 'keyup' });
     return () => {
       try {
         win.removeEventListener('mousemove', onMove, true);
@@ -190,8 +193,8 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     const r = frameRect.value;
     if (!target && cur2 && r) {
       const sc = cssScale.value;
-      const w = frameRef.current?.contentWindow;
-      const pt = { x: (cur2.x - r.left) / sc + off(w).x, y: (cur2.y - r.top) / sc + off(w).y };
+      const o = off(frameRef.current);
+      const pt = { x: (cur2.x - r.left) / sc + o.x, y: (cur2.y - r.top) / sc + o.y };
       target = pickGuideAtPoint(pt, guides.value, GUIDE_HIT_PX) ?? null;
     }
     if (!target) return null;
@@ -219,12 +222,10 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
   const bounds = frameRect.value;
   if (!bounds) return null;
   const s = cssScale.value;
-  const win = frameRef.current?.contentWindow;
-  const docCursor = cur
-    ? { x: (cur.x - bounds.left) / s + off(win).x, y: (cur.y - bounds.top) / s + off(win).y }
-    : null;
+  const o = off(frameRef.current);
+  const docCursor = cur ? { x: (cur.x - bounds.left) / s + o.x, y: (cur.y - bounds.top) / s + o.y } : null;
   const docToHost = (ori: Orientation, docPos: number): number =>
-    ori === 'vertical' ? bounds.left + (docPos - off(win).x) * s : bounds.top + (docPos - off(win).y) * s;
+    ori === 'vertical' ? bounds.left + (docPos - o.x) * s : bounds.top + (docPos - o.y) * s;
   const hoveredGuide = docCursor ? pickGuideAtPoint(docCursor, guides.value, GUIDE_HIT_PX) : null;
   const showPreview = isGuideTool && !dragging && cur && !hoveredGuide;
   const selected = guides.value.find((g) => g.id === selectedGuideId.value) ?? null;
@@ -254,7 +255,8 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
           onFlip={(e) => {
             const iframeX = (e.clientX - bounds.left) / s;
             const iframeY = (e.clientY - bounds.top) / s;
-            const newPos = selected.orientation === 'vertical' ? iframeY + off(win).y : iframeX + off(win).x;
+            const at = off(frameRef.current);
+            const newPos = selected.orientation === 'vertical' ? iframeY + at.y : iframeX + at.x;
             flipGuide(selected.id, newPos);
           }}
           onDelete={() => removeGuide(selected.id)}

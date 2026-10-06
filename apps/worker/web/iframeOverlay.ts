@@ -35,10 +35,8 @@ export function sameOriginWindow(frame: HTMLIFrameElement | null): Window | null
  * not the annotated page's, so recording them would misdescribe the capture.
  */
 export function frameViewport(frame: HTMLIFrameElement | null): CaptureViewport {
-  const win = frame?.contentWindow;
-  return win
-    ? { width: win.innerWidth, height: win.innerHeight }
-    : { width: window.innerWidth, height: window.innerHeight };
+  const { innerWidth: width, innerHeight: height } = sameOriginWindow(frame) ?? window;
+  return { width, height };
 }
 
 /**

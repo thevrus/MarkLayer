@@ -16,7 +16,7 @@ import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
 import { useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
-import { captureAnchors, frameViewport, isElementNode, useIframeOverlay } from './iframeOverlay';
+import { captureAnchors, frameViewport, isElementNode, sameOriginWindow, useIframeOverlay } from './iframeOverlay';
 import { cssScale, iframeScrollY, pushDeviceOp } from './signals';
 
 /** Pointer position in the framed page's document space. */
@@ -28,8 +28,6 @@ const docPoint = (win: Window, e: PointerEvent) => {
 export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const draft = useSignal<DraftAreaState | null>(null);
   const pending = useSignal<DraftRect | null>(null);
-  const winRef = useRef<Window | null>(null);
-  const docRef = useRef<Document | null>(null);
   const lastRaw = useRef<{ x: number; y: number } | null>(null);
   const shiftHeld = useRef(false);
 
@@ -42,9 +40,6 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
   };
 
   useIframeOverlay(frameRef, ({ win, doc }) => {
-    winRef.current = win;
-    docRef.current = doc;
-
     const onPointerDown = (e: PointerEvent) => {
       if (activeTool.value !== 'area' || pending.value) return;
       if (e.button !== 0) return;
@@ -152,7 +147,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
   const toHostViewport = (r: DraftRect | null) => {
     if (!r || !frame) return null;
     const fr = frame.getBoundingClientRect();
-    const win = winRef.current;
+    const win = sameOriginWindow(frame);
     const { x: sx, y: sy } = win ? scrollOffset(win) : { x: 0, y: iframeScrollY.value };
     const s = cssScale.value;
     return { x: fr.left + (r.x - sx) * s, y: fr.top + (r.y - sy) * s, w: r.w * s, h: r.h * s };
