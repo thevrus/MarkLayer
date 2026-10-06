@@ -29,6 +29,7 @@ import { McpServer, WebStandardStreamableHTTPServerTransport } from '@modelconte
 import { nanoid } from 'nanoid';
 import type { AnnotationRoom } from './annotation-room';
 import { outlinePage } from './page-outline';
+import { captureServer } from './posthog';
 import { fetchPage } from './proxy';
 
 /**
@@ -263,7 +264,15 @@ export class WorkerRoom implements RoomOps {
  * Build the MCP server for one request. Stateless on purpose: the SDK object is
  * cheap, and the session it would otherwise hold lives in the Durable Object.
  */
-function buildServer({ room, apiBase }: { room: WorkerRoom; apiBase: string }): McpServer {
+function buildServer({
+  room,
+  apiBase,
+  onToolCall,
+}: {
+  room: WorkerRoom;
+  apiBase: string;
+  onToolCall: (call: { tool: string; ok: boolean; duration_ms: number }) => void;
+}): McpServer {
   const server = new McpServer({ name: 'marklayer', version: '1.0.0' });
   for (const tool of TOOLS) {
     // connect_room has no meaning here: the room is named in the URL.
@@ -275,7 +284,17 @@ function buildServer({ room, apiBase }: { room: WorkerRoom; apiBase: string }): 
         inputSchema: describedSchema(tool.inputSchema),
       },
       async (args: unknown): Promise<ToolContent> => {
-        const answered = await callRoomTool({ name: tool.name, args, room, apiBase });
+        const started = Date.now();
+        let answered: ToolContent | null = null;
+        try {
+          answered = await callRoomTool({ name: tool.name, args, room, apiBase });
+        } finally {
+          onToolCall({
+            tool: tool.name,
+            ok: answered !== null && !answered.isError,
+            duration_ms: Date.now() - started,
+          });
+        }
         return answered ?? { content: [{ type: 'text', text: `unknown tool: ${tool.name}` }], isError: true };
       },
     );
@@ -290,6 +309,7 @@ export async function handleMcpRequest({
   apiBase,
   agentId,
   env,
+  ctx,
 }: {
   request: Request;
   stub: DurableObjectStub<AnnotationRoom>;
@@ -297,10 +317,16 @@ export async function handleMcpRequest({
   apiBase: string;
   agentId: string;
   env: Parameters<typeof fetchPage>[0]['env'];
+  ctx: { waitUntil(promise: Promise<unknown>): void };
 }): Promise<Response> {
   const room = new WorkerRoom(stub, roomId, agentId, env);
   await room.load();
-  const server = buildServer({ room, apiBase });
+  const server = buildServer({
+    room,
+    apiBase,
+    // Name, outcome and time only: arguments and results carry room ids, page URLs and comment text.
+    onToolCall: (call) => captureServer(env, ctx, 'mcp_tool_called', call),
+  });
   // No session id: each request is self-contained, which is what lets this run
   // on a Worker with nothing held between calls.
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
