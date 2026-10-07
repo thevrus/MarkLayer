@@ -160,9 +160,7 @@ for (const [rel, text] of agentText) {
   }
 }
 
-// 10. The sitemap lists every indexable page exactly once, and nothing else
-//     besides the Worker-served agent files.
-const SITEMAP_EXTRAS = new Set(['/llms.txt', '/llms-full.txt']);
+// 10. The sitemap lists every indexable page exactly once, and nothing else.
 const sitemap = distSet.has('sitemap.xml') ? await readFile(join(DIST, 'sitemap.xml'), 'utf8') : '';
 if (!sitemap) errors.push('dist/sitemap.xml is missing');
 const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, loc]) => new URL(loc).pathname);
@@ -170,7 +168,7 @@ const locSet = new Set(locs);
 for (const path of locSet) {
   if (locs.indexOf(path) !== locs.lastIndexOf(path)) errors.push(`sitemap.xml: duplicate <loc> ${path}`);
   if (!resolves(path)) errors.push(`sitemap.xml: <loc> ${path} does not resolve to a built page`);
-  else if (!indexable.has(path) && !SITEMAP_EXTRAS.has(path)) {
+  else if (!indexable.has(path)) {
     errors.push(`sitemap.xml: <loc> ${path} is not an indexable page`);
   }
 }

@@ -11,8 +11,8 @@ const url = ({ path, lastmod, changefreq, priority }: Entry): string =>
 /**
  * Owned by the site rather than the Worker: the page list lives here now, and a
  * sitemap that has to be kept in sync by hand across two deployments goes stale.
- * The Worker-served URLs that are not Astro pages (llms.txt, llms-full.txt) are
- * appended explicitly.
+ * Only indexable pages belong in it: llms.txt and llms-full.txt are for agents, not
+ * search results, and listing them only invites a "crawled, not indexed" report.
  */
 export const GET: APIRoute = async () => {
   const [comparisons, alternatives, useCases, guides, releases] = await Promise.all([
@@ -59,8 +59,6 @@ export const GET: APIRoute = async () => {
     { path: '/support', lastmod: dates.support.modified, changefreq: 'monthly', priority: '0.4' },
     article('/about', dates.about.modified),
     { path: '/privacy', lastmod: dates.privacy.modified, changefreq: 'monthly', priority: '0.3' },
-    { path: '/llms.txt', lastmod: dates.about.modified, changefreq: 'monthly', priority: '0.2' },
-    { path: '/llms-full.txt', lastmod: dates.about.modified, changefreq: 'monthly', priority: '0.2' },
   ];
 
   const body = `<?xml version="1.0" encoding="UTF-8"?>
