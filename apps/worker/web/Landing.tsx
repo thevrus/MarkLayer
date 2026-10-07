@@ -358,6 +358,10 @@ export function Landing() {
                   <a href="/alternatives" class="text-ml-fg/60 underline hover:text-ml-fg/80">
                     free alternatives by tool
                   </a>
+                  ,{' '}
+                  <a href="/alternatives/markup-io" class="text-ml-fg/60 underline hover:text-ml-fg/80">
+                    Markup.io alternatives compared on price
+                  </a>
                   , or the no-extension flow for{' '}
                   <a href="/for/staging-feedback-no-extension" class="text-ml-fg/60 underline hover:text-ml-fg/80">
                     client feedback on a staging site
