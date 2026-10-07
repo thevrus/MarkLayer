@@ -76,4 +76,4 @@ For a small backlog that takes minutes. For an agency with twenty live client si
 
 Structured QA that a client pays for. BugHerd's board goes deeper than MarkLayer's status columns, and on Premium the Jira status comes back on its own. The widget also catches reports from people nobody sent a link to.
 
-If that is the job, BugHerd earns its $50 to $150 a month. If the job is marking up a page and getting the problem into a tracker, MarkLayer does it for free. It just isn't the same tool.
+If that is the job, BugHerd earns its $50 to $150 a month. If the job is marking up a page and getting the problem into a tracker, MarkLayer does it for free. It just isn't the same tool. If you want BugHerd's embedded widget in open source, BugPin is the self-hosted option; the [open-source annotation tools guide](/guides/open-source-website-annotation-tools) compares it with the rest.

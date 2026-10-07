@@ -42,7 +42,7 @@ Checked against each vendor's own pricing or help page, 24 September 2026. Free 
 
 ## What happens when pricing changes
 
-Markup.io's 2025 change is the cautionary tale. Teams that had built client workflows on its free tier were left facing a $79-a-month bill. A tool that is free by open-source license can't strand you the same way, because if the hosted version ever changed its terms, the code would still be there to run. That is the case for MarkLayer and Hypothesis. stagewise's toolbar is open source too, but its paid tiers now meter AI model access, so part of what people use it for has a price.
+Markup.io's 2025 change is the cautionary tale. Teams that had built client workflows on its free tier were left facing a $79-a-month bill. A tool that is free by open-source license can't strand you the same way, because if the hosted version ever changed its terms, the code would still be there to run. That is the case for MarkLayer and Hypothesis; the [open-source annotation tools guide](/guides/open-source-website-annotation-tools) covers licenses and self-hosting for both, plus the open-source bug reporters. stagewise's toolbar is open source too, but its paid tiers now meter AI model access, so part of what people use it for has a price.
 
 ## The fine print, tool by tool
 

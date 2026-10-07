@@ -4,7 +4,7 @@ title: "Free Jam.dev Alternative: 4 Picks, 1 Open-Source"
 description: "Jam.dev's free tier limits monthly reports. MarkLayer is fully free for visual annotation; BugHerd and Marker.io are paid alternatives for console-capture parity."
 target: "Jam.dev"
 homepage: "https://jam.dev"
-bottomLine: "MarkLayer is the closest free alternative for the visual-annotation half of Jam. For the engineering-bug-report half (auto-capturing console errors, network logs, and reproduction recordings), there is no fully free open-source equivalent. BugHerd and Marker.io are paid alternatives."
+bottomLine: "MarkLayer is the closest free alternative for the visual-annotation half of Jam. For the engineering-bug-report half (auto-capturing console errors, network logs, and reproduction recordings), the open-source options are narrower: OpenJam keeps reports local and Crikket and BugPin need self-hosting to stay free. BugHerd and Marker.io are paid alternatives."
 hubBlurb: "Free tier limits monthly reports. MarkLayer is fully free for the annotation half."
 published: 2026-01-28
 modified: 2026-09-13
@@ -43,4 +43,4 @@ Jam's free plan is genuinely free, not a stripped demo: 5 creator seats, unlimit
 
 None of that overlaps much with what MarkLayer does. Jam records a video of a bug happening and attaches the JavaScript state around it. MarkLayer draws directly on a live page, so a designer, client, or QA reviewer can point at the misaligned button in real time, with a collaborator's cursor visible right next to theirs. Jam has no live, multiplayer canvas; MarkLayer has no console capture. They answer different halves of the same "what's wrong with this page" conversation.
 
-If the report needs to hand an engineer real error data, Jam's free tier will run a small team a long way before anyone hits a paywall. If the bug is visual, a shifted layout, the wrong color, a typo a client spotted, the options below get you there without asking anyone to install anything.
+If the report needs to hand an engineer real error data, Jam's free tier will run a small team a long way before anyone hits a paywall. If the bug is visual, a shifted layout, the wrong color, a typo a client spotted, the options below get you there without asking anyone to install anything. For the open-source bug-report tools that copy Jam's capture side, see [open-source website annotation tools](/guides/open-source-website-annotation-tools).
