@@ -51,7 +51,7 @@ chooseThem:
   - "You want native Slack notifications, or don't mind wiring up Jira, Trello, or Asana through Zapier."
 faq:
   - q: "Does Markup.io still have a free plan?"
-    a: "No. Markup.io discontinued its free tier in early 2025. As of September 2026, Pro is usage-tiered from $79 to $129 a month depending on MarkUp volume, with unlimited users in one workspace; Business starts at $499 a month for higher volume plus branding and a vanity domain; Enterprise is custom-priced. All three come with a 14-day trial. MarkLayer remains fully free."
+    a: "No. Markup.io discontinued its free tier in early 2025. As of September 2026, Pro is usage-tiered from $79 to $129 a month depending on MarkUp volume, with unlimited users in one workspace; Business starts at $499 a month for higher volume plus branding and a vanity domain; Enterprise is custom-priced. Pro and Business come with a 14-day trial. MarkLayer remains fully free."
   - q: "Is MarkLayer a Markup.io alternative?"
     a: "Yes. MarkLayer covers the core Markup.io use case (visual feedback on live websites) for free with no sign-up. It does not replace Markup.io for teams that need project-level workflow tooling."
   - q: "Can I use both?"
@@ -71,7 +71,7 @@ MarkLayer is the Markup.io alternative for the part most of them used: paste a U
 
 This section is built from Markup.io's own pricing page, homepage and help center, checked in September 2026. I haven't used Markup.io day to day, so I'm going on what it publishes.
 
-Pro is priced by volume: $79 a month for 50 MarkUps, $99 for 75, $129 for 100, with unlimited users and one workspace at every step. Business starts at $499 a month for 200 MarkUps and adds branding, a vanity domain, a metrics dashboard and priority support. Enterprise is custom and brings unlimited workspaces and SAML SSO. Every paid plan has a 14-day trial. There's no free plan for creating a MarkUp, though guests can comment without signing up.
+Pro is priced by volume: $79 a month for 50 MarkUps, $99 for 75, $129 for 100, with unlimited users and one workspace at every step. Business starts at $499 a month for 200 MarkUps and adds branding, a vanity domain, a metrics dashboard and priority support. Enterprise is custom and brings unlimited workspaces and SAML SSO. Pro and Business have a 14-day trial. There's no free plan for creating a MarkUp, though guests can comment without signing up.
 
 The product covers more than webpages. Markup.io reviews websites, PDFs, images and video, where comments pin to a timestamp, across more than 30 file types, and each MarkUp carries a status that admins move through to sign-off. Its developer hub has a REST API, webhooks and an SDK for embedding Markup.io's commenting toolbar in your own app; MarkLayer has nothing like that SDK. Notifications go to email, Slack or Microsoft Teams, and Jira, Trello or Asana need Zapier in between.
 
