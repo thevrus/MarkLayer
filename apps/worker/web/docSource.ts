@@ -21,3 +21,10 @@ export function bytesUrl({ url, origin }: { url: string; origin: string }): stri
   proxyUrl.searchParams.set('raw', '1');
   return proxyUrl.toString();
 }
+
+/** Stops a same-origin frame's page from scrolling, so the wheel chains to the host instead. */
+export function stillFrame(doc: Document): void {
+  const style = doc.createElement('style');
+  style.textContent = 'html,body{overflow:hidden !important}';
+  doc.head?.appendChild(style);
+}

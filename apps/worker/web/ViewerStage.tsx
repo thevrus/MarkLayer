@@ -16,9 +16,11 @@ import { cn } from '@marklayer/types';
 import { Loader2 } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { classifyProxyError } from '../src/proxy-errors';
-import { AnnotationPanel, DockedAnnotationPanel } from './AnnotationPanel';
+import { AnnotationPanel, AnnotationSheet, DockedAnnotationPanel } from './AnnotationPanel';
 import { CursorLayer } from './CursorLayer';
-import { frameSrc, isUploadPath } from './docSource';
+import { DeviceOverview } from './DeviceOverview';
+import { audioConstraint } from './devicePrefs';
+import { frameSrc, isUploadPath, stillFrame } from './docSource';
 import { captureAnchors, frameViewport, useFrameRectTracker } from './iframeOverlay';
 import { HOME_LINK_PROPS, Logo, TextInputOverlay } from './shared';
 import {
@@ -208,11 +210,8 @@ function ProxiedPage() {
         // A PDF or an image has no element tree worth inspecting and no responsive
         // layout to resize, so the tools and device sizes that act on those come off.
         elementToolsUnavailable.value = doc?.documentElement?.dataset?.doc === '1';
-        if (STILL_FRAME && doc) {
-          const style = doc.createElement('style');
-          style.textContent = 'html,body{overflow:hidden !important}';
-          doc.head?.appendChild(style);
-        }
+        if (elementToolsUnavailable.value) pageErrors.value = [];
+        if (STILL_FRAME && doc) stillFrame(doc);
         if (doc?.documentElement?.dataset?.marklayer === '1') {
           // A page that arrives after the give-up bound still rendered, so clear
           // that failure instead of leaving its screen parked over a working page.
@@ -502,8 +501,10 @@ export function ViewerStage() {
       {/* Flush sidebars, outside the scroller: they overlay the frame rather than
           compress it (a squeezed frame is no longer that viewport) and they stay
           put when the frame scrolls sideways under them. */}
-      {desktop && <InfoPanel />}
-      {desktop && <AnnotationPanel {...panels} />}
+      {!docked && <InfoPanel />}
+      {!docked && <Panel {...panels} />}
+
+      <DeviceOverview />
     </div>
   );
 }

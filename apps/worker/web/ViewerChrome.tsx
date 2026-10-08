@@ -18,6 +18,7 @@ import {
 import type { DeviceMode } from '@ext/lib/types';
 import { agentLabel, cn, isAgentPeer } from '@marklayer/types';
 import {
+  Columns3,
   Heart,
   Info,
   Link,
@@ -40,6 +41,7 @@ import { DEVICE_ICONS, HOME_LINK_PROPS, Logo } from './shared';
 import {
   cssScale,
   deviceMode,
+  deviceOverview,
   isReadonly,
   navigateTo,
   onFollowScroll,
@@ -179,6 +181,21 @@ function ViewportSwitcher() {
         <ViewportToggle key={mode} mode={mode} />
       ))}
     </ToggleGroup>
+  );
+}
+
+/** Beside the switcher, and gone with it on a phone or a PDF, where there is nothing to compare. */
+function DeviceOverviewButton() {
+  if (elementToolsUnavailable.value) return null;
+  return (
+    <div class="max-md:hidden">
+      <BarButton
+        icon={<Columns3 size={16} strokeWidth={1.5} aria-hidden="true" />}
+        tip="All devices"
+        on={deviceOverview.value}
+        onClick={() => (deviceOverview.value = !deviceOverview.value)}
+      />
+    </div>
   );
 }
 

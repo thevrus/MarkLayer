@@ -208,6 +208,12 @@ const initDevice = new URLSearchParams(location.search).get('device');
 export const deviceMode = signal<DeviceMode>(isDeviceMode(initDevice) ? initDevice : 'desktop');
 export const DEVICE_WIDTHS: Record<DeviceMode, number> = { desktop: 0, tablet: 768, mobile: 390 };
 
+/** A device frame takes its panels beside it; desktop and the phone lay them over the page. */
+export const panelsDocked = computed(() => deviceMode.value !== 'desktop' && !compactChrome.value);
+
+/** The read-only "all devices" view over the stage; picking a frame sets `deviceMode` and closes it. */
+export const deviceOverview = signal(false);
+
 /**
  * Viewer zoom for the iframe+canvas composite.
  * - 'auto' (default): fits available width, downscaling or upscaling up to `MAX_AUTO_UPSCALE`.
