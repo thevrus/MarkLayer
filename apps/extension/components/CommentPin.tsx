@@ -1,6 +1,7 @@
 import { cn } from '@marklayer/types';
 import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
 import { applyAnchorDelta } from '../lib/anchor';
+import { flashRing } from '../lib/checkFix';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { type ParsedInspectorComment, parseInspectorComment } from '../lib/selector';
@@ -18,6 +19,7 @@ import {
   setOpStatus,
 } from '../lib/state';
 import type { CommentOp } from '../lib/types';
+import { AgentFixBanner } from './AgentFixBanner';
 import { AttachmentGallery } from './AttachmentPicker';
 import { TriageSection, useTriageHold } from './CommentTriage';
 import { MentionText } from './MentionText';
@@ -135,7 +137,7 @@ export function CommentPin({ op }: { op: CommentOp }) {
                  shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
                  transition-[box-shadow] duration-150 ease-out
                  group-hover/pin:shadow-[0_0_0_3px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.3)]"
-          style={{ background: op.color, opacity: styles.pinOpacity }}
+          style={{ background: op.color, opacity: styles.pinOpacity, ...flashRing(op) }}
         >
           {op.num}
           {status !== 'open' && (
@@ -209,6 +211,8 @@ export function CommentPin({ op }: { op: CommentOp }) {
             </div>
 
             <ThreadReplies replies={replies} resolveUrl={fileUrl} />
+
+            <AgentFixBanner op={op} />
 
             <div class={cn(geist.divider, 'mx-3')} />
 

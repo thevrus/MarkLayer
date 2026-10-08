@@ -1,9 +1,12 @@
+import { AgentFixBanner } from '@ext/components/AgentFixBanner';
 import { AttachmentGallery } from '@ext/components/AttachmentPicker';
 import { TriageSection, useTriageHold } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
 import { PriorityPin } from '@ext/components/PriorityPicker';
 import { ReplyComposer, ThreadHeader, ThreadReplies, threadCard } from '@ext/components/ThreadCard';
+import { VoicePlayer } from '@ext/components/VoiceNote';
 import { AgentMark } from '@ext/lib/agents';
+import { flashRing } from '@ext/lib/checkFix';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {

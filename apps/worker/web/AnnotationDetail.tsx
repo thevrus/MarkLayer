@@ -1,3 +1,4 @@
+import { AgentFixBanner } from '@ext/components/AgentFixBanner';
 import { AttachmentGallery, AttachmentThumbs, ComposerActions, useAttachments } from '@ext/components/AttachmentPicker';
 import { Avatar } from '@ext/components/Avatar';
 import { TriageSection } from '@ext/components/CommentTriage';
@@ -5,7 +6,9 @@ import { MentionText } from '@ext/components/MentionText';
 import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
 import { PRIORITY_LEVELS, PRIORITY_META } from '@ext/components/PriorityPicker';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
+import { VoicePlayer } from '@ext/components/VoiceNote';
 import { composerCls, textareaBareCls } from '@ext/lib/buttons';
+import { replyRequest } from '@ext/lib/checkFix';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -201,6 +204,14 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
   const { mentionProps, mentions } = useMentions();
   const replies = getReplies(op.id);
   const attachments = useAttachments(uploadFile);
+
+  // "Not fixed" asks for this box by thread id.
+  useSignalEffect(() => {
+    if (replyRequest.value !== op.id) return;
+    replyRequest.value = null;
+    setReplying(true);
+    setTimeout(() => replyRef.current?.focus(), 50);
+  });
 
   const submit = () => {
     const text = replyRef.current?.value.trim();
@@ -579,6 +590,8 @@ export function AnnotationDetail({
       {/* Every annotation that owns triage owns a thread, so a selection or an
           area takes replies on the same terms a comment does — anchored to the
           point the row already scrolls to. */}
+      {item.kind === 'comment' && <AgentFixBanner op={item.op} />}
+
       {annotation && <Replies op={{ id: annotation.id, x: anchor.x, y: anchor.y }} />}
     </div>
   );

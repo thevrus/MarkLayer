@@ -1,7 +1,9 @@
 import { type CommentPriority, cn } from '@marklayer/types';
+import { useSignalEffect } from '@preact/signals';
 import { Trash2 } from 'lucide-preact';
 import { useCallback, useRef, useState } from 'preact/hooks';
 import { composerCls, textareaBareCls, trim } from '../lib/buttons';
+import { replyRequest } from '../lib/checkFix';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { pushReply } from '../lib/state';
@@ -155,6 +157,13 @@ export function ReplyComposer({
     boxRef.current = el;
     el?.focus();
   }, []);
+
+  // "Not fixed" asks for this box by thread id; opening it focuses via `mount`.
+  useSignalEffect(() => {
+    if (replyRequest.value !== parent.id) return;
+    replyRequest.value = null;
+    setOpen(true);
+  });
 
   const submit = () => {
     const text = boxRef.current?.value.trim();

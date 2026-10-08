@@ -1,8 +1,12 @@
 import { cn } from '@marklayer/types';
+import { useSignalEffect } from '@preact/signals';
 import { useCallback, useState } from 'preact/hooks';
+import { applyAnchorDelta } from '../lib/anchor';
+import { checkRequest, flashAnnotation } from '../lib/checkFix';
 import { MARKER_LAYER } from '../lib/popover';
+import { scrollPageTo } from '../lib/scroller';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
-import { fileUrl, uploadFile } from '../lib/share';
+import { fileUrl, transcribeFile, uploadFile } from '../lib/share';
 import { activeTool, pushOp, rootComments } from '../lib/state';
 import { CommentPin } from './CommentPin';
 import { CommentPopover } from './CommentPopover';
@@ -15,6 +19,19 @@ interface PopoverState {
 
 export function CommentLayer() {
   const [popover, setPopover] = useState<PopoverState | null>(null);
+
+  // The page is the user's own and already live, so a reload would cost their
+  // scroll and form state; scrolling to the anchor and lighting the pin is enough.
+  useSignalEffect(() => {
+    const id = checkRequest.value;
+    if (!id) return;
+    checkRequest.value = null;
+    const op = rootComments.peek().find((c) => c.id === id);
+    if (!op) return;
+    const { y } = applyAnchorDelta(op.target, { docX: op.x, docY: op.y });
+    scrollPageTo(window, { top: Math.max(0, y - window.innerHeight / 3), behavior: 'smooth' });
+    flashAnnotation(id);
+  });
 
   const onClick = useCallback((e: MouseEvent) => {
     if (activeTool.value !== 'comment') return;

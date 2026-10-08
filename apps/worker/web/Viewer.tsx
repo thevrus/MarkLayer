@@ -180,6 +180,8 @@ export default function Viewer() {
     }
   }, []);
 
+  useCheckFix({ frameRef, iframeLoaded, scrollTo: scrollToAnnotation });
+
   useRealtimeSync(annotationId.value);
   const voiceMounted = voiceActive.value || videoActive.value;
 
