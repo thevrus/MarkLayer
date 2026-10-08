@@ -8,10 +8,13 @@ import {
   canEditLink,
   clientMsgSchema,
   cn,
+  commentMetaSchema,
   type DrawOp,
   deletionDeadline,
   effectiveExpiresAt,
   isNewShareId,
+  MAX_PAGE_ERROR_TEXT,
+  MAX_PAGE_ERRORS,
   type Mention,
   MIN_SHARE_ID_LENGTH,
   mentionSegments,
@@ -195,6 +198,22 @@ describe('cn', () => {
 // The wire schema is the only thing standing between a client message and the
 // broadcast: an unparsed type is dropped silently by the Durable Object, so a
 // feature can look wired up on both ends and simply never cross.
+describe('comment meta page errors', () => {
+  const err = (message = 'boom') => ({ message, at: 1 });
+  const withErrors = (errors: unknown) => commentMetaSchema.safeParse({ errors }).success;
+
+  test('accepts up to the cap and rejects one more', () => {
+    expect(withErrors(Array.from({ length: MAX_PAGE_ERRORS }, () => err()))).toBe(true);
+    expect(withErrors(Array.from({ length: MAX_PAGE_ERRORS + 1 }, () => err()))).toBe(false);
+  });
+
+  test('rejects an oversize message or source', () => {
+    expect(withErrors([err('x'.repeat(MAX_PAGE_ERROR_TEXT))])).toBe(true);
+    expect(withErrors([err('x'.repeat(MAX_PAGE_ERROR_TEXT + 1))])).toBe(false);
+    expect(withErrors([{ ...err(), source: 'x'.repeat(MAX_PAGE_ERROR_TEXT + 1) }])).toBe(false);
+  });
+});
+
 describe('clientMsgSchema', () => {
   test('accepts a flock toggle in both directions', () => {
     expect(clientMsgSchema.safeParse({ type: 'flock', on: true }).success).toBe(true);

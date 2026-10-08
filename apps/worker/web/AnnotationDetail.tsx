@@ -166,6 +166,35 @@ function ContextSection({ op }: { op: DrawOp }) {
   );
 }
 
+/** The page's recent errors at the moment of the comment: real log text, so it is set in mono. */
+function PageErrorsSection({ op }: { op: DrawOp }) {
+  const errors = op.tool === 'comment' ? op.meta?.errors : undefined;
+  if (!errors?.length) return null;
+
+  return (
+    <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400)">
+      <details>
+        <summary class={cn(geist.sectionLabel, 'cursor-pointer')}>
+          {errors.length} page {errors.length === 1 ? 'error' : 'errors'}
+        </summary>
+        <ul class="m-0 mt-2 p-0 list-none flex flex-col gap-1.5">
+          {errors.map((err) => (
+            <li key={`${err.at}-${err.message}`} class="font-mono text-meta text-(--ds-gray-1000) wrap-break-word">
+              {err.message}
+              {err.source && (
+                <span class="block text-(--ds-gray-900) truncate" title={err.source}>
+                  {err.source}
+                  {err.line ? `:${err.line}` : ''}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>
+  );
+}
+
 function Replies({ op }: { op: { id: string; x: number; y: number } }) {
   const [replying, setReplying] = useState(false);
   const replyRef = useRef<HTMLTextAreaElement>(null);
@@ -544,6 +573,7 @@ export function AnnotationDetail({
       )}
 
       <ContextSection op={op} />
+      <PageErrorsSection op={op} />
 
       {/* Every annotation that owns triage owns a thread, so a selection or an
           area takes replies on the same terms a comment does — anchored to the

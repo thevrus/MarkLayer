@@ -14,6 +14,7 @@ export type {
   InspectOp,
   LineOp,
   Mention,
+  PageError,
   Peer,
   Point,
   RectOp,

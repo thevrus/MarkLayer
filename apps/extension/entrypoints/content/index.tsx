@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { App } from '../../components/App';
+import { listenForPageErrors } from '../../lib/page-errors';
 import { portalContainer } from '../../lib/portal';
 import { restoreDraft, visible } from '../../lib/state';
 import './style.css';
@@ -16,6 +17,7 @@ export default defineContentScript({
     // Injected on-demand via icon click — show immediately
     visible.value = true;
     restoreDraft();
+    listenForPageErrors();
 
     // Listen for toggle message from background script (subsequent icon clicks)
     browser.runtime.onMessage.addListener((msg) => {

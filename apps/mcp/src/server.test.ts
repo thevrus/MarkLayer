@@ -70,7 +70,19 @@ describe('projectAnnotation — comment', () => {
       position: { x: 10, y: 20 },
       url: 'https://example.com/page',
       target: { selector: '#hero button', tag: 'button', markdown: '<button>Buy now</button>' },
+      pageErrors: [],
       attachments: [],
+      voice: null,
+    });
+  });
+
+  test('hands the page errors captured with the comment to the agent', () => {
+    const withErrors = commentOpSchema.parse({
+      ...comment,
+      meta: { errors: [{ message: 'TypeError: x is undefined', at: 5 }] },
+    });
+    expect(projectAnnotation(withErrors, API_BASE)).toMatchObject({
+      pageErrors: [{ message: 'TypeError: x is undefined', at: 5 }],
     });
   });
 

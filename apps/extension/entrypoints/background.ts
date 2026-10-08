@@ -1,5 +1,6 @@
 import type { Crop } from '../lib/capture';
 import { bridgePayload } from '../lib/fiber-bridge';
+import { errorBufferPayload } from '../lib/page-errors';
 
 /** Cut one element's box out of a full-tab screenshot, in the background's own heap. */
 async function cropCapture({ dataUrl, crop }: { dataUrl: string; crop: Crop }): Promise<string> {
@@ -65,6 +66,11 @@ export default defineBackground(() => {
         target: { tabId },
         world: 'MAIN',
         func: bridgePayload,
+      }),
+      browser.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: errorBufferPayload,
       }),
     ]);
     injected.add(tabId);

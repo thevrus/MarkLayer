@@ -4,6 +4,7 @@ import { Toolbar } from '@ext/components/Toolbar';
 import { captureScale } from '@ext/lib/anchor';
 import { animationsFrozen, freezeDocument, thawDocument } from '@ext/lib/freeze';
 import { glass } from '@ext/lib/glass';
+import { ingestPageErrors, pageErrors } from '@ext/lib/page-errors';
 import { constrainEnd, hexToRgba, inView, opBounds, renderOp, simplify, strokeArrowHead } from '@ext/lib/renderer';
 import { findPageScroller, notePageScroller, scrollOffset, scrollPageBy, scrollPageTo } from '@ext/lib/scroller';
 import { captureTarget } from '@ext/lib/selector';
@@ -188,6 +189,13 @@ export default function Viewer() {
     const w = serverWidth.value;
     if (u && !pageUrl.value) pageUrl.value = u;
     if (w && !originalWidth.value) originalWidth.value = w;
+  });
+
+  // A new page, or an upload in place of one, must not inherit the last page's console errors
+  // into its comments: only a proxied HTML page ever reports again.
+  useSignalEffect(() => {
+    void pageUrl.value;
+    pageErrors.value = [];
   });
 
   // Project init: when /p/:id is in the URL, fetch all pages and activate the selected one.
@@ -451,6 +459,9 @@ export default function Viewer() {
   // event alone reports as a perfectly successful render of nothing.
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
+      // Page errors are only taken from the framed page itself: a sibling window must not
+      // be able to write into a comment's meta.
+      if (e.data?.type === 'ml-errors' && e.source === frameRef.current?.contentWindow) ingestPageErrors(e.data.errors);
       if (e.data?.type === 'ml-navigate' && typeof e.data.url === 'string')
         navigateTo({ url: e.data.url, source: 'page_link' });
       if (e.data?.type === 'ml-blocked') {

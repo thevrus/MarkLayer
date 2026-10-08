@@ -1,5 +1,6 @@
 import { parseFetchableUrl } from '@marklayer/types';
 import { Hono } from 'hono/tiny';
+import { errorRelayScript } from './error-relay';
 import type { Env } from './index';
 import { captureBlockedSite, captureServer } from './posthog';
 import { PROXY_ERRORS } from './proxy-errors';

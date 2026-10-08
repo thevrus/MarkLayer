@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { tinykeys } from 'tinykeys';
 import { track, trackChanges } from './analytics';
 import { createDraftStore } from './drafts';
+import { errorsForPage } from './page-errors';
 import { ELEMENT_INSPECTOR_HEADING, type OutputDetail } from './selector';
 import { lsGet, lsSet, persistedFlag } from './storage';
 import { copyText, toast } from './toasts';
@@ -1158,10 +1159,12 @@ export const annotatedUrl = signal<string | null>(null);
 
 /** Capture browser metadata for a comment */
 export function getCommentMeta(): CommentMeta {
+  const errors = errorsForPage();
   return {
     url: annotatedUrl.value || location.href,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     ..._cachedUA,
+    ...(errors.length > 0 && { errors }),
   };
 }
 

@@ -355,11 +355,27 @@ export const COMMENT_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 export const commentPrioritySchema = z.enum(COMMENT_PRIORITIES);
 export type CommentPriority = z.infer<typeof commentPrioritySchema>;
 
+export const MAX_PAGE_ERRORS = 10;
+export const MAX_PAGE_ERROR_TEXT = 300;
+
+/**
+ * One uncaught error, rejection or `console.error` the page had logged when the comment was left.
+ * Capped here, not only where it is captured: the Durable Object validates every op against this.
+ */
+export const pageErrorSchema = z.object({
+  message: z.string().check(z.maxLength(MAX_PAGE_ERROR_TEXT)),
+  source: z.optional(z.string().check(z.maxLength(MAX_PAGE_ERROR_TEXT))),
+  line: z.optional(z.int()),
+  at: z.number(),
+});
+export type PageError = z.infer<typeof pageErrorSchema>;
+
 export const commentMetaSchema = z.object({
   url: z.optional(z.string()),
   viewport: z.optional(z.object({ width: z.number(), height: z.number() })),
   browser: z.optional(z.string()),
   os: z.optional(z.string()),
+  errors: z.optional(z.array(pageErrorSchema).check(z.maxLength(MAX_PAGE_ERRORS))),
 });
 export type CommentMeta = z.infer<typeof commentMetaSchema>;
 
