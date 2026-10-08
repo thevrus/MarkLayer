@@ -2,6 +2,7 @@ import { theme } from '@ext/lib/state';
 import { effect } from '@preact/signals';
 import { render } from 'preact';
 import { Route, Router, Switch, useLocation, useParams } from 'wouter-preact';
+import { ComparePage } from './compare/Compare';
 import { AppBar } from './dashboard/AppBar';
 import { Dashboard } from './dashboard/Dashboard';
 import { SignIn } from './dashboard/SignIn';
@@ -77,9 +78,15 @@ function Shell() {
 function App() {
   return (
     <Router base="/app">
-      <main class="min-h-dvh bg-(--ds-background-100) text-(--ds-gray-1000)">
-        <Shell />
-      </main>
+      <Switch>
+        {/* Public and read-only, so it sits outside the session gate that Shell enforces. */}
+        <Route path="/compare" component={ComparePage} />
+        <Route>
+          <main class="min-h-dvh bg-(--ds-background-100) text-(--ds-gray-1000)">
+            <Shell />
+          </main>
+        </Route>
+      </Switch>
     </Router>
   );
 }

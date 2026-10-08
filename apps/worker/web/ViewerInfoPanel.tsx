@@ -10,6 +10,7 @@ import {
   Bot,
   Calendar,
   Check,
+  Columns2,
   Copy,
   Hash,
   Heart,
@@ -24,9 +25,11 @@ import {
 } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { DOCK_GUTTER, DOCKED_ANNOTATION_WIDTH, DockedPanel, PANEL_SIDEBAR, PANEL_TRANSITION } from './AnnotationPanel';
+import { compareHref } from './compare/url';
+import { isUploadPath } from './docSource';
 import { IntegrationsSection } from './IntegrationsSection';
 import { PresenceDot } from './shared';
-import { annotationId, infoPanelOpen, isReadonly, pageUrl, showInfoPanel, timeAgo } from './signals';
+import { annotationId, infoPanelOpen, isReadonly, pageUrl, panelsDocked, showInfoPanel, timeAgo } from './signals';
 import { openSupportCard } from './support-ui';
 import { connected, createdAt, expiresAt, isOwned } from './useRealtimeSync';
 
@@ -306,6 +309,13 @@ function InfoPanelBody() {
         {id && !isReadonly.value && <IntegrationsSection id={id} />}
         <ToolTally />
         <div class={cn(geist.divider, 'my-2 -mx-4')} />
+        {url && !isUploadPath(url) && (
+          <a href={compareHref({ a: url })} target="_blank" rel="noopener" class={panelLinkRow}>
+            <Columns2 size={14} strokeWidth={1.5} class="shrink-0" aria-hidden="true" />
+            <span class="flex-1">Compare with another version</span>
+            <ArrowUpRight size={14} strokeWidth={1.5} class="shrink-0" aria-hidden="true" />
+          </a>
+        )}
         <a href={HOW_IT_WORKS_URL} target="_blank" rel="noopener" class={panelLinkRow}>
           <BookOpen size={14} strokeWidth={1.5} class="shrink-0" aria-hidden="true" />
           <span class="flex-1">How MarkLayer works</span>
