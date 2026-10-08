@@ -369,6 +369,18 @@ export function uploadStore(db: D1Database) {
       await db.prepare('INSERT INTO uploads (id, size) VALUES (?, ?)').bind(id, size).run();
     },
 
+    async transcript(id: string): Promise<string | null> {
+      const row = await db
+        .prepare('SELECT transcript FROM uploads WHERE id = ?')
+        .bind(id)
+        .first<{ transcript: string | null }>();
+      return row?.transcript ?? null;
+    },
+
+    setTranscript({ id, text }: { id: string; text: string }): Promise<unknown> {
+      return db.prepare('UPDATE uploads SET transcript = ? WHERE id = ?').bind(text, id).run();
+    },
+
     touch(id: string): Promise<unknown> {
       return db.prepare('UPDATE uploads SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run();
     },

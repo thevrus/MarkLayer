@@ -111,7 +111,9 @@ describe('projectAnnotation — comment', () => {
       position: { x: 0, y: 0 },
       url: null,
       target: null,
+      pageErrors: [],
       attachments: [],
+      voice: null,
     });
   });
 
@@ -141,7 +143,27 @@ describe('projectAnnotation — comment', () => {
       position: { x: 0, y: 0 },
       url: null,
       target: null,
+      pageErrors: [],
       attachments: ['https://marklayer.app/f/abc123def456ghi789jkl'],
+      voice: null,
+    });
+  });
+
+  test('resolves a voice note to a fetchable URL, text being its transcript', () => {
+    const voiced = commentOpSchema.parse({
+      id: 'op-2c',
+      tool: 'comment',
+      num: 4,
+      text: '',
+      x: 0,
+      y: 0,
+      color: '#000',
+      lineWidth: 1,
+      ts: 1_700_000_000_000,
+      voice: 'abc123def456ghi789jkl',
+    });
+    expect(projectAnnotation(voiced, API_BASE)).toMatchObject({
+      voice: 'https://marklayer.app/f/abc123def456ghi789jkl',
     });
   });
 });

@@ -301,6 +301,7 @@ function DetailBody({ item }: { item: AnnotationItem }) {
           <MentionText text={item.op.text} mentions={item.op.mentions} />
         </p>
         {item.op.attachments && <AttachmentGallery ids={item.op.attachments} resolveUrl={fileUrl} />}
+        {item.op.voice && <VoicePlayer id={item.op.voice} resolveUrl={fileUrl} />}
       </>
     );
   }

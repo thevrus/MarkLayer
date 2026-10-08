@@ -1,5 +1,5 @@
 import { toast } from '@ext/lib/state';
-import { MAX_UPLOAD_BYTES, UPLOAD_FORMATS, uploadResponseSchema } from '@marklayer/types';
+import { MAX_UPLOAD_BYTES, PICKABLE_TYPES, uploadResponseSchema } from '@marklayer/types';
 import { type Signal, useSignal } from '@preact/signals';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { navigateTo, withScheme } from '../signals';
@@ -8,7 +8,7 @@ export type UploadKind = 'pdf' | 'image';
 /** What a drag in flight will become on release: a stored file, or a page to open. */
 export type DragKind = UploadKind | 'link';
 
-const ACCEPTED = new Set(UPLOAD_FORMATS.map((format) => format.contentType));
+const ACCEPTED = new Set(PICKABLE_TYPES);
 
 /** dragover repeats every ~350ms in Firefox, the slowest; a longer silence means the drag went elsewhere. */
 const DRAG_IDLE_MS = 800;

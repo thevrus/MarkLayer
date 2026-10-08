@@ -31,28 +31,45 @@ interface Props {
     upload: (file: File | Blob) => Promise<string | null>;
     resolveUrl: (id: string) => string;
   };
+  /** Offers a mic button that records a voice note into the comment. Needs `attachments`,
+   *  since the audio rides the same upload; omitted wherever those are. */
+  voice?: {
+    transcribe: (id: string) => Promise<string | null>;
+    constraint?: () => MediaTrackConstraints;
+  };
 }
 
-export function CommentPopover({ at, anchorAt, capture, push, onClose, attachments }: Props) {
+type Draft = ReturnType<typeof useCommentDraft>;
+
+/** The comment being written, independent of the surface it is written on. */
+function useCommentDraft({ at, capture, push, onClose, attachments, voice: voiceConfig }: DraftProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const num = commentCounter.value + 1;
   const priority = useSignal<CommentPriority | undefined>(undefined);
   const { mentionProps, mentions } = useMentions();
   const picker = useAttachments(attachments?.upload ?? (async () => null));
-
-  useEffect(() => {
-    taRef.current?.focus();
-  }, []);
+  const voice = useVoiceNote({
+    upload: attachments?.upload ?? (async () => null),
+    transcribe: voiceConfig?.transcribe ?? (async () => null),
+    constraint: voiceConfig?.constraint,
+    // The transcript is a draft: it lands in the box to be edited, after anything already typed.
+    onText: (text) => {
+      const ta = taRef.current;
+      if (!ta || !text) return;
+      ta.value = ta.value.trim() ? `${ta.value.trim()} ${text}` : text;
+      ta.focus();
+    },
+  });
 
   const commit = (save: boolean) => {
     const txt = taRef.current?.value.trim();
-    if (save && txt) {
-      if (picker.uploading) return;
+    if (save && (txt || voice.id.value)) {
+      if (picker.uploading || voice.status.value !== 'idle') return;
       push({
         id: nanoid(),
         tool: 'comment' as const,
         num,
-        text: txt,
+        text: txt ?? '',
         x: at.x,
         y: at.y,
         color: color.value,
@@ -63,6 +80,7 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose, attachmen
         priority: priority.value,
         mentions: mentions(),
         attachments: picker.ids.length ? picker.ids : undefined,
+        voice: voice.id.value ?? undefined,
         meta: getCommentMeta(),
         ...capture(),
       });
@@ -120,6 +138,14 @@ export function CommentPopover({ at, anchorAt, capture, push, onClose, attachmen
           onPaste={attachments ? (e) => picker.onPaste(e) : undefined}
         />
         {attachments && <AttachmentRow attachments={picker} resolveUrl={attachments.resolveUrl} />}
+        {attachments && voiceConfig && (
+          <>
+            <VoiceDraft voice={voice} resolveUrl={attachments.resolveUrl} />
+            <div class="mt-1.5 flex items-center">
+              <VoiceButton voice={voice} />
+            </div>
+          </>
+        )}
         <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
       </div>
 

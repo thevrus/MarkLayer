@@ -1,4 +1,13 @@
-import { DEMO_ROOM, isNewShareId, isUploadId, MAX_UPLOAD_BYTES, RETENTION_DAYS, uploadPath } from '@marklayer/types';
+import {
+  DEMO_ROOM,
+  isAudioType,
+  isNewShareId,
+  isUploadId,
+  MAX_UPLOAD_BYTES,
+  MAX_VOICE_BYTES,
+  RETENTION_DAYS,
+  uploadPath,
+} from '@marklayer/types';
 import LLMS_SOURCE from '@site/content/agent/llms.txt?raw';
 import LLMS_FULL_SOURCE from '@site/content/agent/llms-full.txt?raw';
 import ROBOTS_TXT from '@site/content/agent/robots.txt?raw';
@@ -11,13 +20,13 @@ import type { AnnotationRoom } from './annotation-room';
 import { api } from './api';
 import { auth, authStore } from './auth';
 import type { EmailEnv } from './email';
-import { cachedPng, dayCached, once, sha256Hex } from './http';
+import { cachedPng, dayCached, once, sha256Hex, toBase64 } from './http';
 import { handleMcpRequest, readRoomPage } from './mcp';
 import { generateOgImage, generatePageOgImage } from './og';
 import { collectTally, EMPTY_TALLY_LABEL, plural, tallyParts } from './og-tally';
 import { proxy } from './proxy';
 import { annotationStore, nowInSeconds, projectStore, uploadStore } from './store';
-import { extensionFor, isUploadType, sniffUploadType } from './uploads';
+import { type ByteSpan, extensionFor, isUploadType, resolveRange, sniffUploadType } from './uploads';
 
 export { AnnotationRoom } from './annotation-room';
 
@@ -28,6 +37,10 @@ export type Env = {
     ANNOTATION_ROOM: DurableObjectNamespace<AnnotationRoom>;
     OG_BUCKET: R2Bucket;
     FILE_BUCKET: R2Bucket;
+    /** Workers AI, for voice-note transcripts. */
+    AI: Ai;
+    /** Caps transcription per client IP. Absent in dev and tests, which then run unlimited. */
+    TRANSCRIBE_LIMITER?: RateLimit;
     TURN_KEY_ID?: string;
     TURN_KEY_TOKEN?: string;
     POSTHOG_KEY?: string;
@@ -341,6 +354,8 @@ app.post('/f', async (c) => {
   // what `/f/{id}` will later hand a browser on our own origin.
   const contentType = sniffUploadType(body);
   if (!contentType) return c.text('Unsupported file type', 415);
+  // A recording is at most MAX_VOICE_SECONDS long, and every one is fed to a paid model.
+  if (isAudioType(contentType) && size > MAX_VOICE_BYTES) return c.text('Voice note too large', 413);
 
   const id = nanoid();
   // Row first: the cleanup cron sweeps R2 by what it finds in D1, so an object
@@ -355,7 +370,21 @@ app.get('/f/:id', async (c) => {
   const id = c.req.param('id');
   if (!isUploadId(id)) return c.notFound();
 
-  const object = await c.env.FILE_BUCKET.get(id);
+  // Safari will not play an `<audio>` from a server that cannot answer a range
+  // request, so a Range header is honoured for every stored type.
+  const rangeHeader = c.req.header('Range');
+  let span: ByteSpan | undefined;
+  if (rangeHeader !== undefined) {
+    const head = await c.env.FILE_BUCKET.head(id);
+    if (!head) return c.notFound();
+    // R2 throws on a range it cannot satisfy; answer it as the protocol says instead of a 500.
+    span = resolveRange({ header: rangeHeader, size: head.size });
+    if (!span) return c.body(null, 416, { 'Content-Range': `bytes */${head.size}` });
+  }
+  const object = await c.env.FILE_BUCKET.get(
+    id,
+    span ? { range: { offset: span.start, length: span.end - span.start + 1 } } : undefined,
+  );
   if (!object) return c.notFound();
 
   // Written by the upload route, but re-checked rather than echoed: this value
@@ -363,11 +392,12 @@ app.get('/f/:id', async (c) => {
   const stored = object.httpMetadata?.contentType;
   if (!isUploadType(stored)) return c.notFound();
 
-  // Push the retention clock back without delaying the response the browser is
-  // waiting on to render the file.
-  c.executionCtx.waitUntil(uploadStore(c.env.DB).touch(id));
+  // Push the retention clock back without delaying the response. Once per read, not
+  // once per range: an `<audio>` seeking issues a request for every jump.
+  if (!span || span.start === 0) c.executionCtx.waitUntil(uploadStore(c.env.DB).touch(id));
 
   return new Response(object.body, {
+    status: span ? 206 : 200,
     headers: {
       'Content-Type': stored,
       // Load-bearing: without this, a sniffing browser could treat the bytes at
@@ -376,8 +406,50 @@ app.get('/f/:id', async (c) => {
       'X-Content-Type-Options': 'nosniff',
       'Content-Disposition': `inline; filename="document.${extensionFor(stored)}"`,
       'Cache-Control': 'public, max-age=31536000, immutable',
+      'Accept-Ranges': 'bytes',
+      ...(span && {
+        'Content-Range': `bytes ${span.start}-${span.end}/${object.size}`,
+        'Content-Length': String(span.end - span.start + 1),
+      }),
     },
   });
+});
+
+// Transcribes one stored voice note. Its own route rather than part of `POST /f`:
+// the upload stays a plain, fast store that a model outage cannot fail, and the
+// client decides whether to wait on text. The id is the access token, as for `GET`.
+app.post('/f/:id/transcribe', async (c) => {
+  const id = c.req.param('id');
+  if (!isUploadId(id)) return c.notFound();
+
+  // A transcript is stored on first success, so a repeat call never reruns the model.
+  const uploads = uploadStore(c.env.DB);
+  const cached = await uploads.transcript(id);
+  if (cached !== null) return c.json({ text: cached });
+
+  const limiter = c.env.TRANSCRIBE_LIMITER;
+  if (limiter) {
+    const { success } = await limiter.limit({ key: c.req.header('cf-connecting-ip') ?? 'unknown' });
+    if (!success) return c.text('Too many requests', 429);
+  }
+
+  const object = await c.env.FILE_BUCKET.get(id);
+  if (!object) return c.notFound();
+  const stored = object.httpMetadata?.contentType;
+  if (!isUploadType(stored) || !isAudioType(stored)) return c.text('Not an audio upload', 415);
+
+  try {
+    const { text } = await c.env.AI.run('@cf/openai/whisper-large-v3-turbo', {
+      audio: toBase64(new Uint8Array(await object.arrayBuffer())),
+    });
+    const transcript = text.trim();
+    await uploads.setTranscript({ id, text: transcript });
+    return c.json({ text: transcript });
+  } catch (err) {
+    // Distinct from an empty transcript so the client can say so; the audio is already stored.
+    console.error('transcription failed', err);
+    return c.text('Transcription unavailable', 503);
+  }
 });
 
 // The agent-facing text surface. apps/site owns the source (it also prerenders

@@ -52,6 +52,18 @@
   //                 client-side telemetry looked healthy. Verify a deploy by
   //                 checking the PostHog event list, not the code.
   //   POSTHOG_HOST  Optional. Defaults to https://us.i.posthog.com.
+  // Voice-note transcripts: POST /f/:id/transcribe runs whisper-large-v3-turbo.
+  "ai": { "binding": "AI" },
+  // Caps /f/:id/transcribe per client IP (keyed by cf-connecting-ip). 10 calls a minute per
+  // Cloudflare location; `namespace_id` only has to be unique within the account.
+  // https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/
+  "ratelimits": [
+    {
+      "name": "TRANSCRIBE_LIMITER",
+      "namespace_id": "4271",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

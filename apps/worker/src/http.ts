@@ -60,7 +60,8 @@ export async function cachedPng({
  */
 export function toBase64(bytes: Uint8Array): string {
   let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
+  // Chunked: spreading a multi-MB voice note into `fromCharCode` at once overflows the stack.
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
 }
 

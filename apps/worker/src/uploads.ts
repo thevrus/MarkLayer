@@ -31,3 +31,26 @@ export function isUploadType(contentType: string | undefined): contentType is st
 export function extensionFor(contentType: string): string {
   return UPLOAD_FORMATS.find((format) => format.contentType === contentType)?.extension ?? 'bin';
 }
+
+/**
+ * The byte span a `Range` header asks for, clamped to the object. Undefined when it cannot be
+ * served (past the end, malformed, or several ranges): the caller answers 416 instead of letting
+ * R2 throw on it.
+ */
+export function resolveRange({ header, size }: { header: string; size: number }): ByteSpan | undefined {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!match || size === 0) return undefined;
+  const [, first = '', last = ''] = match;
+  if (first === '') {
+    const suffix = Number(last);
+    if (!suffix) return undefined;
+    return { start: Math.max(0, size - suffix), end: size - 1 };
+  }
+  const start = Number(first);
+  if (start >= size) return undefined;
+  const end = last === '' ? size - 1 : Math.min(Number(last), size - 1);
+  if (end < start) return undefined;
+  return { start, end };
+}
+
+export type ByteSpan = { start: number; end: number };

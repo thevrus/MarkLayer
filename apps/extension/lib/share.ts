@@ -1,4 +1,11 @@
-import { isShareId, postBody, postJson, uploadPath, uploadResponseSchema } from '@marklayer/types';
+import {
+  isShareId,
+  postBody,
+  postJson,
+  transcribeResponseSchema,
+  uploadPath,
+  uploadResponseSchema,
+} from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { track } from './analytics';
 import { connectionStatus } from './state';
@@ -249,6 +256,14 @@ export async function uploadFile(file: File | Blob): Promise<string | null> {
     return null;
   }
   return parsed.data.id;
+}
+
+/** The transcript of a stored voice note, or null when it could not be had (the note still posts). */
+export async function transcribeFile(id: string): Promise<string | null> {
+  const res = await postJson(`${APP_ORIGIN}${uploadPath(id)}/transcribe`, {});
+  if (!res?.ok) return null;
+  const parsed = transcribeResponseSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data.text : null;
 }
 
 /** Where `uploadFile`'s id serves back from, in this browser's own origin. */

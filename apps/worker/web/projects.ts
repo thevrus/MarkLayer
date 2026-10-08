@@ -1,6 +1,13 @@
 import { operations, toast as showToast } from '@ext/lib/state';
 import type { DrawOp } from '@ext/lib/types';
-import { postBody, postJson, unwrapSafeLink, uploadPath, uploadResponseSchema } from '@marklayer/types';
+import {
+  postBody,
+  postJson,
+  transcribeResponseSchema,
+  unwrapSafeLink,
+  uploadPath,
+  uploadResponseSchema,
+} from '@marklayer/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { capture } from './analytics';
@@ -68,6 +75,14 @@ export async function uploadFile(file: File | Blob): Promise<string | null> {
     return null;
   }
   return parsed.data.id;
+}
+
+/** The transcript of a stored voice note, or null when it could not be had (the note still posts). */
+export async function transcribeFile(id: string): Promise<string | null> {
+  const res = await postJson(`${uploadPath(id)}/transcribe`, {});
+  if (!res?.ok) return null;
+  const parsed = transcribeResponseSchema.safeParse(await res.json());
+  return parsed.success ? parsed.data.text : null;
 }
 
 /** Where `uploadFile`'s id serves back from — relative, since the web app already runs on that origin. */

@@ -71,6 +71,12 @@ const ANY_SHARE_ID = new RegExp(`^${SHARE_ID_CHARS}{1,${MAX_SHARE_ID_LENGTH}}$`)
 /** The cap on an anonymous upload. Enforced server-side; shown client-side. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/** The longest voice note a comment records. Also the cap the recorder stops itself at. */
+export const MAX_VOICE_SECONDS = 120;
+
+/** Cap on a voice-note upload: 120 s of Opus/AAC is well under 1 MB, so 4 MB leaves ample headroom while keeping the model call cheap. */
+export const MAX_VOICE_BYTES = 4 * 1024 * 1024;
+
 /** A format the product accepts as an upload: what it is, and how to recognise it. */
 export const uploadFormatSchema = z.object({
   contentType: z.string(),
@@ -120,10 +126,30 @@ export const UPLOAD_FORMATS: UploadFormat[] = [
       { offset: 8, bytes: ascii('avi') },
     ],
   },
+  // Voice notes, from the comment composer's recorder. The containers are shared
+  // with video (WebM, Ogg and MP4 all carry either), which is harmless here: the
+  // bytes are only ever served back as `audio/*` with `nosniff`, and a media type
+  // cannot run script. MP4 is matched by brand because the flavour at 8 is all that
+  // tells it from an AVIF; Safari's recorder writes one of these, never `avif`.
+  { contentType: 'audio/webm', extension: 'webm', magic: [{ offset: 0, bytes: [0x1a, 0x45, 0xdf, 0xa3] }] },
+  { contentType: 'audio/ogg', extension: 'ogg', magic: [{ offset: 0, bytes: ascii('OggS') }] },
+  ...['M4A ', 'mp42', 'iso5', 'isom'].map((brand) => ({
+    contentType: 'audio/mp4',
+    extension: 'm4a',
+    magic: [
+      { offset: 4, bytes: ascii('ftyp') },
+      { offset: 8, bytes: ascii(brand) },
+    ],
+  })),
 ];
 
-/** What a file picker offers, derived so it cannot drift from what the sniffer takes. */
-export const UPLOAD_ACCEPT = UPLOAD_FORMATS.map((format) => format.contentType).join(',');
+/** Recordings come from the composer's mic button, so no file picker or drop zone should offer them. */
+export const isAudioType = (contentType: string): boolean => contentType.startsWith('audio/');
+
+/** What a picker, drop zone or paste accepts, derived so it cannot drift from what the sniffer takes. */
+export const PICKABLE_TYPES = UPLOAD_FORMATS.map((format) => format.contentType).filter((type) => !isAudioType(type));
+
+export const UPLOAD_ACCEPT = PICKABLE_TYPES.join(',');
 
 /** The same list narrowed to images, for the pickers that take screenshots rather than documents. */
 export const UPLOAD_IMAGE_ACCEPT = UPLOAD_FORMATS.filter((format) => format.contentType.startsWith('image/'))
@@ -486,6 +512,13 @@ export const commentOpSchema = z.object({
   ...triageable,
   ...mentioned,
   ...attachable,
+  /**
+   * Upload id of a recorded voice note. Its transcript is `text`, so an agent
+   * reading the comment loses nothing by never opening this. A field of its own
+   * rather than an `attachments` entry because an id carries no type, and the
+   * thread has to know to draw a player and not a thumbnail.
+   */
+  voice: z.optional(z.string().check(z.refine(isUploadId))),
   tool: z.literal('comment'),
   num: z.number(),
   text: z.string(),
@@ -1092,6 +1125,9 @@ export const inviteRequestSchema = z.object({ email: z.string(), url: z.url() })
 
 /** What `POST /f` answers with, parsed by the caller rather than read field by field. */
 export const uploadResponseSchema = z.object({ id: z.string(), url: z.string() });
+
+/** What `POST /f/:id/transcribe` answers with; `text` is empty when the note held no speech. A model failure is a 503, not an empty text. */
+export const transcribeResponseSchema = z.object({ text: z.string() });
 
 /**
  * Days of inactivity before a share link and its OG card are deleted. The

@@ -32,11 +32,19 @@ export function useHeroPin(heroFormRef: { current: HTMLElement | null }): void {
       // the button's own corner returned the pin and that corner was dead. It
       // still reads as attached to the field at this distance, and it no longer
       // sits on top of the page's primary action.
-      // A narrow window leaves no room beside the field, so the pin rises just
-      // above its end instead of being cut by the viewport edge.
-      const roomy = r.right + 48 <= document.documentElement.clientWidth;
-      const x = (roomy ? r.right + 30 : r.right - 22) + window.scrollX;
-      const y = (roomy ? r.top + r.height / 2 : r.top - 20) + window.scrollY;
+      // A narrow window leaves no room beside the field, so the pin moves up beside
+      // the narrower source tabs; only past that does it rise over the field's end,
+      // where it would sit on the Image tab.
+      const vw = document.documentElement.clientWidth;
+      const tabs = form.previousElementSibling?.getBoundingClientRect();
+      const spot =
+        r.right + 48 <= vw
+          ? { x: r.right + 30, y: r.top + r.height / 2 }
+          : tabs && tabs.right + 38 <= vw
+            ? { x: tabs.right + 22, y: tabs.top + tabs.height / 2 }
+            : { x: r.right - 22, y: r.top - 20 };
+      const x = spot.x + window.scrollX;
+      const y = spot.y + window.scrollY;
       const seeded = operations.peek().find((op) => op.id === HERO_PIN_ID);
       if (seeded) {
         if (seeded.tool !== 'comment' || (seeded.x === x && seeded.y === y)) return;

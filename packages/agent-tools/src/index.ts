@@ -73,8 +73,12 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       text: op.text,
       position: { x: op.x, y: op.y },
       url: op.meta?.url ?? null,
+      // Console output the page had when this was written; often the bug itself.
+      pageErrors: op.meta?.errors ?? [],
       target: op.target ?? null,
       attachments: attachmentUrls(op.attachments, apiBase),
+      // The recording behind `text`, which is its transcript and may be empty if transcription failed.
+      voice: op.voice ? attachmentUrls([op.voice], apiBase)[0] : null,
     };
   }
   if (op.tool === 'area') {

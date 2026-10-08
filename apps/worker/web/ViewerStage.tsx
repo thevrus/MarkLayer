@@ -28,6 +28,7 @@ import {
   STILL_FRAME,
   selectionPopover,
   textInput,
+  transcribeFile,
   uploadFile,
 } from './signals';
 import { DockedInfoPanel, InfoPanel } from './ViewerInfoPanel';

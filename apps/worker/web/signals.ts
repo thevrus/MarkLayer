@@ -34,6 +34,7 @@ export {
   projectLoading,
   projectPages,
   saveProject,
+  transcribeFile,
   uploadFile,
   withScheme,
 } from './projects';
