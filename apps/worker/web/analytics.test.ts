@@ -60,7 +60,7 @@ describe('analytics privacy', () => {
       $referrer: 'https://google.com/search?q=private',
       $browser: 'Chrome',
     });
-    expect(out?.$current_url).toBe('https://marklayer.app/s/abc');
+    expect(out?.$current_url).toBe('https://marklayer.app/s/:id');
     expect(out?.$referrer).toBe('https://google.com/search');
     expect(out?.$browser).toBe('Chrome');
   });
