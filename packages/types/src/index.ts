@@ -1100,6 +1100,14 @@ export const DEMO_ROOM = {
 } as const;
 
 /**
+ * A share path names its room, and the room id is the credential, so telemetry
+ * reports `/s/:id` for any room but the public demo.
+ */
+export function redactSharePath(path: string): string {
+  return path.replace(/^\/s\/([^/?#]+)/, (whole, id) => (id === DEMO_ROOM.id ? whole : '/s/:id'));
+}
+
+/**
  * When the retention cron will delete a link, or null when nothing is going to.
  *
  * The cron's condition is `(owner_id IS NULL AND last_accessed_at < cutoff) OR

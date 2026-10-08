@@ -12,6 +12,7 @@
 
 import { type AnalyticsProps, type Surface, setAnalytics } from '@ext/lib/analytics';
 import { parseShareRef, type ShareRef } from '@ext/lib/share';
+import { redactSharePath } from '@marklayer/types';
 import type { CaptureResult } from 'posthog-js';
 
 type Props = AnalyticsProps;
@@ -95,16 +96,18 @@ function hasOptedOut(): boolean {
 
 /**
  * Reduce any absolute URL to origin + path. Drops `?url=<annotated page>` and
- * `#id=<room secret>` on the viewer, and search terms off inbound referrers.
+ * `#id=<room secret>` on the viewer, and search terms off inbound referrers. The
+ * room id now rides in the path (`/s/<id>`), so that is redacted too, in a bare
+ * path like `$pathname` as well as in a full URL.
  */
 function stripUrl(value: string): string {
   // posthog-js hands us ~20 string props per autocaptured event ($browser, $os,
   // $screen_*, …) and almost none are URLs. Without this guard every one of
   // them constructs and unwinds a TypeError.
-  if (!value.includes('://')) return value;
+  if (!value.includes('://')) return redactSharePath(value);
   try {
     const u = new URL(value);
-    return `${u.origin}${u.pathname}`;
+    return `${u.origin}${redactSharePath(u.pathname)}`;
   } catch {
     return value;
   }
