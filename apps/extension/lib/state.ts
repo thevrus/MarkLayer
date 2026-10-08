@@ -1,3 +1,4 @@
+import { buildAnnotationsPrompt, openAnnotationCount } from '@marklayer/agent-tools/prompt';
 import { isAnnotationOp, isSettled, resolveOpStatus, translateOp } from '@marklayer/types';
 import { computed, effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
@@ -495,6 +496,19 @@ export function copyInspectorStack() {
   }
   copyText(buildInspectorStackPrompt(), `Copied ${items.length} task${items.length === 1 ? '' : 's'} for AI!`);
   if (clearOnCopyEnabled.value) clearInspectorStack();
+}
+
+/** Open annotations a copy-for-AI would carry; the toolbar and panel disable their button at zero. */
+export const openAnnotationTotal = computed(() => openAnnotationCount(operations.value));
+
+export function copyOpenAnnotations({ ops, url }: { ops: DrawOp[]; url?: string }) {
+  const prompt = buildAnnotationsPrompt({ url, ops });
+  if (!prompt) {
+    toast('No open annotations to copy');
+    return;
+  }
+  const n = openAnnotationCount(ops);
+  copyText(prompt, `Copied ${n} annotation${n === 1 ? '' : 's'} for AI!`);
 }
 
 // Single-pass partition of operations into comments, selections, areas, inspects, root comments, and reply map

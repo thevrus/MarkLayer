@@ -16,10 +16,12 @@ import {
   color,
   colorName,
   connectionStatus,
+  copyOpenAnnotations,
   ensureScrollTickListener,
   inspectorStack,
   isDrawingActive,
   moveTool,
+  openAnnotationTotal,
   operations,
   redo,
   SHORTCUTS,
@@ -715,6 +717,14 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
       {(operations.value.length > 0 || inspectorStack.value.length > 0) && (
         <>
           <BaseToolbar.Separator className={geist.sep} />
+          {openAnnotationTotal.value > 0 && (
+            <Ctl
+              icon="copy"
+              onClick={() => copyOpenAnnotations({ ops: operations.value, url: location.href })}
+              tip="Copy all open for AI"
+              action="copy_all_for_ai"
+            />
+          )}
           <Ctl icon={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} action="share" />
         </>
       )}

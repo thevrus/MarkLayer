@@ -16,6 +16,7 @@ import {
   uploadPath,
 } from '@marklayer/types';
 import { z } from 'zod/mini';
+import { isWatchableOp } from './prompt';
 
 /**
  * Everything about MarkLayer's agent tools that is not a transport.
@@ -739,9 +740,7 @@ function createFailure({ room, what }: { room: RoomOps; what: string }): string 
     : `could not create the ${what} — the room connection may be down`;
 }
 
-/** Replies belong to their parent thread, so they are not themselves watchable. */
-export const isWatchableOp = (op: DrawOp): op is AnnotationOp =>
-  isAnnotationOp(op) && !(op.tool === 'comment' && !!op.parentId);
+export { isWatchableOp };
 
 /**
  * What one arriving op means to this agent, given what the room already holds.

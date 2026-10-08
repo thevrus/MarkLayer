@@ -1,4 +1,5 @@
 import { Menu } from '@base-ui/react/menu';
+import { PeekSheet } from '@ext/components/BottomSheet';
 import { MentionText } from '@ext/components/MentionText';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
@@ -9,10 +10,12 @@ import {
   annotationPanelOpen,
   areas,
   commentFilter,
+  copyOpenAnnotations,
   copyText,
   focusedAnnotationId,
   getCommentStatus,
   getReplies,
+  openAnnotationTotal,
   operations,
   rootComments,
   STATUS_LABELS,
@@ -24,6 +27,7 @@ import { timeAgo } from '@ext/lib/time';
 import type { CommentOp, CommentStatus, DeviceMode, DrawOp } from '@ext/lib/types';
 import { cn, isSettled } from '@marklayer/types';
 import {
+  Bot,
   BoxSelect,
   Check,
   CheckCheck,
@@ -282,6 +286,12 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
   // No capture here: `copyText` counts every clipboard hand-off, success and failure alike.
   const handleCopy = () => copyText(buildExport(), 'Markdown copied');
 
+  const handleCopyForAi = () => {
+    const data = getExportData?.() ?? { ops: operations.value };
+    // A project panel exports every page; the prompt is for the page on screen.
+    copyOpenAnnotations({ ops: operations.value, url: data.url });
+  };
+
   const handleDownload = () => {
     const md = buildExport();
     const data = getExportData?.() ?? { ops: operations.value };
@@ -455,6 +465,16 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
               class={cn(geist.ctl, geist.ctlIdle)}
             >
               <ClipboardCopy size={16} strokeWidth={1.5} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={handleCopyForAi}
+              disabled={openAnnotationTotal.value === 0}
+              title={openAnnotationTotal.value === 0 ? 'No open annotations to copy' : 'Copy all open for AI'}
+              aria-label="Copy all open annotations as one prompt for AI"
+              class={cn(geist.ctl, geist.ctlIdle, 'disabled:opacity-40 disabled:cursor-default')}
+            >
+              <Bot size={16} strokeWidth={1.5} aria-hidden="true" />
             </button>
             <button
               type="button"

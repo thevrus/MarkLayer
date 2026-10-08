@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
+    "@marklayer/agent-tools": "workspace:*",
     "@marklayer/types": "workspace:*",
     "@preact/signals": "^2.11.1",
     "idb-keyval": "^6.3.0",
