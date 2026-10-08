@@ -1,4 +1,5 @@
 import { Popover } from '@base-ui/react/popover';
+import { ModalSheet } from '@ext/components/BottomSheet';
 import { Tooltip } from '@ext/components/Tooltip';
 import { quietLinkBtn, submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
@@ -20,7 +21,8 @@ import { useViewerFrame } from './viewerFrame';
 
 /** One padded block. Sections are divided full-bleed, so the padding lives here, not on the shell. */
 function Block({ children }: { children: ComponentChildren }) {
-  return <div class="flex flex-col gap-2.5 px-3.5 py-3">{children}</div>;
+  // 16px on a phone, the drawer's gutter, so every row starts on the header's line.
+  return <div class="flex flex-col gap-2.5 px-3.5 py-3 max-md:px-4">{children}</div>;
 }
 
 /**
@@ -33,7 +35,7 @@ function LinkField({ url, busy, onCopy }: { url: string; busy: boolean; onCopy: 
   // same in both places a person meets it.
   const { copied, flash } = useCopyToClipboard({ resetMs: 1600 });
   return (
-    <div class={cn(geist.field, 'flex items-center gap-1 pl-2.5 pr-1')}>
+    <div class={cn(geist.field, 'flex items-center gap-1 pl-2.5 pr-1 max-md:h-11')}>
       {/* Mono because a URL is data — the one place in this card it is earned. */}
       <span class="text-meta min-w-0 flex-1 truncate font-mono text-(--ds-gray-1000)">{url}</span>
       <CopyControl
@@ -45,7 +47,7 @@ function LinkField({ url, busy, onCopy }: { url: string; busy: boolean; onCopy: 
         size={13}
         strokeWidth={1.75}
         disabled={busy}
-        class={cn(geist.ctlXs, 'disabled:pointer-events-none disabled:opacity-50')}
+        class={cn(geist.ctlXs, 'max-md:size-10 disabled:pointer-events-none disabled:opacity-50')}
       />
     </div>
   );
@@ -55,10 +57,9 @@ function LinkField({ url, busy, onCopy }: { url: string; busy: boolean; onCopy: 
 // mid-session, so it is read once rather than on every render.
 const hasShareSheet = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
-/** Fewer taps than typing an address — the friction was the email field, not a lack of desire to share. */
-function ShareSheet({ url }: { url: string }) {
+/** The OS share sheet for `url`. Fewer taps than typing an address: the friction was the email field. */
+function useNativeShare(url: string) {
   const [busy, setBusy] = useState(false);
-
   const send = async () => {
     if (busy) return;
     setBusy(true);
@@ -74,16 +75,37 @@ function ShareSheet({ url }: { url: string }) {
       setBusy(false);
     }
   };
+  return { busy, send: () => void send() };
+}
 
+/** On a desktop, a quiet second path under the field: Copy stays the obvious action there. */
+function ShareSheet({ url }: { url: string }) {
+  const { busy, send } = useNativeShare(url);
   return (
     <button
       type="button"
-      onClick={() => void send()}
+      onClick={send}
       disabled={busy}
       class={cn(quietLinkBtn, 'inline-flex items-center gap-1 disabled:pointer-events-none disabled:opacity-50')}
     >
       {busy ? <Spinner /> : <Share2 size={13} strokeWidth={1.75} aria-hidden="true" />}
       Share…
+    </button>
+  );
+}
+
+/** On a phone, the one action: the OS sheet reaches Messages, Mail and Slack, and copies too. */
+function ShareButton({ url }: { url: string }) {
+  const { busy, send } = useNativeShare(url);
+  return (
+    <button
+      type="button"
+      onClick={send}
+      disabled={busy}
+      class={cn(submitBtn, 'h-11 w-full text-ui-lg disabled:pointer-events-none disabled:opacity-50')}
+    >
+      {busy ? <Spinner /> : <Share2 size={15} strokeWidth={1.75} aria-hidden="true" />}
+      Share link
     </button>
   );
 }
@@ -168,10 +190,9 @@ function CreateLink({ busy, onCreate }: { busy: boolean; onCreate: () => void })
   );
 }
 
+/** Plain, not a `Popover.Description`: the card also renders inside the phone's drawer. */
 function Note({ children }: { children: ComponentChildren }) {
-  return (
-    <Popover.Description className="text-meta leading-body m-0 text-(--ds-gray-900)">{children}</Popover.Description>
-  );
+  return <p class="text-meta leading-body m-0 text-(--ds-gray-900)">{children}</p>;
 }
 
 /** `/app/claim/:id` handles sign-in itself and keeps the id through the magic link. */
@@ -224,7 +245,7 @@ function ManageLinksRow() {
     <a
       href="/app"
       class={cn(
-        'text-meta flex h-10 items-center justify-between px-3.5 font-medium no-underline',
+        'text-meta flex h-10 items-center justify-between px-3.5 font-medium no-underline max-md:h-12 max-md:px-4',
         'text-(--ds-gray-900) transition-colors duration-150',
         'hover:bg-(--ds-gray-alpha-100) hover:text-(--ds-gray-1000)',
         // Inset, because the row is full-bleed inside an `overflow-hidden`
@@ -240,21 +261,31 @@ function ManageLinksRow() {
   );
 }
 
+/** Opening the card is what first asks who is signed in, so a visitor who never shares never pays for it. */
+function useShareOpen() {
+  const [open, setOpen] = useState(false);
+  const asked = useRef(false);
+  const onOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next && !asked.current && !user.value) {
+      asked.current = true;
+      void loadSession();
+    }
+  };
+  return { open, onOpenChange };
+}
+
 /**
- * The share button's card: the link, and for the person who owns it the
+ * What the share card shows: the link, and for the person who owns it the
  * who-can-edit and expiry controls that used to live only on the dashboard.
  *
  * Ownership comes from the same `/auth/links` list the dashboard reads, fetched
- * the first time the card opens rather than on every viewer load — a visitor
- * who never shares never pays for it.
+ * the first time the card opens rather than on every viewer load.
  */
-export function SharePopover() {
-  const [open, setOpen] = useState(false);
-  const asked = useRef(false);
+function useShareLink() {
   const {
     actions: { share },
   } = useViewerFrame();
-
   const pid = projectId.value;
   const id = annotationId.value;
   // Built from the same helper `share()` copies from: a field displaying a link
@@ -306,34 +337,33 @@ export function SharePopover() {
               setting rows went ragged against each other. `overflow-hidden` keeps
               the full-bleed rules and the footer's hover fill inside the radius. */}
           <Popover.Popup className={cn(geist.surface, glass.font, 'w-95 overflow-hidden outline-none')}>
-            <Block>
-              <Popover.Title className="text-ui tracking-ui m-0 font-semibold text-(--ds-gray-1000)">
-                Share
-              </Popover.Title>
-              {url ? (
-                <LinkField url={url} busy={sharing.value} onCopy={share} />
-              ) : (
-                <CreateLink busy={sharing.value} onCreate={share} />
-              )}
-              {url && linkId && (hasShareSheet ? <ShareSheet url={url} /> : <InviteByEmail id={linkId} url={url} />)}
-            </Block>
-
-            {settings && (
-              <>
-                <div class={geist.divider} />
-                <Block>{settings}</Block>
-              </>
-            )}
-
-            {owned && (
-              <>
-                <div class={geist.divider} />
-                <ManageLinksRow />
-              </>
-            )}
+            <PopoverShareBody />
           </Popover.Popup>
         </Popover.Positioner>
       </Popover.Portal>
     </Popover.Root>
+  );
+}
+
+/** The same card on a phone: it rises from the bottom, where the button that opened it is. */
+export function ShareDrawer() {
+  const { open, onOpenChange } = useShareOpen();
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Share"
+        aria-haspopup="dialog"
+        onClick={() => onOpenChange(true)}
+        class={cn(geist.ctl, open ? geist.ctlOn : geist.ctlIdle)}
+      >
+        <Upload size={16} strokeWidth={1.5} aria-hidden="true" />
+      </button>
+      <ModalSheet open={open} onOpenChange={onOpenChange} label="Share">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <DrawerShareBody />
+        </div>
+      </ModalSheet>
+    </>
   );
 }

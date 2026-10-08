@@ -206,6 +206,12 @@
     box-sizing: border-box;
   }
 
+  /* On touch: no grey flash on every tap, and no 300ms wait to rule out a double-tap zoom. */
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
   :root {
     color-scheme: light dark;
     /* Glass surface vars (not in @theme — used as raw CSS in glass.ts) */
@@ -1249,5 +1255,26 @@ button.lp-field:focus-visible {
     transition-duration: 0.01ms !important;
     /* biome-ignore lint: required to override Tailwind utilities and inline animation styles for a11y */
     scroll-behavior: auto !important;
+  }
+}
+
+/* iOS Safari zooms the page into any field set below 16px the moment it takes
+   focus. Unlayered so it outranks the `text-ui` utility on the composers, and
+   coarse pointers only, so a desktop keeps the 13px step from the ladder. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(1rem, 1em);
+  }
+}
+
+/* A finger on a phone needs 44px to land reliably. `ml-ctl` marks every icon
+   control in geist.ts; only this stylesheet sizes it, so the extension's toolbar
+   keeps its 32px on a touch screen. */
+@media (pointer: coarse) and (max-width: 767.98px) {
+  .ml-ctl {
+    min-width: 44px;
+    min-height: 44px;
   }
 }

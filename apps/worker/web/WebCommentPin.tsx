@@ -12,18 +12,20 @@ import { glass } from '@ext/lib/glass';
 import {
   copyText,
   deleteOp,
+  focusedAnnotationId,
   getCommentStatus,
   getReplies,
   openContextMenu,
   STATUS_LABELS,
   STATUS_STYLES,
   setOpStatus,
+  showAnnotationPanel,
 } from '@ext/lib/state';
 import type { CommentOp } from '@ext/lib/types';
 import { agentLabel, cn, isAgentAuthored, isSettled } from '@marklayer/types';
 import { Check, CheckCheck, HelpCircle, Loader2 } from 'lucide-preact';
 import { cardFlip, resolveAnchors } from './iframeOverlay';
-import { fileUrl, iframeMutationTick, uploadFile } from './signals';
+import { compactChrome, cssScale, fileUrl, hoverless, iframeMutationTick, uploadFile } from './signals';
 
 interface Props {
   op: CommentOp;
@@ -85,6 +87,16 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
       style={{ left, top }}
       data-anchor-drift={strategy === 'text' ? 'text' : undefined}
       onContextMenu={onContextMenu}
+      onClick={
+        hoverless.value
+          ? (e) => {
+              // The overlay under the pin places a new comment on a tap.
+              e.stopPropagation();
+              focusedAnnotationId.value = op.id;
+              showAnnotationPanel.value = true;
+            }
+          : undefined
+      }
     >
       <div class="relative -translate-x-1/2 -translate-y-1/2">
         {/* Pin dot */}
@@ -92,12 +104,21 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
           // A marker on someone else's page: flat fill, a surface-coloured ring
           // to separate it from whatever is behind, and one tight shadow. The
           // ring thickens on hover instead of the pin growing.
-          class="w-7 h-7 rounded-full text-white text-meta font-semibold
-                 grid place-items-center
+          class="relative w-7 h-7 rounded-full text-white text-meta font-semibold
+                 grid place-items-center pointer-coarse:after:absolute pointer-coarse:after:-inset-2
                  shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
                  transition-[box-shadow] duration-150 ease-out
                  group-hover/pin:shadow-[0_0_0_3px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.3)]"
-          style={{ background: op.color, opacity: styles.pinOpacity }}
+          style={{
+            background: op.color,
+            opacity: styles.pinOpacity,
+            // A phone fits a desktop page at a quarter size; the pin is a control,
+            // not part of the page, so it keeps its own size to stay tappable. The
+            // dot only: a narrow desktop window still hovers, and its card must not
+            // grow with it. A string, since Preact suffixes a bare number with px.
+            scale: compactChrome.value ? String(1 / cssScale.value) : undefined,
+            ...flashRing(op),
+          }}
         >
           {op.num}
           {showBadge && (
@@ -123,89 +144,95 @@ export function WebCommentPin({ op, scale: s, scrollY, frameDoc }: Props) {
 
         {/* Hover card. The pin-to-card gap is padding on this wrapper, not a
             positional offset — as dead space it drops :hover mid-crossing and the
-            card vanishes before the pointer can reach the reply controls. */}
-        <div
-          class={cn(
-            'absolute',
-            flipV ? 'bottom-0' : 'top-0',
-            flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
-            'pointer-events-none group-hover/pin:pointer-events-auto',
-            triage.wrapCls,
-          )}
-        >
+            card vanishes before the pointer can reach the reply controls. A touch
+            screen gets none: its tap opens the thread in the panel. */}
+        {!hoverless.value && (
           <div
             class={cn(
-              threadCard,
-              'w-[300px]',
-              'opacity-0',
-              flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
-              'transition-[opacity,translate] duration-150 ease-out',
-              'group-hover/pin:opacity-100 group-hover/pin:translate-x-0',
-              triage.cardCls,
-              'max-h-[400px] overflow-y-auto',
+              'absolute',
+              flipV ? 'bottom-0' : 'top-0',
+              flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
+              'pointer-events-none group-hover/pin:pointer-events-auto',
+              triage.wrapCls,
             )}
-            onClick={(e) => e.stopPropagation()}
           >
-            <ThreadHeader
-              label={String(op.num)}
-              color={op.color}
-              author={isAgentAuthored(op) && op.author ? agentLabel(op.author) : op.author}
-              ts={op.ts}
-              priority={op.priority}
-            />
+            <div
+              class={cn(
+                threadCard,
+                'w-[300px]',
+                'opacity-0',
+                flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
+                'transition-[opacity,translate] duration-150 ease-out',
+                'group-hover/pin:opacity-100 group-hover/pin:translate-x-0',
+                triage.cardCls,
+                'max-h-[400px] overflow-y-auto',
+              )}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <ThreadHeader
+                label={String(op.num)}
+                color={op.color}
+                author={isAgentAuthored(op) && op.author ? agentLabel(op.author) : op.author}
+                ts={op.ts}
+                priority={op.priority}
+              />
 
-            {(op.assignedAgent || dismissed) && (
-              <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
-                {op.assignedAgent && (
-                  // Same treatment as PriorityBadge, and for the same reason: the tinted
-                  // capsule made this the loudest thing in the card and set the label in
-                  // `styles.color`, which is `transparent` while a thread is open — so an
-                  // agent's own annotation drew an empty amber box where its name should be.
-                  <span class="text-meta inline-flex items-center gap-1 font-medium text-(--ds-gray-900)">
-                    {inProgress ? (
-                      <Loader2
-                        size={10}
-                        strokeWidth={2.75}
-                        class="animate-spin"
-                        style={{ color: styles.color }}
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <AgentMark id={op.assignedAgent} size={11} />
-                    )}
-                    {agentLabel(op.assignedAgent)}
-                  </span>
-                )}
-                {dismissed && op.dismissReason && (
-                  <span class="text-meta text-(--ds-gray-900)">{op.dismissReason}</span>
-                )}
+              {(op.assignedAgent || dismissed) && (
+                <div class="flex items-center gap-1.5 px-3.5 pb-1.5">
+                  {op.assignedAgent && (
+                    // Same treatment as PriorityBadge, and for the same reason: the tinted
+                    // capsule made this the loudest thing in the card and set the label in
+                    // `styles.color`, which is `transparent` while a thread is open — so an
+                    // agent's own annotation drew an empty amber box where its name should be.
+                    <span class="text-meta inline-flex items-center gap-1 font-medium text-(--ds-gray-900)">
+                      {inProgress ? (
+                        <Loader2
+                          size={10}
+                          strokeWidth={2.75}
+                          class="animate-spin"
+                          style={{ color: styles.color }}
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <AgentMark id={op.assignedAgent} size={11} />
+                      )}
+                      {agentLabel(op.assignedAgent)}
+                    </span>
+                  )}
+                  {dismissed && op.dismissReason && (
+                    <span class="text-meta text-(--ds-gray-900)">{op.dismissReason}</span>
+                  )}
+                </div>
+              )}
+
+              <div class="pt-1 px-3.5 pb-2.5">
+                <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">
+                  <MentionText text={op.text} mentions={op.mentions} />
+                </p>
+                {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
+                {op.voice && <VoicePlayer id={op.voice} resolveUrl={fileUrl} />}
               </div>
-            )}
 
-            <div class="pt-1 px-3.5 pb-2.5">
-              <p class="m-0 text-(--ds-gray-1000) text-ui leading-body break-words whitespace-pre-wrap">
-                <MentionText text={op.text} mentions={op.mentions} />
-              </p>
-              {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
+              <ThreadReplies replies={replies} resolveUrl={fileUrl} />
+
+              <AgentFixBanner op={op} />
+
+              {/* Divider */}
+              <div class={cn(geist.divider, 'mx-3')} />
+
+              <TriageSection
+                opId={op.id}
+                status={status}
+                assignee={op.assignee ?? null}
+                onOpenChange={triage.onOpenChange}
+              />
+
+              <div class={cn(geist.divider, 'mx-3')} />
+
+              <ReplyComposer parent={op} upload={uploadFile} resolveUrl={fileUrl} />
             </div>
-
-            <ThreadReplies replies={replies} resolveUrl={fileUrl} />
-
-            {/* Divider */}
-            <div class={cn(geist.divider, 'mx-3')} />
-
-            <TriageSection
-              opId={op.id}
-              status={status}
-              assignee={op.assignee ?? null}
-              onOpenChange={triage.onOpenChange}
-            />
-
-            <div class={cn(geist.divider, 'mx-3')} />
-
-            <ReplyComposer parent={op} upload={uploadFile} resolveUrl={fileUrl} />
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

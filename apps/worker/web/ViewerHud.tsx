@@ -4,7 +4,6 @@ import { annotationPanelOpen, peers, uiHidden } from '@ext/lib/state';
 import { cn } from '@marklayer/types';
 import { Lock, Mic, MicOff, MonitorPlay, X } from 'lucide-preact';
 import { lazy, Suspense } from 'preact/compat';
-import { HOME_LINK_PROPS, Logo } from './shared';
 import { followingPeer, presenting, setPresenting } from './signals';
 import {
   audioBlocked,
@@ -22,41 +21,6 @@ import {
 } from './voiceSignals';
 
 const MediaBubble = lazy(() => import('./MediaBubble').then((m) => ({ default: m.MediaBubble })));
-
-/**
- * One "Desktop only" screen for both ways of arriving at it. `cover` is the only
- * real difference: a phone never builds the viewer, so the screen *is* the page and
- * owns the h1; a narrowed desktop already mounted one, so the gate lays over it.
- */
-function DesktopOnly({ cover }: { cover: boolean }) {
-  const Heading = cover ? 'h2' : 'h1';
-  return (
-    <div
-      class={cn(
-        "flex flex-col items-center justify-center px-6 text-center bg-ml-bg font-['Geist',system-ui,sans-serif]",
-        cover ? 'md:hidden fixed inset-0 z-2147483647' : 'min-h-screen',
-      )}
-    >
-      <Logo size={48} />
-      <Heading class="text-title font-semibold tracking-display text-ml-fg mt-6 mb-2">Desktop only</Heading>
-      <p class="text-body text-ml-fg/60 max-w-[320px] leading-relaxed mb-8">
-        Annotation tools require a desktop browser. Open this link on your computer to view and collaborate.
-      </p>
-      <a
-        {...HOME_LINK_PROPS}
-        class="px-5 py-2.5 rounded-xl bg-ml-btn text-ml-btn-fg text-ui-lg font-semibold no-underline hover:bg-ml-btn-hover transition-colors"
-      >
-        Back to home
-      </a>
-    </div>
-  );
-}
-
-/** A phone gets this instead of the viewer, never behind it. */
-export const MobileOnlyPage = () => <DesktopOnly cover={false} />;
-
-/** A desktop browser narrowed past the breakpoint — a CSS gate over a mounted viewer. */
-export const NarrowViewportGate = () => <DesktopOnly cover />;
 
 /** A guest is looking at somebody else's work — say so, and offer nothing to click. */
 export function ViewOnlyBadge() {

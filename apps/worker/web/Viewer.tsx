@@ -51,13 +51,13 @@ import {
   API_BASE,
   annotationId,
   attachIframeMutationObserver,
+  compactChrome,
   cssScale,
   currentPageIdx,
   DEVICE_WIDTHS,
   deviceMode,
   followingPeer,
   iframeScrollY,
-  isMobileDevice,
   isReadonly,
   loadProject,
   MAX_AUTO_UPSCALE,
@@ -82,19 +82,13 @@ import {
 } from './signals';
 import { noteSupportSignal } from './support';
 import { maybeOfferSupport, openSupportCard, watchAgentWork, watchNotes, watchSupportPaid } from './support-ui';
+import { useCheckFix } from './useCheckFix';
 import { connected, emitRipple, localPeerId, serverUrl, serverWidth, useRealtimeSync } from './useRealtimeSync';
 import { ViewerTopBar } from './ViewerChrome';
-import {
-  AudioUnblockPrompt,
-  FollowIndicator,
-  MobileOnlyPage,
-  NarrowViewportGate,
-  VideoBubbles,
-  ViewOnlyBadge,
-  VoicePill,
-} from './ViewerHud';
+import { AudioUnblockPrompt, FollowIndicator, VideoBubbles, ViewOnlyBadge, VoicePill } from './ViewerHud';
 import { dockedPanelsWidth } from './ViewerInfoPanel';
 import { ViewerStage } from './ViewerStage';
+import { PhoneBar } from './viewer/PhoneBar';
 import { useRenderOutcome } from './viewer/useRenderOutcome';
 import { FAILURE_COPY, type RenderFailure, type ViewerFrame, ViewerFrameProvider } from './viewerFrame';
 import { videoActive, voiceActive } from './voiceSignals';
@@ -131,7 +125,6 @@ function AuthoringChrome() {
 
   return (
     <>
-      <Toolbar />
       {/* Never for a read-only visitor: they did not make any of this. */}
       <SupportDialog />
     </>
@@ -1119,8 +1112,6 @@ export default function Viewer() {
     [],
   );
 
-  if (isMobileDevice) return <MobileOnlyPage />;
-
   return (
     <ViewerFrameProvider value={frame}>
       <div class={cn('h-screen overflow-hidden flex flex-col bg-ml-bg-device', glass.font)}>
@@ -1129,18 +1120,20 @@ export default function Viewer() {
             <VoiceEngine localPeerId={localPeerId} />
           </Suspense>
         )}
-        <NarrowViewportGate />
 
         {/* Figma's hide-UI (⌘/): every bar and panel off, the annotations and
             the page they sit on left alone. The top bar collapses out of the
             column, so the stage takes the height it gives up. */}
-        {!chromeHidden && <ViewerTopBar />}
+        {/* A phone drops the bar: its controls live in the phone bar at the bottom. */}
+        {!chromeHidden && !compactChrome.value && <ViewerTopBar />}
         {/* Only renders anything when the URL is /p/:id */}
         {!chromeHidden && <ProjectTabs />}
         <ViewerStage />
 
         <ContextMenu />
-        {!chromeHidden && (readonly ? <ViewOnlyBadge /> : <AuthoringChrome />)}
+        {/* One bar at the bottom: the phone's, or the desktop toolbar (a guest's badge in its place). */}
+        {!chromeHidden && (compactChrome.value ? <PhoneBar /> : readonly ? <ViewOnlyBadge /> : <Toolbar />)}
+        {!chromeHidden && !readonly && <AuthoringChrome />}
 
         {/* Call controls stay: losing the mute button behind a shortcut with no
             visible way back is a different kind of problem than a busy screen. */}

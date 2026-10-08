@@ -105,8 +105,7 @@ export function SupportDialog() {
                 already given — their use of the thing — is the difference
                 between a thank-you they can ignore and a bill they cannot.
 
-                `text-title` + `tracking-display` is the project's own headline
-                recipe, the one ViewerHud sets "Desktop only" in — not a size
+                `text-title` is the project's own headline step, not a size
                 invented for this card. */}
             {/* One notch tighter than `tracking-display`'s -0.02em: that value is
                 tuned for the landing page's much larger steps, and wants pulling

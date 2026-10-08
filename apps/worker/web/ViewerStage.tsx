@@ -1,6 +1,16 @@
-import { CommentPopover } from '@ext/components/CommentPopover';
+import { CommentPopover, CommentSheet } from '@ext/components/CommentPopover';
 import { PanLayer } from '@ext/components/PanLayer';
-import { activeTool, color, elementToolsUnavailable, lineWidth, panScrollBy, toolPaintsCanvas } from '@ext/lib/state';
+import { pageErrors } from '@ext/lib/page-errors';
+import {
+  activeTool,
+  annotationPanelOpen,
+  color,
+  elementToolsUnavailable,
+  lineWidth,
+  panScrollBy,
+  showAnnotationPanel,
+  toolPaintsCanvas,
+} from '@ext/lib/state';
 import type { TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
 import { Loader2 } from 'lucide-preact';
@@ -13,6 +23,7 @@ import { captureAnchors, frameViewport, useFrameRectTracker } from './iframeOver
 import { HOME_LINK_PROPS, Logo, TextInputOverlay } from './shared';
 import {
   commentPopover,
+  compactChrome,
   cssScale,
   DEVICE_WIDTHS,
   deviceAreas,
@@ -24,6 +35,7 @@ import {
   isReadonly,
   originalWidth,
   pageUrl,
+  panelsDocked,
   pushDeviceOp,
   STILL_FRAME,
   selectionPopover,
@@ -360,6 +372,12 @@ function PageSurface() {
         style={{ pointerEvents: modes.comment ? 'auto' : 'none', cursor: modes.comment ? 'crosshair' : 'default' }}
         onClick={(e) => {
           if (modes.tool !== 'comment') return;
+          // An open thread on a phone covers half the page: a tap beside it puts
+          // the thread away rather than starting a second comment under it.
+          if (compactChrome.value && annotationPanelOpen.value) {
+            showAnnotationPanel.value = false;
+            return;
+          }
           commentPopover.value = canvasCoords(e);
         }}
       >
@@ -383,19 +401,24 @@ function PageSurface() {
 function PendingComment({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const at = commentPopover.value;
   if (!at) return null;
+  const draft = {
+    at,
+    capture: () => ({
+      ...captureAnchors({ frame: frameRef.current, x: at.x, y: at.y }),
+      captureViewport: frameViewport(frameRef.current),
+    }),
+    push: pushDeviceOp,
+    onClose: () => {
+      commentPopover.value = null;
+    },
+    attachments: { upload: uploadFile, resolveUrl: fileUrl },
+    voice: { transcribe: transcribeFile, constraint: audioConstraint },
+  };
+  if (compactChrome.value) return <CommentSheet {...draft} />;
   return (
     <CommentPopover
-      at={at}
+      {...draft}
       anchorAt={{ x: at.x * cssScale.value, y: (at.y - iframeScrollY.value) * cssScale.value }}
-      capture={() => ({
-        ...captureAnchors({ frame: frameRef.current, x: at.x, y: at.y }),
-        captureViewport: frameViewport(frameRef.current),
-      })}
-      push={pushDeviceOp}
-      onClose={() => {
-        commentPopover.value = null;
-      }}
-      attachments={{ upload: uploadFile, resolveUrl: fileUrl }}
     />
   );
 }
@@ -456,7 +479,8 @@ export function ViewerStage() {
   } = useViewerFrame();
   useFrameRectTracker({ frameRef, viewerRef });
   const panels = { onScrollTo: scrollToAnnotation, getExportData: buildExportData };
-  const desktop = deviceMode.value === 'desktop';
+  const docked = panelsDocked.value;
+  const Panel = compactChrome.value ? AnnotationSheet : AnnotationPanel;
 
   return (
     /* `mx-auto` (not `justify-center`) so flex auto-margins collapse on overflow
@@ -470,9 +494,9 @@ export function ViewerStage() {
           STILL_FRAME ? 'overflow-x-hidden' : 'overflow-x-auto',
         )}
       >
-        {!desktop && <DockedInfoPanel />}
+        {docked && <DockedInfoPanel />}
         <DeviceFrame />
-        {!desktop && <DockedAnnotationPanel {...panels} />}
+        {docked && <DockedAnnotationPanel {...panels} />}
       </div>
 
       {/* Flush sidebars, outside the scroller: they overlay the frame rather than

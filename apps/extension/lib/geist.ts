@@ -42,8 +42,9 @@ export const geist = {
   /**
    * 32px square icon control. Concentric with the shell: its 12px radius less
    * the 4px gutter is 8px, so the button corner follows the curve it sits in.
+   * `ml-ctl` is a hook for the web viewer, which sizes it for a finger on a phone.
    */
-  ctl: `${ctlShape('h-8 w-8', 'rounded-lg')} touch-none`,
+  ctl: `${ctlShape('h-8 w-8', 'rounded-lg')} touch-none ml-ctl`,
 
   /** Resting control: muted glyph, tonal fill on hover, one step darker on press. */
   ctlIdle: trim(`
@@ -62,7 +63,7 @@ export const geist = {
    * A compact 28px control, for the inside of a panel where a row is 36px tall
    * and a full 32px button would crowd it.
    */
-  ctlSm: ctlShape('h-7 w-7', 'rounded-md'),
+  ctlSm: `${ctlShape('h-7 w-7', 'rounded-md')} ml-ctl`,
 
   /**
    * A 24px control, for the inside of a field or chip where even `ctlSm` leaves
@@ -192,13 +193,15 @@ export const geist = {
   /**
    * Shortcut chip inside a tooltip. `inline-flex` so a modifier glyph and its
    * letter sit centred on one axis rather than on the text baseline, which is
-   * what let the two halves of `⇧H` drift apart optically.
+   * what let the two halves of `⇧H` drift apart optically. A phone has no keys
+   * to hint at, so it drops there.
    */
   kbd: trim(`
     inline-flex items-center gap-[0.15em]
     text-mini leading-none font-medium
     text-(--ds-gray-900) bg-(--ds-gray-alpha-200)
     rounded-sm px-1.5 py-1
+    pointer-coarse:max-md:hidden
   `),
 
   /**

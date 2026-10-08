@@ -1,6 +1,7 @@
 import { trackChanges } from '@ext/lib/analytics';
 import type { RectLike } from '@ext/lib/measure';
 import {
+  activeTool,
   annotatedUrl,
   areas,
   bumpAnchorGeneration,
@@ -48,6 +49,23 @@ effect(() => {
 
 export const isMobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && 'ontouchstart' in window;
 
+/** A signal over a media query, so layout that depends on it re-renders when it flips. */
+function mediaSignal(query: string) {
+  const mq = matchMedia(query);
+  const s = signal(mq.matches);
+  mq.addEventListener('change', (e) => (s.value = e.matches));
+  return s;
+}
+
+/** Below Tailwind's `md`: the same line the viewer's CSS breakpoints draw. */
+const narrowViewport = mediaSignal('(max-width: 767.98px)');
+
+/**
+ * No pointer can hover here, so a thread that opens on hover would never open.
+ * A tap on a pin opens it in the panel instead.
+ */
+export const hoverless = mediaSignal('(hover: none)');
+
 // Web-specific state
 export const iframeScrollY = signal(0);
 /** CSS transform scale — how much the locked container is visually scaled to fit the viewer */
@@ -87,6 +105,22 @@ export function attachIframeMutationObserver(doc: Document): () => void {
   };
 }
 export const isLanding = signal(true);
+
+/** The viewer on a phone-width screen: a phone bar and sheets in place of the
+ *  desktop chrome. The landing keeps its own narrow layout. */
+export const compactChrome = computed(() => !isLanding.value && narrowViewport.value);
+
+/** What the phone bar offers. The rest need a hover, a drag precise to the pixel, or a modifier key. */
+export const PHONE_TOOLS = [
+  { tool: 'navigate', label: 'Move' },
+  { tool: 'comment', label: 'Comment' },
+] as const;
+
+// No tool the phone bar lacks may stay armed: picked on a wide window, or by a
+// hardware-keyboard shortcut, it would have no button left to disarm it.
+effect(() => {
+  if (compactChrome.value && !PHONE_TOOLS.some((t) => t.tool === activeTool.value)) activeTool.value = 'navigate';
+});
 
 /** True while an embedded room holds most of the screen, so the host page's own toolbar can step aside. */
 export const embedInView = signal(false);

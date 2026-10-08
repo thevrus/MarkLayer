@@ -439,6 +439,7 @@ export function ViewerTopBar() {
       />
       <div class={geist.sep} />
       <ViewportSwitcher />
+      <DeviceOverviewButton />
       <ZoomControl />
       <div class={geist.sep} />
 

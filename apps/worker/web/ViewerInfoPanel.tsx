@@ -357,6 +357,7 @@ export function DockedInfoPanel() {
 
 /** Horizontal space the open docked panels take from a device frame. */
 export function dockedPanelsWidth(): number {
+  if (!panelsDocked.value) return 0;
   return (
     (infoPanelOpen.value ? INFO_PANEL_WIDTH + DOCK_GUTTER : 0) +
     (annotationPanelOpen.value ? DOCKED_ANNOTATION_WIDTH + DOCK_GUTTER : 0)

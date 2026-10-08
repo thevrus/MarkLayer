@@ -507,7 +507,7 @@ function AnnotationPanelBody({ onScrollTo, getExportData }: BodyProps) {
       </div>
 
       {/* List */}
-      <div class="flex-1 overflow-y-auto">
+      <div class="flex-1 overflow-y-auto overscroll-contain">
         {/* A filtered-out list is not an empty room. Saying "no comments yet" over
             a room that has them, with no way back, is the panel lying to itself. */}
         {items.length === 0 && (
@@ -733,6 +733,23 @@ export function DockedPanel({
     >
       {children}
     </div>
+  );
+}
+
+/** Half the screen: the thread, and the page it is about still in view above it. */
+const SHEET_PEEK = 0.55;
+
+/** The panel on a phone: a sheet over the page rather than a column beside it. */
+export function AnnotationSheet(props: BodyProps) {
+  return (
+    <PeekSheet
+      open={annotationPanelOpen.value}
+      onOpenChange={(open) => (showAnnotationPanel.value = open)}
+      label="Comments"
+      peek={SHEET_PEEK}
+    >
+      <AnnotationPanelBody {...props} />
+    </PeekSheet>
   );
 }
 

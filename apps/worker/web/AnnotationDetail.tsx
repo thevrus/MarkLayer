@@ -541,7 +541,7 @@ export function AnnotationDetail({
   const anchor = itemAnchor(item);
 
   return (
-    <div class="flex-1 overflow-y-auto">
+    <div class="flex-1 overflow-y-auto overscroll-contain">
       <div class="px-4 pt-3.5 pb-3 border-b border-(--ds-gray-alpha-400)">
         <div class="flex items-center gap-2 mb-2">
           {item.kind === 'comment' ? (

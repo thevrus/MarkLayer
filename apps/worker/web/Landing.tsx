@@ -9,7 +9,7 @@ import { agentLabel, cn } from '@marklayer/types';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
-import { ArrowUpRight, type LucideIcon, Monitor } from 'lucide-preact';
+import { ArrowUpRight, type LucideIcon } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import type { ComponentChildren } from 'preact';
 import { capture } from './analytics';
@@ -188,27 +188,19 @@ export function Landing() {
                   signing up or installing anything.
                 </p>
 
-                {isMobileDevice ? (
-                  <div
-                    class="lp-fade-up lp-panel mt-10 w-full max-w-[400px] rounded-2xl px-5 py-6"
-                    style={{ animationDelay: '0.3s' }}
-                  >
-                    <Monitor size={22} class="mx-auto mb-3 text-ml-fg/60" aria-hidden="true" />
-                    <p class="m-0 mb-1 text-ui-lg font-semibold text-ml-fg">Desktop only</p>
-                    <p class="m-0 text-ui text-ml-fg/60">Open this page on your computer to get started.</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Pasting a URL delivers the product in one step; the install
+                {/* Pasting a URL delivers the product in one step; the install
                         is the higher-friction ask, so it sits in the nav. */}
-                    <HeroSource />
+                <HeroSource />
 
-                    {/* Verifiable claims only: the licence link goes to the repo. */}
-                    <p
-                      class="lp-fade-up mt-9 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-ui text-ml-fg/60"
-                      style={{ animationDelay: '0.25s' }}
-                    >
-                      {/* Below `lg` the nav has no room for its install button, so the fold keeps one. */}
+                {/* Verifiable claims only: the licence link goes to the repo. */}
+                <p
+                  class="lp-fade-up mt-9 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-ui text-ml-fg/60"
+                  style={{ animationDelay: '0.25s' }}
+                >
+                  {/* Below `lg` the nav has no room for its install button, so the fold keeps one. */}
+                  {/* A phone browser can't install an extension, so it isn't offered one. */}
+                  {!isMobileDevice && (
+                    <>
                       <a
                         href={CHROME_STORE_URL}
                         target="_blank"
@@ -222,21 +214,21 @@ export function Landing() {
                       <span aria-hidden="true" class="lg:hidden">
                         ·
                       </span>
-                      <span>No account needed</span>
-                      <span aria-hidden="true">·</span>
-                      <a
-                        href="https://github.com/thevrus/MarkLayer"
-                        target="_blank"
-                        rel="noopener"
-                        class="text-ml-fg/60 hover:text-ml-fg transition-colors underline underline-offset-2 decoration-ml-fg/30"
-                      >
-                        Apache-2.0
-                      </a>
-                      <span aria-hidden="true">·</span>
-                      <span>Self-hostable</span>
-                    </p>
-                  </>
-                )}
+                    </>
+                  )}
+                  <span>No account needed</span>
+                  <span aria-hidden="true">·</span>
+                  <a
+                    href="https://github.com/thevrus/MarkLayer"
+                    target="_blank"
+                    rel="noopener"
+                    class="text-ml-fg/60 hover:text-ml-fg transition-colors underline underline-offset-2 decoration-ml-fg/30"
+                  >
+                    Apache-2.0
+                  </a>
+                  <span aria-hidden="true">·</span>
+                  <span>Self-hostable</span>
+                </p>
 
                 {/* Without this line, strangers' cursors over the copy read as a
                     rendering fault. Sits above the docked toolbar, on its centre line. */}
