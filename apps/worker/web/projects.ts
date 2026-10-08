@@ -1,6 +1,6 @@
 import { operations, toast as showToast } from '@ext/lib/state';
 import type { DrawOp } from '@ext/lib/types';
-import { postBody, postJson, uploadPath, uploadResponseSchema } from '@marklayer/types';
+import { postBody, postJson, unwrapSafeLink, uploadPath, uploadResponseSchema } from '@marklayer/types';
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { capture } from './analytics';
@@ -82,8 +82,8 @@ export async function createAnnotationFor(url: string): Promise<string | null> {
   return res?.ok ? id : null;
 }
 
-/** A typed address as a fetchable URL: `example.com` means https. */
-export const withScheme = (url: string): string => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+/** A typed address as a fetchable URL: `example.com` means https, and an Outlook Safe Link means its target. */
+export const withScheme = (url: string): string => unwrapSafeLink(/^https?:\/\//i.test(url) ? url : `https://${url}`);
 
 /**
  * Navigate to a new URL.

@@ -45,7 +45,7 @@ export const cn = createCn({
 });
 export { postBody, postJson } from './http';
 export type { FetchableUrl, UnfetchableReason } from './net';
-export { isBlockedHost, isPrivateAddress, parseFetchableUrl } from './net';
+export { isBlockedHost, isPrivateAddress, parseFetchableUrl, unwrapSafeLink } from './net';
 
 /**
  * An anonymous upload's id and the path it is served at. Shared because the
