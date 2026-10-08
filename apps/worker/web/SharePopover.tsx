@@ -15,6 +15,7 @@ import { useRef, useState } from 'preact/hooks';
 import { capture } from './analytics';
 import { LinkSettings } from './dashboard/LinkSettings';
 import { inviteToLink, links, linksLoading, loadSession, sessionLoading, user } from './dashboard/session';
+import { FeedbackButtonSection } from './FeedbackButtonSection';
 import { CopyControl, Spinner } from './shared';
 import { annotationId, projectId, sharing } from './signals';
 import { useViewerFrame } from './viewerFrame';
@@ -296,23 +297,98 @@ function useShareLink() {
       ? shareUrl({ origin: location.origin, kind: 'page', id, ref: 'web' })
       : null;
   const owned = id ? links.value.find((link) => link.id === id) : undefined;
-  // Whichever id the popover is actually showing a link for — a project or a
+  // Whichever id the card is actually showing a link for — a project or a
   // page — since inviting doesn't care which kind it is, only that one exists.
   const linkId = pid ?? id;
-
   const settings = renderLinkSettings({ pid, id, owned, checkingOwner: sessionLoading.value || linksLoading.value });
+  return { share, pid, url, owned, linkId, settings };
+}
 
+type ShareLink = ReturnType<typeof useShareLink>;
+
+/** The link itself, or the one action that makes it. */
+function LinkOrCreate({ link }: { link: ShareLink }) {
+  return link.url ? (
+    <LinkField url={link.url} busy={sharing.value} onCopy={link.share} />
+  ) : (
+    <CreateLink busy={sharing.value} onCreate={link.share} />
+  );
+}
+
+/** Everything under the link, the same on either surface. */
+function ShareSections({ link }: { link: ShareLink }) {
+  const { pid, linkId, settings, owned } = link;
   return (
-    <Popover.Root
-      open={open}
-      onOpenChange={(next: boolean) => {
-        setOpen(next);
-        if (next && !asked.current && !user.value) {
-          asked.current = true;
-          void loadSession();
-        }
-      }}
-    >
+    <>
+      {linkId && (
+        <>
+          <div class={geist.divider} />
+          <Block>
+            <FeedbackButtonSection kind={pid ? 'project' : 'page'} id={linkId} />
+          </Block>
+        </>
+      )}
+
+      {settings && (
+        <>
+          <div class={geist.divider} />
+          <Block>{settings}</Block>
+        </>
+      )}
+
+      {owned && (
+        <>
+          <div class={geist.divider} />
+          <ManageLinksRow />
+        </>
+      )}
+    </>
+  );
+}
+
+const SHARE_TITLE_CLS = 'text-ui tracking-ui m-0 font-semibold text-(--ds-gray-1000)';
+
+function PopoverShareBody() {
+  const link = useShareLink();
+  const { url, linkId } = link;
+  return (
+    <>
+      <Block>
+        <Popover.Title className={SHARE_TITLE_CLS}>Share</Popover.Title>
+        <LinkOrCreate link={link} />
+        {url && linkId && (hasShareSheet ? <ShareSheet url={url} /> : <InviteByEmail id={linkId} url={url} />)}
+      </Block>
+      <ShareSections link={link} />
+    </>
+  );
+}
+
+/**
+ * A phone's card leads with one full-width action at thumb height. The field
+ * stays above it for anyone who wants the address itself; email invites stay
+ * for the browsers with no share sheet.
+ */
+function DrawerShareBody() {
+  const link = useShareLink();
+  const { url, linkId } = link;
+  return (
+    <>
+      <div class="flex flex-col gap-3 px-4 pt-1 pb-4">
+        <h2 class="text-body m-0 font-semibold tracking-ui text-(--ds-gray-1000)">Share</h2>
+        <LinkOrCreate link={link} />
+        {url && hasShareSheet && <ShareButton url={url} />}
+        {url && linkId && !hasShareSheet && <InviteByEmail id={linkId} url={url} />}
+      </div>
+      <ShareSections link={link} />
+    </>
+  );
+}
+
+/** The share card floating under its button in the desktop top bar. */
+export function SharePopover() {
+  const { open, onOpenChange } = useShareOpen();
+  return (
+    <Popover.Root open={open} onOpenChange={onOpenChange}>
       <Popover.Trigger
         aria-label="Share"
         className={cn(geist.ctl, geist.ctlIdle, 'data-popup-open:bg-(--ds-gray-alpha-100)')}

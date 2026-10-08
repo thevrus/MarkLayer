@@ -88,7 +88,7 @@ export function parseRoomRef(input: string): string | null {
  * with nothing joining them, so "did anyone act on what I sent" had no answer.
  * The label rides the link and the viewer stamps it on every event it reports.
  */
-export const SHARE_REFS = ['web', 'ext', 'dash'] as const;
+export const SHARE_REFS = ['web', 'ext', 'dash', 'button'] as const;
 export type ShareRef = (typeof SHARE_REFS)[number];
 
 /**
