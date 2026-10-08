@@ -27,7 +27,7 @@ rows:
     ml: "No"
     them: "Yes"
   - feature: "Browser metadata capture"
-    ml: "Yes. Browser, OS, viewport width on every comment"
+    ml: "Yes. Browser, OS, viewport width on every comment left in the browser"
     them: "Yes. Browser, OS, viewport"
   - feature: "Console log capture"
     ml: "No"

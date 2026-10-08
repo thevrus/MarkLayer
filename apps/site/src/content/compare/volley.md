@@ -8,7 +8,7 @@ homepage: "https://meetvolley.com"
 bottomLine: "Choose MarkLayer for free annotation on the live page itself, with real-time cursors and an open-source codebase. Choose Volley if you prefer screenshot-anchored feedback with Jira/Trello export and your team fits the $29/month Pro plan."
 quote: "Volley's screenshot model has one real advantage: the capture can't change under the reviewer. The cost is that it goes stale the moment the page updates. MarkLayer anchors annotations to the live element, so the pin survives a deploy instead of pointing at an old picture."
 published: 2026-08-15
-modified: 2026-09-14
+modified: 2026-10-08
 rows:
   - feature: "Price"
     ml: "Free, no tiers"
@@ -29,7 +29,7 @@ rows:
     ml: "Yes"
     them: "No"
   - feature: "Integrations"
-    ml: "None. Paste the share link"
+    ml: "One-way. Posts new comments to Slack, Teams, Discord or a webhook; files single threads as Jira, Linear or GitHub issues. Nothing syncs back"
     them: "Jira, Trello, Slack; webhooks on Enterprise"
   - feature: "AI coding agent access (MCP)"
     ml: "Yes. Live watch, acknowledge, resolve, reply"
@@ -51,7 +51,7 @@ chooseThem:
   - "Your team already runs on Volley's project structure and the $29/month fits."
 faq:
   - q: "Is MarkLayer a free Volley alternative?"
-    a: "Yes. MarkLayer covers visual feedback on any webpage for free with no trial period. It does not export to Jira or Trello; the share link is what you paste into your tracker."
+    a: "Yes. MarkLayer covers visual feedback on any webpage for free with no trial period. It files a thread as a Jira issue one way and posts new comments to Slack, but has no Trello export and nothing syncs back."
   - q: "Does Volley have a free plan?"
     a: "No permanent free plan as of August 2026. Volley offers a 30-day trial, then Pro at $29/month (discounted from $49) with 25 projects and unlimited users, plus a custom-priced Enterprise tier."
   - q: "Screenshot-based or live-page annotation: which is better?"

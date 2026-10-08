@@ -7,7 +7,7 @@ competitorTagline: "a paid feedback platform whose primary use case is collectin
 bottomLine: "Choose MarkLayer when your team needs to give feedback on any webpage, anywhere on the internet. Choose Userback when you need to collect annotated feedback FROM your end users on your own product via an embedded widget."
 quote: "Userback and MarkLayer get conflated because both have annotation. Userback is the widget customers use to give you feedback on your product. MarkLayer is the tool your team uses to give feedback on any page. Different sides of the table."
 published: 2026-02-13
-modified: 2026-09-14
+modified: 2026-10-08
 rows:
   - feature: "Price"
     ml: "Free"
@@ -25,10 +25,10 @@ rows:
     ml: "Yes. Annotate any page"
     them: "No. Widget only on your installed sites"
   - feature: "Browser/OS metadata capture"
-    ml: "No"
+    ml: "Yes. Browser, OS and viewport on every comment left in the browser"
     them: "Yes"
   - feature: "Integrations"
-    ml: "None native"
+    ml: "One-way. Posts new comments to Slack, Teams, Discord or a webhook; files single threads as Jira, Linear or GitHub issues. Nothing syncs back"
     them: "Jira, Slack, Trello, Asana, GitHub"
   - feature: "Real-time live cursors"
     ml: "Yes"

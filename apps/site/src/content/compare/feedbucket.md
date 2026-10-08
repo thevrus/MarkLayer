@@ -8,7 +8,7 @@ homepage: "https://feedbucket.app"
 bottomLine: "Choose MarkLayer to annotate any page, including sites you don't control, for free with no script install. Choose Feedbucket if you want a permanent feedback widget living on your own site with screenshot/video capture and native routing into 16+ trackers."
 quote: "Feedbucket's one-line install is honest positioning: it lives on sites you own. That's exactly the boundary MarkLayer doesn't have. A client's production site, a competitor's checkout, a page you'll never get a script tag onto: point the extension at it and annotate."
 published: 2026-08-15
-modified: 2026-09-14
+modified: 2026-10-08
 rows:
   - feature: "Price"
     ml: "Free, no tiers"
@@ -32,7 +32,7 @@ rows:
     ml: "Yes"
     them: "No"
   - feature: "Integrations"
-    ml: "None. Paste the share link"
+    ml: "One-way. Posts new comments to Slack, Teams, Discord or a webhook; files single threads as Jira, Linear or GitHub issues. Nothing syncs back"
     them: "Jira, Linear, GitHub, GitLab, Asana, ClickUp, Trello, Basecamp, Monday, Notion, Slack, Zapier, webhooks"
   - feature: "AI coding agent access (MCP)"
     ml: "Yes. Live watch, acknowledge, resolve, reply"
@@ -54,7 +54,7 @@ chooseThem:
   - "You need console logs attached to reports (Business plan and up)."
 faq:
   - q: "Is MarkLayer a free Feedbucket alternative?"
-    a: "For annotating pages, yes, and it reaches pages Feedbucket can't (anything without the script installed). It does not replicate Feedbucket's tracker integrations, video capture, or console logs."
+    a: "For annotating pages, yes, and it reaches pages Feedbucket can't (anything without the script installed). It does not replicate Feedbucket's two-way tracker routing, video capture, or console logs."
   - q: "Does Feedbucket have a free plan?"
     a: "No. As of August 2026 Feedbucket offers a 14-day trial, then Pro at $49/month ($39/month billed yearly) with 2 team members and 5 active projects, or Business at $89/month ($72/month yearly) with 25 members and unlimited projects."
   - q: "Widget or extension: which model fits my workflow?"

@@ -8,7 +8,7 @@ homepage: "https://jam.dev"
 bottomLine: "Choose MarkLayer for free visual feedback, design review, and any case where the answer to \"what changed\" is a circle and an arrow. Choose Jam if you need rich engineering bug reports (auto-captured console errors, network traces, and reproduction recordings) and you have budget for a paid developer-tool subscription."
 quote: "Jam is best-in-class for engineering bug reports: console errors, network traces, repro recordings. MarkLayer's job is upstream of that: a designer circling a misaligned button. They solve different halves of the same workflow."
 published: 2026-02-27
-modified: 2026-09-14
+modified: 2026-10-08
 rows:
   - feature: "Price"
     ml: "Free, no tiers, no paywall"
@@ -32,7 +32,7 @@ rows:
     ml: "No"
     them: "Yes. Automatic"
   - feature: "Browser/OS metadata"
-    ml: "No"
+    ml: "Yes. Browser, OS and viewport on every comment left in the browser"
     them: "Yes. Automatic"
   - feature: "AI coding agent access (MCP)"
     ml: "Yes. Live watch, acknowledge, resolve, reply loop"
@@ -61,11 +61,11 @@ faq:
   - q: "When should I use MarkLayer vs Jam?"
     a: "Use MarkLayer when the bug is visual or you're giving design or content feedback. Use Jam when the bug is logic-level and the engineer needs the JS console state to debug. Many teams use both."
   - q: "Does MarkLayer capture browser metadata or network logs?"
-    a: "No. MarkLayer is focused on the annotation step. If you need automatic capture of browser, OS, viewport, console errors, or network requests, Jam.dev or BugHerd are heavier-duty fits."
+    a: "Partly. Every comment left in the browser carries the page URL, browser, OS and viewport size. MarkLayer does not capture console errors, network requests or a screen recording. If you need those on every report, Jam.dev or BugHerd are heavier-duty fits."
   - q: "Can clients view MarkLayer annotations without signing up?"
     a: "Yes. Share links open in any browser with no install or account. Jam shared reports also open without an account but the originator must sign up to create them."
   - q: "What does a Jam capture actually contain that a MarkLayer annotation doesn't?"
-    a: "State an engineer needs to reproduce a logic bug: the console error at the moment of capture, the network requests around it, device and viewport metadata, and often a short screen recording of the steps that triggered it. A MarkLayer annotation has none of that by design, because it's not describing what the JavaScript did; it's pointing at what's visually wrong on the page. A form that silently fails to submit needs Jam's console output. A form that's two pixels out of alignment needs an arrow, not a stack trace."
+    a: "State an engineer needs to reproduce a logic bug: the console error at the moment of capture, the network requests around it, and often a short screen recording of the steps that triggered it. A MarkLayer annotation carries browser, OS and viewport but none of the rest, by design, because it's not describing what the JavaScript did; it's pointing at what's visually wrong on the page. A form that silently fails to submit needs Jam's console output. A form that's two pixels out of alignment needs an arrow, not a stack trace."
 ---
 
 MarkLayer and [Jam.dev](https://jam.dev) both sit in the broad category of "feedback on a web page," but they capture different kinds of evidence for different kinds of bugs, and they're delivered differently too: Jam is a Chrome extension you install once and trigger per capture, while MarkLayer runs at marklayer.app with nothing to install on either side.

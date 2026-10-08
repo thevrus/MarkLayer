@@ -8,7 +8,7 @@ homepage: "https://usesuperflow.ai"
 bottomLine: "Choose MarkLayer for unlimited free annotation with your own AI coding agent working the room via MCP. Choose Superflow if you want built-in AI reviewers that audit pages for you, recorded video/audio feedback, and native Asana/ClickUp/Jira routing, priced per seat and per credit."
 quote: "Superflow and MarkLayer take AI in opposite directions. Superflow sells its own review agents: 10 credits per page audit, credits reset monthly. MarkLayer connects the agent you already pay for, Claude Code or Cursor, and lets it fix the annotations rather than write more of them."
 published: 2026-08-15
-modified: 2026-09-14
+modified: 2026-10-08
 rows:
   - feature: "Price"
     ml: "Free, no tiers, no credits"
@@ -29,7 +29,7 @@ rows:
     ml: "Your coding agent joins via MCP: watch, acknowledge, fix, resolve, reply"
     them: "Built-in review agents audit a page for 10 credits per review"
   - feature: "Integrations"
-    ml: "None. Paste the share link"
+    ml: "One-way. Posts new comments to Slack, Teams, Discord or a webhook; files single threads as Jira, Linear or GitHub issues. Nothing syncs back"
     them: "Asana, Monday, ClickUp, Jira, Trello, Slack, Webflow, WordPress, Shopify, Framer"
   - feature: "Open source"
     ml: "Yes (Apache-2.0)"
@@ -48,7 +48,7 @@ chooseThem:
   - "Feedback must land in Asana, ClickUp, or Jira automatically."
 faq:
   - q: "Is MarkLayer a free Superflow alternative?"
-    a: "Yes, for the annotation core. MarkLayer has no project, seat, or credit limits. It does not replicate Superflow's automated AI page audits or its tracker integrations."
+    a: "Yes, for the annotation core. MarkLayer has no project, seat, or credit limits. It does not replicate Superflow's automated AI page audits or its two-way tracker integrations."
   - q: "What does Superflow's free plan include?"
     a: "As of August 2026: 1 project, 1 team seat with unlimited guests, 60 AI credits a month (roughly 6 agent reviews), and 1GB storage. Paid plans start at $24/seat/month billed annually."
   - q: "How do the AI features actually differ?"

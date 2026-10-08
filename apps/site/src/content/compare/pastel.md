@@ -7,7 +7,7 @@ competitorTagline: "a paid visual feedback platform built for design agencies an
 bottomLine: "Choose MarkLayer if you want unlimited free visual feedback with no account and open-source code you can self-host. Choose Pastel if you run an agency that needs branded review canvases, integrations with Slack/Trello/Asana/Jira, and a paid SaaS workflow."
 quote: "Pastel's polish and the Slack/Trello/Asana integrations are genuine, and that's the agency moat. The trade-off is the per-seat bill. MarkLayer covers the visual-feedback core for free; if you don't need auto-routing into a tracker, that's the saving."
 published: 2026-02-28
-modified: 2026-09-14
+modified: 2026-10-08
 rows:
   - feature: "Price"
     ml: "Free, no tiers"
@@ -31,7 +31,7 @@ rows:
     ml: "No. Link-based, ephemeral"
     them: "Yes. Persistent canvases per project"
   - feature: "Integrations"
-    ml: "Open source. Extend yourself"
+    ml: "One-way. Posts new comments to Slack, Teams, Discord or a webhook; files single threads as Jira, Linear or GitHub issues. Nothing syncs back"
     them: "Slack, Trello, Asana, Jira, Zapier"
   - feature: "Open source"
     ml: "Yes"
