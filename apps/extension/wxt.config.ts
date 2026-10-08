@@ -9,7 +9,7 @@ export default defineConfig({
   manifest: {
     name: 'MarkLayer — Webpage Annotator & Visual Feedback Tool',
     description:
-      'Free annotation tool for Chrome. Draw, comment, and mark up any webpage, then share a link instantly. No account required.',
+      'Free open-source webpage annotator. Mark up any page, share a link, no account needed. Hand feedback to AI agents via MCP.',
     version: '0.9.0',
     action: {},
     permissions: ['activeTab', 'scripting', 'contextMenus'],
