@@ -9,7 +9,7 @@ homepage: "https://marker.io"
 bottomLine: "Choose MarkLayer for free, real-time visual feedback with one-way issue filing into Linear, GitHub, or Jira. Choose Marker.io if you want two-way Jira sync, console and network capture, and your team already pays for a bug-tracking subscription."
 quote: "Marker.io's moat is automatic console capture on every report and a Jira sync that runs both ways, and that sync sits on the $199-a-month Team plan (checked September 2026). MarkLayer files a Linear, GitHub or Jira issue for you now too. One way out, and free."
 published: 2026-01-28
-modified: 2026-09-24
+modified: 2026-10-08
 rows:
   - feature: "Price"
     ml: "Free"
