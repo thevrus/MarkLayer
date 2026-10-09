@@ -15,6 +15,9 @@ export const mailerMessageSchema = z.object({
 
 export type MailerMessage = z.infer<typeof mailerMessageSchema>;
 
+/** The provider refused this recipient outright, so retrying the same address cannot succeed. */
+export class UndeliverableAddressError extends Error {}
+
 /** A destination that can put a message in front of a person. */
 export interface Mailer {
   id: string;

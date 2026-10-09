@@ -1,4 +1,4 @@
-import type { EmailEnv, EmailSendBinding, Mailer } from './types';
+import { type EmailEnv, type EmailSendBinding, type Mailer, UndeliverableAddressError } from './types';
 
 /**
  * Where a message actually goes. Same shape as `integrations/providers.ts`: a
@@ -20,7 +20,15 @@ export function cloudflareMailer({ binding, from }: { binding: EmailSendBinding;
   return {
     id: 'cloudflare',
     async send(message) {
-      await binding.send({ from: { email: from, name: FROM_NAME }, ...message });
+      try {
+        await binding.send({ from: { email: from, name: FROM_NAME }, ...message });
+      } catch (err) {
+        // Suppressed after a bounce or complaint; resending only feeds the bounce rate.
+        if (err instanceof Error && 'code' in err && err.code === 'E_RECIPIENT_SUPPRESSED') {
+          throw new UndeliverableAddressError(`suppressed: ${message.to}`, { cause: err });
+        }
+        throw err;
+      }
     },
   };
 }

@@ -4,10 +4,11 @@ import {
   signInRequestSchema,
   updateLinkSettingsSchema,
 } from '@marklayer/types';
+import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { Hono } from 'hono/tiny';
-import { inviteTemplate, sendEmail, signInTemplate } from '../email';
+import { inviteTemplate, sendEmail, signInTemplate, UndeliverableAddressError } from '../email';
 import { captureServer } from '../posthog';
 import { inviteStore, nowInSeconds } from '../store';
 import { type AuthVariables, withUser } from './middleware';
@@ -57,6 +58,17 @@ function pingRoomRefreshAccess({
   );
 }
 
+// Signed-out routes mail any typed address: a script spraying made-up ones would
+// bounce our sending domain into a pause, which the per-address throttle cannot see.
+async function overEmailLimit(c: Context<AuthApp>): Promise<boolean> {
+  const limiter = c.env.EMAIL_LIMITER;
+  if (!limiter) return false;
+  const { success } = await limiter.limit({ key: c.req.header('cf-connecting-ip') ?? 'unknown' });
+  return !success;
+}
+
+const UNDELIVERABLE = 'We cannot deliver mail to that address. Check it for a typo, or use another one.';
+
 export const auth = new Hono<AuthApp>();
 
 auth.use('*', withUser);
@@ -68,6 +80,8 @@ auth.post('/request', async (c) => {
   if (!body.success) return c.json({ error: 'An email address is required.' }, 400);
   const email = normalizeEmail(body.data.email);
   if (!email) return c.json({ error: 'That does not look like an email address.' }, 400);
+
+  if (await overEmailLimit(c)) return c.json({ error: 'Too many requests. Try again in a minute.' }, 429);
 
   const store = authStore(c.env.DB);
   const wait = await store.throttleSeconds(email);
@@ -83,6 +97,7 @@ auth.post('/request', async (c) => {
     // The token row is already written and will expire on its own. Surface the
     // failure rather than claiming success: a person waiting on a mail that was
     // never sent has no way to tell that from a slow inbox.
+    if (err instanceof UndeliverableAddressError) return c.json({ error: UNDELIVERABLE }, 400);
     console.error('sign-in email failed', err);
     return c.json({ error: 'Could not send the email just now. Try again shortly.' }, 502);
   }
@@ -110,6 +125,8 @@ auth.post('/links/:id/invite', async (c) => {
   const link = new URL(body.data.url);
   if (link.origin !== new URL(c.req.url).origin) return c.json({ error: 'That link looks invalid.' }, 400);
 
+  if (await overEmailLimit(c)) return c.json({ error: 'Too many invites. Try again in a minute.' }, 429);
+
   const linkId = c.req.param('id');
   const store = inviteStore(c.env.DB);
   const wait = await store.throttleSeconds({ linkId, email });
@@ -118,6 +135,7 @@ auth.post('/links/:id/invite', async (c) => {
   try {
     await sendEmail({ env: c.env, to: email, template: inviteTemplate, data: { link: link.toString() } });
   } catch (err) {
+    if (err instanceof UndeliverableAddressError) return c.json({ error: UNDELIVERABLE }, 400);
     console.error('invite email failed', err);
     return c.json({ error: 'Could not send the invite just now. Try again shortly.' }, 502);
   }

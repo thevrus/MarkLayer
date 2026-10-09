@@ -2,4 +2,4 @@
 // it reads. Everything else is internal and imported by relative path.
 export { sendEmail } from './send';
 export { inviteTemplate, signInTemplate } from './templates';
-export type { EmailEnv } from './types';
+export { type EmailEnv, UndeliverableAddressError } from './types';

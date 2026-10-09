@@ -41,6 +41,8 @@ export type Env = {
     AI: Ai;
     /** Caps transcription per client IP. Absent in dev and tests, which then run unlimited. */
     TRANSCRIBE_LIMITER?: RateLimit;
+    /** Caps sign-in and invite mail per client IP. */
+    EMAIL_LIMITER?: RateLimit;
     TURN_KEY_ID?: string;
     TURN_KEY_TOKEN?: string;
     POSTHOG_KEY?: string;

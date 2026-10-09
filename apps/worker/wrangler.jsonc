@@ -62,6 +62,13 @@
       "name": "TRANSCRIBE_LIMITER",
       "namespace_id": "4271",
       "simple": { "limit": 10, "period": 60 }
+    },
+    {
+      // Sign-in and invite mail per client IP. Cloudflare advises against IP keys
+      // (shared NATs), but these routes are signed out, so there is no better one.
+      "name": "EMAIL_LIMITER",
+      "namespace_id": "4272",
+      "simple": { "limit": 5, "period": 60 }
     }
   ],
   "d1_databases": [

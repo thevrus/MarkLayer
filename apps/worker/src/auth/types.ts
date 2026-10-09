@@ -12,6 +12,8 @@ export type AuthEnv = EmailEnv & {
   ANNOTATION_ROOM: DurableObjectNamespace;
   POSTHOG_KEY?: string;
   POSTHOG_HOST?: string;
+  /** Caps mail to typed-in addresses per client IP. Absent in dev and tests, which then run unlimited. */
+  EMAIL_LIMITER?: RateLimit;
 };
 
 /**
