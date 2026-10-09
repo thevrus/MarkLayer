@@ -295,3 +295,56 @@ describe('DELETE /links/:id', () => {
     expect(room.pings).toEqual([]);
   });
 });
+
+describe('/verify', () => {
+  const token = mintToken();
+  const origin = 'http://localhost';
+  const post = (body: string, headers: Record<string, string> = {}) => ({
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: origin, ...headers },
+    body,
+  });
+
+  test('GET leaves the token unspent, so a mail scanner opening the link cannot burn it', async () => {
+    const db = fakeDb({ first: { email: 'someone@example.com' } });
+    const res = await auth.request(`/verify?token=${token}`, {}, { DB: asDb(db) }, testCtx);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(db.calls).toHaveLength(0);
+    expect(await res.text()).toContain(`value="${token}"`);
+  });
+
+  test('GET with a token that is not one of ours never echoes it into the page', async () => {
+    const res = await auth.request('/verify?token="><script>x</script>', {}, { DB: asDb(fakeDb()) }, testCtx);
+    expect(res.status).toBe(400);
+    expect(await res.text()).not.toContain('<script>x');
+  });
+
+  test('POST spends the token, sets the session and leaves for the app', async () => {
+    const db = fakeDb({ firstQueue: [{ email: 'someone@example.com' }, { id: 'u1', email: 'someone@example.com' }] });
+    const res = await auth.request('/verify', post(`token=${token}`), { DB: asDb(db) }, testCtx);
+    expect(res.status).toBe(303);
+    expect(res.headers.get('location')).toBe('/app');
+    expect(res.headers.get('set-cookie')).toContain(`${SESSION_COOKIE}=`);
+    expect(db.calls[0].sql).toContain('UPDATE login_tokens');
+  });
+
+  test('POST with a spent token explains instead of landing signed out', async () => {
+    const res = await auth.request('/verify', post(`token=${token}`), { DB: asDb(fakeDb({ first: null })) }, testCtx);
+    expect(res.status).toBe(400);
+    expect(res.headers.get('set-cookie')).toBeNull();
+    expect(await res.text()).toContain('expired');
+  });
+
+  test('POST from another origin is refused before the token is touched', async () => {
+    const db = fakeDb({ first: { email: 'someone@example.com' } });
+    const res = await auth.request(
+      '/verify',
+      post(`token=${token}`, { Origin: 'https://evil.example' }),
+      { DB: asDb(db) },
+      testCtx,
+    );
+    expect(res.status).toBe(403);
+    expect(db.calls).toHaveLength(0);
+  });
+});

@@ -5,6 +5,7 @@ import {
   updateLinkSettingsSchema,
 } from '@marklayer/types';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { csrf } from 'hono/csrf';
 import { createMiddleware } from 'hono/factory';
 import { Hono } from 'hono/tiny';
 import { inviteTemplate, sendEmail, signInTemplate, UndeliverableAddressError } from '../email';
@@ -15,16 +16,17 @@ import { type AuthVariables, withUser } from './middleware';
 import { authStore, ownedStore } from './store';
 import { mintToken } from './tokens';
 import { type AuthEnv, normalizeEmail, SESSION_COOKIE, SESSION_TTL_SECONDS, type User } from './types';
+import { confirmPage, expiredPage, isTokenShaped } from './verify-page';
 
-/** Where a redeemed link lands, and where a failed one lands with a reason to show. */
+/** Where a redeemed link lands. */
 const APP_PATH = '/app';
 
 function sessionCookieOptions(secure: boolean) {
   return {
     httpOnly: true,
     secure,
-    // Lax, not Strict: the magic link is a cross-site top-level GET from a mail
-    // client, and Strict would withhold the cookie we just set on that redirect.
+    // Lax, not Strict: people arrive from links in mail and chat, and Strict would
+    // withhold the session on that first cross-site navigation into the app.
     sameSite: 'Lax',
     path: '/',
     maxAge: SESSION_TTL_SECONDS,
@@ -139,22 +141,31 @@ auth.post('/links/:id/invite', async (c) => {
   return c.json({ ok: true }, 200);
 });
 
-auth.get('/verify', async (c) => {
+auth.get('/verify', (c) => {
   const token = c.req.query('token');
-  if (!token) return c.redirect(`${APP_PATH}?error=missing`, 302);
+  return isTokenShaped(token) ? confirmPage(token) : expiredPage();
+});
+
+// csrf(): the form is ours, so a POST from any other origin is someone trying to sign the reader into their account.
+auth.post('/verify', csrf(), async (c) => {
+  const form = await c.req.parseBody().catch(() => null);
+  const token = form?.token;
+  if (typeof token !== 'string' || !isTokenShaped(token)) return expiredPage();
 
   const store = authStore(c.env.DB);
   const email = await store.redeemLoginToken(token);
-  if (!email) return c.redirect(`${APP_PATH}?error=expired`, 302);
-
-  const user = await store.upsertUser(email);
-  if (!user) return c.redirect(`${APP_PATH}?error=expired`, 302);
+  const user = email ? await store.upsertUser(email) : null;
+  if (!user) {
+    captureServer(c.env, c.executionCtx, 'sign_in_expired', {});
+    return expiredPage();
+  }
   const session = mintToken();
   await store.createSession({ userId: user.id, token: session });
 
   setCookie(c, SESSION_COOKIE, session, sessionCookieOptions(new URL(c.req.url).protocol === 'https:'));
   captureServer(c.env, c.executionCtx, 'sign_in_verified', {});
-  return c.redirect(APP_PATH, 302);
+  // 303 so the browser follows with a GET, and a refresh does not re-post a spent token.
+  return c.redirect(APP_PATH, 303);
 });
 
 /**
