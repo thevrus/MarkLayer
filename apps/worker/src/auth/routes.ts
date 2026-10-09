@@ -4,11 +4,11 @@ import {
   signInRequestSchema,
   updateLinkSettingsSchema,
 } from '@marklayer/types';
-import type { Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { Hono } from 'hono/tiny';
 import { inviteTemplate, sendEmail, signInTemplate, UndeliverableAddressError } from '../email';
+import { overRateLimit } from '../http';
 import { captureServer } from '../posthog';
 import { inviteStore, nowInSeconds } from '../store';
 import { type AuthVariables, withUser } from './middleware';
@@ -58,15 +58,6 @@ function pingRoomRefreshAccess({
   );
 }
 
-// Signed-out routes mail any typed address: a script spraying made-up ones would
-// bounce our sending domain into a pause, which the per-address throttle cannot see.
-async function overEmailLimit(c: Context<AuthApp>): Promise<boolean> {
-  const limiter = c.env.EMAIL_LIMITER;
-  if (!limiter) return false;
-  const { success } = await limiter.limit({ key: c.req.header('cf-connecting-ip') ?? 'unknown' });
-  return !success;
-}
-
 const UNDELIVERABLE = 'We cannot deliver mail to that address. Check it for a typo, or use another one.';
 
 export const auth = new Hono<AuthApp>();
@@ -81,7 +72,10 @@ auth.post('/request', async (c) => {
   const email = normalizeEmail(body.data.email);
   if (!email) return c.json({ error: 'That does not look like an email address.' }, 400);
 
-  if (await overEmailLimit(c)) return c.json({ error: 'Too many requests. Try again in a minute.' }, 429);
+  // Signed-out mail to any typed address: a script spraying made-up ones would bounce
+  // the sending domain into a pause, which the per-address throttle cannot see.
+  if (await overRateLimit({ limiter: c.env.EMAIL_LIMITER, req: c.req }))
+    return c.json({ error: 'Too many requests. Try again in a minute.' }, 429);
 
   const store = authStore(c.env.DB);
   const wait = await store.throttleSeconds(email);
@@ -125,7 +119,8 @@ auth.post('/links/:id/invite', async (c) => {
   const link = new URL(body.data.url);
   if (link.origin !== new URL(c.req.url).origin) return c.json({ error: 'That link looks invalid.' }, 400);
 
-  if (await overEmailLimit(c)) return c.json({ error: 'Too many invites. Try again in a minute.' }, 429);
+  if (await overRateLimit({ limiter: c.env.EMAIL_LIMITER, req: c.req }))
+    return c.json({ error: 'Too many invites. Try again in a minute.' }, 429);
 
   const linkId = c.req.param('id');
   const store = inviteStore(c.env.DB);

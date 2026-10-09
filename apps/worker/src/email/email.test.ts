@@ -53,22 +53,18 @@ describe('mailerFor', () => {
   });
 
   test('a suppressed recipient surfaces as undeliverable, not as a retryable outage', async () => {
-    const suppressed = {
+    const failingWith = (code: string) => ({
       async send(): Promise<{ messageId: string }> {
-        throw Object.assign(new Error('recipient suppressed'), { code: 'E_RECIPIENT_SUPPRESSED' });
+        throw Object.assign(new Error(code), { code });
       },
-    };
-    const outage = {
-      async send(): Promise<{ messageId: string }> {
-        throw Object.assign(new Error('try later'), { code: 'E_INTERNAL_SERVER_ERROR' });
-      },
-    };
+    });
     const message = { to: 'gone@example.com', subject: 's', text: 't', html: 'h' };
-    await expect(mailerFor({ EMAIL: suppressed }).send(message)).rejects.toBeInstanceOf(UndeliverableAddressError);
-    const err = await mailerFor({ EMAIL: outage })
-      .send(message)
-      .catch((e: unknown) => e);
-    expect(err).not.toBeInstanceOf(UndeliverableAddressError);
+    await expect(mailerFor({ EMAIL: failingWith('E_RECIPIENT_SUPPRESSED') }).send(message)).rejects.toBeInstanceOf(
+      UndeliverableAddressError,
+    );
+    await expect(mailerFor({ EMAIL: failingWith('E_INTERNAL_SERVER_ERROR') }).send(message)).rejects.toMatchObject({
+      code: 'E_INTERNAL_SERVER_ERROR',
+    });
   });
 });
 

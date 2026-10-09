@@ -20,7 +20,7 @@ import type { AnnotationRoom } from './annotation-room';
 import { api } from './api';
 import { auth, authStore } from './auth';
 import type { EmailEnv } from './email';
-import { cachedPng, dayCached, once, sha256Hex, toBase64 } from './http';
+import { cachedPng, dayCached, once, overRateLimit, sha256Hex, toBase64 } from './http';
 import { handleMcpRequest, readRoomPage } from './mcp';
 import { generateOgImage, generatePageOgImage } from './og';
 import { collectTally, EMPTY_TALLY_LABEL, plural, tallyParts } from './og-tally';
@@ -429,11 +429,7 @@ app.post('/f/:id/transcribe', async (c) => {
   const cached = await uploads.transcript(id);
   if (cached !== null) return c.json({ text: cached });
 
-  const limiter = c.env.TRANSCRIBE_LIMITER;
-  if (limiter) {
-    const { success } = await limiter.limit({ key: c.req.header('cf-connecting-ip') ?? 'unknown' });
-    if (!success) return c.text('Too many requests', 429);
-  }
+  if (await overRateLimit({ limiter: c.env.TRANSCRIBE_LIMITER, req: c.req })) return c.text('Too many requests', 429);
 
   const object = await c.env.FILE_BUCKET.get(id);
   if (!object) return c.notFound();

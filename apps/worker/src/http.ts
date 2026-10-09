@@ -1,3 +1,5 @@
+import type { HonoRequest } from 'hono';
+
 /**
  * Memoize a zero-arg factory for the life of the isolate.
  *
@@ -79,4 +81,11 @@ export function toBase64Url(bytes: Uint8Array): string {
 export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/** True when this client is over `limiter`'s budget. No binding (dev, tests) never limits. */
+export async function overRateLimit({ limiter, req }: { limiter?: RateLimit; req: HonoRequest }): Promise<boolean> {
+  if (!limiter) return false;
+  const { success } = await limiter.limit({ key: req.header('cf-connecting-ip') ?? 'unknown' });
+  return !success;
 }
