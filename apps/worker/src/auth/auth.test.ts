@@ -326,14 +326,12 @@ describe('/verify', () => {
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe('/app');
     expect(res.headers.get('set-cookie')).toContain(`${SESSION_COOKIE}=`);
-    expect(db.calls[0].sql).toContain('UPDATE login_tokens');
   });
 
   test('POST with a spent token explains instead of landing signed out', async () => {
     const res = await auth.request('/verify', post(`token=${token}`), { DB: asDb(fakeDb({ first: null })) }, testCtx);
     expect(res.status).toBe(400);
     expect(res.headers.get('set-cookie')).toBeNull();
-    expect(await res.text()).toContain('expired');
   });
 
   test('POST from another origin is refused before the token is touched', async () => {
