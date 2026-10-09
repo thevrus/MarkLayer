@@ -40,7 +40,7 @@ export function isAllowedUrl({ url, allowedHosts }: { url: string; allowedHosts:
  * by everyone the room was shared with — which for this product is the client.
  * A webhook URL is an honest thing to store on those terms: it is write-only and
  * scoped to one channel. An API token for a tracker is not, so it is never
- * stored at all. See docs/adr/0004.
+ * stored at all.
  */
 export function publicConfig({
   provider,

@@ -936,8 +936,7 @@ export type ClientMsg = z.infer<typeof clientMsgSchema>;
 
 /**
  * Destinations a room can post to. Each one is rendered by a pure provider module
- * in apps/worker/src/integrations, which describes a request but never makes one
- * — see docs/adr/0003-outbound-integrations.md.
+ * in apps/worker/src/integrations, which describes a request but never makes one.
  */
 export const integrationProviderSchema = z.enum(['slack', 'teams', 'discord', 'webhook', 'linear', 'github', 'jira']);
 export type IntegrationProvider = z.infer<typeof integrationProviderSchema>;
@@ -983,7 +982,7 @@ export type ConfigFieldInfo = z.infer<typeof configFieldInfoSchema>;
  * A destination as `GET /api/providers` describes it.
  *
  * The client ships one generic form driven by this, so adding a provider costs
- * the client bundle nothing — see docs/adr/0003. Here rather than in the web app
+ * the client bundle nothing. Here rather than in the web app
  * because it is wire data, and this file is where wire data is defined and
  * parsed; the OpenAPI mirror in api.ts stays hand-written because
  * `@hono/zod-openapi` is a different builder (see CLAUDE.md).

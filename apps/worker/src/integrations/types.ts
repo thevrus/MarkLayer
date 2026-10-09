@@ -44,7 +44,7 @@ export interface OutboundRequest {
  * One field of a provider's config, as the client needs to render it.
  *
  * The client ships a single generic form driven by this, so adding a provider
- * costs the client bundle nothing — see docs/adr/0003. Defined in
+ * costs the client bundle nothing. Defined in
  * `packages/types` because it is the shape `GET /providers` serves and the
  * client parses; `type` in particular decides whether a value may be stored, and
  * it has to mean the same thing at both ends.

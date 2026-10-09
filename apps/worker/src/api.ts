@@ -441,7 +441,7 @@ api.openapi(addIntegration, async (c) => {
   // The secret half is dropped here and never written, with no branch that can
   // write the raw config: `validateIntegration` already resolved the provider,
   // so there is no miss to fall back from. A room stores where to file, never
-  // what authorises it — see docs/adr/0004.
+  // what authorises it.
   const stored = { ...incoming, config: publicConfig({ provider: verdict.provider, config: incoming.config }) };
   const next = [...existing, stored];
   await store.setIntegrations({ id, json: JSON.stringify(next) });
@@ -477,7 +477,7 @@ const PushBody = z
     provider: z.string().openapi({ description: 'A configured destination whose trigger is manual' }),
     secrets: z.record(z.string(), z.string()).optional().openapi({
       description:
-        'The credential fields for this destination, supplied per request. They are used for this one call and never stored — see docs/adr/0004.',
+        'The credential fields for this destination, supplied per request. They are used for this one call and never stored.',
     }),
   })
   .openapi('PushAnnotation');

@@ -23,8 +23,7 @@ export default defineConfig({
 
   // No integrations: every page here is static HTML, and the few scripts on it
   // (search, copy, the outline's scroll-spy) only enhance markup that already
-  // works without them. `/` is the app shell — the SPA bundle is built by apps/worker, not here. See
-  // docs/adr/0002 for why the app cannot be prerendered as a Preact island.
+  // works without them. `/` is the app shell — the SPA bundle is built by apps/worker, not here.
 
   markdown: {
     // Mirrors linkifyFirst() in the old renderer, which opened competitor links

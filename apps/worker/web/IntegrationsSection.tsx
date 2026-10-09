@@ -21,9 +21,9 @@ import { API_BASE } from './signals';
  * The provider catalogue is fetched as data rather than compiled in.
  *
  * This is what keeps the client flat: adding Teams or Linear server-side adds a
- * row to that list and zero bytes to the bundle everyone downloads. See
- * docs/adr/0003-outbound-integrations.md. The catalogue and this room's
- * destinations live in ./integrations, because the thread control reads them too;
+ * row to that list and zero bytes to the bundle everyone downloads.
+ * The catalogue and this room's destinations live in ./integrations, because the
+ * thread control reads them too;
  * the field primitives live in ./IntegrationFields for the same reason.
  */
 
