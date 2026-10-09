@@ -756,8 +756,8 @@ export const toolPaintsCanvas = (t: Tool) => FREEHAND.has(t) || SHAPES.has(t);
 
 export const TOOLS: Tool[] = [
   'navigate',
-  'highlight',
   'pen',
+  'highlight',
   'line',
   'arrow',
   'rectangle',
@@ -776,27 +776,79 @@ export const TOOLS: Tool[] = [
 const TOOL_SET: ReadonlySet<string> = new Set(TOOLS);
 const isTool = (v: unknown): v is Tool => typeof v === 'string' && TOOL_SET.has(v);
 
-function loadToolOrder(): Tool[] {
+/**
+ * Tools that share a gesture and differ only in what they leave behind sit
+ * behind one toolbar button, as Figma's shape and pen menus do. The first
+ * member is the button's face until another one is used.
+ */
+export const TOOL_GROUPS = {
+  draw: ['pen', 'highlight'],
+  shapes: ['rectangle', 'circle', 'line', 'arrow'],
+} as const satisfies Record<string, readonly Tool[]>;
+export type ToolGroup = keyof typeof TOOL_GROUPS;
+/** One toolbar position: a lone tool, or a group showing whichever member was used last. */
+export type ToolSlot = Tool | ToolGroup;
+
+export const isToolGroup = (v: unknown): v is ToolGroup => typeof v === 'string' && Object.hasOwn(TOOL_GROUPS, v);
+
+const GROUP_OF = new Map<Tool, ToolGroup>();
+for (const g of Object.keys(TOOL_GROUPS)) if (isToolGroup(g)) for (const t of TOOL_GROUPS[g]) GROUP_OF.set(t, g);
+/** The toolbar position a tool lives in. */
+export const slotOf = (t: Tool): ToolSlot => GROUP_OF.get(t) ?? t;
+
+function dedupeSlots(entries: unknown[]): ToolSlot[] {
+  const seen = new Set<ToolSlot>();
+  for (const v of entries) {
+    // An order saved before grouping lists members; the group takes its first member's place.
+    const slot = isTool(v) ? slotOf(v) : isToolGroup(v) ? v : null;
+    if (slot) seen.add(slot);
+  }
+  return [...seen];
+}
+
+const DEFAULT_SLOTS: ToolSlot[] = dedupeSlots(TOOLS);
+
+/** A saved toolbar order, migrated: unknown entries dropped, slots added in code since appended. */
+export function parseToolSlots(raw: string | null): ToolSlot[] {
   try {
-    const raw = lsGet('ml-tool-order');
-    if (!raw) return TOOLS;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return TOOLS;
-    const seen = new Set<Tool>();
-    const order: Tool[] = [];
-    for (const v of parsed) {
-      if (isTool(v) && !seen.has(v)) {
-        seen.add(v);
-        order.push(v);
-      }
-    }
-    // Append any tools added in code that aren't in the saved order yet
-    for (const t of TOOLS) if (!seen.has(t)) order.push(t);
-    return order;
+    const parsed: unknown = raw ? JSON.parse(raw) : null;
+    if (!Array.isArray(parsed)) return DEFAULT_SLOTS;
+    return dedupeSlots([...parsed, ...DEFAULT_SLOTS]);
   } catch {
-    return TOOLS;
+    return DEFAULT_SLOTS;
   }
 }
+
+function loadGroupFaces(): Record<ToolGroup, Tool> {
+  const faces: Record<ToolGroup, Tool> = { draw: TOOL_GROUPS.draw[0], shapes: TOOL_GROUPS.shapes[0] };
+  try {
+    const parsed: unknown = JSON.parse(lsGet('ml-tool-faces') ?? 'null');
+    if (!Array.isArray(parsed)) return faces;
+    for (const t of parsed) {
+      if (!isTool(t)) continue;
+      const g = GROUP_OF.get(t);
+      if (g) faces[g] = t;
+    }
+    return faces;
+  } catch {
+    return faces;
+  }
+}
+
+/** Which member each group's button shows. Follows `activeTool`, so a shortcut moves it too. */
+export const groupFaces = signal(loadGroupFaces());
+
+effect(() => {
+  const t = activeTool.value;
+  const g = GROUP_OF.get(t);
+  const faces = groupFaces.peek();
+  if (!g || faces[g] === t) return;
+  groupFaces.value = { ...faces, [g]: t };
+  lsSet('ml-tool-faces', JSON.stringify(Object.values(groupFaces.value)));
+});
+
+/** The tool a slot selects when its button is pressed. */
+export const slotTool = (slot: ToolSlot): Tool => (isToolGroup(slot) ? groupFaces.value[slot] : slot);
 
 /**
  * Tools that read the framed page's element tree. On a PDF there isn't one worth
@@ -804,28 +856,29 @@ function loadToolOrder(): Tool[] {
  * so the web app raises this and the toolbar drops them. The extension never
  * sets it: it only ever runs on a real document.
  */
-const ELEMENT_TOOLS: ReadonlySet<Tool> = new Set(['inspect', 'multiInspect', 'measure']);
+const ELEMENT_TOOLS: ReadonlySet<ToolSlot> = new Set(['inspect', 'multiInspect', 'measure']);
 export const elementToolsUnavailable = signal(false);
 
-export const toolOrder = signal<Tool[]>(loadToolOrder());
+export const toolSlots = signal<ToolSlot[]>(parseToolSlots(lsGet('ml-tool-order')));
 
 /** What the toolbar renders. Derived rather than filtered per render: the list
  *  keys a FLIP layout pass, so a fresh array identity re-measures every button. */
-export const visibleTools = computed(() =>
-  elementToolsUnavailable.value ? toolOrder.value.filter((t) => !ELEMENT_TOOLS.has(t)) : toolOrder.value,
+export const visibleSlots = computed(() =>
+  elementToolsUnavailable.value ? toolSlots.value.filter((t) => !ELEMENT_TOOLS.has(t)) : toolSlots.value,
 );
 
-export function moveTool(from: number, to: number) {
-  const arr = toolOrder.value;
-  if (from === to || from < 0 || to < 0 || from >= arr.length || to >= arr.length) return;
-  const next = arr.slice();
-  const [moved] = next.splice(from, 1);
-  if (moved === undefined) return;
-  next.splice(to, 0, moved);
-  toolOrder.value = next;
+/** Moves `slot` into the place `to` holds, by identity, so slots the host hides keep their own places. */
+export function moveSlot({ slot, to }: { slot: ToolSlot; to: ToolSlot }) {
+  const arr = toolSlots.value;
+  const from = arr.indexOf(slot);
+  const at = arr.indexOf(to);
+  if (from === at || from < 0 || at < 0) return;
+  const next = arr.filter((s) => s !== slot);
+  next.splice(at, 0, slot);
+  toolSlots.value = next;
   lsSet('ml-tool-order', JSON.stringify(next));
   // A tool dragged to the front is someone telling us it matters more than its default slot.
-  track('toolbar_reordered', { tool: moved, to });
+  track('toolbar_reordered', { tool: slot, to: at });
 }
 
 /**

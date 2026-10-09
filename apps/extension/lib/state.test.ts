@@ -55,7 +55,10 @@ const {
   localUser,
   markersVisible,
   measureActive,
-  moveTool,
+  isToolGroup,
+  moveSlot,
+  parseToolSlots,
+  slotTool,
   onOpMade,
   onOpPushed,
   onOpUpdated,
@@ -97,7 +100,8 @@ const {
   toggleUiHidden,
   toolCapturesSelection,
   toolForKeyEvent,
-  toolOrder,
+  TOOL_GROUPS,
+  toolSlots,
   toolPaintsCanvas,
   TOOLS,
   uiHidden,
@@ -105,7 +109,7 @@ const {
   undoRedoFlash,
   undoStack,
   updateGuide,
-  visibleTools,
+  visibleSlots,
 } = await import('./state');
 
 const base = { color: '#000', lineWidth: 2 };
@@ -633,23 +637,38 @@ describe('SHORTCUTS', () => {
   });
 });
 
-describe('moveTool', () => {
-  test('reorders the toolbar', () => {
-    const before = toolOrder.value;
-    const first = before[0];
-    moveTool(0, 2);
-    expect(toolOrder.value[2]).toBe(first);
-    expect(toolOrder.value).toHaveLength(before.length);
-    toolOrder.value = before;
+describe('moveSlot', () => {
+  test("takes the target's place, after it moving right and before it moving left", () => {
+    const before = toolSlots.value;
+    toolSlots.value = parseToolSlots(null);
+    try {
+      moveSlot({ slot: 'navigate', to: 'shapes' });
+      expect(toolSlots.value.slice(0, 3)).toEqual(['draw', 'shapes', 'navigate']);
+      moveSlot({ slot: 'comment', to: 'draw' });
+      expect(toolSlots.value.slice(0, 2)).toEqual(['comment', 'draw']);
+      expect(toolSlots.value).toHaveLength(before.length);
+    } finally {
+      toolSlots.value = before;
+    }
   });
 
-  test('ignores an out-of-range or no-op move rather than corrupting the order', () => {
-    const before = toolOrder.value;
-    moveTool(0, 0);
-    moveTool(-1, 2);
-    moveTool(0, before.length);
-    moveTool(before.length, 0);
-    expect(toolOrder.value).toBe(before);
+  test('lands where it was dropped on the bar when the host hides some slots', () => {
+    const before = toolSlots.value;
+    toolSlots.value = parseToolSlots(null);
+    elementToolsUnavailable.value = true;
+    try {
+      moveSlot({ slot: 'eraser', to: 'guide' });
+      expect(toolSlots.value.slice(-2)).toEqual(['guide', 'eraser']);
+    } finally {
+      elementToolsUnavailable.value = false;
+      toolSlots.value = before;
+    }
+  });
+
+  test('a move onto itself leaves the order untouched', () => {
+    const before = toolSlots.value;
+    moveSlot({ slot: 'comment', to: 'comment' });
+    expect(toolSlots.value).toBe(before);
   });
 });
 
@@ -783,24 +802,40 @@ describe('tool predicates', () => {
   });
 });
 
-describe('toolOrder', () => {
-  test('holds every tool exactly once, so no button can go missing', () => {
-    // The stored order is migrated on load: unknown entries dropped, tools added
-    // in code appended. A tool that never reaches the toolbar is invisible.
-    expect([...toolOrder.value].sort()).toEqual([...TOOLS].sort());
-    expect(new Set(toolOrder.value).size).toBe(TOOLS.length);
+describe('toolSlots', () => {
+  const reachable = (slots: readonly string[]) => slots.flatMap((s) => (isToolGroup(s) ? [...TOOL_GROUPS[s]] : [s]));
+
+  test('reaches every tool exactly once, so no button can go missing', () => {
+    expect(reachable(toolSlots.value).sort()).toEqual([...TOOLS].sort());
+    expect(new Set(reachable(toolSlots.value)).size).toBe(TOOLS.length);
+  });
+
+  test("migrates an order saved before grouping: each group takes its first member's place", () => {
+    const slots = parseToolSlots(
+      JSON.stringify(['comment', 'arrow', 'navigate', 'highlight', 'circle', 'pen', 'gone']),
+    );
+    expect(slots.slice(0, 4)).toEqual(['comment', 'shapes', 'navigate', 'draw']);
+    expect(reachable(slots).sort()).toEqual([...TOOLS].sort());
   });
 
   test('drops the element tools when the host cannot support them', () => {
-    expect(visibleTools.value).toBe(toolOrder.value);
+    expect(visibleSlots.value).toBe(toolSlots.value);
 
     elementToolsUnavailable.value = true;
-    expect(visibleTools.value).not.toContain('inspect');
-    expect(visibleTools.value).not.toContain('multiInspect');
-    expect(visibleTools.value).not.toContain('measure');
+    expect(visibleSlots.value).not.toContain('inspect');
+    expect(visibleSlots.value).not.toContain('multiInspect');
+    expect(visibleSlots.value).not.toContain('measure');
     // Everything else survives.
-    expect(visibleTools.value).toContain('comment');
+    expect(visibleSlots.value).toContain('comment');
     elementToolsUnavailable.value = false;
+  });
+});
+
+describe('groupFaces', () => {
+  test('a group shows the member last used, however it was picked', () => {
+    selectTool({ tool: 'circle', via: 'shortcut' });
+    selectTool({ tool: 'navigate', via: 'toolbar' });
+    expect(slotTool('shapes')).toBe('circle');
   });
 });
 

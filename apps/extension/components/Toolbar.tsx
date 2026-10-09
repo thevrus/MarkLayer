@@ -1,3 +1,4 @@
+import { Menu } from '@base-ui/react/menu';
 import { Toggle } from '@base-ui/react/toggle';
 import { Toolbar as BaseToolbar } from '@base-ui/react/toolbar';
 import { cn } from '@marklayer/types';
@@ -10,6 +11,7 @@ import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { prefersReducedMotion } from '../lib/media';
 import { capturePointer, pointerSampler } from '../lib/pointer';
+import { portalContainer } from '../lib/portal';
 import {
   activeTool,
   clearAll,
@@ -18,9 +20,11 @@ import {
   connectionStatus,
   copyOpenAnnotations,
   ensureScrollTickListener,
+  groupFaces,
   inspectorStack,
   isDrawingActive,
-  moveTool,
+  isToolGroup,
+  moveSlot,
   openAnnotationTotal,
   operations,
   redo,
@@ -29,10 +33,15 @@ import {
   selectTool,
   showSettings,
   showShareDialog,
+  slotOf,
+  slotTool,
+  TOOL_GROUPS,
+  type ToolGroup,
+  type ToolSlot,
   toggleToolbarMinimized,
   toolbarMinimized,
   undo,
-  visibleTools,
+  visibleSlots,
 } from '../lib/state';
 import type { Tool } from '../lib/types';
 import { SettingsPanel } from './SettingsPanel';
@@ -99,25 +108,26 @@ function Ctl({
  * truth for which tool is selected.
  */
 function ToolToggle({
-  tool,
+  slot,
   tip,
   shortcut,
   reorderIndex,
   onReorderPointerDown,
   onSelect,
-  draggingTool,
+  draggingSlot,
 }: {
-  tool: Tool;
+  slot: ToolSlot;
   tip: string;
   shortcut?: string;
   reorderIndex: number;
-  onReorderPointerDown: (e: PointerEvent, tool: string, index: number) => void;
+  onReorderPointerDown: (e: PointerEvent, slot: ToolSlot, index: number) => void;
   onSelect: (tool: Tool) => void;
-  /** The tool being dragged, if any — both "am I moving" and "is a drag on" come from it. */
-  draggingTool: string | null;
+  /** The slot being dragged, if any — both "am I moving" and "is a drag on" come from it. */
+  draggingSlot: ToolSlot | null;
 }) {
-  const dragging = draggingTool === tool;
-  const on = activeTool.value === tool;
+  const tool = slotTool(slot);
+  const dragging = draggingSlot === slot;
+  const on = slotOf(activeTool.value) === slot;
   return (
     <Toggle
       pressed={on}
@@ -127,25 +137,114 @@ function ToolToggle({
         if (pressed) onSelect(tool);
       }}
       aria-label={tip}
-      data-tool={tool}
-      data-dragging={dragging ? '' : undefined}
-      onPointerDown={(e: PointerEvent) => onReorderPointerDown(e, tool, reorderIndex)}
+      onPointerDown={(e: PointerEvent) => onReorderPointerDown(e, slot, reorderIndex)}
       className={cn(
         geist.ctl,
         // Same two recipes every other control in the bar uses, so a token change
         // lands on the whole row rather than half of it.
         on ? geist.ctlOn : geist.ctlIdle,
-        // Picked up: it keeps its size and lifts on the shell's own shadow, so
-        // nothing about the row's rhythm changes while it travels — and the press
-        // fill stays off, because the drag owns the pointer.
-        dragging && 'active:bg-transparent z-10 cursor-grabbing [box-shadow:var(--ds-shadow-menu)]',
+        // The drag owns the pointer, so the press fill stays off while it travels.
+        dragging && 'active:bg-transparent cursor-grabbing',
       )}
     >
       <Icon name={tool} {...GLYPH} />
       {/* Disabled, not unmounted: tearing every tooltip out of the tree at the
           moment a reorder starts costs a hitch on the first frame of the drag. */}
-      <Tooltip text={tip} shortcut={shortcut} disabled={draggingTool !== null} />
+      <Tooltip text={tip} shortcut={shortcut} disabled={draggingSlot !== null} />
     </Toggle>
+  );
+}
+
+/**
+ * One reorderable position on the bar. It carries the slot's identity for the
+ * drag and FLIP passes, so whatever sits beside the toggle — a group's chevron,
+ * a count badge — travels with it. Picked up, it lifts on the shell's own
+ * shadow at its own size, so the row's rhythm holds while it moves.
+ */
+function SlotFrame({
+  slot,
+  index,
+  dragging,
+  children,
+}: {
+  slot: ToolSlot;
+  /** Position on the bar, exposed as `--tb-i` for the landing page's staggered entrance. */
+  index: number;
+  dragging: boolean;
+  children: ComponentChildren;
+}) {
+  return (
+    <span
+      data-tool={slot}
+      style={{ '--tb-i': index }}
+      data-dragging={dragging ? '' : undefined}
+      class={cn(
+        'relative inline-flex items-center rounded-lg',
+        dragging && 'z-10 bg-(--ds-background-100) [box-shadow:var(--ds-shadow-menu)]',
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+const GROUP_LABELS: Record<ToolGroup, string> = { draw: 'Drawing tools', shapes: 'Shape tools' };
+
+/** The chevron beside a group's toggle, listing every member. */
+function GroupMenu({ group }: { group: ToolGroup }) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <Menu.Root>
+      <Menu.Trigger
+        ref={triggerRef}
+        aria-label={GROUP_LABELS[group]}
+        className={cn(
+          geist.ctl,
+          geist.ctlIdle,
+          'w-4 data-popup-open:bg-(--ds-gray-alpha-100) data-popup-open:text-(--ds-gray-1000)',
+        )}
+      >
+        <Icon name="chevDown" size={12} strokeWidth={1.5} />
+      </Menu.Trigger>
+      <Menu.Portal container={portalContainer.value ?? undefined}>
+        {/* Anchored to the slot, so the list lines up under the tool rather than the chevron. */}
+        <Menu.Positioner
+          anchor={() => triggerRef.current?.parentElement ?? null}
+          side="top"
+          align="start"
+          sideOffset={10}
+          collisionPadding={8}
+          className="z-2147483647 outline-none"
+        >
+          <Menu.Popup className={cn(glass.menuPopup, geist.surface, glass.font, 'min-w-44 p-1 text-(--ds-gray-1000)')}>
+            <Menu.RadioGroup value={groupFaces.value[group]} className="flex flex-col gap-px">
+              {TOOL_GROUPS[group].map((t) => (
+                <Menu.RadioItem
+                  key={t}
+                  value={t}
+                  closeOnClick
+                  onClick={() => selectTool({ tool: t, via: 'toolbar' })}
+                  className={cn(
+                    'flex items-center gap-2 w-full h-8 pl-1.5 pr-2.5 rounded-lg text-ui',
+                    glass.menuItem,
+                    glass.menuItemHighlight,
+                  )}
+                >
+                  <span class="inline-flex w-3.5 shrink-0 justify-center">
+                    <Menu.RadioItemIndicator className="inline-flex">
+                      <Icon name="check" size={13} strokeWidth={1.5} />
+                    </Menu.RadioItemIndicator>
+                  </span>
+                  <Icon name={t} {...GLYPH} />
+                  <span class="flex-1 pr-6">{lbl(t)}</span>
+                  {SHORTCUTS[t] && <span class="text-meta text-(--ds-gray-900)">{SHORTCUTS[t]}</span>}
+                </Menu.RadioItem>
+              ))}
+            </Menu.RadioGroup>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }
 
@@ -510,11 +609,11 @@ function useFlipReorder(deps: unknown[]) {
 }
 
 function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
-  const [draggingTool, setDraggingTool] = useState<string | null>(null);
+  const [draggingSlot, setDraggingSlot] = useState<ToolSlot | null>(null);
   const suppressClickRef = useRef(false);
 
   const onPointerDown = useCallback(
-    (e: PointerEvent, tool: string, fromIndex: number) => {
+    (e: PointerEvent, slot: ToolSlot, fromIndex: number) => {
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       e.stopPropagation();
       const pointerId = e.pointerId;
@@ -525,17 +624,15 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
 
       // Cursor-follow state, captured at activation.
       let draggedBtn: HTMLElement | null = null;
-      let itemStep = 0;
-      let firstSlotCentre = 0;
-      let slotCount = 0;
-      let activationCx = 0;
-      let activationCy = 0;
+      /** Where the dragged slot's left edge lands at each index, the rest closing up around it. */
+      let lefts: number[] = [];
+      let originLeft = 0;
       let lastDx = 0;
       let lastDy = 0;
 
-      const activate = (cx: number, cy: number) => {
+      const activate = () => {
         activated = true;
-        setDraggingTool(tool);
+        setDraggingSlot(slot);
         // Snapshot the slot geometry once. The slots themselves never move
         // during a reorder — only which button sits in each does — so a single
         // measurement is enough for the whole drag. Re-measuring per move used
@@ -545,15 +642,22 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
         const container = containerRef.current;
         if (container) {
           const all = Array.from(container.querySelectorAll<HTMLElement>('[data-tool]'));
-          slotCount = all.length;
-          const r0 = all[0]?.getBoundingClientRect();
-          const r1 = all[1]?.getBoundingClientRect();
-          firstSlotCentre = r0 ? r0.left + r0.width / 2 : 0;
-          // Slot pitch — distance between consecutive buttons. Used both to
-          // pick the drop index and to cancel out the CSS-slot displacement
-          // caused by optimistic reorders, so the dragged button stays glued
-          // to the cursor.
-          itemStep = r0 && r1 ? r1.left - r0.left : (r0?.width ?? 0);
+          const rects = all.map((el) => el.getBoundingClientRect());
+          const own = rects[fromIndex];
+          // Slots differ in width — a group carries its chevron — so each landing
+          // spot is laid out from the measured widths rather than one fixed pitch.
+          if (own) {
+            const [r0, r1] = rects;
+            const gap = r0 && r1 ? r1.left - r0.right : 0;
+            let x = r0?.left ?? own.left;
+            lefts = [];
+            for (const r of rects.filter((_, k) => k !== fromIndex)) {
+              lefts.push(x);
+              x += r.width + gap;
+            }
+            lefts.push(x);
+            originLeft = own.left;
+          }
           draggedBtn = all[fromIndex] ?? null;
           if (draggedBtn) {
             draggedBtn.style.willChange = 'translate';
@@ -562,31 +666,35 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
             capturePointer({ target: draggedBtn, pointerId });
           }
         }
-        activationCx = cx;
-        activationCy = cy;
       };
 
       const sampler = pointerSampler({
         event: e,
         onFrame: (px, py) => {
-          // Nearest slot to the cursor, straight from the snapshotted pitch — no
-          // DOM reads, so the move handler never invalidates layout.
-          const next =
-            itemStep > 0 ? Math.min(Math.max(Math.round((px - firstSlotCentre) / itemStep), 0), slotCount - 1) : to;
-          if (next !== to) {
+          // Nearest landing spot to where the slot is being held, from the
+          // snapshotted layout — no DOM reads, so moves never invalidate layout.
+          const held = originLeft + (px - startX);
+          let next = to;
+          let nearest = Number.POSITIVE_INFINITY;
+          for (const [k, left] of lefts.entries()) {
+            if (Math.abs(left - held) < nearest) {
+              nearest = Math.abs(left - held);
+              next = k;
+            }
+          }
+          const target = visibleSlots.value[next];
+          if (next !== to && target) {
             // Optimistically reorder so the user sees a live preview; FLIP
             // smooths each cross for the OTHER buttons (the dragged button is
             // excluded via [data-dragging] and its position is set manually).
-            moveTool(to, next);
+            moveSlot({ slot, to: target });
             to = next;
           }
-          // Cursor-follow: translate the dragged button so the cursor stays at
-          // the same point on it. Compensate for slot drift caused by optimistic
-          // reorders — when `to` moves by 1, the button's CSS slot shifts by
-          // itemStep, so we subtract that to keep visual position smooth.
+          // Cursor-follow: offset the slot from wherever the reorder has put its
+          // CSS position, so the cursor stays on the same point of it.
           if (draggedBtn) {
-            lastDx = (fromIndex - to) * itemStep + (px - activationCx);
-            lastDy = py - activationCy;
+            lastDx = held - (lefts[to] ?? originLeft);
+            lastDy = py - startY;
             draggedBtn.style.translate = `${lastDx}px ${lastDy}px`;
           }
         },
@@ -596,7 +704,7 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
         if (ev.pointerId !== pointerId) return;
         if (!activated) {
           if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < 4) return;
-          activate(ev.clientX, ev.clientY);
+          activate();
           dragShieldActive.value = true;
         }
         sampler.sample(ev);
@@ -628,7 +736,7 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
             btn.style.willChange = '';
           });
         }
-        setDraggingTool(null);
+        setDraggingSlot(null);
         // The click that follows pointerup may fire on a different element
         // than where pointerdown landed (because the dragged button moved).
         // Set a flag now and clear after the click has had a chance to
@@ -656,12 +764,13 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
     return true;
   };
 
-  return { draggingTool, onPointerDown, consumeClickSuppression };
+  return { draggingSlot, onPointerDown, consumeClickSuppression };
 }
 
 function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: DragApi }) {
-  const tools = visibleTools.value;
-  const toolsRef = useFlipReorder([tools]);
+  const slots = visibleSlots.value;
+  // The faces are read here so the FLIP pass re-runs when a group swaps its icon.
+  const toolsRef = useFlipReorder([slots, groupFaces.value]);
   const reorder = useToolReorder(toolsRef);
 
   // `data-ml-tb` hooks the landing page's staggered entrance
@@ -669,37 +778,32 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
   // the animation is scoped to `.lp-toolbar-in`, so the Viewer and the
   // extension are unaffected.
   return (
-    <BaseToolbar.Root data-ml-tb="row" className="flex items-center gap-1">
+    <BaseToolbar.Root data-ml-tb="row" className="flex items-center gap-1" style={{ '--tb-n': slots.length }}>
       {/* Each `Toggle` is controlled from `activeTool` directly rather than wrapped
           in a `ToggleGroup`: the signal is already the single source of the pressed
           state, and the group's composite machinery — a childList MutationObserver
           that re-sorts every button with `compareDocumentPosition` on each render —
           re-ran on every slot crossing of a reorder, on top of the FLIP pass. */}
       <div ref={toolsRef} data-ml-tb="tools" class="flex gap-1 items-center">
-        {tools.map((t, i) => {
-          const showStackBadge = t === 'inspect' && inspectorStack.value.length > 0;
-          const isDragging = reorder.draggingTool === t;
-          const toggle = (
-            <ToolToggle
-              key={t}
-              tool={t}
-              tip={lbl(t)}
-              shortcut={SHORTCUTS[t]}
-              reorderIndex={i}
-              onReorderPointerDown={reorder.onPointerDown}
-              // The click that lands a reorder must not also switch tools.
-              onSelect={(next) => {
-                if (!reorder.consumeClickSuppression()) selectTool({ tool: next, via: 'toolbar' });
-              }}
-              draggingTool={reorder.draggingTool}
-            />
-          );
-          if (!showStackBadge) return toggle;
+        {slots.map((t, i) => {
+          const face = slotTool(t);
           return (
-            <span key={t} class={cn('relative inline-flex', isDragging && 'z-10')}>
-              {toggle}
-              <CountBadge value={inspectorStack.value.length} />
-            </span>
+            <SlotFrame key={t} slot={t} index={i} dragging={reorder.draggingSlot === t}>
+              <ToolToggle
+                slot={t}
+                tip={lbl(face)}
+                shortcut={SHORTCUTS[face]}
+                reorderIndex={i}
+                onReorderPointerDown={reorder.onPointerDown}
+                // The click that lands a reorder must not also switch tools.
+                onSelect={(next) => {
+                  if (!reorder.consumeClickSuppression()) selectTool({ tool: next, via: 'toolbar' });
+                }}
+                draggingSlot={reorder.draggingSlot}
+              />
+              {isToolGroup(t) && <GroupMenu group={t} />}
+              {t === 'inspect' && <CountBadge value={inspectorStack.value.length} />}
+            </SlotFrame>
           );
         })}
       </div>

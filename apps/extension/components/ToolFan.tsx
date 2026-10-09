@@ -5,7 +5,7 @@ import { GLYPH, geist } from '../lib/geist';
 import { Icon } from '../lib/icons';
 import { prefersReducedMotion } from '../lib/media';
 import { capturePointer, pointerSampler } from '../lib/pointer';
-import { activeTool, selectTool, visibleTools } from '../lib/state';
+import { activeTool, selectTool, slotTool, visibleSlots } from '../lib/state';
 import type { Tool } from '../lib/types';
 
 /**
@@ -154,7 +154,7 @@ function startToolFan({ e, setShield }: { e: PointerEvent; setShield: (on: boole
   const btn = e.currentTarget;
   if (!(btn instanceof HTMLElement)) return;
 
-  const tools = visibleTools.value.slice(0, COUNT);
+  const tools = visibleSlots.value.slice(0, COUNT).map(slotTool);
   // One tool cannot be aimed at, and zero cannot be divided by.
   if (tools.length < 2) return;
 

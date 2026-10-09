@@ -642,98 +642,53 @@
     animation-delay: calc(160ms + var(--lp-tb-i, 0) * 38ms);
   }
 
-  /* Index per slot. The tools are user-reorderable, so these key off position,
-     not identity. The tail picks up where a full tool row leaves off. */
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(1) {
-    --lp-tb-i: 0;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(2) {
-    --lp-tb-i: 1;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(3) {
-    --lp-tb-i: 2;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(4) {
-    --lp-tb-i: 3;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(5) {
-    --lp-tb-i: 4;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(6) {
-    --lp-tb-i: 5;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(7) {
-    --lp-tb-i: 6;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(8) {
-    --lp-tb-i: 7;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(9) {
-    --lp-tb-i: 8;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(10) {
-    --lp-tb-i: 9;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(11) {
-    --lp-tb-i: 10;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(12) {
-    --lp-tb-i: 11;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(13) {
-    --lp-tb-i: 12;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(14) {
-    --lp-tb-i: 13;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(15) {
-    --lp-tb-i: 14;
-  }
-  .lp-toolbar-in [data-ml-tb="tools"] > *:nth-child(16) {
-    --lp-tb-i: 15;
+  /* Index per slot, set by the toolbar as `--tb-i` from its position, so a
+     reorder or a host that hides slots keeps the run unbroken. */
+  .lp-toolbar-in [data-ml-tb="tools"] > * {
+    --lp-tb-i: var(--tb-i, 0);
   }
 
   /* The separator that closes the tool run. */
   .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(2) {
-    --lp-tb-i: 16;
+    --lp-tb-i: var(--tb-n, 12);
   }
 
   /* Undo / redo / clear, staggered individually. Reserving four slots leaves
      room for a fourth history action without retiming everything after it. */
   .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(1) {
-    --lp-tb-i: 17;
+    --lp-tb-i: calc(var(--tb-n, 12) + 1);
   }
   .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(2) {
-    --lp-tb-i: 18;
+    --lp-tb-i: calc(var(--tb-n, 12) + 2);
   }
   .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(3) {
-    --lp-tb-i: 19;
+    --lp-tb-i: calc(var(--tb-n, 12) + 3);
   }
   .lp-toolbar-in [data-ml-tb="history"] > *:nth-child(4) {
-    --lp-tb-i: 20;
+    --lp-tb-i: calc(var(--tb-n, 12) + 4);
   }
 
-  /* Everything trailing the history group: the optional share separator and
-     button, the drag grip, the connection dot, minimize and settings. Positions
-     shift depending on whether the share block is present, which only moves the
-     timing by one step. */
+  /* Everything trailing the history group, counted on from the toolbar's
+     `--tb-n` slots: the optional share separator and button, the drag grip,
+     the connection dot, minimize and settings. Positions shift depending on
+     whether the share block is present, which only moves the timing by one step. */
   .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(4) {
-    --lp-tb-i: 21;
+    --lp-tb-i: calc(var(--tb-n, 12) + 5);
   }
   .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(5) {
-    --lp-tb-i: 22;
+    --lp-tb-i: calc(var(--tb-n, 12) + 6);
   }
   .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(6) {
-    --lp-tb-i: 23;
+    --lp-tb-i: calc(var(--tb-n, 12) + 7);
   }
   .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(7) {
-    --lp-tb-i: 24;
+    --lp-tb-i: calc(var(--tb-n, 12) + 8);
   }
   .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(8) {
-    --lp-tb-i: 25;
+    --lp-tb-i: calc(var(--tb-n, 12) + 9);
   }
   .lp-toolbar-in [data-ml-tb="row"] > *:nth-child(9) {
-    --lp-tb-i: 26;
+    --lp-tb-i: calc(var(--tb-n, 12) + 10);
   }
 }
 
