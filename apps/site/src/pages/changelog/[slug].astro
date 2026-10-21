@@ -3,7 +3,7 @@ import { render } from 'astro:content';
 import LinkGrid from '../../components/LinkGrid.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getReleases, type SiteLink } from '../../lib/collections';
-import { articleSchema, type Crumb, softwareReleaseSchema } from '../../lib/schema';
+import { articleSchema, type Crumb } from '../../lib/schema';
 import { formatReleaseDate } from '../../lib/site';
 
 export async function getStaticPaths() {
@@ -69,8 +69,7 @@ const breadcrumbs: Crumb[] = [
   breadcrumbs={breadcrumbs}
   modified={r.date}
   schema={[
-    articleSchema({ h1: r.name, description: r.description, path, published: r.date, modified: r.date }),
-    softwareReleaseSchema({ version: r.version, name: r.name, summary: r.summary, path, date: r.date }),
+    articleSchema({ h1: r.name, description: r.description, path, published: r.date, modified: r.date, aboutApp: true }),
   ]}
 >
   <Fragment slot="byline">

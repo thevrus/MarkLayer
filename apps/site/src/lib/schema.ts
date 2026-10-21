@@ -12,6 +12,9 @@ const AUTHOR = {
 
 // Google's Rich Results Test rejects a bare day as a DateTime and asks for a zone.
 // Content only records the day, so it is pinned to UTC midnight.
+/** The homepage's WebApplication node. Other pages point at it rather than repeat it. */
+export const APP_ID = `${ORIGIN}/#app`;
+
 const dateTime = (day: string) => (/^\d{4}-\d{2}-\d{2}$/.test(day) ? `${day}T00:00:00Z` : day);
 
 export function articleSchema(p: {
@@ -20,10 +23,13 @@ export function articleSchema(p: {
   path: string;
   published: string;
   modified: string;
+  /** Set on pages whose subject is MarkLayer itself. */
+  aboutApp?: boolean;
 }): object {
   return {
     '@context': 'https://schema.org',
     '@type': 'Article',
+    ...(p.aboutApp ? { about: { '@id': APP_ID } } : {}),
     headline: p.h1,
     description: p.description,
     datePublished: dateTime(p.published),
@@ -51,25 +57,6 @@ export function faqSchema(qa: QA[]): object | null {
       name: q,
       acceptedAnswer: { '@type': 'Answer', text: a },
     })),
-  };
-}
-
-/**
- * The homepage's product entity, repeated on comparison pages so an assistant can
- * answer "how much does it cost" without a hop back to `/`.
- */
-export function productSchema(): object {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'WebApplication',
-    name: 'MarkLayer',
-    description:
-      'Free, anonymous web app for annotating any live webpage, PDF or image. No install, no account, no sign-up.',
-    applicationCategory: 'DesignApplication',
-    operatingSystem: 'Any web browser (no installation or extension required)',
-    isAccessibleForFree: true,
-    url: ORIGIN,
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   };
 }
 
@@ -126,36 +113,3 @@ export const PERSON_SCHEMA = {
   worksFor: { '@type': 'Organization', name: 'MarkLayer', url: ORIGIN },
 };
 
-/**
- * A release page describes a version of the product, not just an article about
- * one. `SoftwareApplication` with `softwareVersion` and `releaseNotes` is the
- * type search engines and assistants read to answer "what's new in MarkLayer" —
- * the Article schema alongside it carries the authorship and the dates.
- *
- * `offers` is a real zero-price offer, not a formality: MarkLayer has no paid
- * plan, and stating the price as 0 is what keeps a "free" claim substantiated.
- */
-export function softwareReleaseSchema(p: {
-  version: string;
-  name: string;
-  summary: string;
-  path: string;
-  date: string;
-}): object {
-  return {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: `MarkLayer ${p.version}`,
-    alternateName: p.name,
-    applicationCategory: 'BrowserApplication',
-    operatingSystem: 'Chrome, Firefox, Edge, Brave',
-    softwareVersion: p.version,
-    releaseNotes: `${ORIGIN}${p.path}`,
-    datePublished: dateTime(p.date),
-    description: p.summary,
-    url: ORIGIN,
-    image: { '@type': 'ImageObject', url: OG_IMAGE },
-    author: AUTHOR,
-    offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
-  };
-}

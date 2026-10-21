@@ -14,6 +14,7 @@
     },
     {
       "@type": "WebApplication",
+      "@id": "https://marklayer.app/#app",
       "name": "MarkLayer",
       "description": "Free, anonymous web app for annotating any live webpage, PDF or image. Paste a URL on marklayer.app or drop in a file, then draw, comment or highlight in your browser. No install, no account, no sign-up. Share a single link for instant visual feedback.",
       "alternateName": "MarkLayer web app",

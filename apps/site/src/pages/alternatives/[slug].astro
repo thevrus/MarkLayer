@@ -6,7 +6,7 @@ import VideoEmbed from '../../components/VideoEmbed.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getAlternatives, getComparisons, getCompetitorPrices, relatedLinks } from '../../lib/collections';
 import { alternativesH1 } from '../../lib/docs-nav';
-import { articleSchema, type Crumb, faqSchema, productSchema } from '../../lib/schema';
+import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
 
 export async function getStaticPaths() {
   const [alternatives, comparisons] = await Promise.all([getAlternatives(), getComparisons()]);
@@ -23,7 +23,7 @@ export async function getStaticPaths() {
         siblings: alternatives,
         others: comparisons,
         siblingLink: (a) => ({ href: `/alternatives/${a.id}`, label: `Free ${a.data.target} alternatives` }),
-        crossLink: (c) => ({ href: `/vs/${c.id}`, label: `MarkLayer vs ${c.data.competitor}` }),
+        crossLink: (c) => ({ href: `/vs/${c.id}`, label: `Compare MarkLayer vs ${c.data.competitor} head to head` }),
       }),
     },
   }));
@@ -69,9 +69,8 @@ const breadcrumbs: Crumb[] = [
   breadcrumbs={breadcrumbs}
   modified={a.modified}
   schema={[
-    articleSchema({ h1, description: a.description, path, published: a.published, modified: a.modified }),
+    articleSchema({ h1, description: a.description, path, published: a.published, modified: a.modified, aboutApp: true }),
     faqSchema(a.faq),
-    productSchema(),
   ]}
 >
   <Fragment slot="intro">{a.intro ?? <Content />}</Fragment>
