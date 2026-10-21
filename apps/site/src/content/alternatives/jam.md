@@ -1,13 +1,13 @@
 ---
 order: 3
 title: "Free Jam.dev Alternative: 4 Picks, 1 Open-Source"
-description: "Jam.dev's free tier limits monthly reports. MarkLayer is fully free for visual annotation; BugHerd and Marker.io are paid alternatives for console-capture parity."
+description: "Jam.dev's free tier limits monthly reports. MarkLayer is fully free for visual annotation; BugHerd and Marker.io are paid alternatives with console capture."
 target: "Jam.dev"
 homepage: "https://jam.dev"
 bottomLine: "MarkLayer is the closest free alternative for the visual-annotation half of Jam. For the engineering-bug-report half (auto-capturing console errors, network logs, and reproduction recordings), the open-source options are narrower: OpenJam keeps reports local and Crikket and BugPin need self-hosting to stay free. BugHerd and Marker.io are paid alternatives."
 hubBlurb: "Free tier limits monthly reports. MarkLayer is fully free for the annotation half."
 published: 2026-01-28
-modified: 2026-09-13
+modified: 2026-10-21
 options:
   - name: "MarkLayer"
     url: "/"

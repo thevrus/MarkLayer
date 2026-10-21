@@ -1,7 +1,7 @@
 ---
 order: 18
 title: "zipBoard vs MarkLayer: $99/Month Review Suite vs Free"
-description: "zipBoard has no free plan: Team starts at $99/month for 20 assets and 1GB, and integrations sit on the $199 Agency plan. MarkLayer is free, needs no account and serves MCP on every link."
+description: "zipBoard has no free plan: Team starts at $99/month for 20 assets and 1GB; integrations sit on the $199 Agency plan. MarkLayer is free, no account, with MCP."
 intro: "MarkLayer is a free, open-source zipBoard alternative for web pages: paste a URL, annotate the live page, share a link, and nobody on either side makes an account. zipBoard is a paid review and approval tool for documents, drawings, courses and websites, starting at $99 a month for 20 assets, with Jira, Slack and Teams integrations on the $199 Agency plan. MarkLayer has no plans to compare, and it also lacks zipBoard's video, audio and SCORM review, version comparison and two-way Jira sync."
 competitor: "zipBoard"
 competitorTagline: "a paid review and approval platform for documents, drawings, eLearning courses, videos and websites, aimed at AEC firms, learning teams and agencies"
@@ -9,7 +9,7 @@ homepage: "https://zipboard.co"
 bottomLine: "Choose MarkLayer for free, real-time annotation of web pages, PDFs and images, with live cursors, a voice call in the room and an AI agent that can read and leave annotations. Choose zipBoard if you review SCORM courses, video, audio or drawings, need approvals and version comparison, or want Jira fields kept in sync both ways."
 quote: "zipBoard's Team plan starts at $99 a month for 20 assets and 1GB of storage, and the integrations start on Agency at $199 (checked October 2026). MarkLayer costs nothing, files a Linear, GitHub or Jira issue or a Trello card from any thread, and every share link is also an MCP server."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

@@ -1,7 +1,7 @@
 ---
 order: 12
 title: "Free Huddlekit Alternative: MarkLayer + 3 Picks (2026)"
-description: "Huddlekit's free plan is 1 project, 3 members, 100MB; Pro is $16-19/month and two-way tracker sync needs Team at $33-39. Compare MarkLayer, Pastel, BugHerd and Marker.io."
+description: "Huddlekit's free plan is 1 project, 3 members, 100MB; Pro is $16-19/month and two-way tracker sync needs Team at $33-39. MarkLayer, Pastel, BugHerd, Marker.io."
 h1: "The closest free Huddlekit alternative, plus 3 more picks"
 intro: "MarkLayer, which I build, is the closest free Huddlekit alternative: paste a URL, annotate the live page, share a link, no account on either side and no project cap. Huddlekit's free plan stops at one project and three members, and its two-way sync with Linear, ClickUp, Notion and Trello sits on the $33-a-month Team plan. Pastel, BugHerd and Marker.io are the paid routes if you need what that plan buys."
 target: "Huddlekit"
@@ -9,7 +9,7 @@ homepage: "https://huddlekit.com"
 bottomLine: "MarkLayer replaces Huddlekit's core job, visual feedback on a live page shared by link, for free and with no project limit. It does not replace private team-only comments, video review, basic-auth staging in the no-extension flow, or two-way tracker sync. Pastel, BugHerd and Marker.io each cover part of that gap, at a price."
 hubBlurb: "Free plan caps at 1 project and 3 members; tracker sync needs Team at $33/month. MarkLayer has no caps and an MCP server on every link."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 options:
   - name: "MarkLayer"
     url: "/vs/huddlekit"

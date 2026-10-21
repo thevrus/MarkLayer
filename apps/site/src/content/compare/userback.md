@@ -1,13 +1,13 @@
 ---
 order: 6
 title: "Userback vs MarkLayer: Feedback Widget vs Team Review Tool"
-description: "Userback embeds a widget on your product for end-user feedback. MarkLayer is the free, no-install web app your team uses to annotate any page, including pages you don't own."
+description: "Userback embeds a widget on your product for end-user feedback. MarkLayer is the free, no-install app for annotating any page, even ones you don't own."
 competitor: "Userback"
 competitorTagline: "a paid feedback platform whose primary use case is collecting feedback FROM your end users via an embedded widget on your own product"
 bottomLine: "Choose MarkLayer when your team needs to give feedback on any webpage, anywhere on the internet. Choose Userback when you need to collect annotated feedback FROM your end users on your own product via an embedded widget."
 quote: "Userback and MarkLayer get conflated because both have annotation. Userback is the widget customers use to give you feedback on your product. MarkLayer is the tool your team uses to give feedback on any page. Different sides of the table."
 published: 2026-02-13
-modified: 2026-10-08
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

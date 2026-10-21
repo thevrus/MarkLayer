@@ -1,13 +1,13 @@
 ---
 order: 6
 title: "Hypothesis Alternatives: 4 Picks for Visual Annotation"
-description: "Hypothesis is text-only and built for scholarly research. MarkLayer is the visual annotation layer for drawings, arrows, and pinned comments. Compare 4 alternatives."
+description: "Hypothesis is text-only and built for scholarly research. MarkLayer is the visual layer for drawings, arrows and pinned comments. 4 alternatives compared."
 target: "Hypothesis"
 homepage: "https://web.hypothes.is"
 bottomLine: "MarkLayer is the right Hypothesis alternative if you need visual annotation. Drawings, arrows, comments pinned anywhere on the page. Diigo is a freemium hybrid. Markup.io and Pastel are paid visual-feedback alternatives. Hypothesis itself remains the right tool for scholarly text annotation."
 hubBlurb: "Text-only scholarly annotation. MarkLayer is the visual annotation layer."
 published: 2026-01-20
-modified: 2026-09-17
+modified: 2026-10-21
 options:
   - name: "MarkLayer"
     url: "/"

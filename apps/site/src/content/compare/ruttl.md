@@ -1,13 +1,13 @@
 ---
 order: 7
 title: "Ruttl vs MarkLayer: Per-User Pricing vs Free, Compared"
-description: "Ruttl has project workspaces and live CSS edit mode on paid tiers. MarkLayer is the free, open-source path for visual feedback on live web pages. Live cursors included."
+description: "Ruttl has project workspaces and live CSS edit mode on paid tiers. MarkLayer is the free, open-source path to visual feedback on live pages, cursors included."
 competitor: "Ruttl"
 competitorTagline: "a paid visual feedback platform with project workspaces, version comparison, and live website edit mode"
 bottomLine: "Choose MarkLayer for free, instant visual feedback with no project setup and no paid tier, on web pages, PDFs and images alike. Choose Ruttl if you run an agency that needs project workspaces, version comparison, and live CSS edit mode."
 quote: "Ruttl's live CSS edit mode is the standout feature; if reviewers genuinely need to suggest specific code changes, it's hard to replace. MarkLayer skips that and stays free. Most teams I talk to don't need the edit mode. They need the annotation to work in 30 seconds."
 published: 2026-01-22
-modified: 2026-09-17
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free, no tiers"

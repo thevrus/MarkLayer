@@ -1,13 +1,13 @@
 ---
 order: 4
 title: "How to Annotate an Image or Screenshot Free, No Account"
-description: "Draw on a screenshot, a mockup or a photo and actually get comments back. The free built-in tools on Windows and macOS, where they stop, and how to share an image people can reply on."
+description: "Draw on a screenshot, mockup or photo and get comments back. The free built-in tools on Windows and macOS, where they stop, and how to share one for replies."
 h1: "How to annotate an image or screenshot"
 nav: "Annotate an image"
 intro: "An arrow on a screenshot is the fastest feedback there is, and every operating system draws one for free. What none of them carry is the reply. The annotated PNG lands in a chat, someone answers three messages later, and by the second round nobody can tell which version of the image the comment belongs to. Here are the free ways to mark up an image, and what to do when the image needs a thread attached to it."
 bottomLine: "For one arrow on a screenshot, use what took the screenshot: Snipping Tool on Windows, Markup on a Mac or an iPhone. Free, no account, and the marks save into the file. For an image several people have to discuss, a mockup, a chart, a bug screenshot, a proof, the file is the wrong container, because a PNG cannot hold a reply. Upload the image behind a link with an annotation layer instead, so every comment and its answer stay pinned to the pixel they are about."
 published: 2026-09-17
-modified: 2026-09-17
+modified: 2026-10-21
 faq:
   - q: "How do I annotate a screenshot for free?"
     a: "With the tool that took it. On Windows, Snipping Tool opens the capture straight into a pen, highlighter, shapes and a text tool. On a Mac, click the screenshot thumbnail before it fades, or open the file in Preview and use the Markup toolbar. On an iPhone or iPad, tap the screenshot preview and Markup opens on it. All three are free and none asks for an account."

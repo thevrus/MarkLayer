@@ -1,13 +1,13 @@
 ---
 order: 3
 title: "AnnotateWeb vs MarkLayer: Install, Retention and Agents"
-description: "Both run in the browser with no install and no sign-up. MarkLayer adds threaded comments, multi-page projects, 90-day retention and an MCP server for AI agents; AnnotateWeb adds 8 languages and PNG export."
+description: "Both run in the browser, no install, no sign-up. MarkLayer adds threaded comments, multi-page projects, 90-day retention and MCP for AI agents."
 competitor: "AnnotateWeb"
 competitorTagline: "a free, browser-based web annotation tool from the co-browsing company Surfly, with multi-language support and no install for either side"
 bottomLine: "Both tools are free, need no account and need no install — paste a URL and annotate. Choose MarkLayer if you need annotations that survive the meeting (90-day retention), threaded comments, multi-page projects, an MCP server that hands feedback to an AI coding agent, or an Apache-2.0 codebase you can self-host. Choose AnnotateWeb if you need the interface in Chinese, German, Spanish, Hindi, Japanese, Dutch or Portuguese, or want a PNG export of the annotated page."
 quote: "AnnotateWeb and MarkLayer agree on the important thing: nobody should have to install software to leave a comment on a webpage. Where we differ is what happens after — a session that deletes itself in two minutes can't hold a review cycle, so MarkLayer keeps the thread for 90 days."
 published: 2026-01-26
-modified: 2026-08-30
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free, no tiers, no paywall"

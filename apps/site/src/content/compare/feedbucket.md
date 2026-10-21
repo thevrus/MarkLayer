@@ -1,14 +1,14 @@
 ---
 order: 14
-title: "Feedbucket vs MarkLayer: Free Feedbucket Alternative, No Widget"
-description: "Feedbucket is a script you install on your own site, from $49/month with a 14-day trial (checked October 2026). MarkLayer annotates any page with nothing installed on the site. Free."
+title: "Feedbucket vs MarkLayer: Free Alternative, No Widget"
+description: "Feedbucket is a script you install on your own site, from $49/month with a 14-day trial (October 2026). MarkLayer annotates any page, nothing installed, free."
 competitor: "Feedbucket"
 competitorTagline: "a paid feedback widget you install on your own site with one line of JavaScript, capturing annotated screenshots and video from reviewers"
 homepage: "https://feedbucket.app"
 bottomLine: "Choose MarkLayer to annotate any page, including sites you don't control, for free with no script install. Choose Feedbucket if you want a permanent feedback widget living on your own site with screenshot/video capture and native routing into 16+ trackers."
 quote: "Feedbucket's one-line install is honest positioning: it lives on sites you own. That's exactly the boundary MarkLayer doesn't have. A client's production site, a competitor's checkout, a page you'll never get a script tag onto: point the extension at it and annotate."
 published: 2026-08-15
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free, no tiers"

@@ -1,7 +1,7 @@
 ---
 order: 22
 title: "SureFeedback vs MarkLayer: $199+/Year Cloud Plan vs Free"
-description: "SureFeedback, formerly ProjectHuddle, costs $99-$199/year as a self-hosted WordPress plugin or $199-$999/year on Cloud. MarkLayer is free, with no script on your site and no account."
+description: "SureFeedback, formerly ProjectHuddle, costs $99-$199/year self-hosted on WordPress or $199-$999/year on Cloud. MarkLayer is free, no script, no account."
 intro: "MarkLayer is a free, open-source SureFeedback alternative: paste a URL, annotate the live page, share a link, and nobody on either side makes an account. SureFeedback, which was called ProjectHuddle until November 2023, comes two ways: a WordPress plugin you host yourself, and a Cloud plan where a script on each reviewed site loads the widget. MarkLayer has no plan tiers, and it also lacks SureFeedback's private comments, white label option and page approvals."
 competitor: "SureFeedback"
 competitorTagline: "a paid client feedback tool from Brainstorm Force, formerly ProjectHuddle, sold as a self-hosted WordPress plugin or a managed Cloud service"
@@ -9,7 +9,7 @@ homepage: "https://surefeedback.com"
 bottomLine: "Choose MarkLayer for free, real-time review of any page with nothing added to the site, live cursors, voice calls and an AI agent on every link. Choose SureFeedback if you want feedback data on your own WordPress server, internal-only comments your client never sees, formal page approvals or a white-labelled client portal."
 quote: "SureFeedback Cloud's Starter plan is $199 for the first year and renews at $299, for five sites (checked October 2026). The self-hosted plugin starts at $99 to $119 a year for one dashboard site. MarkLayer costs nothing, and the page you review needs no script pasted before its closing body tag."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

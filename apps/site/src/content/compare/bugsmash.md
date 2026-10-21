@@ -1,7 +1,7 @@
 ---
 order: 20
 title: "BugSmash vs MarkLayer: 2 Free Projects vs Unlimited Links"
-description: "BugSmash's free plan stops at 2 projects and 2 users; Starter is $19-25/month, Team $49-69. MarkLayer is free with no project cap, but reviews web pages, PDFs and images only."
+description: "BugSmash's free plan stops at 2 projects and 2 users; Starter is $19-25/month, Team $49-69. MarkLayer is free with no project cap, for web, PDFs and images."
 intro: "MarkLayer is a free, open-source BugSmash alternative for web review: paste a URL, annotate the live page, share a link, and nobody on either side makes an account. BugSmash reviews far more file types, from video and audio to slide decks, CAD files and mobile apps, and its free plan allows two projects and two users. Starter at $19 to $25 a month adds private comments, approvals and tracker integrations; Team at $49 to $69 adds folders, webhooks and custom branding. MarkLayer has none of those tiers, and it also lacks BugSmash's video review, private comments and AI reviewers."
 competitor: "BugSmash"
 competitorTagline: "a paid review and approval tool for creative teams and agencies, covering websites, video, audio, documents, design files and mobile apps"
@@ -9,7 +9,7 @@ homepage: "https://bugsmash.io"
 bottomLine: "Choose MarkLayer for free, real-time annotation of web pages with no project or user cap, live cursors, voice calls in the room and side-by-side device review. Choose BugSmash if your reviews go beyond the web into video, audio, slides or CAD, if you need private comments and formal approvals, or if you want AI reviewers that check every upload against a client's brand rules."
 quote: "BugSmash's free plan is two projects and two users, and private comments start on Starter at $19 a month billed yearly (checked October 2026). MarkLayer has no plan to start, and every share link is also an MCP server an agent can join with one command."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

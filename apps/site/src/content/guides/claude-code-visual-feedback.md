@@ -1,13 +1,13 @@
 ---
 order: 9
-title: "Claude Code, Codex, Cursor & Windsurf: Visual Feedback via MCP"
-description: "Connect Claude Code, Codex, Cursor, or Windsurf to a MarkLayer room so it reads annotations left on a live webpage, works them, and resolves each one with a status the human reviewer sees live. Full setup per client, tool reference, and troubleshooting."
+title: "MCP Visual Feedback: Claude Code, Codex, Cursor & Windsurf"
+description: "Connect Claude Code, Codex, Cursor or Windsurf to a MarkLayer room so it reads annotations on a live page, works them, and resolves each one live."
 h1: "Give your AI coding agent visual feedback from a live webpage"
 nav: "Connect an AI coding agent"
 intro: "An AI coding agent cannot see your screen, so the usual workaround is a paragraph describing which element is wrong, or a screenshot it reads imprecisely. Connecting it to a MarkLayer room instead gives it the actual annotation: the instruction, the CSS selector, and the element context, plus a way to mark its own progress that the human reviewer sees update live on the page. The shortest path needs nothing installed: every share link is also an MCP server, so Claude Code connects with one command. Codex, Cursor, and Windsurf take the same server through their own config file."
 bottomLine: "Run one command (`claude mcp add`, `codex mcp add`, or a few lines of config for Cursor and Windsurf), point it at a MarkLayer room, and tell the agent to watch it. The server exposes twelve tools; the two that matter for a first run are marklayer_watch_annotations (to pull feedback as it arrives) and marklayer_resolve (to close it out with a summary the human sees as a reply). No API key, no dashboard, no account on either side."
 published: 2026-09-04
-modified: 2026-10-01
+modified: 2026-10-21
 faq:
   - q: "How do I connect Claude Code to MarkLayer?"
     a: "Fastest: `claude mcp add --transport http marklayer https://marklayer.app/s/abc123/mcp`, using your own share link plus /mcp. Nothing is installed, and the agent is already in that room. For one install that works with any room, run `claude mcp add marklayer -- npx -y marklayer-mcp` once in your project directory. That registers the server with no room attached; the agent calls marklayer_connect_room with a share URL the first time you ask it to watch a page. To skip that step, add the room up front: `claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123`."

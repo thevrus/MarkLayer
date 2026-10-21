@@ -1,13 +1,13 @@
 ---
 order: 11
 title: "Free Loom Alternative: 4 Options, Including Skipping Video"
-description: "Loom's free plan caps at 25 videos and 5-minute recordings; Business is $18 per user per month. Sometimes the fix is a cheaper recorder, sometimes it is not recording at all."
+description: "Loom's free plan caps at 25 videos and 5-minute recordings; Business is $18 per user per month. Sometimes the fix is a cheaper recorder, sometimes no recording."
 target: "Loom"
 homepage: "https://www.loom.com"
 bottomLine: "If you need voice, motion, or a face on camera, pick Tella or Vidyard and keep recording. If most of your Looms are really one screen with an arrow on it, MarkLayer replaces those for free, and the recipient reads it in seconds instead of scrubbing a two-minute video."
 hubBlurb: "Free plan stops at 25 videos and 5-minute recordings. Half of those videos did not need to be videos."
 published: 2026-08-15
-modified: 2026-09-14
+modified: 2026-10-21
 options:
   - name: "MarkLayer"
     url: "/"

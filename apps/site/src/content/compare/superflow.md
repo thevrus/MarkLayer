@@ -1,14 +1,14 @@
 ---
 order: 13
-title: "Superflow vs MarkLayer: Free Superflow Alternative, No Credits"
-description: "Superflow pins comments on live sites and sells AI page reviews per site or on credits; paid plans from $29/seat/month (checked October 2026). MarkLayer is free."
+title: "Superflow vs MarkLayer: Free Alternative, No Credits"
+description: "Superflow pins comments on live sites and sells AI page reviews per site or on credits; paid plans from $29/seat/month, checked October 2026. MarkLayer is free."
 competitor: "Superflow"
 competitorTagline: "a paid website review platform with comments pinned to live pages, video and audio recordings, and built-in AI agents that review pages on a credit system"
 homepage: "https://usesuperflow.ai"
 bottomLine: "Choose MarkLayer for unlimited free annotation with your own AI coding agent working the room via MCP. Choose Superflow if you want built-in AI reviewers that audit pages for you, recorded video/audio feedback, and native Asana/ClickUp/Jira routing, priced per seat and per credit."
 quote: "Superflow and MarkLayer take AI in opposite directions. Superflow sells its own review agents: $14 a site, or credits per scan (5 for a small site, as of October 2026). MarkLayer connects the agent you already pay for, Claude Code or Cursor, and lets it fix the annotations rather than write more of them."
 published: 2026-08-15
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free, no tiers, no credits"

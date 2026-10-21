@@ -1,7 +1,7 @@
 ---
 order: 19
 title: "Webvizio vs MarkLayer: $8/Month Plans vs a Free MCP Link"
-description: "Webvizio runs $8 to $76 a month billed yearly, for 2 to 20 users and 5 to 100 projects. MarkLayer is free with no account, and every share link is an MCP server an agent can write to."
+description: "Webvizio runs $8 to $76 a month billed yearly, for 2 to 20 users and 5 to 100 projects. MarkLayer is free, no account, and every share link is an MCP server."
 intro: "MarkLayer is a free, open-source Webvizio alternative: paste a URL, annotate the live page, share a link, and nobody on either side makes an account. Webvizio sells four plans, from Solo at $8 a month for 2 users and 5 projects to Advanced at $76 for 20 users and 100 projects, and its extension captures console logs, network logs and repro steps that MarkLayer does not. Both hand work to AI coding agents over MCP; Webvizio's agent reads a task and closes it, while MarkLayer's can also reply, leave its own annotations and propose text edits."
 competitor: "Webvizio"
 competitorTagline: "a paid website feedback and bug-reporting tool that captures technical logs and turns each report into a prompt for AI coding agents"
@@ -9,7 +9,7 @@ homepage: "https://webvizio.com"
 bottomLine: "Choose MarkLayer for free, real-time annotation with live cursors, voice calls and an AI agent that can reply, annotate and suggest edits on the same link. Choose Webvizio if your agent needs console logs, network logs and repro steps with every bug, or you want time tracking, video recordings and Trello, Jira and ClickUp integrations inside one paid workspace."
 quote: "Webvizio's Solo plan is $8 a month billed yearly for 2 users and 5 projects, and Advanced lists at $76 for 20 users (checked October 2026). Both include its MCP server. MarkLayer's costs nothing, needs no API key, and lets the agent reply, annotate and suggest edits, where Webvizio's one write is closing a task."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

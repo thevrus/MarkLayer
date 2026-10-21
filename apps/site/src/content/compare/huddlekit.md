@@ -1,7 +1,7 @@
 ---
 order: 16
 title: "Huddlekit vs MarkLayer: Pricing, MCP and Task Sync Compared"
-description: "Huddlekit's free plan stops at 1 project, 3 members and 100MB; Pro is $16-19/month, Team $33-39. MarkLayer is free with no plan to outgrow, plus live cursors and an MCP server on every link."
+description: "Huddlekit's free plan stops at 1 project, 3 members and 100MB; Pro is $16-19/month, Team $33-39. MarkLayer is free, no plan to outgrow, MCP on every link."
 intro: "MarkLayer is a free, open-source Huddlekit alternative: paste a URL, annotate the live page, share a link, and nobody on either side makes an account. Huddlekit's free plan allows one project and three members; Pro at $16 to $19 a month adds custom breakpoints and MCP, and Team at $33 to $39 adds two-way task sync with Linear, ClickUp, Notion and Trello, plus completion sync with Asana. MarkLayer has none of those tiers, and it also lacks Huddlekit's private comments, video review and in-app widget."
 competitor: "Huddlekit"
 competitorTagline: "a paid visual annotation and QA tool for agencies, freelancers and their clients, built around projects, breakpoints and task-tracker sync"
@@ -9,7 +9,7 @@ homepage: "https://huddlekit.com"
 bottomLine: "Choose MarkLayer for free, real-time annotation with no project cap, a kanban board, side-by-side device review and an AI agent that can both read and leave annotations. Choose Huddlekit if you want private team-only comments, timestamped video review, staging sites behind basic auth without an extension, or a tracker that syncs status both ways."
 quote: "Huddlekit's two-way Linear sync is real and it sits on the $33-a-month Team plan (checked October 2026). MarkLayer files one Linear, GitHub or Jira issue, or one Trello card, from a thread and stops there. That is one-way and free, and the link is also an MCP server."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

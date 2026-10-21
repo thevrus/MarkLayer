@@ -1,12 +1,12 @@
 ---
 order: 2
 title: "AnnotateWeb Alternative: 5 Tools With Longer Retention"
-description: "AnnotateWeb deletes annotations after 2 minutes of inactivity. MarkLayer keeps them for 90 days, adds threaded comments and multi-page projects. Compare 5 alternatives."
+description: "AnnotateWeb deletes annotations after 2 minutes of inactivity. MarkLayer keeps them for 90 days, with threaded comments and multi-page projects. 5 alternatives."
 target: "AnnotateWeb"
 bottomLine: "MarkLayer is the strongest AnnotateWeb alternative if you want threaded comments, multi-page projects, 90-day retention (vs AnnotateWeb's 2-minute cleanup), and an open-source codebase. Hypothesis is best for scholarly text annotation. Markup.io and Pastel are paid options with deeper agency workflow features."
 hubBlurb: "2-minute auto-delete is the dealbreaker. MarkLayer keeps annotations for 90 days."
 published: 2026-01-22
-modified: 2026-09-14
+modified: 2026-10-21
 options:
   - name: "MarkLayer"
     url: "/"

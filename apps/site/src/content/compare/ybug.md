@@ -1,7 +1,7 @@
 ---
 order: 21
 title: "Ybug vs MarkLayer: €10-€47/Month Feedback Widget vs Free"
-description: "Ybug's free plan is 1 project, 1 member and 50 screenshots a month; paid plans run €10 to €47 a month billed yearly. MarkLayer is free with no plan to outgrow, plus live cursors and an MCP server on every link."
+description: "Ybug's free plan is 1 project, 1 member and 50 screenshots a month; paid plans run €10 to €47 a month billed yearly. MarkLayer is free, with MCP on every link."
 intro: "MarkLayer is a free, open-source Ybug alternative for visual feedback: paste a URL, annotate the live page, share a link, and nobody on either side makes an account. Ybug is a bug-reporting widget you embed on your own site, with a browser extension for pages you can't edit. Its free plan covers one project and one team member; Basic starts at €10 a month billed yearly, and console logs, network requests, video recording and MCP write access sit on Startup at €23. MarkLayer has no tiers, and it also has none of Ybug's console capture, screen recording or email replies to the person who reported the bug."
 competitor: "Ybug"
 competitorTagline: "a paid, EU-hosted feedback widget and browser extension that turns end-user and QA reports into annotated screenshots with console logs, browser data and tracker tickets"
@@ -9,7 +9,7 @@ homepage: "https://ybug.io"
 bottomLine: "Choose MarkLayer for free, real-time review of any page with no project or seat cap, live cursors, a voice call in the room and an AI agent that can leave annotations as well as read them. Choose Ybug if you want a feedback button your own users click, console logs and network requests on every report, screen recordings, or a tracker integration from a list of 25+."
 quote: "Ybug's Startup plan is €23 a month billed yearly, or €29 monthly, for 7 projects and 7 team members (checked October 2026). That is where console and network logging, video recording and an MCP server that can change a report all start. MarkLayer costs nothing at any size, and every share link is already an MCP server."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

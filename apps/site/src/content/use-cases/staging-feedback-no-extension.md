@@ -1,14 +1,14 @@
 ---
 order: 0
 title: "Annotate a Staging Site for Client Review (No Extension)"
-description: "Paste your staging URL and share one link. The client comments in their own browser with no extension and no account. Password-protected staging needs the free extension instead."
+description: "Paste your staging URL and share one link. The client comments in their browser, no extension, no account. Password-protected staging needs the free extension."
 h1: "How to get client feedback on a staging site without asking them to install anything"
 nav: "Staging sites, no install"
 audience: "agencies, freelancers, and product teams sharing staging URLs"
 bottomLine: "MarkLayer lets clients annotate a staging URL in their own browser with no extension, no account, and no PDF screenshot loop. Open the web app at marklayer.app, paste the staging URL, share the link. The client sees the live page with a comment-pin tool already loaded. Works on any staging URL the public internet can reach; a password-protected one needs the free browser extension on each side instead, running in the tab where that person is already logged in."
 problem: "The default flow is broken. You ship a staging URL. The client opens it on their phone, takes a screenshot, types 'this is broken' in iMessage, and you have no idea which button they meant. You ask for screenshots in your project management tool, and the screenshots arrive without URLs. You suggest a paid annotation platform, and the client refuses to sign up. Half your feedback cycle becomes 'which page were you on when this happened?'."
 published: 2026-01-30
-modified: 2026-10-11
+modified: 2026-10-21
 why:
   - "The recipient does not need a Chrome extension or any other install. They open the link in their browser and the comment-pin tool is already loaded."
   - "No account, no signup, no email collected from the client. The friction that kills review cycles is gone."

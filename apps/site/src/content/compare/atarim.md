@@ -1,7 +1,7 @@
 ---
 order: 17
 title: "Atarim vs MarkLayer: $67/Month AI Agency or a Free Link"
-description: "Atarim is now an AI web agency for WordPress: Free is 1 project and 200 one-time credits, Pro is $67/month. MarkLayer is a free annotation link with live cursors, calls and an MCP server."
+description: "Atarim is now an AI web agency for WordPress: Free is 1 project and 200 one-time credits, Pro is $67/month. MarkLayer is a free annotation link with MCP."
 intro: "Atarim started as a visual feedback tool and is now sold as an AI web agency: six AI specialists that run client WordPress sites under your brand, with visual commenting folded into the $67-a-month Pro plan. MarkLayer does one part of that job. Paste a URL, annotate the live page, share a link, and nobody on either side makes an account. It has no AI specialists, no white-label client workspace and no WordPress plugin, and it costs nothing."
 competitor: "Atarim"
 competitorTagline: "an AI web agency platform for agencies and hosts, with AI specialists that maintain client WordPress sites and visual client feedback on the live page"
@@ -9,7 +9,7 @@ homepage: "https://atarim.io"
 bottomLine: "Choose MarkLayer if what you need is the feedback: free annotation of any page, live cursors and a call in the room, a kanban board, side-by-side device review and an MCP server on every link. Choose Atarim if you run client WordPress sites and want AI agents to do the maintenance, SEO and content work, under your brand, with your approval on each risky change."
 quote: "Atarim's Pro plan is $67 a month with 5,000 credits, up to 100 seats and 1,000 projects (checked October 2026). Most of that buys the AI agency. If all you wanted from Atarim was a comment pinned to an element, MarkLayer does that for free and asks nobody to sign up."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"

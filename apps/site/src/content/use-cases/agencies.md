@@ -1,14 +1,14 @@
 ---
 order: 11
 title: "Website Feedback Tool for Agencies: Free, No Client Login"
-description: "Run client review rounds on the live site. Clients comment from a link, feedback goes out to Slack, Linear or Jira, and nobody pays per seat as the roster grows."
+description: "Run client review rounds on the live site. Clients comment from a link, feedback goes to Slack, Linear or Jira, and nobody pays per seat as the roster grows."
 h1: "MarkLayer for Agencies"
 nav: "Agencies"
 audience: "web and digital agencies running review rounds across several clients and projects at once"
 bottomLine: "For an agency, MarkLayer is a feedback layer that scales with the client list instead of the invoice. Every project gets its own share link, clients open it in any browser without an account or an extension, and the account manager forwards what comes in to Slack, Linear, GitHub or Jira with a per-room integration. It is free with no seats, and open source under Apache 2.0, which is the fastest way through a client's security review."
 problem: "An agency does not have a feedback problem, it has twelve of them running at once. Client A sends a PDF of screenshots with arrows, client B replies to a six-month-old email thread, client C's marketing lead texts the account manager a photo of a monitor. The account manager translates all of it into tickets, the developer asks which page and which viewport, and the revision round costs a day before any work starts. The paid tools fix this by charging per seat, and an agency's seat count is the one number that only goes up."
 published: 2026-10-11
-modified: 2026-10-11
+modified: 2026-10-21
 why:
   - "Clients never sign up or install anything. They open the share link in their browser and the comment tool is already loaded, so the first review round starts the day you send the link."
   - "One link per project, one room per link. Each client sees only their own page and their own comments, and you configure nothing."

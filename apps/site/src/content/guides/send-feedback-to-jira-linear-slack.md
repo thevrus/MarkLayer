@@ -1,13 +1,13 @@
 ---
 order: 10
 title: "Send Website Feedback to Jira, Linear, Slack or GitHub"
-description: "MarkLayer posts annotations automatically to Slack, Teams, Discord and a webhook, and can file any single one as a Jira, Linear, GitHub issue or Trello card. What arrives where, where the tokens live, and the one-way limit worth knowing before you rely on it."
+description: "MarkLayer posts annotations to Slack, Teams, Discord and a webhook, and files any one as a Jira, Linear or GitHub issue or Trello card. Plus the one-way limit."
 h1: "Sending MarkLayer annotations to Jira, Linear, Slack and more"
 nav: "Send to Jira, Linear, Slack"
 intro: "MarkLayer can send annotations to eight places: Slack, Microsoft Teams, Discord, a generic webhook, Linear, GitHub, Jira and Trello. The four chat destinations post automatically as feedback arrives. The four issue trackers wait for you to pick one annotation and file it. Nothing about a filed issue's later status flows back into MarkLayer, in either direction."
 bottomLine: "Slack, Teams, Discord and a generic webhook post automatically, every new batch of annotations going out with no one touching a button. Linear, GitHub, Jira and Trello are manual: pick one annotation, file it as a single issue or card, and MarkLayer hands you the link. All eight connections are one-way. A comment marked resolved in MarkLayer and a ticket marked closed in Jira are two separate facts kept by two separate systems, and nothing keeps them in sync."
 published: 2026-09-17
-modified: 2026-09-17
+modified: 2026-10-21
 faq:
   - q: "Which tools can MarkLayer send annotations to?"
     a: "Eight. Four are chat destinations that post automatically: Slack, Microsoft Teams, Discord and a generic webhook. Four are issue trackers you file into by hand, one annotation at a time: Linear, GitHub, Jira and Trello. A room can have up to five of these eight connected at once, in any mix. There is no MarkLayer account needed to set any of them up; the connection is stored on the room itself, in the panel on the right of any share link."

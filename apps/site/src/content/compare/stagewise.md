@@ -1,14 +1,14 @@
 ---
 order: 11
 title: "stagewise vs MarkLayer: Local Dev Agent vs Shared Rooms"
-description: "stagewise points AI agents at UI elements in your local dev server. MarkLayer does that on any URL (localhost, staging, production) and lets non-developers join."
+description: "stagewise points AI agents at UI elements in your local dev server. MarkLayer does that on any URL, localhost to production, and lets non-developers join."
 competitor: "stagewise"
 competitorTagline: "an open-source browser toolbar that lets developers point at UI elements in their local dev app and hand the context to AI coding agents"
 homepage: "https://stagewise.io"
 bottomLine: "Choose MarkLayer when feedback comes from more people than just you: teammates, clients, or an agent that should report status back into a shared room. Choose stagewise if you are a solo developer iterating in your local dev server and want element context piped straight into your editor agent."
 quote: "stagewise proved developers want to point at a UI element instead of describing it to an agent. MarkLayer takes the same idea out of localhost: any URL, a share link a client can open, and an MCP loop where the agent reports back into the room."
 published: 2026-01-24
-modified: 2026-03-15
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free, no tiers"

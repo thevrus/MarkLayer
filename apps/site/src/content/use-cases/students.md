@@ -1,6 +1,6 @@
 ---
 order: 6
-title: "MarkLayer for Students: Free Web Annotation for Group Projects"
+title: "MarkLayer for Students: Free Web Annotation for Group Work"
 description: "Annotate readings and lecture pages in the browser, then share one link with your group. No accounts for anyone. Free forever and open source."
 h1: "MarkLayer for Students"
 nav: "Students"
@@ -8,7 +8,7 @@ audience: "students"
 bottomLine: "For students, MarkLayer is a free way to annotate any webpage without signing up. Useful for solo studying, group projects, and sharing marked-up sources with classmates. Threaded comments mean you can argue about a paragraph in context instead of in a Discord channel."
 problem: "Online study tools either lock annotation behind subscriptions, only work inside one platform (Google Docs, Notion), or require everyone in the group to sign up before they can see what you've highlighted. Students end up screenshotting articles, pasting them into Slack, and losing the context."
 published: 2026-01-16
-modified: 2026-03-05
+modified: 2026-10-21
 why:
   - "Free forever. No student subscription, no academic email check, no trial."
   - "Anonymous. No sign-up, no email, no profile linked to your study activity."

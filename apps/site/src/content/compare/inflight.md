@@ -1,14 +1,14 @@
 ---
 order: 25
 title: "Inflight vs MarkLayer: Prototype Feedback vs Any Live Page"
-description: "Inflight is a $15 to $18 per member feedback layer you add to a prototype with a script tag. MarkLayer is free, needs no tag, and annotates any URL with an MCP server on every link."
+description: "Inflight is a $15 to $18 per member feedback layer added to a prototype by script tag. MarkLayer is free, needs no tag, and annotates any URL with MCP."
 competitor: "Inflight"
 competitorTagline: "a paid feedback layer for prototypes, installed with one script tag on a preview URL, with video replies, polls, Slack sync and a remote MCP server for coding agents"
 homepage: "https://inflight.co"
 bottomLine: "Choose MarkLayer when you want the same review loop for free: pins, polls, transcribed video, versions per build and an agent that ticks off next steps, on any URL with no tag to deploy. Choose Inflight if procurement needs SAML SSO and SOC 2 on the vendor, or your team already lives in its per-seat workspace."
 quote: "Inflight asks for a script tag in the build and a seat per member. MarkLayer asks for the URL. Both now give an agent versions, polls, transcribed video and a checklist to work through."
 published: 2026-10-16
-modified: 2026-10-16
+modified: 2026-10-21
 rows:
   - feature: "Price"
     ml: "Free"
