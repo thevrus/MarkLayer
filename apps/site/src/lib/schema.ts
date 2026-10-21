@@ -112,4 +112,3 @@ export const PERSON_SCHEMA = {
   ],
   worksFor: { '@type': 'Organization', name: 'MarkLayer', url: ORIGIN },
 };
-
