@@ -6,6 +6,7 @@ import { submitBtn, textareaCls } from '../lib/buttons';
 import { CardHold, useHoldLatch } from '../lib/card-hold';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { useMarkHover } from '../lib/mark-hover';
 import { MARKER_LAYER, useEdgeClamp, useSelectionDismiss } from '../lib/popover';
 import { hexToRgba } from '../lib/renderer';
 import { captureTarget, isExtensionElement } from '../lib/selector';
@@ -61,6 +62,8 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   // size ratio — keeps the multi-rect highlight shape coherent as the
   // element reflows, with the first rect landing exactly on the anchor.
   const anchored = reprojectRects({ target: op.target, rects: op.rects });
+  const peek = useMarkHover(anchored?.rects.map((r) => ({ ...r, x: r.x - scrollX, y: r.y - scrollY })) ?? []);
+  const lift = hold.held || peek;
   if (!anchored) return null;
   const { x: anchorX, y: anchorY, rects, strategy } = anchored;
 
@@ -98,11 +101,11 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           pointer-transparent so an annotated paragraph on someone else's page
           keeps its own links and text selection. */}
       <div
-        class={cn('absolute pointer-events-auto hover:z-50 group/sel', hold.rootCls)}
+        class={cn('absolute pointer-events-auto hover:z-50 group/sel', lift && 'z-50')}
         style={{ left: markerX, top: markerY }}
         data-anchor-drift={strategy === 'text' ? 'text' : undefined}
         data-marker
-        data-held={hold.held || undefined}
+        data-held={lift || undefined}
         onContextMenu={(e) =>
           openContextMenu(e, [
             {
@@ -140,7 +143,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
             flipV ? 'bottom-0' : 'top-0',
             flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
             'pointer-events-none group-hover/sel:pointer-events-auto',
-            hold.wrapCls,
+            lift && 'pointer-events-auto',
           )}
         >
           <div
@@ -152,7 +155,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
               'transition-[opacity,translate] duration-150 ease-out',
               'group-hover/sel:opacity-100 group-hover/sel:translate-x-0',
-              hold.cardCls,
+              lift && 'opacity-100 translate-x-0',
             )}
             onClick={(e) => e.stopPropagation()}
           >

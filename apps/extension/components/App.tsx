@@ -2,6 +2,7 @@ import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
+import { useWindowMarkPointer } from '../lib/mark-hover';
 import { joinRoom } from '../lib/room';
 import { parseUrlHash } from '../lib/share';
 import {
@@ -38,6 +39,7 @@ import { Toolbar } from './Toolbar';
 import { useOverlayHost } from './useOverlayHost';
 
 export function App() {
+  useWindowMarkPointer();
   useEffect(() => {
     // Composed path lets us peek through the shadow root the page might be sitting in,
     // so an input focused inside another extension or the proxied iframe still counts.

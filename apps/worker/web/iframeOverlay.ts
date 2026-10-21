@@ -1,4 +1,5 @@
 import { type AnchorDelta, applyAnchorDelta } from '@ext/lib/anchor';
+import { clearMarkPointer, setMarkPointer } from '@ext/lib/mark-hover';
 import { scrollOffset } from '@ext/lib/scroller';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
 import type { CaptureViewport, PageAnchor, Point, TargetElement } from '@marklayer/types';
@@ -137,6 +138,62 @@ export function toViewportRects(frame: HTMLIFrameElement, rects: ArrayLike<RectL
 
 export function rectsEqual(a: DOMRectReadOnly, b: DOMRectReadOnly): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+/**
+ * Feeds `markPointer` in the framed page's client space. Over the page the frame
+ * reports it directly; over our own chrome (an open hover card) the host does,
+ * unscaled back out of the frame's box, so a card covering its text stays open.
+ */
+export function useFrameMarkPointer(frameRef: { current: HTMLIFrameElement | null }) {
+  // A card opening under the pointer is itself a leave from the frame, so the clear
+  // is deferred and the pointer arriving on the host (on that card) cancels it.
+  const leaveTimer = useRef(0);
+  useIframeOverlay(frameRef, ({ win, doc }) => {
+    const onMove = (e: PointerEvent) => setMarkPointer(e, { x: e.clientX, y: e.clientY });
+    const onOut = (e: PointerEvent) => {
+      if (e.relatedTarget) return;
+      clearTimeout(leaveTimer.current);
+      leaveTimer.current = window.setTimeout(clearMarkPointer, 80);
+    };
+    win.addEventListener('pointermove', onMove, { passive: true });
+    doc.addEventListener('pointerout', onOut);
+    return () => {
+      try {
+        win.removeEventListener('pointermove', onMove);
+        doc.removeEventListener('pointerout', onOut);
+      } catch {
+        /* iframe may have navigated */
+      }
+    };
+  });
+  useEffect(() => {
+    const onOut = (e: PointerEvent) => {
+      if (!e.relatedTarget) clearMarkPointer();
+    };
+    const onOver = () => clearTimeout(leaveTimer.current);
+    const onMove = (e: PointerEvent) => {
+      clearTimeout(leaveTimer.current);
+      const f = frameRect.peek();
+      if (!f) return;
+      const x = e.clientX - f.left;
+      const y = e.clientY - f.top;
+      const inside = x >= 0 && y >= 0 && x <= f.width && y <= f.height;
+      const s = cssScale.peek();
+      setMarkPointer(e, inside ? { x: x / s, y: y / s } : null);
+    };
+    window.addEventListener('pointermove', onMove, { passive: true });
+    document.addEventListener('pointerout', onOut);
+    document.addEventListener('pointerover', onOver);
+    window.addEventListener('blur', clearMarkPointer);
+    return () => {
+      clearTimeout(leaveTimer.current);
+      window.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerout', onOut);
+      document.removeEventListener('pointerover', onOver);
+      window.removeEventListener('blur', clearMarkPointer);
+    };
+  }, []);
 }
 
 export interface IframeOverlayCtx {

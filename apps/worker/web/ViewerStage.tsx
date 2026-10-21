@@ -25,7 +25,13 @@ import { DeviceOverview } from './DeviceOverview';
 import { audioConstraint } from './devicePrefs';
 import { frameSrc, isUploadPath, liveRoomUrl, stillFrame } from './docSource';
 import { shootFrame } from './frameShot';
-import { captureAnchors, frameViewport, sameOriginWindow, useFrameRectTracker } from './iframeOverlay';
+import {
+  captureAnchors,
+  frameViewport,
+  sameOriginWindow,
+  useFrameMarkPointer,
+  useFrameRectTracker,
+} from './iframeOverlay';
 import { HOME_LINK_PROPS, Logo, TextInputOverlay } from './shared';
 import {
   annotationId,
@@ -291,6 +297,7 @@ function ProxiedPage() {
 /** Anchored annotations that render as DOM rather than into the canvas. */
 function AnchoredOps({ frameDoc }: { frameDoc: Document | null | undefined }) {
   const scrollY = iframeScrollY.value;
+  useFrameMarkPointer(useViewerFrame().meta.frameRef);
   return (
     <>
       <div class="absolute inset-0 pointer-events-none overflow-hidden">

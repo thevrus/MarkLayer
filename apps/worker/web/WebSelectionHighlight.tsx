@@ -6,6 +6,7 @@ import { reprojectRects } from '@ext/lib/anchor';
 import { CardHold, useHoldLatch } from '@ext/lib/card-hold';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
+import { useMarkHover } from '@ext/lib/mark-hover';
 import { hexToRgba } from '@ext/lib/renderer';
 import {
   copyText,
@@ -40,6 +41,8 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
     rects: op.rects,
     ctx: frameDoc ? { doc: frameDoc, win: frameDoc.defaultView ?? undefined } : undefined,
   });
+  const peek = useMarkHover(anchored?.rects.map((r) => ({ ...r, x: r.x * s, y: r.y * s - scrollY })) ?? []);
+  const lift = hold.held || peek;
   if (!op.rects.length || !anchored) return null;
   const { x: anchorX, y: anchorY, rects: scaledRects, strategy } = anchored;
 
@@ -76,11 +79,11 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
       {/* The marker is the interactive part, so the page underneath keeps its own
           text selection — the same trade the extension's highlights make. */}
       <div
-        class={cn('absolute pointer-events-auto hover:z-50 group/sel', hold.rootCls)}
+        class={cn('absolute pointer-events-auto hover:z-50 group/sel', lift && 'z-50')}
         style={{ left: markerX, top: markerY }}
         data-anchor-drift={strategy === 'text' ? 'text' : undefined}
         data-marker
-        data-held={hold.held || undefined}
+        data-held={lift || undefined}
         onContextMenu={(e) =>
           openContextMenu(e, [
             {
@@ -114,7 +117,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
             flipV ? 'bottom-0' : 'top-0',
             flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
             'pointer-events-none group-hover/sel:pointer-events-auto',
-            hold.wrapCls,
+            lift && 'pointer-events-auto',
           )}
         >
           <div
@@ -126,7 +129,7 @@ export function WebSelectionHighlight({ op, scale: s, scrollY, frameDoc }: Props
               flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
               'transition-[opacity,translate] duration-150 ease-out',
               'group-hover/sel:opacity-100 group-hover/sel:translate-x-0',
-              hold.cardCls,
+              lift && 'opacity-100 translate-x-0',
             )}
             onClick={(e) => e.stopPropagation()}
           >

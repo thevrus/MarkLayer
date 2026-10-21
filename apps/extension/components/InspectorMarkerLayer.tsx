@@ -2,6 +2,7 @@ import { cn } from '@marklayer/types';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
+import { useMarkHover } from '../lib/mark-hover';
 import { MARKER_LAYER } from '../lib/popover';
 import {
   copyText,
@@ -30,6 +31,14 @@ function InspectorMarker({ op }: { op: InspectOp }) {
   const y = op.rect.y - scrollY;
   const w = op.rect.width;
   const h = op.rect.height;
+  // The stroke, not the whole box: an inspected container would otherwise open its
+  // card on a rest anywhere inside it, over every annotation nested in it.
+  const peek = useMarkHover([
+    { x: x - 4, y: y - 4, width: w + 8, height: 8 },
+    { x: x - 4, y: y + h - 4, width: w + 8, height: 8 },
+    { x: x - 4, y: y - 4, width: 8, height: h + 8 },
+    { x: x + w - 4, y: y - 4, width: 8, height: h + 8 },
+  ]);
 
   const flipH = x + w + 280 > innerWidth;
   const flipV = y + 280 > innerHeight;
@@ -69,6 +78,7 @@ function InspectorMarker({ op }: { op: InspectOp }) {
         class="absolute pointer-events-auto group/inspect"
         style={{ left: x - 6, top: y - 6, width: 16, height: 16 }}
         data-marker
+        data-held={peek || undefined}
         onContextMenu={onContextMenu}
       >
         <div
@@ -81,7 +91,8 @@ function InspectorMarker({ op }: { op: InspectOp }) {
         </div>
         <div
           class={cn(
-            'absolute hidden group-hover/inspect:block z-10 w-[260px]',
+            'absolute group-hover/inspect:block z-10 w-[260px]',
+            peek ? 'block' : 'hidden',
             flipV ? 'bottom-4' : 'top-4',
             flipH ? 'right-4' : 'left-4',
             geist.surfaceSmall,
