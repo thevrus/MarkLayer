@@ -33,6 +33,18 @@ const resolves = (path) => {
   return distSet.has(p) || distSet.has(`${p}.html`) || distSet.has(`${p}/index.html`);
 };
 
+const MAX_TITLE = 60;
+const MAX_DESCRIPTION = 160;
+
+const decode = (s) =>
+  s
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([\da-f]+);/gi, (_, n) => String.fromCodePoint(Number.parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
 const STALE_RETENTION = /(?:cleaned up|persist(?:s)? for|deleted) 30 days/;
 
 let linkCount = 0;
@@ -57,8 +69,14 @@ for (const file of htmlFiles) {
     indexable.add(page === '/index' ? '/' : page.replace(/\/index$/, ''));
     if (!/rel="canonical"/.test(html)) errors.push(`${page}: missing <link rel="canonical">`);
     if (!/<meta name="description"/.test(html)) errors.push(`${page}: missing meta description`);
-    const title = html.match(/<title>([^<]*)<\/title>/)?.[1]?.trim();
+    const title = decode(html.match(/<title>([^<]*)<\/title>/)?.[1]?.trim() ?? '');
     if (!title) errors.push(`${page}: missing <title>`);
+    // Google truncates past these in the SERP; the cut usually lands on the claim.
+    if (title.length > MAX_TITLE) errors.push(`${page}: title is ${title.length} chars (max ${MAX_TITLE})`);
+    const description = decode(html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '');
+    if (description.length > MAX_DESCRIPTION) {
+      errors.push(`${page}: meta description is ${description.length} chars (max ${MAX_DESCRIPTION})`);
+    }
   }
 
   // 3. Exactly one <h1>.
