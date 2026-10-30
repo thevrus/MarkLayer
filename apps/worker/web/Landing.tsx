@@ -54,7 +54,8 @@ function FeatureCard({ title, desc, art: ArtBody }: { title: string; desc: strin
   return (
     <Card>
       <Caption title={title}>{desc}</Caption>
-      <Art class="h-[220px]">
+      {/* Anchored to the top and cut by the card's bottom edge, so a demo taller than its slot is cropped, not squeezed. */}
+      <Art class="h-[250px] justify-start pb-0">
         <ArtBody />
       </Art>
     </Card>

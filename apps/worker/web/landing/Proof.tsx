@@ -12,14 +12,14 @@ const MARK = '#8b5cf6';
    showing a piece of the product, and under it the claim, one step below the
    section head so it never rivals it, with at most one line of support.
    Artifacts speak Geist, because they are the product. */
-const CARD_CLS = 'lp-card relative flex flex-col p-5';
+const CARD_CLS = 'lp-card relative flex flex-col overflow-hidden px-7 pt-7 sm:px-8 sm:pt-8';
 /* The stage takes a fixed height per row and the caption the rest, so every
    title in a row starts on the same line however long its neighbour's copy runs. */
-const ART_CLS =
-  'lp-card-art relative mt-5 flex shrink-0 flex-col justify-center overflow-hidden px-5 py-8 sm:px-8 sm:py-10';
-const TEXT_CLS = 'min-h-[3.75rem]';
-const TITLE_CLS = 'm-0 font-ui text-lede font-semibold tracking-ui text-ml-fg text-balance';
-const DESC_CLS = 'm-0 mt-1.5 text-body leading-prose text-ml-fg/55 text-pretty';
+/* The demo takes the rest of the card and reaches its bottom edge: a tall one is cut there, as a photo is cropped. */
+const ART_CLS = 'lp-card-art relative mt-8 flex shrink-0 flex-col justify-center pb-7 sm:pb-8';
+const TEXT_CLS = 'min-h-[4.25rem]';
+const TITLE_CLS = 'm-0 font-ui text-title font-semibold tracking-ui text-ml-fg text-balance';
+const DESC_CLS = 'm-0 mt-2 text-lede leading-prose text-ml-fg/55 text-pretty';
 const CHROME_CLS = 'font-ui text-ui-lg text-(--ds-gray-1000)';
 
 /* Brand marks from simple-icons. Slack and Teams have no
@@ -287,7 +287,7 @@ export function ProofGrid() {
         </Art>
       </Card>
 
-      <Card class="items-center justify-center px-6 py-14 text-center lg:col-span-4">
+      <Card class="items-center justify-center py-14 text-center lg:col-span-4">
         <p class="lp-display m-0 text-hero text-ml-fg tabular-nums">0</p>
         <p class="lp-display m-0 mt-3 max-w-[16ch] text-statement text-ml-fg/55">
           things to install, sign up for, or pay for.

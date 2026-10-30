@@ -786,23 +786,22 @@
   background: #fff;
   box-shadow: var(--ds-shadow-border-small);
 }
-/* A card is a flat white object drawn by one hairline: no shadow, no lift. */
+/* A card is a grey field on the white page, and the demo sits straight on it:
+   no inner frame, no shadow. The card clips, so a demo may run off its edge. */
 .lp-card {
-  background: #fff;
-  border: 1px solid var(--color-ml-card-edge);
-  border-radius: 1rem;
+  background: #f4f4f4;
+  border-radius: 1.25rem;
 }
 .lp-card-art {
-  background: var(--color-ml-board-raised);
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-ml-card-edge);
+  /* The stage is the card itself; this only keeps the demo inside the rounding. */
+  overflow: hidden;
 }
 /* A link card's hover is a tonal step, not a lift. */
 a.lp-card {
   transition: background-color 160ms ease;
 }
 a.lp-card:hover {
-  background: var(--color-ml-board-raised);
+  background: #ececec;
 }
 
 /* ── The nav ──

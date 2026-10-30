@@ -4,7 +4,7 @@ import { Check, Copy, Download, Mic } from 'lucide-preact';
 /* The seeded pin's purple, so every mark the page leaves on itself is one person's. */
 const MARK = '#8b5cf6';
 /* Product chrome speaks Geist, because it is the product. */
-const CHROME_CLS = 'lp-panel rounded-lg font-ui text-ui-lg text-(--ds-gray-1000)';
+const CHROME_CLS = 'lp-panel rounded-xl font-ui text-body text-(--ds-gray-1000)';
 
 /** The cursor palette from the fold, so the people in these demos are the people on the board. */
 const PEOPLE = [
@@ -28,7 +28,7 @@ function Avatar({ name, color, size = 24 }: { name: string; color: string; size?
 /** The voice bar as the room shows it: who is on the call, and who is talking. */
 function VoiceArt() {
   return (
-    <div class={cn(CHROME_CLS, 'mx-auto flex w-full max-w-[300px] items-center gap-3 px-3.5 py-2.5')}>
+    <div class={cn(CHROME_CLS, 'mx-auto flex w-full max-w-[520px] items-center gap-3 px-3.5 py-2.5')}>
       <span class="flex -space-x-1.5">
         {PEOPLE.map((p) => (
           <span key={p.name} class="rounded-full ring-2 ring-white">
@@ -49,10 +49,35 @@ function VoiceArt() {
   );
 }
 
+/** The call: the bar, then everyone's tile, the talker's ringed. The tiles run off the card. */
+function CallArt() {
+  return (
+    <div class="mx-auto w-full max-w-[520px]">
+      <VoiceArt />
+      <div class="mt-3 grid grid-cols-3 gap-3" aria-hidden="true">
+        {PEOPLE.map((p, i) => (
+          <div
+            key={p.name}
+            class={cn(
+              'lp-panel relative flex h-[120px] flex-col justify-end rounded-xl p-3 font-ui text-ui',
+              i === 1 && 'outline-2 outline-(--ds-green-700)',
+            )}
+          >
+            <span class="absolute top-3 left-3">
+              <Avatar {...p} size={28} />
+            </span>
+            <span class="font-medium">{p.name}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** The follow banner: everyone's viewport pinned to one person's. */
 function FollowArt() {
   return (
-    <div class="relative mx-auto w-full max-w-[300px]">
+    <div class="relative mx-auto w-full max-w-[520px]">
       <div class={cn(CHROME_CLS, 'flex items-center gap-2.5 px-3.5 py-2.5')}>
         <Avatar {...PEOPLE[0]} size={20} />
         <span class="min-w-0 flex-1 truncate">
@@ -75,14 +100,16 @@ const THREADS: { text: string; status: string; color: string; priority: string }
   { text: 'Button copy on the hero', status: 'Resolved', color: 'var(--ds-green-900)', priority: 'High' },
   { text: 'Total does not update', status: 'In progress', color: 'var(--ds-blue-800)', priority: 'Urgent' },
   { text: 'Footer logo is blurry', status: 'Open', color: 'var(--ds-gray-700)', priority: 'Low' },
+  { text: 'Pricing table wraps on tablet', status: 'Open', color: 'var(--ds-gray-700)', priority: 'Medium' },
+  { text: 'Typo in the checkout note', status: 'Resolved', color: 'var(--ds-green-900)', priority: 'Low' },
 ];
 
 /** The board: one row per thread, its status and priority on it. */
 function BoardArt() {
   return (
-    <ul class={cn(CHROME_CLS, 'mx-auto m-0 w-full max-w-[320px] list-none divide-y divide-(--ds-gray-alpha-200) p-0')}>
+    <ul class={cn(CHROME_CLS, 'mx-auto m-0 w-full max-w-[560px] list-none divide-y divide-(--ds-gray-alpha-200) p-0')}>
       {THREADS.map((t) => (
-        <li key={t.text} class="m-0 flex items-center gap-3 px-3.5 py-2.5">
+        <li key={t.text} class="m-0 flex items-center gap-3 px-4 py-3">
           <span class="size-2 shrink-0 rounded-full" style={{ background: t.color }} aria-hidden="true" />
           <span class="min-w-0 flex-1 truncate">{t.text}</span>
           <span class="shrink-0 text-ui text-(--ds-gray-700)">{t.priority}</span>
@@ -98,7 +125,7 @@ function BoardArt() {
 /** The measure tool's readout: a box, its size, and the gap to its neighbour. */
 function MeasureArt() {
   return (
-    <div class="relative mx-auto h-[120px] w-full max-w-[280px] font-ui text-mini font-medium" aria-hidden="true">
+    <div class="relative mx-auto h-[120px] w-full max-w-[480px] font-ui text-mini font-medium" aria-hidden="true">
       <span
         class="absolute top-4 left-0 h-10 w-[164px] rounded-md bg-white outline-1 outline-dashed"
         style={{ outlineColor: MARK }}
@@ -122,7 +149,7 @@ const PAGES = ['Home', 'Pricing', 'Checkout', 'Account'];
 /** A project's tab strip: one link, every page of the flow. */
 function PagesArt() {
   return (
-    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[320px] px-2 py-2')}>
+    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[560px] px-2 py-2')}>
       <div class="flex items-center gap-1 text-ui">
         {PAGES.map((p, i) => (
           <span
@@ -137,6 +164,15 @@ function PagesArt() {
         ))}
         <span class="ml-auto px-2 text-(--ds-gray-700)">+46</span>
       </div>
+      <div class="mt-2 rounded-lg bg-(--ds-gray-100) px-5 pt-5 pb-10 font-ui" aria-hidden="true">
+        <p class="m-0 text-heading font-semibold text-(--ds-gray-1000)">Pricing</p>
+        <p class="m-0 mt-1 text-ui text-(--ds-gray-700)">One plan. Free, and it stays free.</p>
+        <div class="mt-4 grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => (
+            <span key={i} class="block h-14 rounded-md bg-white" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -144,7 +180,7 @@ function PagesArt() {
 /** Where a comment goes next: the chat it posted to, the tracker it became a task in. */
 function SendArt() {
   return (
-    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[300px] px-3.5 py-3')}>
+    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[520px] px-3.5 py-3')}>
       <p class="m-0 flex items-center gap-2 text-ui text-(--ds-gray-900)">
         <Check size={13} strokeWidth={2.5} class="text-(--ds-green-900)" aria-hidden="true" />
         Posted to <span class="font-medium text-(--ds-gray-1000)">#website-review</span>
@@ -167,7 +203,7 @@ function SendArt() {
 /** The review as a document: Markdown, with a suggested edit as a diff. */
 function ExportArt() {
   return (
-    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[300px] px-3.5 py-3 font-mono text-ui')}>
+    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[520px] px-3.5 py-3 font-mono text-ui')}>
       <p class="m-0 text-(--ds-gray-700)">## Comments (12)</p>
       <p class="m-0 mt-1.5">
         <span class="text-(--ds-gray-700)">- [x]</span> Hero: button copy
@@ -177,6 +213,12 @@ function ExportArt() {
       </p>
       <p class="m-0 pl-5">
         <span class="text-(--ds-green-900)">+ Shop the collection</span>
+      </p>
+      <p class="m-0 mt-1.5">
+        <span class="text-(--ds-gray-700)">- [ ]</span> Checkout: total does not update
+      </p>
+      <p class="m-0 mt-1.5">
+        <span class="text-(--ds-gray-700)">- [ ]</span> Footer: logo is blurry at 2x
       </p>
       <div class="mt-3 flex items-center gap-2 border-t border-(--ds-gray-alpha-200) pt-3 font-ui">
         <span class="inline-flex items-center gap-1.5 rounded-md bg-(--ds-gray-1000) px-2.5 py-1 text-ui font-medium text-white">
@@ -209,7 +251,7 @@ function Toggle({ on }: { on: boolean }) {
 /** The link's own settings: who may write, and for how long. */
 function LockArt() {
   return (
-    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[300px] divide-y divide-(--ds-gray-alpha-200)')}>
+    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[520px] divide-y divide-(--ds-gray-alpha-200)')}>
       <div class="flex items-center justify-between gap-3 px-3.5 py-2.5">
         <span>View only</span>
         <Toggle on />
@@ -226,4 +268,4 @@ function LockArt() {
 }
 
 /** One demo per feature, in the order FEATURES lists them. */
-export const FEATURE_ARTS = [VoiceArt, FollowArt, BoardArt, MeasureArt, PagesArt, SendArt, ExportArt, LockArt] as const;
+export const FEATURE_ARTS = [CallArt, FollowArt, BoardArt, MeasureArt, PagesArt, SendArt, ExportArt, LockArt] as const;
