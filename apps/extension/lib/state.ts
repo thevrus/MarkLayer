@@ -8,10 +8,11 @@ import {
   toggleReaction,
   translateOp,
 } from '@marklayer/types';
-import { computed, effect, signal } from '@preact/signals';
+import { batch, computed, effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { tinykeys } from 'tinykeys';
 import { track, trackChanges } from './analytics';
+import { holdOp, patchHeld, shouldHold, takeHeld, tick, undoHeld } from './batch';
 import { createDraftStore } from './drafts';
 import { errorsForPage } from './page-errors';
 import { ELEMENT_INSPECTOR_HEADING, type OutputDetail } from './selector';
@@ -656,6 +657,8 @@ export const isDrawingTool = (t: Tool) => t !== 'navigate';
 const SELECTION_TOOLS: ReadonlySet<Tool> = new Set<Tool>(['navigate', 'comment', 'text', 'selection', 'inspect']);
 
 export const toolCapturesSelection = (t: Tool) => SELECTION_TOOLS.has(t);
+/** Tools where a double-click edits page text in place. */
+export const toolEditsText = (t: Tool) => t === 'selection' || t === 'inspect';
 
 /**
  * Whether a mouseup on the page should be read for a selection at all. Markers
@@ -1099,9 +1102,23 @@ export const measureActive = computed(() => measureToolActive.value || altHeld.v
 /**
  * Commit an op. `seeded` marks ops the app places itself — the landing page's
  * demo strokes — so they land in the document without being counted as somebody
- * annotating.
+ * annotating. Returns 'held' when batch mode kept the note back until Send, else 'sent'.
  */
-export function pushOp(op: DrawOp, { seeded = false }: { seeded?: boolean } = {}) {
+export function pushOp(op: DrawOp, { seeded = false }: { seeded?: boolean } = {}): 'held' | 'sent' {
+  if (!seeded && shouldHold(op)) {
+    holdOp(op);
+    return 'held';
+  }
+  commitOp(op, { seeded });
+  return 'sent';
+}
+
+/** When each op landed on the shared batch clock, so ⌘Z can tell a held note from a newer stroke. */
+const committedAt = new Map<string, number>();
+
+/** `pushOp` without batch holding, for ops the user already chose to send. */
+export function commitOp(op: DrawOp, { seeded = false }: { seeded?: boolean } = {}) {
+  committedAt.set(op.id, tick());
   operations.value = [...operations.value, op];
   if (undoStack.value.length) undoStack.value = [];
   onOpPushed.value?.(op);
@@ -1109,6 +1126,20 @@ export function pushOp(op: DrawOp, { seeded = false }: { seeded?: boolean } = {}
   if (seeded) return;
   track('annotation_created', { tool: op.tool, reply: 'parentId' in op && Boolean(op.parentId) });
   onOpMade.value?.(op);
+}
+
+/**
+ * Release the held batch to the room in creation order, then leave the tool.
+ * Comment numbers are assigned here: while held they all read the same count.
+ */
+export function sendHeld() {
+  const held = takeHeld();
+  if (!held.length) return;
+  let num = commentCounter.value;
+  batch(() => {
+    for (const op of held) commitOp(op.tool === 'comment' ? { ...op, num: ++num } : op);
+  });
+  activeTool.value = 'navigate';
 }
 
 /** Create and push a reply to an existing comment */
@@ -1172,6 +1203,7 @@ export function setOpStatus(opId: string, status: CommentStatus) {
 
 /** Patch any op here and on the wire. Re-validated first, so a patch that breaks the op never leaves this tab. */
 export function patchOp({ opId, patch }: { opId: string; patch: Record<string, unknown> }) {
+  if (patchHeld({ id: opId, patch })) return;
   let applied = false;
   operations.value = operations.value.map((op) => {
     if (op.id !== opId) return op;
@@ -1277,6 +1309,8 @@ const isUndoable = (op: DrawOp | undefined) =>
 export function undo() {
   // Counted as an intent: a press with nothing to undo is still someone reaching for it.
   track('history_action', { action: 'undo' });
+  const mine = operations.value.filter(isUndoable).pop();
+  if (undoHeld({ after: (mine && committedAt.get(mine.id)) ?? 0 })) return;
   // While the guide tool is active, ⌘Z pops the most recent guide op specifically —
   // even if a non-guide op was added later — so guide scratch work feels independent.
   if (activeTool.value === 'guide') {
@@ -1345,6 +1379,8 @@ export function deleteOp(id: string) {
   const op = ops.find((o) => o.id === id);
   if (!op) return;
   operations.value = ops.filter((o) => o.id !== id);
+  // Guides report through guide_deleted / guides_cleared; a clear would otherwise add one per guide.
+  if (op.tool !== 'guide') track('annotation_deleted', { tool: op.tool });
   onUndone.value?.(id);
   drafts.scheduleSave();
 }
@@ -1369,7 +1405,8 @@ export function duplicateLastOp() {
     // the original and eat the offset.
     const copy = { ...moved, id: nanoid(), target: undefined };
     // An area op carries a `ts`, and the copy was made now, not when the original was.
-    return pushOp(copy.tool === 'area' ? { ...copy, ts: Date.now() } : copy);
+    pushOp(copy.tool === 'area' ? { ...copy, ts: Date.now() } : copy);
+    return;
   }
   toast('Nothing to duplicate', { duration: 1800 });
 }

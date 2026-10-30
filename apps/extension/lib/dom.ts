@@ -10,3 +10,15 @@ export function injectCrosshairCursor(doc: Document | null | undefined): (() => 
   doc.head.appendChild(style);
   return () => style.remove();
 }
+
+/**
+ * The editable element a key event is aimed at, if any. The composed path sees through the
+ * open shadow root our UI lives in, so the overlay's own fields count as well as the page's.
+ */
+export function editableTarget(e: KeyboardEvent): HTMLElement | null {
+  const t = e.composedPath()[0];
+  if (!(t instanceof HTMLElement)) return null;
+  const tag = t.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return t;
+  return null;
+}

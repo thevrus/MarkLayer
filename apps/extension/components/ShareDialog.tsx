@@ -4,6 +4,7 @@ import { useSignalEffect } from '@preact/signals';
 import { AlertTriangle, Bot, Check, Copy, Link2, MonitorOff, X } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { useState } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
@@ -24,11 +25,11 @@ import {
 import {
   clearInspectorStack,
   color,
+  commitOp,
   getCommentMeta,
   inspectorStack,
   lineWidth,
   operations,
-  pushOp,
   showShareDialog,
   signedBy,
   toast,
@@ -84,7 +85,7 @@ function flushInspectorStackToComments(): number {
       ...signedBy(),
       meta: getCommentMeta(),
     };
-    pushOp(op);
+    commitOp(op);
   });
   clearInspectorStack();
   return items.length;
@@ -101,12 +102,15 @@ function saveFailureMessage(reason: SaveFailure): string {
   }
 }
 
-function CopyButton({ value, label }: { value: string; label: string }) {
+function CopyButton({ value, label, onCopy }: { value: string; label: string; onCopy: () => void }) {
   const { copied, copy } = useCopyToClipboard();
   return (
     <button
       type="button"
-      onClick={() => copy(value)}
+      onClick={() => {
+        copy(value);
+        onCopy();
+      }}
       aria-label={label}
       class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-meta font-semibold cursor-pointer
              border border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100)
@@ -205,7 +209,7 @@ export function ShareDialog() {
                 >
                   {shareUrl}
                 </code>
-                <CopyButton value={shareUrl} label="Copy link" />
+                <CopyButton value={shareUrl} label="Copy link" onCopy={() => track('share_link_copied')} />
               </div>
               {embedHostile && (
                 <div
@@ -249,7 +253,11 @@ export function ShareDialog() {
               >
                 {claudeCommand}
               </code>
-              <CopyButton value={claudeCommand} label="Copy Claude Code command" />
+              <CopyButton
+                value={claudeCommand}
+                label="Copy Claude Code command"
+                onCopy={() => track('mcp_command_copied', { command: 'claude' })}
+              />
             </div>
             <PanelSection label="Cursor, Codex, Windsurf…">
               <div class="flex items-center gap-1.5">
@@ -259,7 +267,11 @@ export function ShareDialog() {
                 >
                   {endpoint}
                 </code>
-                <CopyButton value={endpoint} label="Copy MCP config entry" />
+                <CopyButton
+                  value={endpoint}
+                  label="Copy MCP config entry"
+                  onCopy={() => track('mcp_command_copied', { command: 'endpoint' })}
+                />
               </div>
               <p class="mt-1.5 text-meta text-(--ds-gray-900) leading-snug m-0">
                 Add as an HTTP MCP server named "marklayer". Nothing to install: the link is the server.
@@ -273,7 +285,11 @@ export function ShareDialog() {
                 >
                   {npxCommand}
                 </code>
-                <CopyButton value={npxCommand} label="Copy npx command" />
+                <CopyButton
+                  value={npxCommand}
+                  label="Copy npx command"
+                  onCopy={() => track('mcp_command_copied', { command: 'npx' })}
+                />
               </div>
               <p class="mt-1.5 text-meta text-(--ds-gray-900) leading-snug m-0">
                 For a client that cannot reach a remote MCP server yet.
@@ -285,6 +301,7 @@ export function ShareDialog() {
             href={HOW_IT_WORKS_URL}
             target="_blank"
             rel="noopener"
+            onClick={() => track('share_how_it_works_clicked')}
             class="text-meta text-(--ds-gray-900) hover:text-(--ds-gray-1000) no-underline hover:underline transition-colors"
           >
             How MarkLayer works

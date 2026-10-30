@@ -23,7 +23,18 @@ export function useEdgeClamp({ top }: { top: number }) {
   const fit = useCallback(() => {
     const el = ref.current;
     if (!el) return;
-    setClampedTop(Math.max(EDGE_MARGIN, Math.min(topRef.current, window.innerHeight - el.offsetHeight - EDGE_MARGIN)));
+    const h = el.offsetHeight;
+    let next = Math.max(EDGE_MARGIN, Math.min(topRef.current, window.innerHeight - h - EDGE_MARGIN));
+    // A card that would open under the toolbar lifts to sit just above it.
+    const root = el.getRootNode();
+    const tb = (root instanceof ShadowRoot ? root : document)
+      .querySelector('[data-ml-toolbar]')
+      ?.getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    if (tb && box.left < tb.right && box.right > tb.left && next + h > tb.top && next < tb.bottom) {
+      next = Math.max(EDGE_MARGIN, tb.top - h - EDGE_MARGIN);
+    }
+    setClampedTop(next);
   }, []);
 
   // Both triggers outlive any single position: the observer catches the panel's

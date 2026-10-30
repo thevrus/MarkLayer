@@ -937,6 +937,7 @@ export function Toolbar() {
     <>
       <div
         ref={tbRef}
+        data-ml-toolbar
         class={cn(
           'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 select-none',
           geist.surface,

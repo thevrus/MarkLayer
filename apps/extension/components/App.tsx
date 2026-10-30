@@ -2,6 +2,8 @@ import { cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
+import { batchAvailable, heldOps } from '../lib/batch';
+import { editableTarget } from '../lib/dom';
 import { useWindowMarkPointer } from '../lib/mark-hover';
 import { joinRoom } from '../lib/room';
 import { parseUrlHash } from '../lib/share';
@@ -21,10 +23,12 @@ import {
   visible,
 } from '../lib/state';
 import { AreaLayer } from './AreaLayer';
+import { BatchSend, HeldPins } from './BatchSend';
 import { Canvas } from './Canvas';
 import { CommentLayer } from './CommentLayer';
 import { ContextMenu } from './ContextMenu';
 import { GuideLayer } from './GuideLayer';
+import { HintRow } from './HintRow';
 import { InspectorLayer } from './InspectorLayer';
 import { InspectorMarkerLayer } from './InspectorMarkerLayer';
 import { MeasureLayer } from './MeasureLayer';
@@ -38,18 +42,12 @@ import { Toasts } from './Toasts';
 import { Toolbar } from './Toolbar';
 import { useOverlayHost } from './useOverlayHost';
 
+// Set at load: App is the extension's root, and the web viewer, which never mounts it, keeps batch off.
+batchAvailable.value = true;
+
 export function App() {
   useWindowMarkPointer();
   useEffect(() => {
-    // Composed path lets us peek through the shadow root the page might be sitting in,
-    // so an input focused inside another extension or the proxied iframe still counts.
-    const editableTarget = (e: KeyboardEvent): HTMLElement | null => {
-      const t = e.composedPath()[0];
-      if (!(t instanceof HTMLElement)) return null;
-      const tag = t.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable) return t;
-      return null;
-    };
     const guard = (fn: (e: KeyboardEvent) => void) => (e: KeyboardEvent) => {
       if (!visible.value || editableTarget(e)) return;
       fn(e);
@@ -116,7 +114,7 @@ export function App() {
   // Warn before leaving page with unsaved drawings
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
-      if (operations.value.length > 0) e.preventDefault();
+      if (operations.value.length > 0 || heldOps.value.length > 0) e.preventDefault();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
@@ -199,9 +197,14 @@ export function App() {
           than unmounted so a dragged toolbar comes back where it was left. */}
       <div class={cn(uiHidden.value && 'hidden')}>
         <Toolbar />
+        <div class="fixed bottom-20 left-1/2 -translate-x-1/2 z-2147483646">
+          <BatchSend />
+        </div>
       </div>
+      <HeldPins />
       <ShareDialog />
       <ContextMenu />
+      <HintRow />
       <Toasts />
     </div>
   );
