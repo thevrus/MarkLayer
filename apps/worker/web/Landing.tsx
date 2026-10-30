@@ -23,7 +23,7 @@ import { DemoStage } from './landing/DemoStage';
 import { FEATURE_ARTS } from './landing/FeatureArts';
 import { HeroSource } from './landing/HeroSource';
 import { McpCommand } from './landing/McpCommand';
-import { AgentRow, Art, Caption, Card, MarginNote, ProblemRow, ProofGrid } from './landing/Proof';
+import { AgentRow, Art, Caption, Card, MarginNote, ProofGrid } from './landing/Proof';
 import { useLandingCanvas } from './landing/useLandingCanvas';
 import { useLandingPresence } from './landing/useLandingPresence';
 import { useLandingShortcuts } from './landing/useLandingShortcuts';
@@ -215,18 +215,6 @@ export function Landing() {
                 <p class="m-0 text-ui text-ml-fg/60">
                   This page is a live board. <span class="text-ml-fg">Pick a tool below and draw.</span>
                 </p>
-              </div>
-            </section>
-
-            {/* The problem first, in the reader's own terms: the gate a client
-                meets, and where the feedback ends up instead. */}
-            <section class={SECTION_CLS}>
-              <MarginNote class="top-[22%] left-[2%]">Been here?</MarginNote>
-              <SectionHead title="Clients won’t install anything to say a button is wrong.">
-                So it arrives by email, and nobody knows which button.
-              </SectionHead>
-              <div class={CARDS_CLS}>
-                <ProblemRow />
               </div>
             </section>
 

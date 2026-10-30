@@ -7,8 +7,6 @@ import type { CommentOp } from '@ext/lib/types';
 import { cn, DEMO_ROOM } from '@marklayer/types';
 import { Check } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
-import { siGmail, siGooglechrome, siWhatsapp } from 'simple-icons';
-import { CHANNELS } from '../ChannelCycle';
 import { CopyControl, DEVICE_ICONS, DEVICE_LABELS } from '../shared';
 
 /* The seeded pin's purple, so every mark the page leaves on itself is one person's. */
@@ -27,33 +25,6 @@ const TEXT_CLS = 'min-h-[4.25rem]';
 const TITLE_CLS = 'm-0 font-ui text-title font-semibold tracking-ui text-ml-fg text-balance';
 const DESC_CLS = 'm-0 mt-2 text-lede leading-prose text-ml-fg/55 text-pretty';
 const CHROME_CLS = 'font-ui text-ui-lg text-(--ds-gray-1000)';
-
-/* Brand marks from simple-icons. Slack and Teams have no
-   mark here on purpose: their trademark policies bar it (see IntegrationsSection),
-   so they are set in their colour by name. */
-const BRAND = {
-  whatsapp: {
-    hex: '#25D366',
-    d: siWhatsapp.path,
-  },
-  gmail: {
-    hex: '#EA4335',
-    d: siGmail.path,
-  },
-  chrome: {
-    hex: '#4285F4',
-    d: siGooglechrome.path,
-  },
-} as const;
-
-function Brand({ id, size = 16 }: { id: keyof typeof BRAND; size?: number }) {
-  const b = BRAND[id];
-  return (
-    <svg role="presentation" width={size} height={size} viewBox="0 0 24 24" class="shrink-0" style={{ color: b.hex }}>
-      <path d={b.d} fill="currentColor" />
-    </svg>
-  );
-}
 
 /**
  * A note left in the margin with the pen and text tools: a stroked arrow and a
@@ -116,100 +87,6 @@ export function Caption({ title, children }: { title: ComponentChildren; childre
     <div class={TEXT_CLS}>
       <h3 class={TITLE_CLS}>{title}</h3>
       {children && <p class={DESC_CLS}>{children}</p>}
-    </div>
-  );
-}
-
-/** The dialogs a client meets before most tools let them say a word. */
-const GATES: { title: string; action: string; brand?: keyof typeof BRAND }[] = [
-  { title: 'Install the browser extension to view this page', action: 'Add to Chrome', brand: 'chrome' },
-  { title: 'Create an account to continue', action: 'Sign up' },
-  { title: 'Check your inbox to confirm your email', action: 'Resend', brand: 'gmail' },
-];
-
-/** The same note, arriving four ways. Channel colours are the headline's own. */
-const SCATTER: {
-  channel: number;
-  brand?: keyof typeof BRAND;
-  who: string;
-  text: string;
-  at: string;
-  mine?: boolean;
-}[] = [
-  { channel: 0, brand: 'gmail', who: 'Dana', text: 'See attached: homepage_feedback_v3_FINAL.pdf', at: '9:12' },
-  { channel: 3, brand: 'whatsapp', who: 'Dana', text: 'the button on page 2. no not that one', at: '9:40' },
-  { channel: 1, who: 'You', text: 'who has the list from yesterday’s call?', at: '11:05', mine: true },
-  { channel: 2, who: 'Priya', text: 'can you send a screenshot?', at: '14:30' },
-];
-
-/** What goes wrong today, in two cards: the gate, and where the feedback ends up. */
-export function ProblemRow() {
-  return (
-    <div class="grid gap-4 md:grid-cols-2 sm:gap-5">
-      <Card>
-        <Caption title="Make them install something, and they stop." />
-        <Art class="h-[300px] px-3 sm:px-8">
-          <div class="relative h-48 sm:h-52">
-            {GATES.map((g, i) => (
-              <div
-                key={g.title}
-                class={cn(
-                  'lp-panel absolute right-0 left-0 flex items-center gap-3 rounded-lg px-4 py-3.5',
-                  CHROME_CLS,
-                )}
-                style={{
-                  top: `${i * 50}px`,
-                  marginInline: `${(2 - i) * 10}px`,
-                  opacity: 1 - (2 - i) * 0.3,
-                  zIndex: i,
-                }}
-              >
-                {g.brand && <Brand id={g.brand} size={18} />}
-                <span class="min-w-0 flex-1 truncate font-medium">{g.title}</span>
-                <span class="shrink-0 rounded-md bg-(--ds-gray-1000) px-2.5 py-1 text-ui font-medium text-white">
-                  {g.action}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Art>
-      </Card>
-
-      <Card>
-        <Caption title="So it comes back in four apps, and loses the page." />
-        <Art class="h-[300px]">
-          <ul class="m-0 flex list-none flex-col gap-2.5 p-0">
-            {SCATTER.map((m) => {
-              const ch = CHANNELS[m.channel];
-              return (
-                <li
-                  key={m.text}
-                  class={cn(
-                    'lp-panel m-0 flex max-w-[92%] items-start gap-2.5 rounded-lg px-3.5 py-2.5',
-                    CHROME_CLS,
-                    m.mine ? 'self-end' : 'self-start',
-                  )}
-                >
-                  {m.brand ? (
-                    <span class="mt-0.5">
-                      <Brand id={m.brand} size={16} />
-                    </span>
-                  ) : (
-                    <span class="mt-px shrink-0 text-ui font-semibold" style={{ color: ch.color }}>
-                      {ch.name}
-                    </span>
-                  )}
-                  <span class="min-w-0">
-                    <span class="mr-2 font-medium">{m.who}</span>
-                    <span class="text-(--ds-gray-900)">{m.text}</span>
-                    <span class="ml-2 text-meta text-(--ds-gray-700)">{m.at}</span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </Art>
-      </Card>
     </div>
   );
 }
