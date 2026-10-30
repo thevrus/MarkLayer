@@ -35,12 +35,7 @@ describe('shouldOfferSupport — who never sees it', () => {
   });
 
   test('somebody who came back but has not used it with anyone or for anything', () => {
-    expect(offer({ ...veteran, shares: 0, notes: 19 })).toBe(false);
-  });
-
-  test('somebody who left every note on one day, however many', () => {
-    // One long review of one page, not a habit.
-    expect(offer({ ...veteran, days: ['2026-08-01'], notes: 200 })).toBe(false);
+    expect(offer({ ...veteran, shares: 0, notes: 9 })).toBe(false);
   });
 
   test('somebody who said not to ask again', () => {
@@ -48,9 +43,13 @@ describe('shouldOfferSupport — who never sees it', () => {
     expect(offer(declined, '2027-01-01')).toBe(false);
   });
 
-  test('somebody already answered twice, no matter how much they use it', () => {
-    const twice = fold(answeredOnce(), ['answered', ...times(99, 'noted')], '2026-11-01');
-    expect(offer(twice, '2027-06-01')).toBe(false);
+  test('somebody already answered three times, no matter how much they use it', () => {
+    const thrice = fold(
+      answeredOnce(),
+      ['answered', ...times(99, 'noted'), 'answered', ...times(99, 'noted')],
+      '2026-11-01',
+    );
+    expect(offer(thrice, '2027-06-01')).toBe(false);
   });
 
   test('somebody who already supported', () => {
@@ -76,33 +75,39 @@ describe('shouldOfferSupport — who does', () => {
     expect(offer({ ...fresh, days: ['2026-08-01'], shares: 1 })).toBe(true);
   });
 
-  test('somebody who never shares, but keeps leaving notes on a second day', () => {
-    expect(offer({ ...veteran, notes: 20 })).toBe(true);
+  test('somebody who never shares, but leaves a first batch of notes', () => {
+    expect(offer({ ...veteran, notes: 10 })).toBe(true);
   });
 });
 
-describe('shouldOfferSupport — the second and last ask', () => {
-  test('a month after the first answer, with real use since', () => {
-    expect(offer(answeredOnce(), '2026-10-01')).toBe(true);
+describe('shouldOfferSupport — the second and third asks', () => {
+  test('a fortnight after the first answer, with real use since', () => {
+    expect(offer(answeredOnce(), '2026-09-15')).toBe(true);
   });
 
-  test('not a day before the month is out', () => {
-    expect(offer(answeredOnce(), '2026-09-30')).toBe(false);
+  test('not a day before the fortnight is out', () => {
+    expect(offer(answeredOnce(), '2026-09-14')).toBe(false);
   });
 
   test('not on notes left before the first answer', () => {
-    // 54 in all clears 30, but only 29 came after the answer.
-    expect(offer(answeredOnce(29), '2026-10-01')).toBe(false);
+    // 39 in all clears 15, but only 14 came after the answer.
+    expect(offer(answeredOnce(14), '2026-09-15')).toBe(false);
   });
 
-  test('a record from the one-ask days waits a month from its next visit', () => {
+  test('a third ask waits a fortnight from the second answer', () => {
+    const second = fold(answeredOnce(), ['answered', ...times(15, 'noted')], '2026-09-15');
+    expect(offer(second, '2026-09-28')).toBe(false);
+    expect(offer(second, '2026-09-29')).toBe(true);
+  });
+
+  test('a record from the one-ask days waits a fortnight from its next visit', () => {
     let r = parseSupportRecord('{"days":["2026-08-01"],"shares":1,"asked":true}');
-    r = fold(r, times(30, 'noted'));
-    // Undated: there is no month to have waited out yet, whatever the notes.
+    r = fold(r, times(15, 'noted'));
+    // Undated: there is no wait to have served yet, whatever the notes.
     expect(offer(r, '2027-01-01')).toBe(false);
     r = fold(r, ['used'], '2026-10-05');
-    expect(offer(r, '2026-10-20')).toBe(false);
-    expect(offer(r, '2026-11-04')).toBe(true);
+    expect(offer(r, '2026-10-18')).toBe(false);
+    expect(offer(r, '2026-10-19')).toBe(true);
   });
 });
 
@@ -122,7 +127,7 @@ describe('recordSignal', () => {
       r = recordSignal({ record: r, signal: 'used', date });
     }
     // The record answers "enough distinct days?" — it is not a usage log.
-    expect(r.days).toEqual(['2026-08-01', '2026-08-02']);
+    expect(r.days).toEqual(['2026-08-01']);
   });
 
   test('does not mutate the record it was given', () => {

@@ -9,6 +9,7 @@ import { CircleCheck, X } from 'lucide-preact';
 import { capture } from './analytics';
 import { isUnprompted, showSupportDialog } from './signals';
 import {
+  isLastAsk,
   MONTHLY_COST_USD,
   NOTES_BEFORE_ASKING,
   noteSupportSignal,
@@ -22,7 +23,7 @@ import {
  * record written there scatters across every site the user visits and is never
  * readable again. The ask also does not belong on top of someone else's page.
  *
- * Unprompted, this is shown at most twice, and someone is being asked for money
+ * Unprompted, this is shown at most three times, and someone is being asked for money
  * by a tool that promised them nothing would be asked. So: first person, no
  * adjectives, one action, and an honest way out that costs them nothing.
  *
@@ -167,12 +168,12 @@ export function SupportDialog() {
               helps just as much.
             </p>
 
-            {/* A promise `shouldOfferSupport` keeps, and what makes this two asks rather than a campaign. */}
+            {/* A promise `shouldOfferSupport` keeps, and what makes this three asks rather than a campaign. */}
             {isUnprompted(trigger) && record ? (
               <p class="mt-2 mb-0 text-meta leading-snug text-(--ds-gray-900)">
-                {record.answers === 0 ? (
+                {!isLastAsk(record) ? (
                   <>
-                    I may ask one more time in a month.{' '}
+                    I may ask again in a couple of weeks.{' '}
                     <button
                       type="button"
                       onClick={() => answer('never')}
