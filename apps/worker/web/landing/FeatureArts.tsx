@@ -1,6 +1,10 @@
+import { geist } from '@ext/lib/geist';
+import { glass } from '@ext/lib/glass';
 import { cn } from '@marklayer/types';
-import { Check, Copy, Download, Mic } from 'lucide-preact';
+import { Check, Copy, Download, MessageSquare, Mic, MicOff, X } from 'lucide-preact';
+import type { ComponentChildren } from 'preact';
 import { CursorArrow } from '../CursorArrow';
+import { CursorLabel } from '../CursorLabel';
 
 /* The seeded pin's purple, so every mark the page leaves on itself is one person's. */
 const MARK = '#8b5cf6';
@@ -26,176 +30,244 @@ function Avatar({ name, color, size = 24 }: { name: string; color: string; size?
   );
 }
 
-/** The voice bar as the room shows it: who is on the call, and who is talking. */
-function VoiceArt() {
+/**
+ * A piece of the real review, at 1:1: the Wikipedia screenshot the live demo
+ * uses, cropped to the region at (x, y), with the product's chrome laid over it.
+ * Pixels from the product, not a drawing of them.
+ */
+function PageShot({
+  x,
+  y,
+  class: cls,
+  children,
+}: {
+  x: number;
+  y: number;
+  class?: string;
+  children?: ComponentChildren;
+}) {
   return (
-    <div class={cn(CHROME_CLS, 'mx-auto flex w-full max-w-[520px] items-center gap-3 px-3.5 py-2.5')}>
-      <span class="flex -space-x-1.5">
-        {PEOPLE.map((p) => (
-          <span key={p.name} class="rounded-full ring-2 ring-white">
-            <Avatar {...p} />
-          </span>
-        ))}
-      </span>
-      <span class="min-w-0 flex-1 truncate">
-        <span class="font-medium">Marcus</span> <span class="text-(--ds-gray-700)">is talking</span>
-      </span>
-      <span class="flex h-4 items-end gap-0.5" aria-hidden="true">
-        {[0.5, 1, 0.7, 0.9].map((h, i) => (
-          <i key={i} class="block w-0.75 rounded-full bg-(--ds-green-700)" style={{ height: `${h * 100}%` }} />
-        ))}
-      </span>
-      <Mic size={15} class="shrink-0 text-(--ds-gray-900)" aria-hidden="true" />
+    <div class={cn('relative w-full overflow-hidden rounded-xl bg-white shadow-(--ds-shadow-border-small)', cls)}>
+      <img
+        src="/product-review-wikipedia.webp"
+        width={1440}
+        height={900}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        class="absolute max-w-none"
+        style={{ width: 1440, height: 900, left: -x, top: -y }}
+      />
+      {children}
     </div>
   );
 }
 
-/** The call: the bar, then everyone's tile, the talker's ringed. The tiles run off the card. */
+/** The call as the room draws it: everyone's bubble floating over the page, the talker ringed green. */
 function CallArt() {
   return (
-    <div class="w-full">
-      <VoiceArt />
-      <div class="mt-3 grid grid-cols-3 gap-3" aria-hidden="true">
+    <PageShot x={240} y={120} class="h-[260px]">
+      <div class={cn('absolute top-3 right-3 flex h-8 items-center gap-2 px-2.5', geist.surfaceSmall, glass.font)}>
+        <span class="size-1.5 rounded-full bg-(--ds-green-700)" />
+        <span class="text-meta font-medium text-(--ds-gray-1000) tabular-nums">3 online</span>
+        <span class={cn(geist.divider, 'h-4 w-px')} />
+        <Mic size={13} strokeWidth={1.75} class="text-(--ds-gray-1000)" aria-hidden="true" />
+        <MicOff size={13} strokeWidth={1.75} class="text-(--ds-gray-700)" aria-hidden="true" />
+      </div>
+      <div class="absolute bottom-4 left-4 flex items-end gap-4" aria-hidden="true">
         {PEOPLE.map((p, i) => (
-          <div
-            key={p.name}
-            class={cn(
-              'lp-panel relative flex h-[120px] flex-col justify-end rounded-xl p-3 font-ui text-ui',
-              i === 1 && 'outline-2 outline-(--ds-green-700)',
-            )}
-          >
-            <span class="absolute top-3 left-3">
-              <Avatar {...p} size={28} />
+          <div key={p.name} class="relative">
+            <div
+              class="grid size-[72px] place-items-center rounded-full font-ui text-title font-semibold text-white"
+              style={{
+                background: `linear-gradient(160deg, color-mix(in srgb, ${p.color} 70%, white 30%), ${p.color})`,
+                boxShadow:
+                  i === 1
+                    ? '0 0 0 3px #22c55e, 0 4px 14px oklch(0 0 0 / 0.25)'
+                    : '0 0 0 2px rgba(255,255,255,0.9), 0 4px 14px oklch(0 0 0 / 0.2)',
+              }}
+            >
+              {p.name[0]}
+            </div>
+            <span
+              class="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-0.5 font-ui text-micro font-semibold text-white"
+              style={{ background: p.color }}
+            >
+              {p.name}
             </span>
-            <span class="font-medium">{p.name}</span>
           </div>
         ))}
       </div>
-    </div>
+    </PageShot>
   );
 }
 
-/** The follow banner: everyone's viewport pinned to one person's. */
+/** Follow mode as the HUD draws it: the banner at the top, Alice's cursor on the page, her colour on the frame. */
 function FollowArt() {
   return (
-    <div class="relative mx-auto w-full max-w-[520px]">
-      <div class={cn(CHROME_CLS, 'flex items-center gap-2.5 px-3.5 py-2.5')}>
-        <Avatar {...PEOPLE[0]} size={20} />
-        <span class="min-w-0 flex-1 truncate">
-          Following <span class="font-medium">Alice</span>
-        </span>
-        <span class="rounded-md bg-(--ds-gray-alpha-100) px-2 py-1 text-ui font-medium">Stop</span>
-      </div>
-      {/* Alice's viewport, ringed in her colour, with her cursor on the page; everyone following sees this frame. */}
-      <div
-        class="relative mt-3 h-[200px] overflow-hidden rounded-xl bg-white p-5 font-ui outline-2"
+    <PageShot x={150} y={300} class="h-[260px]">
+      <span
+        class="absolute inset-0 rounded-xl outline-2 outline-offset-[-2px]"
         style={{ outlineColor: PEOPLE[0].color }}
-        aria-hidden="true"
+      />
+      <div
+        class={cn(
+          'absolute top-3 left-1/2 flex h-9 -translate-x-1/2 items-center gap-2 px-3',
+          geist.surfaceSmall,
+          glass.font,
+        )}
       >
-        <span class="block h-3 w-40 rounded-full bg-(--ds-gray-alpha-200)" />
-        <span class="mt-3 block h-2 w-full rounded-full bg-(--ds-gray-alpha-100)" />
-        <span class="mt-2 block h-2 w-[88%] rounded-full bg-(--ds-gray-alpha-100)" />
-        <span class="mt-2 block h-2 w-[70%] rounded-full bg-(--ds-gray-alpha-100)" />
-        <span class="mt-5 inline-block h-9 w-28 rounded-md bg-(--ds-gray-1000)" />
-        <span class="absolute top-[108px] left-[150px] flex flex-col items-start">
-          <CursorArrow color={PEOPLE[0].color} />
-          <span
-            class="-mt-2 ml-5 rounded-full px-2 py-0.5 text-micro font-semibold text-white"
-            style={{ background: PEOPLE[0].color }}
-          >
-            Alice
-          </span>
-        </span>
-        <span class="absolute right-3 bottom-3 flex items-center gap-1.5 text-mini text-(--ds-gray-700)">
-          <span class="flex -space-x-1.5">
-            <Avatar {...PEOPLE[1]} size={16} />
-            <Avatar {...PEOPLE[2]} size={16} />
-          </span>
-          following
+        <span class="size-2 shrink-0 rounded-full" style={{ background: PEOPLE[0].color }} />
+        <span class="text-ui font-medium text-(--ds-gray-1000)">Following Alice</span>
+        <X size={14} class="ml-1 text-(--ds-gray-900)" aria-hidden="true" />
+      </div>
+      <div class="absolute top-[120px] left-[230px] flex flex-col items-start" aria-hidden="true">
+        <CursorArrow color={PEOPLE[0].color} />
+        <span class="-mt-2 ml-6">
+          <CursorLabel name="Alice" color={PEOPLE[0].color} />
         </span>
       </div>
-    </div>
+    </PageShot>
   );
 }
 
-const THREADS: { text: string; status: string; color: string; priority: string }[] = [
-  { text: 'Button copy on the hero', status: 'Resolved', color: 'var(--ds-green-900)', priority: 'High' },
-  { text: 'Total does not update', status: 'In progress', color: 'var(--ds-blue-800)', priority: 'Urgent' },
-  { text: 'Footer logo is blurry', status: 'Open', color: 'var(--ds-gray-700)', priority: 'Low' },
-  { text: 'Pricing table wraps on tablet', status: 'Open', color: 'var(--ds-gray-700)', priority: 'Medium' },
-  { text: 'Typo in the checkout note', status: 'Resolved', color: 'var(--ds-green-900)', priority: 'Low' },
+const BOARD_COLS: {
+  label: string;
+  cards: { who: (typeof PEOPLE)[number]; body: string; label: string; replies?: number }[];
+}[] = [
+  {
+    label: 'Open',
+    cards: [
+      { who: PEOPLE[1], body: 'Footer logo is blurry on the retina display.', label: 'Comment' },
+      { who: PEOPLE[2], body: 'Pricing table wraps at tablet width.', label: 'Area', replies: 1 },
+    ],
+  },
+  {
+    label: 'In progress',
+    cards: [{ who: PEOPLE[1], body: 'Can the total update when I change the quantity?', label: 'Comment', replies: 2 }],
+  },
+  {
+    label: 'Resolved',
+    cards: [
+      { who: PEOPLE[0], body: 'The title should name the standard, not the practice.', label: 'Comment', replies: 1 },
+    ],
+  },
 ];
 
-/** The board: one row per thread, its status and priority on it. */
+/** The board, in its own columns: one card per thread, drawn as AnnotationBoard draws it. */
 function BoardArt() {
   return (
-    <ul class={cn(CHROME_CLS, 'mx-auto m-0 w-full max-w-[560px] list-none divide-y divide-(--ds-gray-alpha-200) p-0')}>
-      {THREADS.map((t) => (
-        <li key={t.text} class="m-0 flex items-center gap-3 px-4 py-3">
-          <span class="size-2 shrink-0 rounded-full" style={{ background: t.color }} aria-hidden="true" />
-          <span class="min-w-0 flex-1 truncate">{t.text}</span>
-          <span class="shrink-0 text-ui text-(--ds-gray-700)">{t.priority}</span>
-          <span class="shrink-0 text-ui font-medium" style={{ color: t.color }}>
-            {t.status}
-          </span>
-        </li>
+    <div class={cn('grid w-full grid-cols-3 gap-3', glass.font)} aria-hidden="true">
+      {BOARD_COLS.map((col) => (
+        <div key={col.label} class="min-w-0">
+          <p class="m-0 mb-2 flex items-center gap-1.5 text-meta font-medium text-(--ds-gray-900)">
+            {col.label}
+            <span class="tabular-nums text-(--ds-gray-700)">{col.cards.length}</span>
+          </p>
+          <div class="flex flex-col gap-2">
+            {col.cards.map((c) => (
+              <article
+                key={c.body}
+                class="rounded-lg bg-(--ds-background-100) p-3 [box-shadow:var(--ds-shadow-border-small)]"
+              >
+                <div class="flex items-center gap-2">
+                  <Avatar name={c.who.name} color={c.who.color} size={20} />
+                  <span class="min-w-0 truncate text-meta font-medium text-(--ds-gray-1000)">{c.who.name}</span>
+                  <span class="shrink-0 text-meta text-(--ds-gray-900) tabular-nums">2h ago</span>
+                </div>
+                <p class="m-0 mt-2 line-clamp-3 text-ui leading-body text-(--ds-gray-1000)">{c.body}</p>
+                <div class="mt-2.5 flex h-4 items-center gap-3 text-meta text-(--ds-gray-900)">
+                  <span class="shrink-0">{c.label}</span>
+                  {c.replies && (
+                    <span class="flex shrink-0 items-center gap-1 tabular-nums">
+                      <MessageSquare size={11} strokeWidth={1.75} aria-hidden="true" />
+                      {c.replies}
+                    </span>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 
-/** The measure tool's readout: a box, its size, and the gap to its neighbour. */
+/** The measure tool over the page's own search field: its size, and the gap to the button beside it. */
 function MeasureArt() {
   return (
-    <div class="relative mx-auto h-[120px] w-full max-w-[480px] font-ui text-mini font-medium" aria-hidden="true">
+    <PageShot x={200} y={44} class="h-[220px]">
+      <div class="absolute" style={{ left: 66, top: 21, width: 404, height: 32 }} aria-hidden="true">
+        <span class="absolute inset-0 border border-dashed" style={{ borderColor: MARK }} />
+        <span
+          class="absolute -top-6 left-1/2 -translate-x-1/2 rounded-sm px-1.5 py-0.5 font-ui text-mini font-medium text-white tabular-nums"
+          style={{ background: MARK }}
+        >
+          404 × 32
+        </span>
+        <span class="absolute top-1/2 -right-[2px] h-px w-[2px]" style={{ background: MARK }} />
+      </div>
+      <div class="absolute" style={{ left: 66, top: 60, width: 404 }} aria-hidden="true">
+        <span class="absolute top-0 left-0 h-px w-full" style={{ background: MARK }} />
+        <span class="absolute top-0 left-0 h-2 w-px -translate-y-1/2" style={{ background: MARK }} />
+        <span class="absolute top-0 right-0 h-2 w-px -translate-y-1/2" style={{ background: MARK }} />
+      </div>
       <span
-        class="absolute top-4 left-0 h-10 w-[164px] rounded-md bg-white outline-1 outline-dashed"
-        style={{ outlineColor: MARK }}
+        class="absolute right-0 left-0 border-t border-dashed"
+        style={{ top: 116, borderColor: MARK }}
+        aria-hidden="true"
       />
-      <span class="absolute top-[-2px] left-[62px] rounded-sm px-1.5 py-0.5 text-white" style={{ background: MARK }}>
-        164 × 40
+      <span
+        class="absolute left-3 rounded-sm bg-white px-1 font-ui text-mini font-medium tabular-nums"
+        style={{ top: 120, color: MARK }}
+        aria-hidden="true"
+      >
+        y 160
       </span>
-      <span class="absolute top-[34px] left-[164px] h-px w-[48px]" style={{ background: MARK }} />
-      <span class="absolute top-[22px] left-[176px] rounded-sm bg-white px-1 py-0.5" style={{ color: MARK }}>
-        48
-      </span>
-      <span class="absolute top-4 left-[212px] h-10 w-[60px] rounded-md bg-white shadow-(--ds-shadow-border-small)" />
-      <span class="absolute top-[72px] right-0 left-0 border-t border-dashed" style={{ borderColor: MARK }} />
-      <span class="absolute top-[78px] left-0 text-(--ds-gray-700)">guide · y 412</span>
-    </div>
+    </PageShot>
   );
 }
 
-const PAGES = ['Home', 'Pricing', 'Checkout', 'Account'];
+const PAGES = [
+  { host: 'shop.example', path: '' },
+  { host: 'shop.example', path: '/pricing' },
+  { host: 'shop.example', path: '/checkout' },
+  { host: 'shop.example', path: '/account' },
+];
 
-/** A project's tab strip: one link, every page of the flow. */
+/** A project's tab strip as ProjectTabs draws it, over the page it opened. */
 function PagesArt() {
   return (
-    <div class={cn(CHROME_CLS, 'mx-auto w-full max-w-[560px] px-2 py-2')}>
-      <div class="flex items-center gap-1 text-ui">
+    <PageShot x={60} y={150} class="h-[240px]">
+      <div
+        class={cn(
+          'absolute inset-x-0 top-0 flex h-9 items-center gap-1 border-b border-(--ds-gray-alpha-400) bg-(--ds-background-100) px-3',
+          glass.font,
+        )}
+        aria-hidden="true"
+      >
+        <span class="mr-1 shrink-0 text-meta text-(--ds-gray-900)">Pages</span>
         {PAGES.map((p, i) => (
           <span
-            key={p}
+            key={p.path}
             class={cn(
-              'rounded-md px-2.5 py-1.5',
-              i === 1 ? 'bg-(--ds-gray-alpha-100) font-medium' : 'text-(--ds-gray-900)',
+              'inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-meta font-medium',
+              i === 1
+                ? 'bg-(--ds-background-100) text-(--ds-gray-1000) [box-shadow:var(--ds-shadow-border-small)]'
+                : 'text-(--ds-gray-900)',
             )}
           >
-            {p}
+            <span class="text-(--ds-gray-900) tabular-nums">{i + 1}.</span>
+            <span>
+              {p.host}
+              {p.path && <span class="text-(--ds-gray-900)">{p.path}</span>}
+            </span>
           </span>
         ))}
-        <span class="ml-auto px-2 text-(--ds-gray-700)">+46</span>
+        <span class="ml-auto shrink-0 text-meta text-(--ds-gray-900)">+46</span>
       </div>
-      <div class="mt-2 rounded-lg bg-(--ds-gray-100) px-5 pt-5 pb-10 font-ui" aria-hidden="true">
-        <p class="m-0 text-heading font-semibold text-(--ds-gray-1000)">Pricing</p>
-        <p class="m-0 mt-1 text-ui text-(--ds-gray-700)">One plan. Free, and it stays free.</p>
-        <div class="mt-4 grid grid-cols-3 gap-2">
-          {[0, 1, 2].map((i) => (
-            <span key={i} class="block h-14 rounded-md bg-white" />
-          ))}
-        </div>
-      </div>
-    </div>
+    </PageShot>
   );
 }
 
@@ -284,6 +356,20 @@ function LockArt() {
       </div>
       <div class="flex items-center justify-between gap-3 px-3.5 py-2.5 text-ui text-(--ds-gray-700)">
         <span>Signed in as you@studio.com</span>
+      </div>
+      <div class="px-3.5 py-2.5">
+        <p class={cn(geist.sectionLabel, 'm-0 mb-1.5')}>Your links</p>
+        {[
+          ['shop.example/pricing', '12 comments', 'View only'],
+          ['shop.example/checkout', '4 comments', 'Expires in 7 days'],
+          ['en.wikipedia.org/wiki/Web_annotation', '3 comments', ''],
+        ].map(([url, n, state]) => (
+          <div key={url} class="flex items-center gap-3 py-1.5 text-ui">
+            <span class="min-w-0 flex-1 truncate font-mono text-meta text-(--ds-gray-1000)">{url}</span>
+            <span class="shrink-0 text-meta text-(--ds-gray-900) tabular-nums">{n}</span>
+            {state && <span class="shrink-0 text-meta text-(--ds-gray-700)">{state}</span>}
+          </div>
+        ))}
       </div>
     </div>
   );
