@@ -2,6 +2,7 @@ import { type CommentPriority, cn } from '@marklayer/types';
 import { useSignalEffect } from '@preact/signals';
 import { Trash2 } from 'lucide-preact';
 import { useCallback, useRef, useState } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { composerCls, textareaBareCls, trim } from '../lib/buttons';
 import { replyRequest } from '../lib/checkFix';
 import { geist } from '../lib/geist';
@@ -171,7 +172,13 @@ export function ReplyComposer({
     const text = boxRef.current?.value.trim();
     if (!text || attachments.uploading) return;
     pushReply({ parent, text, mentions: mentions(), attachments: attachments.ids });
+    track('reply_submitted', { chars: text.length, has_attachment: attachments.ids.length > 0 });
     attachments.reset();
+    setOpen(false);
+  };
+
+  const cancel = () => {
+    track('reply_cancelled');
     setOpen(false);
   };
 
@@ -201,13 +208,13 @@ export function ReplyComposer({
               submit();
             } else if (e.key === 'Escape') {
               e.preventDefault();
-              setOpen(false);
+              cancel();
             }
           }}
           onPaste={(e) => attachments.onPaste(e)}
         />
         <AttachmentThumbs attachments={attachments} resolveUrl={resolveUrl} class="px-2.5" />
-        <ComposerActions attachments={attachments} onCancel={() => setOpen(false)} onSubmit={submit} />
+        <ComposerActions attachments={attachments} onCancel={cancel} onSubmit={submit} />
       </div>
     </div>
   );

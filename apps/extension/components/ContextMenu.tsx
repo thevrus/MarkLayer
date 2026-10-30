@@ -1,5 +1,6 @@
 import { Menu } from '@base-ui/react/menu';
 import { cn } from '@marklayer/types';
+import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
@@ -43,6 +44,7 @@ export function ContextMenu() {
                 key={it.label}
                 onClick={(e: MouseEvent) => {
                   e.stopPropagation();
+                  track('context_menu_used', { item: it.label });
                   it.onClick();
                 }}
                 className={cn(

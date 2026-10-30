@@ -2,6 +2,7 @@ import { cn } from '@marklayer/types';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useRef } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
@@ -263,7 +264,10 @@ export function MultiInspectLayer() {
     const top = Math.min(d.startY, d.curY);
     const bottom = Math.max(d.startY, d.curY);
     const els = elementsInMarquee({ left, top, right, bottom });
-    if (els.length) addElsToSelection(els);
+    if (els.length) {
+      addElsToSelection(els);
+      track('multi_inspect_marquee_used', { matched: els.length });
+    }
   };
 
   const submit = (comment: string) => {
@@ -275,6 +279,7 @@ export function MultiInspectLayer() {
       const snap = snapshotElement(el, selector, el.getBoundingClientRect(), detail);
       addToInspectorStack({ selector, comment, markdown: snap.markdown });
     }
+    track('multi_inspect_submitted', { elements: items.length, has_note: comment.length > 0 });
     selected.value = [];
     activeTool.value = 'navigate';
     const stackCount = inspectorStack.value.length;
@@ -285,6 +290,7 @@ export function MultiInspectLayer() {
   };
 
   const cancel = () => {
+    track('multi_inspect_cancelled', { elements: selected.peek().length });
     selected.value = [];
   };
 

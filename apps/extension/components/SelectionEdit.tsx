@@ -1,6 +1,7 @@
 import { cn } from '@marklayer/types';
 import { Replace } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { textareaCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
@@ -48,7 +49,10 @@ export function SelectionEdit({ text, suggestion, onChange, onSubmit }: Props) {
         {!open && (
           <button
             type="button"
-            onClick={() => onChange(text)}
+            onClick={() => {
+              onChange(text);
+              track('selection_suggest_opened');
+            }}
             title="Propose replacement text for this selection"
             class="inline-flex items-center gap-1.5 mt-2 -ml-1.5 rounded-lg px-1.5 py-1
                    text-meta font-medium text-(--ds-gray-900) bg-transparent border-none cursor-pointer
@@ -66,7 +70,10 @@ export function SelectionEdit({ text, suggestion, onChange, onSubmit }: Props) {
             <span class={geist.sectionLabel}>Replace with</span>
             <button
               type="button"
-              onClick={() => onChange(null)}
+              onClick={() => {
+                onChange(null);
+                track('selection_suggest_removed');
+              }}
               class="text-meta font-medium text-(--ds-gray-900) hover:text-(--ds-gray-1000)
                      bg-transparent border-none cursor-pointer p-0 transition-colors"
             >

@@ -1,5 +1,6 @@
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { tinykeys } from 'tinykeys';
+import { track } from '../lib/analytics';
 import { injectCrosshairCursor } from '../lib/dom';
 import { pickGuideAtPoint, type RectLike } from '../lib/measure';
 import { isExtensionElement } from '../lib/selector';
@@ -290,6 +291,7 @@ export function GuideLayer() {
       e.preventDefault();
       e.stopPropagation();
       removeGuide(sel);
+      track('guide_deleted', { via: 'key' });
     };
 
     const onBlur = () => {
@@ -305,6 +307,7 @@ export function GuideLayer() {
         if (!guides.peek().length) return;
         e.preventDefault();
         e.stopPropagation();
+        track('guides_cleared', { count: guides.peek().length });
         clearGuides();
       },
       Backspace: deleteSelected,
@@ -412,8 +415,12 @@ export function GuideLayer() {
             // After flip, place the new line where the user clicked: cursor X if becoming vertical, Y if horizontal.
             const newPos = selected.orientation === 'vertical' ? e.clientY + sy : e.clientX + sx;
             flipGuide(selected.id, newPos);
+            track('guide_flipped');
           }}
-          onDelete={() => removeGuide(selected.id)}
+          onDelete={() => {
+            removeGuide(selected.id);
+            track('guide_deleted', { via: 'pill' });
+          }}
         />
       )}
     </>

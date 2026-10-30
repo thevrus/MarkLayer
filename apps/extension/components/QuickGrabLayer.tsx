@@ -1,5 +1,6 @@
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { copyElementShot } from '../lib/capture';
 import { detectFrameworkComponent } from '../lib/fiber-bridge';
 import { getSelector, isExtensionElement, snapshotElement } from '../lib/selector';
@@ -30,6 +31,7 @@ export function QuickGrabLayer() {
       // Hide the highlight before capture so it doesn't appear in the shot.
       hover.value = null;
       void copyElementShot({ rect, markdown: snap.markdown });
+      track('quick_grab_used', { detail: outputDetail.value });
       return true;
     };
 

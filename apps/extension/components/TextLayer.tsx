@@ -1,6 +1,7 @@
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { activeTool, color, lineWidth, pushOp } from '../lib/state';
 import type { TextOp } from '../lib/types';
 
@@ -68,7 +69,8 @@ export function TextLayer() {
           x={input.value.x}
           y={input.value.y}
           onCommit={(text) => {
-            if (text && input.value) {
+            if (!text && input.value) track('text_cancelled');
+            else if (input.value) {
               const { x, y } = input.value;
               const op: TextOp = {
                 id: nanoid(),

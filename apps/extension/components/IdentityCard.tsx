@@ -5,6 +5,7 @@ import { cn } from '@marklayer/types';
 import { Check, Shuffle } from 'lucide-preact';
 import type { RefObject } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
@@ -36,6 +37,7 @@ export function IdentityCard() {
   // keystroke is already applied, so there is nothing to commit or revert.
   const [draft, setDraft] = useState(localUser.name);
   const inputRef = useRef<HTMLInputElement>(null);
+  const openedAs = useRef(localUser.name);
   const apply = (next: string) => {
     setDraft(next);
     setUserName(next);
@@ -50,6 +52,7 @@ export function IdentityCard() {
     // empty goes back to the name that is actually in effect.
     setDraft(localUser.name);
     relabelOwnWork();
+    if (localUser.name !== openedAs.current) track('identity_name_changed');
   };
 
   return (
@@ -57,7 +60,8 @@ export function IdentityCard() {
       open={open}
       onOpenChange={(next: boolean) => {
         setOpen(next);
-        if (!next) close();
+        if (next) openedAs.current = localUser.name;
+        else close();
       }}
     >
       <Popover.Trigger
@@ -164,6 +168,7 @@ function NameRow({
           )}
           onClick={() => {
             apply(randomUserName());
+            track('identity_name_randomized');
             inputRef.current?.focus();
           }}
         >
@@ -191,7 +196,10 @@ function ColorRow() {
   return (
     <RadioGroup
       value={localUser.color}
-      onValueChange={(next: string) => setUserColor(next)}
+      onValueChange={(next: string) => {
+        setUserColor(next);
+        track('identity_color_changed');
+      }}
       aria-label="Cursor color"
       className="flex items-center -mx-1"
     >

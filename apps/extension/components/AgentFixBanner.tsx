@@ -1,5 +1,6 @@
 import { cn } from '@marklayer/types';
 import { useState } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { agentFix, checkRequest, confirmFixed, reportNotFixed } from '../lib/checkFix';
 import { getReplies } from '../lib/state';
 import type { CommentOp } from '../lib/types';
@@ -30,7 +31,14 @@ export function AgentFixBanner({ op }: { op: CommentOp }) {
       </div>
       <div class="flex gap-1.5">
         {checked ? (
-          <button type="button" class={actionCls} onClick={() => confirmFixed(op.id)}>
+          <button
+            type="button"
+            class={actionCls}
+            onClick={() => {
+              confirmFixed(op.id);
+              track('agent_fix_confirmed');
+            }}
+          >
             Looks good
           </button>
         ) : (
@@ -40,6 +48,7 @@ export function AgentFixBanner({ op }: { op: CommentOp }) {
             onClick={() => {
               checkRequest.value = op.id;
               setChecked(true);
+              track('agent_fix_checked');
             }}
           >
             Check it
@@ -51,6 +60,7 @@ export function AgentFixBanner({ op }: { op: CommentOp }) {
           onClick={() => {
             reportNotFixed(op.id);
             setChecked(false);
+            track('agent_fix_rejected');
           }}
         >
           Not fixed

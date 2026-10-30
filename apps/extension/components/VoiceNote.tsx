@@ -1,5 +1,6 @@
 import { cn, MAX_VOICE_SECONDS } from '@marklayer/types';
 import { Loader2, Mic } from 'lucide-preact';
+import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { type OpenedStream, type RecorderSlot, useRecorder } from '../lib/recorder';
 import { toast } from '../lib/state';
@@ -31,6 +32,7 @@ export function useVoiceNote({ upload, transcribe, onText, constraint, slot }: V
     upload,
     onUploaded: async ({ id }) => {
       const text = await transcribe(id);
+      track('voice_note_recorded', { seconds: recorder.elapsed.peek(), transcribed: Boolean(text) });
       if (text) onText(text);
       else toast('No transcript. The audio is still attached');
     },
@@ -49,7 +51,10 @@ export function useVoiceNote({ upload, transcribe, onText, constraint, slot }: V
     ...recorder,
     toggle: () => {
       if (recorder.status.value === 'recording') recorder.stop();
-      else void recorder.start(openMic);
+      else {
+        track('voice_note_started');
+        void recorder.start(openMic);
+      }
     },
   };
 }

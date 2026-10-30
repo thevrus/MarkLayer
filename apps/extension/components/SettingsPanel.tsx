@@ -2,6 +2,7 @@ import { Switch } from '@base-ui/react/switch';
 import { cn } from '@marklayer/types';
 import { type ComponentChildren, createContext } from 'preact';
 import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { animationsFrozen, toggleAnimationsFrozen } from '../lib/freeze';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
@@ -81,11 +82,14 @@ function Section({ children, title }: { children: ComponentChildren; title?: str
   );
 }
 
-function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+function Toggle({ on, onClick, label, setting }: { on: boolean; onClick: () => void; label: string; setting: string }) {
   return (
     <Switch.Root
       checked={on}
-      onCheckedChange={(_checked: boolean) => onClick()}
+      onCheckedChange={(checked: boolean) => {
+        onClick();
+        track('setting_changed', { key: setting, value: checked });
+      }}
       aria-label={label}
       className={cn(
         'relative inline-flex items-center w-8 h-5 rounded-full cursor-pointer appearance-none border-none p-0',
@@ -139,7 +143,10 @@ function StrokeWidthSelect() {
       <select
         aria-label="Stroke width"
         value={lineWidth.value}
-        onChange={(e) => (lineWidth.value = +e.currentTarget.value)}
+        onChange={(e) => {
+          lineWidth.value = +e.currentTarget.value;
+          track('setting_changed', { key: 'stroke_width', value: lineWidth.value });
+        }}
         class={fieldSelect}
       >
         {LINE_WIDTHS.map((v) => (
@@ -160,7 +167,9 @@ function OutputDetailSelect() {
         value={outputDetail.value}
         onChange={(e) => {
           const v = e.currentTarget.value;
-          if (isOutputDetail(v)) setOutputDetail(v);
+          if (!isOutputDetail(v)) return;
+          setOutputDetail(v);
+          track('setting_changed', { key: 'output_detail', value: v });
         }}
         class={fieldSelect}
       >
@@ -180,7 +189,10 @@ function ColorChip({ value }: { value: string }) {
       type="button"
       aria-label={`Color ${colorName(value)}`}
       aria-pressed={selected}
-      onClick={() => setColor(value)}
+      onClick={() => {
+        setColor(value);
+        track('setting_changed', { key: 'marker_color', value: colorName(value) });
+      }}
       class={cn(
         'relative w-6 h-6 rounded-full cursor-pointer appearance-none border-none p-0 outline-none',
         'transition-[box-shadow] duration-150',
@@ -325,6 +337,7 @@ function JoinRoomRow() {
       toast('Could not reach that room', { type: 'error' });
       return;
     }
+    track('room_joined');
     setEditing(false);
     showSettings.value = false;
     toast('Joined room', { type: 'success' });
@@ -477,22 +490,47 @@ export function SettingsPanel() {
               <StrokeWidthSelect />
             </Row>
             <Row label="Compact toolbar" hint="Collapse the toolbar to just the active tool.">
-              <Toggle on={toolbarMinimized.value} onClick={toggleToolbarMinimized} label="Compact toolbar" />
+              <Toggle
+                on={toolbarMinimized.value}
+                onClick={toggleToolbarMinimized}
+                label="Compact toolbar"
+                setting="compact_toolbar"
+              />
             </Row>
             <Row label="Freeze animations" hint="Pause animations and media so you can annotate moving UI.">
-              <Toggle on={animationsFrozen.value} onClick={toggleAnimationsFrozen} label="Freeze animations" />
+              <Toggle
+                on={animationsFrozen.value}
+                onClick={toggleAnimationsFrozen}
+                label="Freeze animations"
+                setting="freeze_animations"
+              />
             </Row>
             <Row label="Show markers" hint="Hide placed pins, highlights, and drawings. Persists across reloads.">
-              <Toggle on={markersVisible.value} onClick={toggleMarkersVisible} label="Show markers" />
+              <Toggle
+                on={markersVisible.value}
+                onClick={toggleMarkersVisible}
+                label="Show markers"
+                setting="show_markers"
+              />
             </Row>
             <Row label="Block page interactions" hint="Block clicks on the page so you don't navigate by accident.">
-              <Toggle on={blockInteractions.value} onClick={toggleBlockInteractions} label="Block page interactions" />
+              <Toggle
+                on={blockInteractions.value}
+                onClick={toggleBlockInteractions}
+                label="Block page interactions"
+                setting="block_interactions"
+              />
             </Row>
             <Row
               label="Clear on copy/send"
               hint="Clear the inspector stack after each copy so the next handoff starts fresh."
             >
-              <Toggle on={clearOnCopyEnabled.value} onClick={toggleClearOnCopy} label="Clear on copy/send" />
+              <Toggle
+                on={clearOnCopyEnabled.value}
+                onClick={toggleClearOnCopy}
+                label="Clear on copy/send"
+                setting="clear_on_copy"
+              />
             </Row>
           </Section>
 
