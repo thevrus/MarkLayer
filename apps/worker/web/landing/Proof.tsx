@@ -1,9 +1,15 @@
+import { ThreadDisc, ThreadHeader, threadCard } from '@ext/components/ThreadCard';
+import { geist } from '@ext/lib/geist';
+import { glass } from '@ext/lib/glass';
 import { getCommentMeta } from '@ext/lib/state';
-import { cn } from '@marklayer/types';
+import { timeAgo } from '@ext/lib/time';
+import type { CommentOp } from '@ext/lib/types';
+import { cn, DEMO_ROOM } from '@marklayer/types';
 import { Check } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { siGmail, siGooglechrome, siWhatsapp } from 'simple-icons';
 import { CHANNELS } from '../ChannelCycle';
+import { CopyControl, DEVICE_ICONS, DEVICE_LABELS } from '../shared';
 
 /* The seeded pin's purple, so every mark the page leaves on itself is one person's. */
 const MARK = '#8b5cf6';
@@ -208,131 +214,189 @@ export function ProblemRow() {
   );
 }
 
-function MockPin({ n, color, done }: { n: number; color: string; done?: boolean }) {
+/** A thread as the viewer draws one: the product's own card, header and reply, with a mock op behind it. */
+const THREAD_TS = Date.now() - 3 * 60_000;
+const REPLY: CommentOp = {
+  id: 'lp-proof-reply',
+  tool: 'comment',
+  num: 1,
+  text: 'Done. Changed it to “Web annotation standard” and pushed.',
+  x: 0,
+  y: 0,
+  ts: THREAD_TS + 2 * 60_000,
+  color: '#3b82f6',
+  lineWidth: 2,
+  author: 'Alice',
+  parentId: 'lp-proof-thread',
+};
+
+function ThreadArt() {
   return (
-    <span
-      class="relative grid size-7 place-items-center rounded-full font-ui text-meta font-semibold text-white shadow-[0_0_0_2px_#fff,0_1px_2px_oklch(0_0_0/0.25)]"
-      style={{ background: color }}
-    >
-      {n}
-      {done && (
-        <span
-          class="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-full bg-(--ds-green-700) text-white [box-shadow:0_0_0_1.5px_#fff]"
-          aria-hidden="true"
-        >
-          <Check size={9} strokeWidth={2.5} />
-        </span>
-      )}
-    </span>
+    <div class={cn(threadCard, 'w-full max-w-[320px]', glass.font)}>
+      <ThreadHeader label="1" color="#f43f5e" author="Marcus" ts={THREAD_TS} priority="high" />
+      <p class="m-0 px-3.5 pb-3 text-ui leading-body text-(--ds-gray-1000)">
+        The title should name the standard, not the practice. Can this say “Web annotation standard”?
+      </p>
+      <div class={cn(geist.divider, 'mx-3')} />
+      <div class="ml-3 border-l-2 border-(--ds-gray-alpha-400) px-3.5 py-2">
+        <div class="mb-1 flex items-center gap-2">
+          <ThreadDisc size="sm" color={REPLY.color} label="A" />
+          <span class="truncate text-meta font-semibold text-(--ds-gray-1000)">{REPLY.author}</span>
+          <span class="text-meta text-(--ds-gray-900) tabular-nums">{timeAgo(REPLY.ts)}</span>
+        </div>
+        <p class="m-0 text-ui leading-body text-(--ds-gray-1000)">{REPLY.text}</p>
+      </div>
+      <div class={cn(geist.divider, 'mx-3')} />
+      <p class="m-0 flex items-center gap-1.5 px-3.5 py-2.5 text-meta font-medium text-(--ds-green-900)">
+        <Check size={12} strokeWidth={2.5} aria-hidden="true" />
+        Resolved
+      </p>
+    </div>
   );
 }
 
-const STEPS = ['Paste the page address', 'Send the link', 'Tick things off'];
+/** The share field as the share popover draws it: the link, mono because it is data, and its copy control. */
+function ShareArt() {
+  return (
+    <div class={cn('mx-auto w-full max-w-[360px]', glass.font)}>
+      <div class={cn(geist.field, 'flex items-center gap-1 pr-1 pl-2.5')}>
+        <span class="min-w-0 flex-1 truncate font-mono text-meta text-(--ds-gray-1000)">
+          marklayer.app/s/{DEMO_ROOM.id}
+        </span>
+        <CopyControl copied={false} onClick={() => {}} size={13} strokeWidth={1.75} class={geist.ctlXs} />
+      </div>
+      <p class="m-0 mt-2.5 text-meta text-(--ds-gray-900)">
+        Anyone with the link can comment. No account on either end.
+      </p>
+      <div class="mt-4 flex items-center gap-2">
+        <span class="flex -space-x-1.5">
+          {['#3b82f6', '#f43f5e', '#8b5cf6'].map((c, i) => (
+            <span key={c} class="rounded-full ring-2 ring-white">
+              <ThreadDisc label={'AMY'[i] ?? ''} color={c} size="md" />
+            </span>
+          ))}
+        </span>
+        <span class="text-meta text-(--ds-gray-900)">3 online</span>
+      </div>
+    </div>
+  );
+}
+
+/** The device switch from the viewer's bar, and the same pin at phone width. */
+function DeviceArt() {
+  const modes = ['desktop', 'tablet', 'mobile'] as const;
+  return (
+    <div class={cn('mx-auto w-full max-w-[320px]', glass.font)}>
+      <div class="inline-flex items-center gap-0.5 rounded-lg bg-(--ds-gray-alpha-100) p-0.5">
+        {modes.map((m) => {
+          const Icon = DEVICE_ICONS[m];
+          return (
+            <span
+              key={m}
+              class={cn(
+                'inline-flex h-7 items-center gap-1.5 rounded-md px-2.5 text-meta font-medium',
+                m === 'mobile'
+                  ? 'bg-white text-(--ds-gray-1000) shadow-(--ds-shadow-border-small)'
+                  : 'text-(--ds-gray-900)',
+              )}
+            >
+              <Icon size={13} strokeWidth={1.75} aria-hidden="true" />
+              {DEVICE_LABELS[m]}
+            </span>
+          );
+        })}
+      </div>
+      <div class="relative mt-4 w-[180px] rounded-[18px] border-[6px] border-(--ds-gray-1000) bg-white px-3 pt-4 pb-10">
+        <p class="m-0 font-serif text-heading text-(--ds-gray-1000)">Web annotation</p>
+        <span class="mt-1.5 block h-1.5 w-20 rounded-full bg-(--ds-gray-alpha-200)" />
+        <span class="mt-1.5 block h-1.5 w-28 rounded-full bg-(--ds-gray-alpha-100)" />
+        <span class="mt-1.5 block h-1.5 w-24 rounded-full bg-(--ds-gray-alpha-100)" />
+        <span
+          class="absolute top-[26px] right-[22px] grid size-6 place-items-center rounded-full text-micro font-semibold text-white shadow-[0_0_0_2px_#fff,0_1px_2px_oklch(0_0_0/0.25)]"
+          style={{ background: '#f43f5e' }}
+        >
+          1
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** The thread's context block as the panel shows it, filled in from this visit. */
+function ContextArt() {
+  const meta = getCommentMeta();
+  const env = [meta.browser, meta.os, `${window.innerWidth} × ${window.innerHeight}`].filter(Boolean);
+  return (
+    <div class={cn(threadCard, 'w-full max-w-[360px]', glass.font)}>
+      <div class="border-b border-(--ds-gray-alpha-400) px-4 py-3">
+        <p class={cn(geist.sectionLabel, 'm-0')}>Context</p>
+        <p class="m-0 mt-1.5 truncate text-ui text-(--ds-gray-1000)">/wiki/Web_annotation</p>
+        <p class="m-0 mt-0.5 text-meta text-(--ds-gray-900) tabular-nums">{env.join(' · ')}</p>
+        <p class="m-0 mt-1 truncate font-mono text-meta text-(--ds-gray-900)">
+          h1#firstHeading &gt; span.mw-page-title-main
+        </p>
+      </div>
+      <div class="px-4 py-3">
+        <p class={cn(geist.sectionLabel, 'm-0')}>1 page error</p>
+        <p class="m-0 mt-2 font-mono text-meta text-(--ds-gray-1000) wrap-break-word">
+          TypeError: Cannot read properties of undefined (reading 'total')
+          <span class="block truncate text-(--ds-gray-900)">cart.js:214</span>
+        </p>
+      </div>
+    </div>
+  );
+}
 
 /**
- * The fix, as a bento of claims each proved by a piece of the product. One
- * stat card carries the number the whole page rests on.
+ * The fix, as a bento of claims each proved by the product itself: the real
+ * viewer on a real page, and the product's own cards drawn with its own parts.
  */
 export function ProofGrid() {
-  // The visitor's own browser, read the way a comment reads it.
-  const meta = getCommentMeta();
-  const rows = [
-    ['Browser', meta.browser],
-    ['System', meta.os],
-    ['Screen', `${window.innerWidth} × ${window.innerHeight}`],
-    ['Page', location.host],
-  ] as const;
   return (
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-12 sm:gap-5">
       <Card class="lg:col-span-8">
         <Caption title="Click the page. Say what’s wrong.">The comment stays put, even after the page changes.</Caption>
-        <Art class="p-0 sm:p-0">
-          {/* A corner of somebody's page, with a thread left on its button. */}
-          <div class="px-6 pt-7 pb-8 sm:px-9 sm:pt-9 sm:pb-24">
-            <p class="lp-display m-0 text-statement text-ml-fg">Spring collection</p>
-            <p class="m-0 mt-2.5 max-w-[32ch] text-body leading-body text-ml-fg/55">
-              Linen, cotton and a little bit of nothing. Shipping is free until the end of the month.
-            </p>
-            <div class="relative mt-6 inline-block">
-              <span class="inline-flex h-10 items-center rounded-md bg-ml-fg px-5 font-ui text-ui-lg font-medium text-white">
-                Shop now
-              </span>
-              <span class="absolute -top-3.5 -right-3.5">
-                {/* Marcus's cursor colour, from the fold. */}
-                <MockPin n={2} color="#f43f5e" done />
-              </span>
+        <Art class="h-[340px] justify-start pb-0">
+          <div class="lp-bleed relative h-full overflow-hidden">
+            <img
+              src="/product-review-wikipedia.webp"
+              width={1440}
+              height={900}
+              alt="MarkLayer open on the Wikipedia article for Web annotation, with a numbered pin on the title."
+              loading="lazy"
+              decoding="async"
+              class="absolute inset-0 h-full w-full object-cover object-left-top"
+              style={{ objectPosition: '-56px -44px' }}
+            />
+            <div class="absolute inset-x-4 bottom-0 flex justify-end sm:inset-x-auto sm:right-10">
+              <ThreadArt />
             </div>
-          </div>
-          <div
-            class={cn(
-              'lp-panel mx-4 mb-4 rounded-lg p-3.5 sm:absolute sm:right-7 sm:bottom-7 sm:mx-0 sm:mb-0 sm:w-[320px]',
-              CHROME_CLS,
-            )}
-          >
-            <p class="m-0 flex items-baseline gap-2">
-              <span class="font-medium">Marcus</span>
-              <span class="text-(--ds-gray-700) text-meta">just now</span>
-            </p>
-            <p class="m-0 mt-1 leading-body">Can this say “Shop the collection”? “Shop now” sounds pushy.</p>
-            <p class="m-0 mt-3 flex items-baseline gap-2 border-t border-(--ds-gray-alpha-200) pt-3">
-              <span class="font-medium">Alice</span>
-              <span class="text-(--ds-gray-700) text-meta">2 min</span>
-            </p>
-            <p class="m-0 mt-1 leading-body">Changed. Have a look.</p>
-            <p class="m-0 mt-3 inline-flex items-center gap-1.5 text-ui font-medium text-(--ds-green-900)">
-              <Check size={13} strokeWidth={2.5} aria-hidden="true" />
-              Resolved
-            </p>
           </div>
         </Art>
       </Card>
 
-      <Card class="items-center justify-center py-14 text-center lg:col-span-4">
-        <p class="lp-display m-0 text-hero text-ml-fg tabular-nums">0</p>
-        <p class="lp-display m-0 mt-3 max-w-[16ch] text-statement text-ml-fg/55">
-          things to install, sign up for, or pay for.
-        </p>
+      <Card class="lg:col-span-4">
+        <Caption title="One link is the whole setup.">
+          They open it in any browser. Nothing to install, no account.
+        </Caption>
+        <Art class="h-[340px] justify-start">
+          <ShareArt />
+        </Art>
       </Card>
 
       <Card class="lg:col-span-4">
-        <Caption title="Three steps, start to finish." />
-        <Art class="h-[260px]">
-          <ol class="m-0 list-none divide-y divide-ml-rule p-0">
-            {STEPS.map((s, i) => (
-              <li key={s} class="m-0 flex items-baseline gap-5 py-4">
-                <span class="lp-display w-[1.1em] shrink-0 text-statement text-ml-fg/30 tabular-nums">{i + 1}</span>
-                <span class="text-lede text-ml-fg">{s}</span>
-              </li>
-            ))}
-          </ol>
+        <Caption title="Marks survive a reflow.">Preview at phone width. The comment stays on its element.</Caption>
+        <Art class="h-[300px] justify-start pb-0">
+          <DeviceArt />
         </Art>
       </Card>
 
       <Card class="lg:col-span-8">
         <Caption title="It remembers what they were looking at.">
-          Browser, screen and page come attached. Nobody has to ask.
+          Browser, screen, page and the console come attached. Nobody has to ask.
         </Caption>
-        <Art class="h-[260px]">
-          <div class="flex flex-wrap items-end gap-x-10 gap-y-5">
-            {/* The product's own meta footer, filled in from this visit. */}
-            <dl
-              class={cn(
-                'lp-panel m-0 grid w-full max-w-[420px] grid-cols-[auto_1fr] gap-x-8 gap-y-3 rounded-lg px-5 py-4',
-                CHROME_CLS,
-              )}
-            >
-              {rows.map(([label, value]) => (
-                <div key={label} class="contents">
-                  <dt class="text-ui-lg font-medium text-(--ds-gray-900)">{label}</dt>
-                  <dd class="m-0 flex items-center gap-2 font-mono text-ui-lg">
-                    {label === 'Browser' && value === 'Chrome' && <Brand id="chrome" size={14} />}
-                    {value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <p class="m-0 max-w-[22ch] text-ui leading-prose text-ml-fg/55">Yours, read from this browser just now.</p>
-          </div>
+        <Art class="h-[300px] justify-start pb-0">
+          <ContextArt />
         </Art>
       </Card>
     </div>

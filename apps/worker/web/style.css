@@ -796,6 +796,15 @@
   /* The stage is the card itself; this only keeps the demo inside the rounding. */
   overflow: hidden;
 }
+/* A demo that runs to the card's side edges: cancels the card's own gutter. */
+.lp-bleed {
+  margin-inline: -1.75rem;
+}
+@media (min-width: 640px) {
+  .lp-bleed {
+    margin-inline: -2rem;
+  }
+}
 /* A link card's hover is a tonal step, not a lift. */
 a.lp-card {
   transition: background-color 160ms ease;
