@@ -722,17 +722,57 @@
   font-weight: 400;
 }
 
-/* The hero's dot grid: a 24px lattice that fades out before it reaches the
-   copy's edges, so it reads as paper behind the headline, not a sheet under the page. */
-.lp-dots {
+/* The hero's sky. Full-bleed from inside the page column (left 50%, 100vw,
+   pulled back half a viewport), tucked up under the sticky nav so it starts at
+   the page's top edge. The image's own pixels are masked, not overlaid: a long
+   eased fade with many stops, so there is no line where the sky stops and the
+   page starts. `pixelated` keeps the dither's dots square as the band scales. */
+.lp-sky {
   position: absolute;
-  inset: 0;
+  top: -3.5rem;
+  left: 50%;
+  width: 100vw;
+  height: clamp(300px, 36vw, 520px);
+  translate: -50% 0;
   pointer-events: none;
-  background-image: radial-gradient(circle, #d6d6d6 1px, transparent 1.2px);
-  background-size: 24px 24px;
-  background-position: center top;
-  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%);
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 46%,
+    rgb(0 0 0 / 96%) 53%,
+    rgb(0 0 0 / 89%) 60%,
+    rgb(0 0 0 / 78%) 66%,
+    rgb(0 0 0 / 65%) 72%,
+    rgb(0 0 0 / 50%) 78%,
+    rgb(0 0 0 / 35%) 84%,
+    rgb(0 0 0 / 21%) 89%,
+    rgb(0 0 0 / 10%) 93%,
+    rgb(0 0 0 / 3%) 97%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 46%,
+    rgb(0 0 0 / 96%) 53%,
+    rgb(0 0 0 / 89%) 60%,
+    rgb(0 0 0 / 78%) 66%,
+    rgb(0 0 0 / 65%) 72%,
+    rgb(0 0 0 / 50%) 78%,
+    rgb(0 0 0 / 35%) 84%,
+    rgb(0 0 0 / 21%) 89%,
+    rgb(0 0 0 / 10%) 93%,
+    rgb(0 0 0 / 3%) 97%,
+    transparent 100%
+  );
+}
+.lp-sky img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center bottom;
+  image-rendering: pixelated;
 }
 
 /* The primary call to action: one flat black surface. The hover is a value
@@ -763,7 +803,23 @@
   box-shadow: inset 0 -1px 0 var(--color-ml-rule);
   transition:
     translate 320ms var(--ease-ml-spring),
+    background-color 220ms ease,
+    box-shadow 220ms ease,
     visibility 0s;
+}
+/* Over the sky the bar is nothing: no fill, no rule, white type on the dusk.
+   Landing flips `data-over-sky` off once the top of the hero has scrolled past,
+   and the glass comes back. A state attribute, not a scroll-driven animation:
+   the animated custom property painted a frame late in Chromium. */
+.lp-nav[data-over-sky] {
+  background: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+.ml-force-light .lp-nav[data-over-sky],
+.ml-force-light .lp-nav[data-over-sky] * {
+  --color-ml-fg: #fff;
 }
 /* Hidden only once it has slid out, so its links leave the tab order too. */
 .lp-nav[data-away] {

@@ -5,11 +5,13 @@ import { Toolbar } from '@ext/components/Toolbar';
 import { activeTool, color, comments as commentsComputed, isDrawingTool, lineWidth, selections } from '@ext/lib/state';
 import type { TextOp } from '@ext/lib/types';
 import { cn } from '@marklayer/types';
+import { useSignal } from '@preact/signals';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
 import { nanoid } from 'nanoid';
 import type { ComponentChildren } from 'preact';
+import { useEffect } from 'preact/hooks';
 import { siProducthunt } from 'simple-icons';
 import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
@@ -50,6 +52,26 @@ const SECTION_CLS = 'relative pt-28 sm:pt-36';
 const STAGE_CLS = 'mt-12 sm:mt-14';
 
 /**
+ * True while the top of the hero is still on screen, so the nav can sit bare
+ * on the sky and turn back into the glass bar once the page has scrolled. An
+ * observer on a 200px sentinel at the hero's top, not a scroll listener: the
+ * sentinel's own height is the scroll distance the bare bar lasts for.
+ */
+function useOverSky() {
+  const over = useSignal(true);
+  useEffect(() => {
+    const el = document.getElementById('lp-sky-top');
+    if (!el) return;
+    const io = new IntersectionObserver(([entry]) => {
+      if (entry) over.value = entry.isIntersecting;
+    });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [over]);
+  return over;
+}
+
+/**
  * The marketing page, which is also a live board: every mark on the first screen
  * is a real op on the real op stream, drawn with the product's own canvas and
  * toolbar.
@@ -63,6 +85,7 @@ export function Landing() {
   const { canvasRef, onDown } = useLandingCanvas();
   useLandingShortcuts();
   useLandingPresence();
+  const overSky = useOverSky();
 
   const tool = activeTool.value;
   const showCanvas = isDrawingTool(tool) && tool !== 'comment' && tool !== 'text' && tool !== 'selection';
@@ -77,7 +100,11 @@ export function Landing() {
       <div class="ml-force-light lp-voice relative min-h-screen overflow-x-clip lp-board">
         {/* Glass, sticky, and on the frame's rails: the wordmark starts on the
             left rail and the install button ends on the right one. */}
-        <header class="lp-nav sticky top-0 z-2147483647" data-away={embedInView.value ? 'true' : undefined}>
+        <header
+          class="lp-nav sticky top-0 z-2147483647"
+          data-away={embedInView.value ? 'true' : undefined}
+          data-over-sky={overSky.value ? 'true' : undefined}
+        >
           <nav class="mx-auto flex h-14 w-full max-w-page items-center justify-between gap-6 px-6 sm:px-10">
             <a href="/" class="flex items-center gap-2 no-underline">
               <Logo size={26} />
@@ -125,8 +152,22 @@ export function Landing() {
         <main>
           <div class="mx-auto w-full max-w-page px-6 sm:px-10">
             {/* The hero owns the fold: nav plus this section is exactly one screen. */}
-            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-center pt-16 pb-20 text-center sm:pt-10 sm:pb-40">
-              <div class="lp-dots -z-1" aria-hidden="true" />
+            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-start pt-[clamp(180px,27vw,390px)] pb-20 text-center sm:pb-40">
+              {/* The sky: a dusk ridge, dithered to pixels, running the width of the
+                  page behind the nav and dissolving into white before the headline. */}
+              <div id="lp-sky-top" class="pointer-events-none absolute inset-x-0 top-0 h-[200px]" aria-hidden="true" />
+              <div class="lp-sky -z-1" aria-hidden="true">
+                <img
+                  src="/hero-dusk.webp"
+                  srcset="/hero-dusk-sm.webp 1000w, /hero-dusk.webp 2000w"
+                  sizes="100vw"
+                  width={2000}
+                  height={869}
+                  alt=""
+                  decoding="async"
+                  fetchpriority="high"
+                />
+              </div>
               {/* The demo cursors belong to the fold and scroll away with it. */}
               <FakeCursors />
 
