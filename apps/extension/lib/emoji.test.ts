@@ -15,9 +15,10 @@ describe('matchEmoji', () => {
   });
 
   test('a prefix hit outranks a substring hit', () => {
-    const names = matchEmoji({ query: 'art', limit: 50 }).map((e) => e.name);
-    expect(names.indexOf('art')).toBeLessThan(names.indexOf('heart'));
-    expect(names).toContain('heart');
+    // `bug` starts with b; `+1` only matches through its `thumbsup` alias, mid-word.
+    const names = matchEmoji({ query: 'b', limit: 50 }).map((e) => e.name);
+    expect(names.indexOf('bug')).toBeLessThan(names.indexOf('+1'));
+    expect(names).toContain('+1');
   });
 });
 

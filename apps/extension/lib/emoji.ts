@@ -6,8 +6,8 @@ export interface EmojiEntry {
 }
 
 /**
- * Deliberately short: this is a review tool, not a chat app. GitHub's reaction
- * set first, then the handful that review threads actually use.
+ * Deliberately short: this is a review tool, not a chat app. GitHub's eight
+ * reactions, then the verdicts a review thread needs: done, no, careful, unclear, bug, idea.
  */
 export const EMOJI: readonly EmojiEntry[] = [
   { name: '+1', char: '👍', aliases: ['thumbsup'] },
@@ -18,34 +18,12 @@ export const EMOJI: readonly EmojiEntry[] = [
   { name: 'heart', char: '❤️' },
   { name: 'eyes', char: '👀' },
   { name: 'rocket', char: '🚀' },
-  { name: 'thinking', char: '🤔' },
-  { name: 'joy', char: '😂' },
-  { name: 'cry', char: '😢' },
-  { name: 'fire', char: '🔥' },
-  { name: 'sparkles', char: '✨' },
-  { name: '100', char: '💯' },
-  { name: 'clap', char: '👏' },
-  { name: 'pray', char: '🙏' },
-  { name: 'wave', char: '👋' },
-  { name: 'ok_hand', char: '👌' },
-  { name: 'muscle', char: '💪' },
-  { name: 'shrug', char: '🤷' },
   { name: 'white_check_mark', char: '✅', aliases: ['check'] },
   { name: 'x', char: '❌' },
   { name: 'warning', char: '⚠️' },
   { name: 'question', char: '❓' },
   { name: 'bulb', char: '💡', aliases: ['idea'] },
   { name: 'bug', char: '🐛' },
-  { name: 'wrench', char: '🔧' },
-  { name: 'art', char: '🎨' },
-  { name: 'memo', char: '📝' },
-  { name: 'pushpin', char: '📌' },
-  { name: 'mag', char: '🔍' },
-  { name: 'lock', char: '🔒' },
-  { name: 'zap', char: '⚡' },
-  { name: 'star', char: '⭐' },
-  { name: 'coffee', char: '☕' },
-  { name: 'ship', char: '🚢' },
 ];
 
 const keysOf = ({ name, aliases = [] }: EmojiEntry) => [name, ...aliases];
