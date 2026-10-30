@@ -1,13 +1,18 @@
-import { type CommentPriority, cn } from '@marklayer/types';
+import { type CommentPriority, cn, type StyleEdit } from '@marklayer/types';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
+import { PaintbrushVertical } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import type { TargetedEvent } from 'preact';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { tinykeys } from 'tinykeys';
+import { track } from '../lib/analytics';
 import { secondaryBtn, submitBtn, textareaCls } from '../lib/buttons';
 import { detectFrameworkComponent, type FrameworkComponent } from '../lib/fiber-bridge';
-import { geist } from '../lib/geist';
+import { GLYPH, geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { stepHover } from '../lib/hover-walk';
 import { BrandIcon, type BrandIconName, Icon } from '../lib/icons';
+import { buildInspectPrompt, canEditCss, inspectFields, stackMarkdown } from '../lib/inspect-note';
 import { PRIORITY_META } from '../lib/priority';
 import { getSelector, isExtensionElement, type SelectedInfo, shortClassLabel, snapshotElement } from '../lib/selector';
 import {
@@ -28,7 +33,11 @@ import {
   signedBy,
   toast,
 } from '../lib/state';
+import { isTextEditing } from '../lib/text-edit';
 import type { InspectOp } from '../lib/types';
+import { BatchSwitch } from './BatchSwitch';
+import { CssEditor } from './CssEditor';
+import { DictateButton } from './DictateButton';
 import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityPicker } from './PriorityPicker';
 
@@ -162,7 +171,19 @@ export function HoverTooltip({ state }: { state: HoverState }) {
 
 export type { SelectedInfo };
 
-export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose: () => void }) {
+export function SelectedPanel({
+  state,
+  el,
+  onClose,
+  onStyleChange,
+}: {
+  state: SelectedInfo;
+  /** The picked element, for live CSS editing; null hides the editor. */
+  el: Element | null;
+  onClose: () => void;
+  /** An edit can move or resize the element, so the host re-measures its highlight. */
+  onStyleChange?: () => void;
+}) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const priority = useSignal<CommentPriority | undefined>(undefined);
   const { mentionProps, mentions } = useMentions();
@@ -170,34 +191,47 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
     taRef.current = el;
     el?.focus();
   }, []);
+  const styleEdits = useSignal<StyleEdit[]>([]);
+  const cssOpen = useSignal(false);
+  // Mounted on first open and kept while collapsed: unmounting CssEditor reverts the page, which a collapse must not.
+  const cssMounted = useSignal(false);
+  const cssAllowed = !!el && canEditCss(inspectorStack.value.length);
 
-  const buildPrompt = () => {
-    const comment = taRef.current?.value.trim() || '';
-    const priorityLine = priority.value ? `## Priority\n\n${PRIORITY_META[priority.value].label}\n\n` : '';
-    if (comment) {
-      return `${priorityLine}## Task\n\n${comment}\n\n${state.markdown}`;
-    }
-    return `${priorityLine}${state.markdown}`;
+  const buildPrompt = () =>
+    buildInspectPrompt({
+      comment: taRef.current?.value.trim() || '',
+      priorityLabel: priority.value && PRIORITY_META[priority.value].label,
+      markdown: state.markdown,
+      styleEdits: styleEdits.value,
+    });
+
+  const copySelector = () => {
+    copyText(state.selector, 'Selector copied');
+    track('inspector_selector_copied');
   };
-
-  const copySelector = () => copyText(state.selector, 'Selector copied');
-  const copyForAI = () => copyText(buildPrompt(), 'Copied for AI!');
+  const copyForAI = () => {
+    copyText(buildPrompt(), 'Copied for AI!');
+    track('inspector_prompt_copied', {
+      has_note: Boolean(taRef.current?.value.trim()),
+      css_edits: styleEdits.value.length,
+      has_priority: Boolean(priority.value),
+    });
+  };
   const addToStack = () => {
     const comment = taRef.current?.value.trim() || '';
     addToInspectorStack({
       selector: state.selector,
       comment,
-      markdown: state.markdown,
+      markdown: stackMarkdown({ markdown: state.markdown, styleEdits: styleEdits.value }),
     });
     const count = inspectorStack.value.length;
+    track('inspector_stacked', { stack: count, has_note: comment.length > 0, css_edits: styleEdits.value.length });
     toast(`Added to stack (${count})`, { type: 'success', duration: 2000 });
     onClose();
   };
 
-  // Push an InspectOp into the room so an MCP-connected agent can pick it up.
-  // Only available when a room is connected — outside the worker viewer there's
-  // no realtime sync wired, so the op would just persist locally with no
-  // listener, which would be confusing.
+  // Only offered with a room connected: without one, nothing would ever pick the op up.
+  // Closing unmounts CssEditor, which reverts the page; the op keeps the edits as a record.
   const sendToAgent = () => {
     const comment = taRef.current?.value.trim() || '';
     const op: InspectOp = {
@@ -205,20 +239,25 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       tool: 'inspect',
       color: color.value,
       lineWidth: lineWidth.value,
-      selector: state.selector,
-      tag: state.tag,
+      ...inspectFields({ ...state, styleEdits: styleEdits.value }),
       comment: comment || undefined,
       priority: priority.value,
       mentions: mentions(),
-      markdown: state.markdown,
-      rect: { x: state.rect.x, y: state.rect.y, width: state.rect.width, height: state.rect.height },
       ts: Date.now(),
       ...signedBy(),
       status: 'open',
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };
-    pushOp(op);
-    toast('Sent to agent', { type: 'success', duration: 2000 });
+    const outcome = pushOp(op);
+    track('inspector_sent', {
+      held: outcome === 'held',
+      has_note: comment.length > 0,
+      has_priority: Boolean(op.priority),
+      mentions: op.mentions?.length ?? 0,
+      css_edits: styleEdits.value.length,
+    });
+    const toastText = outcome === 'held' ? 'Held until Send' : 'Sent to agent';
+    toast(toastText, { type: 'success', duration: 2000 });
     onClose();
   };
   const canSend = connectionStatus.value === 'connected';
@@ -232,7 +271,22 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
   if (lastSelector.current !== state.selector) {
     lastSelector.current = state.selector;
     dragOffset.value = null;
+    // CssEditor reverts the previous element itself when its `el` changes; the record goes with it.
+    styleEdits.value = [];
+    cssOpen.value = false;
+    cssMounted.value = false;
   }
+
+  const toggleCss = () => {
+    cssMounted.value = true;
+    cssOpen.value = !cssOpen.value;
+    track('inspector_css_toggled', { open: cssOpen.value });
+  };
+  const onCssChange = (edits: StyleEdit[]) => {
+    styleEdits.value = edits;
+    onStyleChange?.();
+  };
+  const editCount = styleEdits.value.length;
 
   const onDragPointerDown = (e: TargetedEvent<HTMLDivElement, PointerEvent>) => {
     if (e.button !== 0) return;
@@ -300,6 +354,14 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
       )}
       style={posStyle}
       onClick={(e) => e.stopPropagation()}
+      // Bubbled from anywhere in the note; a CSS property field and the mention popover
+      // stop their own Esc first, and stopping here keeps App's tool exit for the next press.
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return;
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }}
     >
       <div class="shrink-0">
         <div
@@ -319,7 +381,10 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
           <button
             type="button"
             aria-label="Close inspector"
-            onClick={onClose}
+            onClick={() => {
+              track('inspector_closed');
+              onClose();
+            }}
             class={cn(geist.ctlSm, geist.ctlIdle, '-mr-1 -mt-0.5 shrink-0')}
           >
             <Icon name="close" size={16} strokeWidth={1.5} />
@@ -338,18 +403,44 @@ export function SelectedPanel({ state, onClose }: { state: SelectedInfo; onClose
                 if (e.shiftKey) addToStack();
                 else if (canSend) sendToAgent();
                 else copyForAI();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                e.stopPropagation();
-                onClose();
               }
             }}
             class={cn(textareaCls, 'w-full min-h-10 max-h-[100px]', glass.font)}
             style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
           />
-          <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
+          <div class="mt-1.5 flex items-center gap-1">
+            <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="-ml-1.5 mr-auto" />
+            {cssAllowed && (
+              <button
+                type="button"
+                onClick={toggleCss}
+                aria-expanded={cssOpen.value}
+                class={cn(
+                  geist.ctlXs,
+                  geist.ctlLabel,
+                  cssOpen.value ? 'bg-(--ds-gray-alpha-200) text-(--ds-gray-1000)' : geist.ctlIdle,
+                )}
+              >
+                <PaintbrushVertical size={14} strokeWidth={GLYPH.strokeWidth} aria-hidden />
+                Edit CSS
+                {editCount > 0 && <span class="tabular-nums text-(--ds-gray-900)">{editCount}</span>}
+              </button>
+            )}
+            <BatchSwitch />
+            <DictateButton field={taRef} />
+          </div>
         </div>
+      </div>
 
+      {cssAllowed && el && cssMounted.value && (
+        <div class={cn('min-h-0 flex-col', cssOpen.value ? 'flex' : 'hidden')}>
+          <div class={cn(geist.divider, 'mx-3.5 shrink-0')} />
+          <CssEditor el={el} onChange={onCssChange} />
+          <div class={cn(geist.divider, 'mx-3.5 shrink-0')} />
+        </div>
+      )}
+
+      <div class={cn('shrink-0', cssOpen.value && 'pt-2.5')}>
         <div class="flex items-center gap-2 px-4 pb-3">
           <button
             type="button"
@@ -417,6 +508,7 @@ function DetailsSection({ state }: { state: SelectedInfo }) {
         type="button"
         onClick={() => {
           open.value = !open.value;
+          track('inspector_details_toggled', { open: open.value });
         }}
         aria-expanded={open.value}
         class="group flex items-center justify-between w-full bg-transparent border-none cursor-pointer p-0 text-left"
@@ -540,6 +632,7 @@ export function InspectorStackPanel() {
         aria-label={`${open ? 'Collapse' : 'Expand'} stacked elements`}
         onClick={() => {
           inspectorStackOpen.value = !open;
+          track('inspector_stack_toggled', { open: !open });
         }}
         class="flex items-center gap-2 px-3.5 py-2.5 bg-transparent border-none cursor-pointer text-left
                hover:bg-(--ds-gray-alpha-100) transition-colors"
@@ -579,7 +672,10 @@ export function InspectorStackPanel() {
                 <button
                   type="button"
                   aria-label="Remove from stack"
-                  onClick={() => removeFromInspectorStack(it.id)}
+                  onClick={() => {
+                    removeFromInspectorStack(it.id);
+                    track('inspector_stack_item_removed', { stack: items.length - 1 });
+                  }}
                   class="opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity
                          text-(--ds-gray-900) hover:text-(--ds-gray-1000) bg-transparent border-none cursor-pointer
                          inline-flex items-center justify-center w-6 h-6 rounded-md hover:bg-(--ds-gray-alpha-100) shrink-0"
@@ -596,7 +692,10 @@ export function InspectorStackPanel() {
       <div class="flex items-center gap-2 px-3 py-2.5">
         <button
           type="button"
-          onClick={clearInspectorStack}
+          onClick={() => {
+            clearInspectorStack();
+            track('inspector_stack_cleared', { stack: items.length });
+          }}
           class="px-2.5 py-1.5 text-meta font-medium rounded-lg cursor-pointer
                  bg-transparent text-(--ds-gray-900) border border-transparent
                  transition-[background-color,color] duration-150
@@ -606,7 +705,10 @@ export function InspectorStackPanel() {
         </button>
         <button
           type="button"
-          onClick={copyInspectorStack}
+          onClick={() => {
+            copyInspectorStack();
+            track('inspector_stack_copied', { stack: items.length });
+          }}
           title="Copy all to clipboard"
           class="ml-auto px-2.5 py-1.5 text-meta font-medium rounded-lg cursor-pointer
                  bg-(--ds-gray-alpha-100) text-(--ds-gray-1000) border border-(--ds-gray-alpha-400)
@@ -646,6 +748,7 @@ export function InspectorLayer() {
   const selectorTimer = useRef(0);
   const lastEl = useRef<Element | null>(null);
   const selectedElRef = useRef<Element | null>(null);
+  const climbed = useRef<Element[]>([]);
 
   const clearHover = () => {
     hover.value = null;
@@ -656,7 +759,20 @@ export function InspectorLayer() {
   const pick = (el: Element) => {
     clearHover();
     selectedElRef.current = el;
+    track('inspector_element_picked');
     selected.value = snapshotElement(el, getSelector(el), el.getBoundingClientRect(), outputDetail.value);
+  };
+
+  const showHover = (el: Element) => {
+    lastEl.current = el;
+    const rect = el.getBoundingClientRect();
+    hover.value = { el, rect, selector: null, component: null };
+
+    clearTimeout(selectorTimer.current);
+    selectorTimer.current = window.setTimeout(() => {
+      if (lastEl.current !== el) return;
+      hover.value = { el, rect, selector: getSelector(el), component: detectFrameworkComponent(el) };
+    }, 80);
   };
 
   useEffect(() => {
@@ -668,16 +784,8 @@ export function InspectorLayer() {
         return;
       }
       if (!el || el === lastEl.current) return;
-      lastEl.current = el;
-
-      const rect = el.getBoundingClientRect();
-      hover.value = { el, rect, selector: null, component: null };
-
-      clearTimeout(selectorTimer.current);
-      selectorTimer.current = window.setTimeout(() => {
-        if (lastEl.current !== el) return;
-        hover.value = { el, rect, selector: getSelector(el), component: detectFrameworkComponent(el) };
-      }, 80);
+      climbed.current = [];
+      showHover(el);
     };
 
     const onClick = (e: MouseEvent) => {
@@ -687,43 +795,74 @@ export function InspectorLayer() {
 
       e.preventDefault();
       e.stopPropagation();
+      // The second press of a double-click belongs to in-place text editing, not a re-pick.
+      if (e.detail >= 2) return;
       pick(el);
     };
 
+    // Bubble phase, after SelectionLayer's capture listener has started the edit: the panel
+    // click 1 opened must not sit under the edit's own popover.
+    const onDblClick = () => {
+      if (!isTextEditing()) return;
+      selected.value = null;
+      selectedElRef.current = null;
+    };
+
+    const walk = (e: KeyboardEvent, dir: 'up' | 'down') => {
+      const cur = hover.peek();
+      if (activeTool.value !== 'inspect' || selected.peek() || !cur) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const next = stepHover({ el: cur.el, stack: climbed.current, dir });
+      if (!next) return;
+      climbed.current = next.stack;
+      track('inspector_hover_walked', { dir });
+      showHover(next.el);
+    };
+    const unbindKeys = tinykeys(window, {
+      ArrowUp: (e) => walk(e, 'up'),
+      ArrowDown: (e) => walk(e, 'down'),
+    });
+
     window.addEventListener('mousemove', onMove, true);
     window.addEventListener('click', onClick, true);
+    window.addEventListener('dblclick', onDblClick);
     return () => {
+      unbindKeys();
+      window.removeEventListener('dblclick', onDblClick);
       window.removeEventListener('mousemove', onMove, true);
       window.removeEventListener('click', onClick, true);
     };
   }, []);
+
+  const measure = () => {
+    const el = selectedElRef.current;
+    if (!el) return;
+    if (!el.isConnected) {
+      selected.value = null;
+      selectedElRef.current = null;
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const cur = selected.peek();
+    if (!cur) return;
+    if (
+      cur.rect.x === rect.x &&
+      cur.rect.y === rect.y &&
+      cur.rect.width === rect.width &&
+      cur.rect.height === rect.height
+    ) {
+      return;
+    }
+    selected.value = { ...cur, rect };
+  };
 
   useSignalEffect(() => {
     if (!hasSelected.value) return;
     let raf = 0;
     const sync = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const el = selectedElRef.current;
-        if (!el) return;
-        if (!el.isConnected) {
-          selected.value = null;
-          selectedElRef.current = null;
-          return;
-        }
-        const rect = el.getBoundingClientRect();
-        const cur = selected.peek();
-        if (!cur) return;
-        if (
-          cur.rect.x === rect.x &&
-          cur.rect.y === rect.y &&
-          cur.rect.width === rect.width &&
-          cur.rect.height === rect.height
-        ) {
-          return;
-        }
-        selected.value = { ...cur, rect };
-      });
+      raf = requestAnimationFrame(measure);
     };
     window.addEventListener('scroll', sync, true);
     window.addEventListener('resize', sync);
@@ -761,9 +900,11 @@ export function InspectorLayer() {
           <SelectedHighlight rect={selected.value.rect} />
           <SelectedPanel
             state={selected.value}
+            el={selectedElRef.current}
             onClose={() => {
               selected.value = null;
             }}
+            onStyleChange={measure}
           />
         </>
       )}
