@@ -197,3 +197,32 @@ describe('detectFrameworkComponent — no framework', () => {
     expect(detectFrameworkComponent(el)).toBeNull();
   });
 });
+
+describe('detectFrameworkComponent — Svelte', () => {
+  const withSvelte = (html: string, stamps: Record<string, { file: string; line: number; column: number }>) => {
+    document.body.innerHTML = html;
+    for (const [sel, loc] of Object.entries(stamps)) {
+      const node = document.querySelector(sel);
+      if (node) Object.defineProperty(node, '__svelte_meta', { value: { loc }, configurable: true });
+    }
+    const el = document.querySelector('#leaf');
+    if (!el) throw new Error('fixture missing #leaf');
+    return el;
+  };
+
+  test('reads file, line and the component stems from dev-mode meta up the tree', () => {
+    const el = withSvelte('<section id="outer"><button id="leaf"></button></section>', {
+      '#leaf': { file: 'src/lib/BuyButton.svelte', line: 12, column: 2 },
+      '#outer': { file: 'src/routes/Page.svelte', line: 5, column: 0 },
+    });
+    expect(detectFrameworkComponent(el)).toEqual({
+      framework: 'Svelte',
+      chain: ['BuyButton', 'Page'],
+      source: { fileName: 'src/lib/BuyButton.svelte', lineNumber: 12, columnNumber: 2 },
+    });
+  });
+
+  test('returns null for a production build, which carries no meta', () => {
+    expect(detectFrameworkComponent(withSvelte('<div id="leaf"></div>', {}))).toBeNull();
+  });
+});

@@ -681,3 +681,34 @@ describe('snapshotElement', () => {
     expect(snapshotElement(pick('#hero'), 'h1#hero', new DOMRect()).component).toBeNull();
   });
 });
+
+describe('element details in the target', () => {
+  test('captureTarget carries the structured fields and the markdown renders them', () => {
+    mount('<h1 id="hero" class="Headline big" data-testid="hero-title">Pricing that scales</h1>');
+    const el = pick('#hero');
+    layout(el, { x: 0, y: 0, width: 10, height: 10 });
+    const target = captureTarget({ el });
+    expect(target.id).toBe('hero');
+    expect(target.classes).toEqual(['Headline', 'big']);
+    expect(target.attributes).toEqual({ 'data-testid': 'hero-title' });
+    expect(target.visibleText).toBe('Pricing that scales');
+    expect(Object.keys(target.styles ?? {})).toHaveLength(6);
+    expect(target.markdown).toContain('**Id:** hero');
+    expect(target.markdown).toContain('**Classes:** Headline big');
+    expect(target.markdown).toContain('`data-testid="hero-title"`');
+    expect(target.markdown).toContain('**Styles:** `color:');
+  });
+
+  test('the text line allows 200 chars, not the old 120', () => {
+    mount(`<p id="p">${'a'.repeat(300)}</p>`);
+    const md = formatForAI(pick('#p'), '#p', { component: null, cssStack: null });
+    expect(md).toContain(`"${'a'.repeat(200)}…"`);
+  });
+
+  test('compact stays minimal', () => {
+    mount('<h1 id="hero" class="x">Hi</h1>');
+    const md = formatForAI(pick('#hero'), '#hero', { component: null, detail: 'compact' });
+    expect(md).not.toContain('**Id:**');
+    expect(md).not.toContain('**Styles:**');
+  });
+});

@@ -188,6 +188,29 @@ export function bridgePayload(): void {
     return chain.length ? { framework: 'Vue', chain } : null;
   };
 
+  // Dev builds only: Svelte stamps `__svelte_meta.loc` on the elements a component template renders.
+  // It names the file, not the instance, so the "chain" is the file stem of the nearest stamped ancestors.
+  const detectSvelte = (el: Element): FrameworkComponent | null => {
+    const chain: string[] = [];
+    let source: DebugSource | undefined;
+    let node: Element | null = el;
+    for (let i = 0; node && i < 10; i++, node = node.parentElement) {
+      const loc = Reflect.get(Reflect.get(node, '__svelte_meta') ?? {}, 'loc');
+      const file = getString(loc, 'file');
+      const line = loc && typeof loc === 'object' ? Reflect.get(loc, 'line') : null;
+      if (!file || typeof line !== 'number') continue;
+      const column = Reflect.get(loc, 'column');
+      source ??= { fileName: file, lineNumber: line, columnNumber: typeof column === 'number' ? column : undefined };
+      const stem =
+        file
+          .split('/')
+          .pop()
+          ?.replace(/\.svelte$/, '') ?? '';
+      if (isUsable(stem) && chain[chain.length - 1] !== stem && chain.length < 5) chain.push(stem);
+    }
+    return source ? { framework: 'Svelte', chain, source } : null;
+  };
+
   const detect = (el: Element): FrameworkComponent | null => {
     const fiber = findReactFiber(el);
     if (fiber) {
@@ -196,7 +219,7 @@ export function bridgePayload(): void {
         return { framework: 'React', chain, source: source ?? undefined };
       }
     }
-    return detectVue(el);
+    return detectVue(el) ?? detectSvelte(el);
   };
 
   window.addEventListener('marklayer-detect', (e) => {

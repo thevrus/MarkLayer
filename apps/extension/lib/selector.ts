@@ -1,4 +1,5 @@
-import { FINGERPRINT_LEN, normalizeText, type TargetElement } from '@marklayer/types';
+import { type ElementDetails, FINGERPRINT_LEN, normalizeText, type TargetElement } from '@marklayer/types';
+import { captureElementDetails, summarizeText } from './element-details';
 import { detectFrameworkComponent, type FrameworkComponent } from './fiber-bridge';
 import { scrollOffset } from './scroller';
 
@@ -80,10 +81,14 @@ export function captureTarget({
   const o = scrollOffset(win);
   const docX = rect.x + o.x;
   const docY = rect.y + o.y;
+  const component = detectFrameworkComponent(el);
+  const textSummary = summarizeText(el);
+  const details = captureElementDetails({ el, component, text: textSummary });
   return {
+    ...details,
     selector,
     tag: el.tagName.toLowerCase(),
-    markdown: formatForAI(el, selector, { selectedText }),
+    markdown: formatForAI(el, selector, { selectedText, component, textSummary, details }),
     rect: { x: docX, y: docY, width: rect.width, height: rect.height },
     offsetX: anchor ? anchor.x - docX : undefined,
     offsetY: anchor ? anchor.y - docY : undefined,
@@ -564,26 +569,6 @@ export function shortClassLabel(el: Element, max = 2): string {
 
 export const ELEMENT_INSPECTOR_HEADING = '## Element Inspector';
 
-const TEXT_MAX = 120;
-// Sample more than TEXT_MAX × ratio so whitespace can't hide non-WS content past the cut.
-// Picking <body> or large articles otherwise rebuilds MB-sized strings just to slice 120 chars.
-const TEXT_SAMPLE = TEXT_MAX * 8;
-
-/**
- * Collapse whitespace and truncate element text to a short, single-line summary.
- * Uses innerText (not textContent) so block-level boundaries become spaces — otherwise
- * "<h2>Step 2</h2><h3>02</h3>Tell us..." renders as "Step 202Tell us...".
- * innerText forces a layout, but inspector picks are infrequent.
- */
-function summarizeText(el: Element): { text: string; truncated: boolean } {
-  const raw = el instanceof HTMLElement ? el.innerText : (el.textContent ?? '');
-  const cleaned = raw.slice(0, TEXT_SAMPLE).replace(/\s+/g, ' ').trim();
-  return {
-    text: cleaned.slice(0, TEXT_MAX),
-    truncated: cleaned.length > TEXT_MAX,
-  };
-}
-
 export interface FormatForAIOptions {
   styles?: Record<string, string>;
   rect?: { width: number; height: number };
@@ -593,6 +578,8 @@ export interface FormatForAIOptions {
   textSummary?: { text: string; truncated: boolean };
   /** Pre-computed CSS stack; pass `null` to skip detection, omit to detect lazily. */
   cssStack?: CssStack | null;
+  /** Pre-captured element details; omit to capture. */
+  details?: ElementDetails;
   /** Verbatim text the user highlighted, included so AI agents can grep for the exact string. */
   selectedText?: string;
   /**
@@ -641,8 +628,21 @@ export function formatForAI(el: Element, selector: string, opts: FormatForAIOpti
   const dpr = win.devicePixelRatio;
   const dprPart = dpr !== 1 ? ` @ ${dpr}x` : '';
   md += `**Viewport:** ${win.innerWidth}×${win.innerHeight}px${dprPart}\n`;
-  const { text, truncated } = opts.textSummary ?? summarizeText(el);
+  const textSummary = opts.textSummary ?? summarizeText(el);
+  const { text, truncated } = textSummary;
   if (text) md += `**Text:** "${truncated ? `${text}…` : text}"\n`;
+  const details = opts.details ?? captureElementDetails({ el, component: fwc, text: textSummary });
+  if (details.id) md += `**Id:** ${details.id}\n`;
+  if (details.classes?.length) md += `**Classes:** ${details.classes.join(' ')}\n`;
+  if (details.attributes) {
+    const attrs = Object.entries(details.attributes).map(([k, v]) => `${k}="${v}"`);
+    md += `**Attributes:** ${attrs.map((a) => `\`${a}\``).join(' ')}\n`;
+  }
+  if (details.styles) {
+    md += `**Styles:** \`${Object.entries(details.styles)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join('; ')}\`\n`;
+  }
   if (opts.selectedText) {
     // Collapse internal newlines so the quote stays on one line for grep-friendly AI output.
     const oneLine = opts.selectedText.replace(/\s+/g, ' ').trim();
@@ -705,6 +705,8 @@ export interface SelectedInfo {
   viewport: { width: number; height: number; dpr: number };
   component: FrameworkComponent | null;
   cssStack: CssStack | null;
+  /** Structured fields in `target` shape, for the inspect op. */
+  details: ElementDetails;
 }
 
 /**
@@ -759,6 +761,7 @@ export function snapshotElement(
   const styles = getKeyStyles(el);
   const component = detectFrameworkComponent(el);
   const textSummary = summarizeText(el);
+  const details = captureElementDetails({ el, component, text: textSummary });
   const cssStack: CssStack | null = detectTailwind(el.ownerDocument) ? 'Tailwind' : null;
   const win = el.ownerDocument.defaultView ?? window;
   return {
@@ -769,7 +772,16 @@ export function snapshotElement(
     rect: viewportRect,
     styles,
     text: textSummary.text,
-    markdown: formatForAI(el, selector, { styles, rect: viewportRect, component, textSummary, cssStack, detail }),
+    markdown: formatForAI(el, selector, {
+      styles,
+      rect: viewportRect,
+      component,
+      textSummary,
+      cssStack,
+      detail,
+      details,
+    }),
+    details,
     viewport: { width: win.innerWidth, height: win.innerHeight, dpr: win.devicePixelRatio },
     component,
     cssStack,
