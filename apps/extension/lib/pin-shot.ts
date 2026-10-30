@@ -39,17 +39,15 @@ export function pinCrop({ pin, viewport }: { pin: { x: number; y: number }; view
   };
 }
 
-/** Downscale, draw the pin where it was placed, and re-encode as JPEG for the anonymous `/f`. */
-async function encodeShot({
+/** Downscale, let `draw` mark the shot in crop CSS px × `perCssPx`, and re-encode as JPEG for the anonymous `/f`. */
+export async function encodeShot({
   image,
   crop,
-  pin,
-  color,
+  draw,
 }: {
   image: ImageBitmap;
   crop: Box;
-  pin: { x: number; y: number };
-  color: string;
+  draw: (ctx: CanvasRenderingContext2D, perCssPx: number) => void;
 }): Promise<Blob | null> {
   const scale = Math.min(1, MAX_DIMENSION / Math.max(image.width, image.height));
   const canvas = document.createElement('canvas');
@@ -59,17 +57,23 @@ async function encodeShot({
   if (!ctx) return null;
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
   image.close();
-
-  const perCssPx = canvas.width / crop.width;
-  ctx.beginPath();
-  ctx.arc((pin.x - crop.x) * perCssPx, (pin.y - crop.y) * perCssPx, MARKER_RADIUS * perCssPx, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
-  ctx.lineWidth = 2 * perCssPx;
-  ctx.strokeStyle = '#ffffff';
-  ctx.stroke();
-
+  draw(ctx, canvas.width / crop.width);
   return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', JPEG_QUALITY));
+}
+
+/** Resolves to `run`'s result, or null on rejection or after `timeoutMs`; never rejects. */
+export function settleWithin({
+  run,
+  timeoutMs = SHOT_TIMEOUT_MS,
+}: {
+  run: () => Promise<string | null>;
+  timeoutMs?: number;
+}): Promise<string | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), timeoutMs);
+  });
+  return Promise.race([run().catch(() => null), timeout]).finally(() => clearTimeout(timer));
 }
 
 /**
@@ -83,7 +87,7 @@ export function snapshotPin({
   viewport,
   color,
   upload,
-  timeoutMs = SHOT_TIMEOUT_MS,
+  timeoutMs,
 }: {
   /** The pixels of `crop` with no MarkLayer UI in them, at whatever density the platform gives. */
   shoot: (crop: Box) => Promise<ImageBitmap>;
@@ -95,12 +99,20 @@ export function snapshotPin({
   timeoutMs?: number;
 }): Promise<string | null> {
   const crop = pinCrop({ pin, viewport });
+  const drawPin = (ctx: CanvasRenderingContext2D, perCssPx: number) => {
+    ctx.beginPath();
+    ctx.arc((pin.x - crop.x) * perCssPx, (pin.y - crop.y) * perCssPx, MARKER_RADIUS * perCssPx, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.lineWidth = 2 * perCssPx;
+    ctx.strokeStyle = '#ffffff';
+    ctx.stroke();
+  };
   const run = async (): Promise<string | null> => {
     if (crop.width < 1 || crop.height < 1) return null;
     const image = await shoot(crop);
-    const jpeg = await encodeShot({ image, crop, pin, color });
+    const jpeg = await encodeShot({ image, crop, draw: drawPin });
     return jpeg ? upload(jpeg) : null;
   };
-  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs));
-  return Promise.race([run().catch(() => null), timeout]);
+  return settleWithin({ run, timeoutMs });
 }

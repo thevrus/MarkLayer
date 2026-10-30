@@ -1,16 +1,22 @@
 import { type CommentPriority, cn, type Mention } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
-import type { TargetedEvent } from 'preact';
+import type { ComponentChildren, TargetedEvent } from 'preact';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
+import { track } from '../lib/analytics';
 import { reprojectBox } from '../lib/anchor';
+import { type AreaRect, dragRect } from '../lib/area-rect';
+import { snapshotArea } from '../lib/area-shot';
 import { submitBtn, textareaCls } from '../lib/buttons';
+import { shootViewport } from '../lib/capture';
+import { editableTarget } from '../lib/dom';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { MARKER_LAYER } from '../lib/popover';
-import { constrainEnd, hexToRgba } from '../lib/renderer';
+import { hexToRgba } from '../lib/renderer';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
+import { fileUrl, uploadFile } from '../lib/share';
 import {
   activeTool,
   areas,
@@ -20,40 +26,36 @@ import {
   hostMutationTick,
   lineWidth,
   openContextMenu,
+  patchOp,
   pushOp,
   scrollTick,
   setOpStatus,
   signedBy,
+  toast,
 } from '../lib/state';
 import type { AreaOp } from '../lib/types';
+import { AreaMarkupSurface, MarkupTools, useAreaMarkup } from './AreaMarkup';
+import { AttachmentGallery } from './AttachmentPicker';
+import { BatchSwitch } from './BatchSwitch';
 import { CancelButton } from './CancelButton';
+import { DictateButton } from './DictateButton';
 import { MentionText } from './MentionText';
 import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityBadge, PriorityPicker } from './PriorityPicker';
 
-export interface DraftRect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
+export type DraftRect = AreaRect;
 
 export interface DraftAreaState {
   startDocX: number;
   startDocY: number;
   curDocX: number;
   curDocY: number;
+  shift?: boolean;
+  alt?: boolean;
 }
 
 export function rectFromDraft(d: DraftAreaState): DraftRect {
-  const x = Math.min(d.startDocX, d.curDocX);
-  const y = Math.min(d.startDocY, d.curDocY);
-  return {
-    x,
-    y,
-    w: Math.abs(d.curDocX - d.startDocX),
-    h: Math.abs(d.curDocY - d.startDocY),
-  };
+  return dragRect({ sx: d.startDocX, sy: d.startDocY, px: d.curDocX, py: d.curDocY, shift: !!d.shift, alt: !!d.alt });
 }
 
 function AreaShape({ op }: { op: AreaOp }) {
@@ -148,6 +150,7 @@ function AreaShape({ op }: { op: AreaOp }) {
           ) : (
             <p class="text-meta text-(--ds-gray-900) m-0 mt-1">No comment</p>
           )}
+          {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
           <div class="flex items-center justify-between mt-2">
             <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
             <div class="flex items-center gap-3">
@@ -190,8 +193,11 @@ export function AreaPopover({
   rect,
   onCommit,
   onCancel,
+  children,
 }: {
   rect: DraftRect;
+  /** Tools under the note, e.g. the extension's markup bar. */
+  children?: ComponentChildren;
   onCommit: (draft: AreaDraft) => void;
   onCancel: () => void;
 }) {
@@ -256,7 +262,12 @@ export function AreaPopover({
           class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
           style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
         />
-        <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="mt-1.5 -ml-1.5" />
+        {children && <div class="mt-1.5">{children}</div>}
+        <div class="mt-1.5 flex items-center justify-between">
+          <PriorityPicker value={priority.value} onChange={(p) => (priority.value = p)} class="-ml-1.5" />
+          <BatchSwitch class="ml-auto" />
+          <DictateButton field={taRef} />
+        </div>
       </div>
 
       <div class={cn(geist.divider, 'mx-3.5')} />
@@ -276,6 +287,8 @@ export function AreaLayer() {
   const pending = useSignal<DraftRect | null>(null);
   const lastRaw = useRef<{ x: number; y: number } | null>(null);
   const shiftHeld = useRef(false);
+  const altHeld = useRef(false);
+  const markup = useAreaMarkup();
 
   // Scroll repositioning happens inside AreaShape via the shared `scrollTick`
   // signal; the listener is wired once in App.tsx.
@@ -284,8 +297,7 @@ export function AreaLayer() {
     const d = draft.value;
     const raw = lastRaw.current;
     if (!d || !raw) return;
-    const { x, y } = shiftHeld.current ? constrainEnd('rectangle', d.startDocX, d.startDocY, raw.x, raw.y) : raw;
-    draft.value = { ...d, curDocX: x, curDocY: y };
+    draft.value = { ...d, curDocX: raw.x, curDocY: raw.y, shift: shiftHeld.current, alt: altHeld.current };
   }, [draft]);
 
   const onPointerDown = useCallback(
@@ -297,7 +309,8 @@ export function AreaLayer() {
       const dy = e.clientY + scrollY;
       lastRaw.current = { x: dx, y: dy };
       shiftHeld.current = e.shiftKey;
-      draft.value = { startDocX: dx, startDocY: dy, curDocX: dx, curDocY: dy };
+      altHeld.current = e.altKey;
+      draft.value = { startDocX: dx, startDocY: dy, curDocX: dx, curDocY: dy, shift: e.shiftKey, alt: e.altKey };
       e.currentTarget.setPointerCapture(e.pointerId);
     },
     [draft, pending],
@@ -309,6 +322,7 @@ export function AreaLayer() {
       if (!d) return;
       lastRaw.current = { x: e.clientX + scrollX, y: e.clientY + scrollY };
       shiftHeld.current = e.shiftKey;
+      altHeld.current = e.altKey;
       applyConstraint();
     },
     [draft, applyConstraint],
@@ -320,11 +334,14 @@ export function AreaLayer() {
       if (!d) return;
       e.currentTarget.releasePointerCapture(e.pointerId);
       shiftHeld.current = e.shiftKey;
-      lastRaw.current = { x: e.clientX + scrollX, y: e.clientY + scrollY };
-      const { x, y } = shiftHeld.current
-        ? constrainEnd('rectangle', d.startDocX, d.startDocY, lastRaw.current.x, lastRaw.current.y)
-        : lastRaw.current;
-      const r = rectFromDraft({ ...d, curDocX: x, curDocY: y });
+      altHeld.current = e.altKey;
+      const r = rectFromDraft({
+        ...d,
+        curDocX: e.clientX + scrollX,
+        curDocY: e.clientY + scrollY,
+        shift: e.shiftKey,
+        alt: e.altKey,
+      });
       draft.value = null;
       if (r.w < 6 || r.h < 6) return;
       pending.value = r;
@@ -335,6 +352,7 @@ export function AreaLayer() {
   const commit = ({ comment, priority, mentions }: AreaDraft) => {
     const r = pending.value;
     if (!r) return;
+    const marks = markup.ops.value;
     // Centre of the rect in viewport coords — find the topmost real page element
     // sitting under the area so the agent gets selector + markup, not just a box.
     const cx = r.x + r.w / 2 - window.scrollX;
@@ -357,22 +375,83 @@ export function AreaLayer() {
       target: el ? captureTarget({ el, anchor: { x: r.x, y: r.y } }) : undefined,
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };
-    pushOp(op);
     pending.value = null;
+    markup.reset();
+    pushOp(op);
+    track('area_committed', {
+      has_note: Boolean(comment),
+      has_priority: Boolean(priority),
+      mentions: mentions?.length ?? 0,
+      markup_strokes: marks.length,
+      width: Math.round(r.w),
+      height: Math.round(r.h),
+    });
+    if (!marks.length) return;
+    // Shot after the note has closed so none of our UI is in it; it lands on the note once uploaded.
+    void snapshotArea({
+      shoot: shootViewport,
+      rect: r,
+      scroll: { x: scrollX, y: scrollY },
+      viewport: { width: innerWidth, height: innerHeight },
+      ops: marks,
+      upload: uploadFile,
+    }).then((id) => {
+      if (!id) {
+        track('area_shot_failed');
+        return toast('Screenshot failed, note saved without an image');
+      }
+      patchOp({ opId: op.id, patch: { attachments: [id] } });
+    });
   };
 
   const cancel = () => {
+    track('area_cancelled', { markup_strokes: markup.ops.peek().length });
     pending.value = null;
+    markup.reset();
   };
 
+  // Capture phase, ahead of App's global Esc / Cmd+Z, which would exit the tool or pop a canvas op under
+  // an open note. While the textarea is focused its own handler and the browser's text undo take over.
   useEffect(() => {
-    const setShift = (next: boolean) => {
-      if (shiftHeld.current === next) return;
-      shiftHeld.current = next;
+    const unbind = tinykeys(
+      window,
+      {
+        Escape: (e) => {
+          if (!pending.value || editableTarget(e)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          if (!markup.cancelStroke()) cancel();
+        },
+        '$mod+KeyZ': (e) => {
+          if (!pending.value || editableTarget(e)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          markup.undo();
+        },
+      },
+      { capture: true },
+    );
+    return unbind;
+  }, [pending, markup]);
+
+  useEffect(() => {
+    const setHeld = (ref: { current: boolean }, next: boolean) => {
+      if (ref.current === next) return;
+      ref.current = next;
       if (draft.value) applyConstraint();
     };
-    const unbindDown = tinykeys(window, { Shift: () => setShift(true) });
-    const unbindUp = tinykeys(window, { Shift: () => setShift(false) }, { event: 'keyup' });
+    const setShift = (next: boolean) => setHeld(shiftHeld, next);
+    const setAlt = (next: boolean) => setHeld(altHeld, next);
+    // tinykeys blocks a bare `Alt` while Shift is held (and vice versa) unless the other is marked optional.
+    const unbindDown = tinykeys(window, {
+      '[Alt]+Shift': () => setShift(true),
+      '[Shift]+Alt': () => setAlt(true),
+    });
+    const unbindUp = tinykeys(
+      window,
+      { '[Alt]+Shift': () => setShift(false), '[Shift]+Alt': () => setAlt(false) },
+      { event: 'keyup' },
+    );
     return () => {
       unbindDown();
       unbindUp();
@@ -416,7 +495,13 @@ export function AreaLayer() {
         />
       )}
 
-      {pending.value && <AreaPopover rect={pending.value} onCommit={commit} onCancel={cancel} />}
+      {pending.value && <AreaMarkupSurface rect={pending.value} markup={markup} />}
+
+      {pending.value && (
+        <AreaPopover rect={pending.value} onCommit={commit} onCancel={cancel}>
+          <MarkupTools markup={markup} />
+        </AreaPopover>
+      )}
     </div>
   );
 }
