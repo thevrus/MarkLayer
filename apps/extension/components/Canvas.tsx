@@ -10,6 +10,7 @@ import {
   hexToRgba,
   redrawCanvas,
   renderOp,
+  shapeOp,
   simplify,
   strokeArrowHead,
 } from '../lib/renderer';
@@ -317,25 +318,9 @@ export function Canvas() {
             lineWidth: lineWidth.value,
             captureViewport: captureSize.current,
           };
-          if (tool === 'circle') {
-            const r = Math.hypot(d.x - s.x, d.y - s.y);
-            if (r > 0) pushOp({ ...base, tool: 'circle', centerX: s.x, centerY: s.y, radius: r });
-          } else if (tool === 'rectangle') {
-            if (s.x !== d.x && s.y !== d.y) {
-              pushOp({ ...base, tool: 'rectangle', startX: s.x, startY: s.y, endX: d.x, endY: d.y });
-            }
-          } else if (tool === 'line' || tool === 'arrow') {
-            if (s.x !== d.x || s.y !== d.y) {
-              pushOp({
-                ...base,
-                tool: 'line',
-                arrow: tool === 'arrow',
-                startX: s.x,
-                startY: s.y,
-                endX: d.x,
-                endY: d.y,
-              });
-            }
+          if (tool === 'circle' || tool === 'rectangle' || tool === 'line' || tool === 'arrow') {
+            const op = shapeOp({ tool, start: s, end: d, base });
+            if (op) pushOp(op);
           }
         }
       });

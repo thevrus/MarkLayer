@@ -43,7 +43,9 @@ export function useAreaMarkup(): AreaMarkupState {
     const style = () => ({ color: color.value, lineWidth: lineWidth.value });
     const preview = () => {
       const g = gesture.current;
-      live.value = g ? markupOp({ tool: g.tool, points: g.points, shift: g.shift, style: style() }) : null;
+      live.value = g
+        ? markupOp({ tool: g.tool, points: g.points, shift: g.shift, style: style(), preview: true })
+        : null;
     };
     return {
       tool,
