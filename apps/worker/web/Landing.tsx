@@ -152,9 +152,9 @@ export function Landing() {
         <main>
           <div class="mx-auto w-full max-w-page px-6 sm:px-10">
             {/* The hero owns the fold: nav plus this section is exactly one screen. */}
-            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-start pt-[clamp(96px,11vw,150px)] pb-20 text-center sm:pb-40">
-              {/* The sky: a dusk ridge, dithered to pixels, running the width of the
-                  page behind the nav and dissolving into white before the headline. */}
+            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-start pt-[clamp(96px,11vw,150px)] [@media(max-height:820px)]:pt-24 pb-20 text-center sm:pb-40">
+              {/* The sky: a dusk ridge behind the nav and the white headline, running the
+                  width of the page and dissolving into white before the URL field. */}
               <div id="lp-sky-top" class="pointer-events-none absolute inset-x-0 top-0 h-[200px]" aria-hidden="true" />
               <div class="lp-sky -z-1" aria-hidden="true">
                 <img

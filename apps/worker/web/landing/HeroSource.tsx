@@ -84,14 +84,14 @@ export function HeroSource() {
       <Tabs.List
         activateOnFocus
         aria-label="What to annotate"
-        className="lp-fade-up relative mt-10 grid grid-cols-3 rounded-full bg-ml-fg/5 p-1"
+        className="lp-fade-up relative mt-10 grid grid-cols-3 rounded-full bg-white/85 p-1 shadow-(--ds-shadow-border-small) backdrop-blur-sm"
         style={{ animationDelay: '0.15s' }}
       >
         {SOURCES.map(({ id, label }) => (
           <Tabs.Tab
             key={id}
             value={id}
-            className="relative z-1 h-8 w-24 cursor-pointer rounded-full border-none bg-transparent font-ui text-ui-lg font-medium tracking-ui text-ml-fg/60 transition-colors duration-200 hover:text-ml-fg data-active:text-ml-fg"
+            className="relative z-1 h-8 w-24 cursor-pointer rounded-full border-none bg-transparent font-ui text-ui-lg font-medium tracking-ui text-ml-fg/70 transition-colors duration-200 hover:text-ml-fg data-active:text-ml-fg"
           >
             {label}
           </Tabs.Tab>
