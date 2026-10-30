@@ -1,6 +1,7 @@
 import { type CommentPriority, cn, normalizeSuggestion, type TargetElement } from '@marklayer/types';
 import { nanoid } from 'nanoid';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { reprojectRects } from '../lib/anchor';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { CardHold, useHoldLatch } from '../lib/card-hold';
@@ -28,8 +29,11 @@ import {
   selections,
   setOpStatus,
   signedBy,
+  toolEditsText,
 } from '../lib/state';
+import { isTextEditing, startTextEdit } from '../lib/text-edit';
 import type { SelectionOp, SelectionRect } from '../lib/types';
+import { BatchSwitch } from './BatchSwitch';
 import { CancelButton } from './CancelButton';
 import { TriageSection } from './CommentTriage';
 import { MentionText } from './MentionText';
@@ -47,6 +51,8 @@ interface PopoverState {
   target: TargetElement | undefined;
   /** Opened by the selection alone rather than by arming the selection tool. */
   auto: boolean;
+  /** Pre-filled replacement, set when the text was edited in place. */
+  suggestion?: string;
 }
 
 function SelectionHighlight({ op }: { op: SelectionOp }) {
@@ -209,10 +215,19 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   );
 }
 
-function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverState & { onClose: () => void }) {
+function SelectionPopover({
+  x,
+  y,
+  text,
+  rects,
+  target,
+  auto,
+  suggestion: initial,
+  onClose,
+}: PopoverState & { onClose: () => void }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
-  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<string | null>(initial ?? null);
   const { mentionProps, mentions } = useMentions();
 
   const commit = (save: boolean) => {
@@ -235,6 +250,16 @@ function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverS
         captureViewport: { width: window.innerWidth, height: window.innerHeight },
       };
       pushOp(op);
+      track('selection_committed', {
+        auto,
+        has_note: Boolean(comment),
+        has_suggestion: Boolean(op.suggestion),
+        has_priority: Boolean(priority),
+        mentions: op.mentions?.length ?? 0,
+        chars: text.length,
+      });
+    } else {
+      track('selection_cancelled', { auto, has_suggestion: suggestion !== null });
     }
     window.getSelection()?.removeAllRanges();
     onClose();
@@ -291,6 +316,7 @@ function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverS
 
       {/* Footer */}
       <div class="flex items-center justify-between px-4 py-2.5">
+        <BatchSwitch />
         <CancelButton onClick={() => commit(false)} />
         <button type="button" onClick={() => commit(true)} class={submitBtn}>
           Save ↵
@@ -298,6 +324,28 @@ function SelectionPopover({ x, y, text, rects, target, auto, onClose }: PopoverS
       </div>
     </div>
   );
+}
+
+/** The popover at the end of the selected text; null when there are no rects to place it by. */
+function popoverAt({
+  text,
+  rects,
+  el,
+  auto,
+  suggestion,
+}: Omit<PopoverState, 'x' | 'y' | 'target'> & { el: Element | null }): PopoverState | null {
+  const first = rects[0];
+  const last = rects[rects.length - 1];
+  if (!first || !last) return null;
+  return {
+    x: last.x + last.width,
+    y: last.y + last.height,
+    text,
+    rects,
+    target: el ? captureTarget({ el, anchor: { x: first.x, y: first.y }, selectedText: text }) : undefined,
+    auto,
+    suggestion,
+  };
 }
 
 export function SelectionLayer() {
@@ -310,7 +358,7 @@ export function SelectionLayer() {
   // Every selection tool qualifies, not just `selection`, so highlighting a
   // sentence offers to annotate it without a trip to the toolbar first.
   const onMouseUp = useCallback((e: MouseEvent) => {
-    if (!selectionCaptureArmed.value) return;
+    if (!selectionCaptureArmed.value || isTextEditing()) return;
     // Retargeted to the shadow host for anything inside our own UI, so this also
     // covers a mouseup that finished inside this very popover.
     if (e.target instanceof Element && isExtensionElement(e.target)) return;
@@ -320,7 +368,7 @@ export function SelectionLayer() {
     const auto = activeTool.value !== 'selection';
     requestAnimationFrame(() => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) return;
+      if (!sel || sel.isCollapsed || isTextEditing()) return;
 
       const text = sel.toString();
       if (!text.trim()) return;
@@ -343,34 +391,43 @@ export function SelectionLayer() {
 
       // Snapshot the enclosing element now — once the popover textarea takes
       // focus the user's selection collapses and we lose this context.
-      const range0 = sel.getRangeAt(0);
-      const ancestor = range0.commonAncestorContainer;
-      const targetEl: Element | null =
-        ancestor.nodeType === Node.ELEMENT_NODE ? (ancestor as Element) : ancestor.parentElement;
+      const ancestor = sel.getRangeAt(0).commonAncestorContainer;
+      const el = ancestor instanceof Element ? ancestor : ancestor.parentElement;
       // A selection that lives in our own chrome — an annotation's hover card, the
       // toolbar — is not page copy, whatever the mouseup landed on.
-      if (isExtensionElement(targetEl)) return;
+      if (isExtensionElement(el)) return;
+      const next = popoverAt({ text, rects, el, auto });
+      if (next) setPopover(next);
+    });
+  }, []);
 
-      const firstRect = rects[0];
-      const lastRect = rects[rects.length - 1];
-      if (!firstRect || !lastRect) return;
-      setPopover({
-        x: lastRect.x + lastRect.width,
-        y: lastRect.y + lastRect.height,
-        text,
-        rects,
-        target: targetEl
-          ? captureTarget({ el: targetEl, anchor: { x: firstRect.x, y: firstRect.y }, selectedText: text })
-          : undefined,
-        auto,
-      });
+  // Double-click edits the text in place; the result opens the usual popover with
+  // the replacement filled in, so nothing is posted until Save.
+  const onDblClick = useCallback((e: MouseEvent) => {
+    if (!selectionCaptureArmed.value || !toolEditsText(activeTool.value)) return;
+    const el = e.target instanceof Element ? e.target : null;
+    if (!el || isExtensionElement(el)) return;
+    startTextEdit({
+      el,
+      x: e.clientX,
+      y: e.clientY,
+      onDone: (r) => {
+        if (r) track('selection_text_edited');
+        const next =
+          r && popoverAt({ text: r.text, rects: r.rects, el: r.target, auto: false, suggestion: r.suggestion });
+        if (next) setPopover(next);
+      },
     });
   }, []);
 
   useEffect(() => {
     window.addEventListener('mouseup', onMouseUp);
-    return () => window.removeEventListener('mouseup', onMouseUp);
-  }, [onMouseUp]);
+    window.addEventListener('dblclick', onDblClick, true);
+    return () => {
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('dblclick', onDblClick, true);
+    };
+  }, [onMouseUp, onDblClick]);
 
   return (
     <div class={cn(MARKER_LAYER, 'pointer-events-none')}>

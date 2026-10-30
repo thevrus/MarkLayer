@@ -3,6 +3,7 @@ import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
+import { track } from '../lib/analytics';
 import { submitBtn, textareaBareCls } from '../lib/buttons';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
@@ -11,7 +12,9 @@ import type { RecorderKind } from '../lib/recorder';
 import { color, commentCounter, getCommentMeta, lineWidth, patchOp, signedBy } from '../lib/state';
 import type { CommentOp } from '../lib/types';
 import { AttachButton, AttachmentThumbs, useAttachments } from './AttachmentPicker';
+import { BatchSwitch } from './BatchSwitch';
 import { ModalSheet } from './BottomSheet';
+import { DictateButton } from './DictateButton';
 import { MentionTextarea, useMentions } from './MentionTextarea';
 import { PriorityPicker } from './PriorityPicker';
 import { Tooltip } from './Tooltip';
@@ -47,6 +50,8 @@ interface DraftProps {
   };
 }
 
+const CARD_WIDTH = 360;
+
 const noUpload = async (): Promise<null> => null;
 
 type Draft = ReturnType<typeof useCommentDraft>;
@@ -54,19 +59,19 @@ type Draft = ReturnType<typeof useCommentDraft>;
 /** The comment being written, independent of the surface it is written on. */
 function useCommentDraft({ at, capture, push, onClose, media }: DraftProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
-  /** Mirrors the uncontrolled field so Post can disable itself while there is nothing to post. */
-  const typed = useSignal(false);
+  /** Mirrors the uncontrolled field so Post and dictation can react to what is typed. */
+  const text = useSignal('');
   const num = commentCounter.value + 1;
   const priority = useSignal<CommentPriority | undefined>(undefined);
   const { mentionProps, mentions } = useMentions();
   const picker = useAttachments({ upload: media?.upload ?? noUpload, pending: media?.snapshot });
   const slot = useSignal<RecorderKind | null>(null);
   // A transcript is a draft: it lands in the box to be edited, after anything already typed.
-  const onText = (text: string) => {
+  const onText = (heard: string) => {
     const ta = taRef.current;
-    if (!ta || !text) return;
-    ta.value = ta.value.trim() ? `${ta.value.trim()} ${text}` : text;
-    typed.value = true;
+    if (!ta || !heard) return;
+    ta.value = ta.value.trim() ? `${ta.value.trim()} ${heard}` : heard;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
     ta.focus();
   };
   const voice = useVoiceNote({
@@ -83,7 +88,7 @@ function useCommentDraft({ at, capture, push, onClose, media }: DraftProps) {
     onText,
   });
   const recording = slot.value !== null;
-  const postable = typed.value || picker.picked > 0 || voice.id.value !== null || video.id.value !== null;
+  const postable = text.value.trim() !== '' || picker.picked > 0 || voice.id.value !== null || video.id.value !== null;
   /** Post was pressed while an upload was still landing; the comment goes up the moment it does. */
   const posting = useSignal(false);
 
@@ -96,6 +101,15 @@ function useCommentDraft({ at, capture, push, onClose, media }: DraftProps) {
       posting.value = picker.uploading && !picker.capturing;
       const attachments = await picker.settled();
       const id = nanoid();
+      const mentioned = mentions();
+      track('comment_submitted', {
+        chars: txt?.length ?? 0,
+        has_attachment: attachments.length > 0,
+        has_voice: voice.id.value !== null,
+        has_video: video.id.value !== null,
+        has_priority: priority.value !== undefined,
+        mentions: mentioned?.length ?? 0,
+      });
       // The screenshot lands after the comment: a Post held for a capture felt broken.
       picker.late().then((shot) => {
         if (shot) patchOp({ opId: id, patch: { attachments: [...attachments, shot] } });
@@ -113,7 +127,7 @@ function useCommentDraft({ at, capture, push, onClose, media }: DraftProps) {
         ...signedBy(),
         status: 'open',
         priority: priority.value,
-        mentions: mentions(),
+        mentions: mentioned,
         attachments: attachments.length ? attachments : undefined,
         voice: voice.id.value ?? undefined,
         video: video.id.value ?? undefined,
@@ -126,7 +140,7 @@ function useCommentDraft({ at, capture, push, onClose, media }: DraftProps) {
 
   return {
     taRef,
-    typed,
+    text,
     num,
     priority,
     mentionProps,
@@ -143,7 +157,7 @@ function useCommentDraft({ at, capture, push, onClose, media }: DraftProps) {
 
 /** The field, with the pin's number leading the text like an avatar, so no header is needed. */
 function ComposerField({ draft }: { draft: Draft }) {
-  const { taRef, typed, num, mentionProps, picker, media, voice, video, commit } = draft;
+  const { taRef, text, num, mentionProps, picker, media, voice, video, commit } = draft;
   return (
     <div class="flex items-start gap-2.5 px-3 pt-3">
       <div
@@ -162,7 +176,7 @@ function ComposerField({ draft }: { draft: Draft }) {
           placeholder="Leave a comment…"
           rows={1}
           onInput={(e) => {
-            typed.value = e.currentTarget.value.trim() !== '';
+            text.value = e.currentTarget.value;
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -189,18 +203,20 @@ function ComposerField({ draft }: { draft: Draft }) {
 
 /** The row under the field. Each surface composes it: tools on the left, then whatever it puts on the right. */
 function ComposerRow({ children }: { children: ComponentChildren }) {
-  return <div class="flex items-center gap-0.5 px-2 pt-2 pb-2">{children}</div>;
+  return <div class="flex flex-wrap items-center gap-y-1 gap-x-0.5 px-2 pt-2 pb-2">{children}</div>;
 }
 
 /** Bare marks with tooltips, so the row never wraps into a second line. */
 function ComposerTools({ draft }: { draft: Draft }) {
-  const { priority, picker, media, voice, video } = draft;
+  const { taRef, priority, picker, media, voice, video } = draft;
   return (
     <>
       {media && <AttachButton attachments={picker} />}
       {media?.voice && <VoiceButton voice={voice} />}
       {media?.video && <VideoButton video={video} />}
       <PriorityPicker bare value={priority.value} onChange={(p) => (priority.value = p)} class="ml-1" />
+      <BatchSwitch />
+      <DictateButton field={taRef} />
     </>
   );
 }
@@ -209,8 +225,11 @@ function ComposerCancel({ draft }: { draft: Draft }) {
   return (
     <button
       type="button"
-      onClick={() => draft.commit(false)}
-      class={cn(geist.ctlSm, geist.ctlIdle, 'ml-auto mr-1 w-auto px-2 text-ui font-medium')}
+      onClick={() => {
+        track('comment_cancelled', { had_text: draft.text.value.trim() !== '' });
+        draft.commit(false);
+      }}
+      class={cn(geist.ctlSm, geist.ctlIdle, 'mr-1 w-auto px-2 text-ui font-medium')}
     >
       Cancel
       <Tooltip text="Esc" />
@@ -275,19 +294,19 @@ export function CommentPopover({
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, []);
 
-  const left = Math.min(anchorAt.x + 16, innerWidth - 364);
+  const left = Math.min(anchorAt.x + 16, innerWidth - CARD_WIDTH - 4);
 
   return (
     <div
       class={cn(
-        'fixed z-2147483647',
+        'fixed z-2147483647 pointer-events-auto',
         'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
         geist.surface,
         glass.font,
-        'overflow-hidden w-[360px]',
+        'overflow-hidden',
       )}
       ref={panelRef}
-      style={{ left: Math.max(4, left), top }}
+      style={{ left: Math.max(4, left), top, width: CARD_WIDTH }}
       role="dialog"
       aria-label="New comment"
       onClick={(e) => e.stopPropagation()}
@@ -302,13 +321,15 @@ export function CommentPopover({
       <ComposerField draft={draft} />
       <ComposerRow>
         <ComposerTools draft={draft} />
-        <ComposerCancel draft={draft} />
-        <ComposerSubmit draft={draft}>
-          Post
-          <span class="text-ui leading-none opacity-60" aria-hidden="true">
-            ↵
-          </span>
-        </ComposerSubmit>
+        <div class="ml-auto flex items-center">
+          <ComposerCancel draft={draft} />
+          <ComposerSubmit draft={draft}>
+            Post
+            <span class="text-ui leading-none opacity-60" aria-hidden="true">
+              ↵
+            </span>
+          </ComposerSubmit>
+        </div>
       </ComposerRow>
     </div>
   );
