@@ -495,7 +495,9 @@ export function AreaLayer() {
         />
       )}
 
-      {pending.value && <AreaMarkupSurface rect={pending.value} markup={markup} />}
+      {pending.value && (markup.tool.value || markup.ops.value.length > 0) && (
+        <AreaMarkupSurface rect={pending.value} markup={markup} />
+      )}
 
       {pending.value && (
         <AreaPopover rect={pending.value} onCommit={commit} onCancel={cancel}>

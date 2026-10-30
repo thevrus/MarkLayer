@@ -27,6 +27,7 @@ export default defineContentScript({
     });
 
     let zoomWatch: MutationObserver | undefined;
+    let zoomFrame = 0;
 
     const ui = await createShadowRootUi(ctx, {
       name: 'mark-layer',
@@ -72,7 +73,14 @@ export default defineContentScript({
             host.style.zoom = z > 0 ? String(1 / z) : '';
           };
           unzoom();
-          zoomWatch = new MutationObserver(unzoom);
+          // One style read per frame: pages that churn <html> classes would force a recalc per batch.
+          zoomWatch = new MutationObserver(() => {
+            if (zoomFrame) return;
+            zoomFrame = requestAnimationFrame(() => {
+              zoomFrame = 0;
+              unzoom();
+            });
+          });
           zoomWatch.observe(document.documentElement, { attributeFilter: ['style', 'class'] });
         }
         // Named rather than matched by shape: style.css styles `.ml-root`, and
@@ -86,6 +94,7 @@ export default defineContentScript({
       },
       onRemove(container) {
         zoomWatch?.disconnect();
+        cancelAnimationFrame(zoomFrame);
         portalContainer.value = null;
         if (container) render(null, container);
       },
