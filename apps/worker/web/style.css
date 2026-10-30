@@ -786,10 +786,12 @@
   background: #fff;
   box-shadow: var(--ds-shadow-border-small);
 }
-/* A card is a grey field on the white page, and the demo sits straight on it:
-   no inner frame, no shadow. The card clips, so a demo may run off its edge. */
+/* A card is a field on the white page, and the demo sits straight on it: no
+   inner frame, no shadow. The card clips, so a demo may run off its edge. The
+   field is a tint of the mark's violet at the lowest chroma that still reads as
+   a colour: flat grey here read as dead. */
 .lp-card {
-  background: #f4f4f4;
+  background: oklch(0.966 0.008 300);
   border-radius: 1.25rem;
 }
 .lp-card-art {
@@ -810,7 +812,7 @@ a.lp-card {
   transition: background-color 160ms ease;
 }
 a.lp-card:hover {
-  background: #ececec;
+  background: oklch(0.945 0.012 300);
 }
 
 /* ── The nav ──

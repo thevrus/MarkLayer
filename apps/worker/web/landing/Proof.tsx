@@ -1,4 +1,4 @@
-import { ThreadDisc, ThreadHeader, threadCard } from '@ext/components/ThreadCard';
+import { ThreadDisc, ThreadHeader } from '@ext/components/ThreadCard';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { getCommentMeta } from '@ext/lib/state';
@@ -25,6 +25,9 @@ const TEXT_CLS = 'min-h-[4.25rem]';
 const TITLE_CLS = 'm-0 font-ui text-title font-semibold tracking-ui text-ml-fg text-balance';
 const DESC_CLS = 'm-0 mt-2 text-lede leading-prose text-ml-fg/55 text-pretty';
 const CHROME_CLS = 'font-ui text-ui-lg text-(--ds-gray-1000)';
+/* The viewer's thread card shell without its floating shadow: on the card's
+   field, resting on a surface, the bloom it casts over a page read as a smear. */
+const demoCard = 'rounded-xl bg-(--ds-background-100) shadow-(--ds-shadow-border-small)';
 
 /**
  * A note left in the margin with the pen and text tools: a stroked arrow and a
@@ -109,7 +112,7 @@ const REPLY: CommentOp = {
 
 function ThreadArt() {
   return (
-    <div class={cn(threadCard, 'w-full max-w-[320px]', glass.font)}>
+    <div class={cn(demoCard, 'w-full max-w-[320px]', glass.font)}>
       <ThreadHeader label="1" color="#f43f5e" author="Marcus" ts={THREAD_TS} priority="high" />
       <p class="m-0 px-3.5 pb-3 text-ui leading-body text-(--ds-gray-1000)">
         The title should name the standard, not the practice. Can this say “Web annotation standard”?
@@ -132,20 +135,35 @@ function ThreadArt() {
   );
 }
 
-/** The share field as the share popover draws it: the link, mono because it is data, and its copy control. */
+/** The share popover, as it opens: the link, who may write, an invite, and who is here now. */
 function ShareArt() {
   return (
-    <div class={cn('mx-auto w-full max-w-[360px]', glass.font)}>
-      <div class={cn(geist.field, 'flex items-center gap-1 pr-1 pl-2.5')}>
-        <span class="min-w-0 flex-1 truncate font-mono text-meta text-(--ds-gray-1000)">
-          marklayer.app/s/{DEMO_ROOM.id}
-        </span>
-        <CopyControl copied={false} onClick={() => {}} size={13} strokeWidth={1.75} class={geist.ctlXs} />
+    <div class={cn(demoCard, 'w-full max-w-[380px]', glass.font)}>
+      <div class="flex flex-col gap-2.5 px-3.5 py-3">
+        <p class={cn(geist.sectionLabel, 'm-0')}>Share link</p>
+        <div class={cn(geist.field, 'flex items-center gap-1 pr-1 pl-2.5')}>
+          <span class="min-w-0 flex-1 truncate font-mono text-meta text-(--ds-gray-1000)">
+            marklayer.app/s/{DEMO_ROOM.id}
+          </span>
+          <CopyControl copied={false} onClick={() => {}} size={13} strokeWidth={1.75} class={geist.ctlXs} />
+        </div>
+        <div class="grid grid-cols-2 gap-0.5 rounded-lg bg-(--ds-gray-alpha-100) p-0.5 text-meta font-medium">
+          <span class="rounded-md bg-white px-2.5 py-1.5 text-center text-(--ds-gray-1000) shadow-(--ds-shadow-border-small)">
+            Can comment
+          </span>
+          <span class="px-2.5 py-1.5 text-center text-(--ds-gray-900)">View only</span>
+        </div>
       </div>
-      <p class="m-0 mt-2.5 text-meta text-(--ds-gray-900)">
-        Anyone with the link can comment. No account on either end.
-      </p>
-      <div class="mt-4 flex items-center gap-2">
+      <div class={cn(geist.divider, 'mx-3')} />
+      <div class="flex flex-col gap-2.5 px-3.5 py-3">
+        <p class={cn(geist.sectionLabel, 'm-0')}>Invite by email</p>
+        <div class={cn(geist.field, 'flex items-center gap-1 pr-1 pl-2.5')}>
+          <span class="min-w-0 flex-1 truncate text-meta text-(--ds-gray-700)">dana@client.com</span>
+          <span class="rounded-sm bg-(--ds-gray-1000) px-2 py-0.5 text-meta font-medium text-white">Send</span>
+        </div>
+      </div>
+      <div class={cn(geist.divider, 'mx-3')} />
+      <div class="flex items-center gap-2 px-3.5 py-3">
         <span class="flex -space-x-1.5">
           {['#3b82f6', '#f43f5e', '#8b5cf6'].map((c, i) => (
             <span key={c} class="rounded-full ring-2 ring-white">
@@ -153,17 +171,17 @@ function ShareArt() {
             </span>
           ))}
         </span>
-        <span class="text-meta text-(--ds-gray-900)">3 online</span>
+        <span class="text-meta text-(--ds-gray-900)">Alice, Marcus and Yuki are here</span>
       </div>
     </div>
   );
 }
 
-/** The device switch from the viewer's bar, and the same pin at phone width. */
+/** The device switch from the viewer's bar, and the same page at phone width with its marks still on their words. */
 function DeviceArt() {
   const modes = ['desktop', 'tablet', 'mobile'] as const;
   return (
-    <div class={cn('mx-auto w-full max-w-[320px]', glass.font)}>
+    <div class={cn('mx-auto flex w-full max-w-[380px] flex-col items-center', glass.font)}>
       <div class="inline-flex items-center gap-0.5 rounded-lg bg-(--ds-gray-alpha-100) p-0.5">
         {modes.map((m) => {
           const Icon = DEVICE_ICONS[m];
@@ -183,41 +201,61 @@ function DeviceArt() {
           );
         })}
       </div>
-      <div class="relative mt-4 w-[180px] rounded-[18px] border-[6px] border-(--ds-gray-1000) bg-white px-3 pt-4 pb-10">
-        <p class="m-0 font-serif text-heading text-(--ds-gray-1000)">Web annotation</p>
-        <span class="mt-1.5 block h-1.5 w-20 rounded-full bg-(--ds-gray-alpha-200)" />
-        <span class="mt-1.5 block h-1.5 w-28 rounded-full bg-(--ds-gray-alpha-100)" />
-        <span class="mt-1.5 block h-1.5 w-24 rounded-full bg-(--ds-gray-alpha-100)" />
+      <div class="relative mt-5 w-[260px] rounded-[26px] border-[7px] border-(--ds-gray-1000) bg-white px-4 pt-6 pb-16 font-serif text-(--ds-gray-1000)">
+        <p class="m-0 text-title">Web annotation</p>
+        <p class="m-0 mt-3 font-ui text-ui leading-body">
+          <mark class="rounded-sm px-0.5 text-inherit" style={{ background: '#f9a8d4' }}>
+            Web annotation can refer to online annotations
+          </mark>{' '}
+          of web resources such as web pages or parts of them, or a set of W3C standards developed for this purpose.
+        </p>
+        <p class="m-0 mt-2 font-ui text-ui leading-body text-(--ds-gray-900)">
+          The term can also refer to the creations of annotations on the World Wide Web and it has been used in this
+          sense for the annotation tool INCEpTION.
+        </p>
         <span
-          class="absolute top-[26px] right-[22px] grid size-6 place-items-center rounded-full text-micro font-semibold text-white shadow-[0_0_0_2px_#fff,0_1px_2px_oklch(0_0_0/0.25)]"
+          class="absolute top-[22px] right-[18px] grid size-7 place-items-center rounded-full font-ui text-meta font-semibold text-white shadow-[0_0_0_2px_#fff,0_1px_2px_oklch(0_0_0/0.25)]"
           style={{ background: '#f43f5e' }}
         >
           1
+        </span>
+        <span
+          class="absolute top-[118px] left-[10px] grid size-7 place-items-center rounded-full font-ui text-meta font-semibold text-white shadow-[0_0_0_2px_#fff,0_1px_2px_oklch(0_0_0/0.25)]"
+          style={{ background: '#8b5cf6' }}
+        >
+          2
         </span>
       </div>
     </div>
   );
 }
 
-/** The thread's context block as the panel shows it, filled in from this visit. */
+/** The thread's context block as the panel shows it, filled in from this visit, with the console beside it. */
 function ContextArt() {
   const meta = getCommentMeta();
   const env = [meta.browser, meta.os, `${window.innerWidth} × ${window.innerHeight}`].filter(Boolean);
   return (
-    <div class={cn(threadCard, 'w-full max-w-[360px]', glass.font)}>
-      <div class="border-b border-(--ds-gray-alpha-400) px-4 py-3">
+    <div class={cn(demoCard, 'grid w-full md:grid-cols-2', glass.font)}>
+      <div class="border-b border-(--ds-gray-alpha-400) px-4 py-3 md:border-r md:border-b-0">
         <p class={cn(geist.sectionLabel, 'm-0')}>Context</p>
         <p class="m-0 mt-1.5 truncate text-ui text-(--ds-gray-1000)">/wiki/Web_annotation</p>
         <p class="m-0 mt-0.5 text-meta text-(--ds-gray-900) tabular-nums">{env.join(' · ')}</p>
         <p class="m-0 mt-1 truncate font-mono text-meta text-(--ds-gray-900)">
           h1#firstHeading &gt; span.mw-page-title-main
         </p>
+        <p class={cn(geist.sectionLabel, 'm-0 mt-4')}>Element</p>
+        <p class="m-0 mt-1.5 font-mono text-meta text-(--ds-gray-1000)">“Web annotation” · 236×36 · #202122</p>
+        <p class="m-0 mt-0.5 font-mono text-meta text-(--ds-gray-900)">Linux Libertine, Georgia · 28.8px</p>
       </div>
       <div class="px-4 py-3">
-        <p class={cn(geist.sectionLabel, 'm-0')}>1 page error</p>
+        <p class={cn(geist.sectionLabel, 'm-0')}>2 page errors</p>
         <p class="m-0 mt-2 font-mono text-meta text-(--ds-gray-1000) wrap-break-word">
           TypeError: Cannot read properties of undefined (reading 'total')
           <span class="block truncate text-(--ds-gray-900)">cart.js:214</span>
+        </p>
+        <p class="m-0 mt-2 font-mono text-meta text-(--ds-gray-1000) wrap-break-word">
+          Failed to load resource: 404
+          <span class="block truncate text-(--ds-gray-900)">/images/hero@2x.webp</span>
         </p>
       </div>
     </div>
@@ -256,14 +294,14 @@ export function ProofGrid() {
         <Caption title="One link is the whole setup.">
           They open it in any browser. Nothing to install, no account.
         </Caption>
-        <Art class="h-[340px] justify-start">
+        <Art class="h-[340px] justify-start pb-0">
           <ShareArt />
         </Art>
       </Card>
 
       <Card class="lg:col-span-4">
         <Caption title="Marks survive a reflow.">Preview at phone width. The comment stays on its element.</Caption>
-        <Art class="h-[300px] justify-start pb-0">
+        <Art class="h-[320px] justify-start pb-0">
           <DeviceArt />
         </Art>
       </Card>
@@ -272,7 +310,7 @@ export function ProofGrid() {
         <Caption title="It remembers what they were looking at.">
           Browser, screen, page and the console come attached. Nobody has to ask.
         </Caption>
-        <Art class="h-[300px] justify-start pb-0">
+        <Art class="h-[320px] justify-start pb-0">
           <ContextArt />
         </Art>
       </Card>

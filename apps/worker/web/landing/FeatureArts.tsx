@@ -1,5 +1,6 @@
 import { cn } from '@marklayer/types';
 import { Check, Copy, Download, Mic } from 'lucide-preact';
+import { CursorArrow } from '../CursorArrow';
 
 /* The seeded pin's purple, so every mark the page leaves on itself is one person's. */
 const MARK = '#8b5cf6';
@@ -52,7 +53,7 @@ function VoiceArt() {
 /** The call: the bar, then everyone's tile, the talker's ringed. The tiles run off the card. */
 function CallArt() {
   return (
-    <div class="mx-auto w-full max-w-[520px]">
+    <div class="w-full">
       <VoiceArt />
       <div class="mt-3 grid grid-cols-3 gap-3" aria-hidden="true">
         {PEOPLE.map((p, i) => (
@@ -85,11 +86,32 @@ function FollowArt() {
         </span>
         <span class="rounded-md bg-(--ds-gray-alpha-100) px-2 py-1 text-ui font-medium">Stop</span>
       </div>
-      <div class="mt-3 flex items-center justify-between rounded-lg px-3 py-2 font-ui text-ui text-(--ds-gray-700)">
-        <span>2 following you</span>
-        <span class="flex -space-x-1.5">
-          <Avatar {...PEOPLE[1]} size={18} />
-          <Avatar {...PEOPLE[2]} size={18} />
+      {/* Alice's viewport, ringed in her colour, with her cursor on the page; everyone following sees this frame. */}
+      <div
+        class="relative mt-3 h-[200px] overflow-hidden rounded-xl bg-white p-5 font-ui outline-2"
+        style={{ outlineColor: PEOPLE[0].color }}
+        aria-hidden="true"
+      >
+        <span class="block h-3 w-40 rounded-full bg-(--ds-gray-alpha-200)" />
+        <span class="mt-3 block h-2 w-full rounded-full bg-(--ds-gray-alpha-100)" />
+        <span class="mt-2 block h-2 w-[88%] rounded-full bg-(--ds-gray-alpha-100)" />
+        <span class="mt-2 block h-2 w-[70%] rounded-full bg-(--ds-gray-alpha-100)" />
+        <span class="mt-5 inline-block h-9 w-28 rounded-md bg-(--ds-gray-1000)" />
+        <span class="absolute top-[108px] left-[150px] flex flex-col items-start">
+          <CursorArrow color={PEOPLE[0].color} />
+          <span
+            class="-mt-2 ml-5 rounded-full px-2 py-0.5 text-micro font-semibold text-white"
+            style={{ background: PEOPLE[0].color }}
+          >
+            Alice
+          </span>
+        </span>
+        <span class="absolute right-3 bottom-3 flex items-center gap-1.5 text-mini text-(--ds-gray-700)">
+          <span class="flex -space-x-1.5">
+            <Avatar {...PEOPLE[1]} size={16} />
+            <Avatar {...PEOPLE[2]} size={16} />
+          </span>
+          following
         </span>
       </div>
     </div>
