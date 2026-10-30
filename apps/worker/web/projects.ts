@@ -11,6 +11,7 @@ import {
 import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { capture } from './analytics';
+import type { UploadKind } from './landing/useLandingUpload';
 
 export interface ProjectPage {
   id: string;
@@ -123,12 +124,20 @@ export const withScheme = (url: string): string => unwrapSafeLink(/^https?:\/\//
  * - In single-share mode (`/s/:id`): convert to a project bundling the current + new page, redirect to `/p/:projectId`.
  * - On landing (no context): create a fresh `/s/:id` share for the new URL.
  */
-export async function navigateTo({ url, source = 'viewer' }: { url: string; source?: string }) {
+export async function navigateTo({
+  url,
+  source = 'viewer',
+  kind,
+}: {
+  url: string;
+  source?: string;
+  kind?: UploadKind;
+}) {
   const pid = projectId.value;
   // Which of the three shapes a session takes — a first page, a second page that
   // promotes a share into a project, another page on an existing project — and
   // what asked for it. Counted here because this is where every entry point lands.
-  capture('page_opened', { mode: pid ? 'project_page' : annotationId.value ? 'promoted' : 'new', source });
+  capture('page_opened', { mode: pid ? 'project_page' : annotationId.value ? 'promoted' : 'new', source, kind });
   if (pid) {
     if (projectLoading.value) return;
     projectLoading.value = true;

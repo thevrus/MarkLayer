@@ -70,7 +70,8 @@ export function useLandingUpload(): {
     if (uploading.value) return;
     // The field swaps to the file's kind while it uploads, hiding whatever had focus.
     const focused = document.activeElement;
-    uploading.value = kindOf(file);
+    const kind = kindOf(file);
+    uploading.value = kind;
     try {
       const res = await fetch('/f', { method: 'POST', body: file });
       if (res.status === 413) {
@@ -84,7 +85,7 @@ export function useLandingUpload(): {
       if (!res.ok) throw new Error(String(res.status));
       const stored = uploadResponseSchema.safeParse(await res.json());
       if (!stored.success) throw new Error('no url');
-      navigateTo({ url: stored.data.url, source: 'hero_upload' });
+      navigateTo({ url: stored.data.url, source: 'hero_upload', kind });
     } catch {
       toast('Could not upload that file', { type: 'error' });
     } finally {
