@@ -726,45 +726,76 @@
    pulled back half a viewport), tucked up under the sticky nav so it starts at
    the page's top edge. The image's own pixels are masked, not overlaid: a long
    eased fade with many stops, so there is no line where the sky stops and the
-   page starts. `pixelated` keeps the dither's dots square as the band scales. */
+   page starts. */
 .lp-sky {
   position: absolute;
   top: -3.5rem;
   left: 50%;
   width: 100vw;
-  height: clamp(300px, 36vw, 520px);
+  height: clamp(440px, 44vw, 640px);
   translate: -50% 0;
   pointer-events: none;
   -webkit-mask-image: linear-gradient(
     to bottom,
     rgb(0 0 0) 0%,
-    rgb(0 0 0) 46%,
-    rgb(0 0 0 / 96%) 53%,
-    rgb(0 0 0 / 89%) 60%,
-    rgb(0 0 0 / 78%) 66%,
-    rgb(0 0 0 / 65%) 72%,
-    rgb(0 0 0 / 50%) 78%,
-    rgb(0 0 0 / 35%) 84%,
-    rgb(0 0 0 / 21%) 89%,
-    rgb(0 0 0 / 10%) 93%,
-    rgb(0 0 0 / 3%) 97%,
+    rgb(0 0 0) 58%,
+    rgb(0 0 0 / 96%) 63%,
+    rgb(0 0 0 / 89%) 68%,
+    rgb(0 0 0 / 78%) 73%,
+    rgb(0 0 0 / 65%) 78%,
+    rgb(0 0 0 / 50%) 83%,
+    rgb(0 0 0 / 35%) 87%,
+    rgb(0 0 0 / 21%) 91%,
+    rgb(0 0 0 / 10%) 95%,
+    rgb(0 0 0 / 3%) 98%,
     transparent 100%
   );
   mask-image: linear-gradient(
     to bottom,
     rgb(0 0 0) 0%,
-    rgb(0 0 0) 46%,
-    rgb(0 0 0 / 96%) 53%,
-    rgb(0 0 0 / 89%) 60%,
-    rgb(0 0 0 / 78%) 66%,
-    rgb(0 0 0 / 65%) 72%,
-    rgb(0 0 0 / 50%) 78%,
-    rgb(0 0 0 / 35%) 84%,
-    rgb(0 0 0 / 21%) 89%,
-    rgb(0 0 0 / 10%) 93%,
-    rgb(0 0 0 / 3%) 97%,
+    rgb(0 0 0) 58%,
+    rgb(0 0 0 / 96%) 63%,
+    rgb(0 0 0 / 89%) 68%,
+    rgb(0 0 0 / 78%) 73%,
+    rgb(0 0 0 / 65%) 78%,
+    rgb(0 0 0 / 50%) 83%,
+    rgb(0 0 0 / 35%) 87%,
+    rgb(0 0 0 / 21%) 91%,
+    rgb(0 0 0 / 10%) 95%,
+    rgb(0 0 0 / 3%) 98%,
     transparent 100%
   );
+}
+/* A phone stacks the headline to four lines and the subline to three, so the sky
+   stays solid longer and only starts to dissolve under the subline. */
+@media (max-width: 639px) {
+  .lp-sky {
+    height: 600px;
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      rgb(0 0 0) 0%,
+      rgb(0 0 0) 68%,
+      rgb(0 0 0 / 92%) 73%,
+      rgb(0 0 0 / 78%) 79%,
+      rgb(0 0 0 / 58%) 85%,
+      rgb(0 0 0 / 36%) 90%,
+      rgb(0 0 0 / 16%) 95%,
+      rgb(0 0 0 / 4%) 98%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      rgb(0 0 0) 0%,
+      rgb(0 0 0) 68%,
+      rgb(0 0 0 / 92%) 73%,
+      rgb(0 0 0 / 78%) 79%,
+      rgb(0 0 0 / 58%) 85%,
+      rgb(0 0 0 / 36%) 90%,
+      rgb(0 0 0 / 16%) 95%,
+      rgb(0 0 0 / 4%) 98%,
+      transparent 100%
+    );
+  }
 }
 .lp-sky img {
   display: block;
@@ -772,7 +803,6 @@
   height: 100%;
   object-fit: cover;
   object-position: center bottom;
-  image-rendering: pixelated;
 }
 
 /* The primary call to action: one flat black surface. The hover is a value
@@ -1022,6 +1052,106 @@ button.lp-field:focus-visible {
   /* The wash holds its place while the word is mid-swap at zero opacity, so the
      headline reads as a highlight whose word is changing rather than as a hole. */
   transition: background-color 340ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+/* The same marker on the sky: frosted white instead of grey, so it still reads
+   as a band on a dark field, and the word in it takes the headline's white. */
+.lp-on-sky .lp-mark-hl {
+  background: rgb(255 255 255 / 0.24);
+}
+.ml-force-light .lp-on-sky,
+.ml-force-light .lp-on-sky * {
+  --color-ml-fg: #fff;
+}
+
+/* ── The footer signature wordmark ──
+
+   Full-bleed, centred, cut at about half its cap height and dissolved into the
+   page rather than stopped at a line.
+
+   SIZING. "MarkLayer" set in Geist 500 at -0.03em measures 4.7552x its own
+   font-size (measured in the browser, not guessed), so 21cqw is the size at
+   which the word's ink spans the footer. The footer is the container, not the
+   viewport: `vw` counts a classic scrollbar and clipped the last "r". Keep the
+   two in step: change the weight or the tracking and this number is wrong.
+
+   CENTRING. The ink is sized to fit rather than to overshoot, so there is no
+   overflow to centre. That matters: an overshooting nowrap line does not
+   overhang symmetrically — the engine clamps it to the container's left edge, so
+   an earlier version that bled ~2% past both sides actually sat 26px off centre.
+   With the line inside its box, `text-align: center` is exact, measured at 0px
+   error.
+
+   THE CUT. The font-size lives on the clip, so `em` inside it means the
+   wordmark's own em and every offset below is expressed in the type's terms
+   rather than in magic pixels. With `line-height: 1` Geist's baseline sits
+   0.855em from the top of the line box, its cap height is 0.73em and its
+   x-height about 0.52em — so caps run 0.125em to 0.855em and the lowercase tops
+   only begin at 0.335em. Pulling the span up by 0.125em puts the cap top exactly
+   on the container's top edge.
+
+   The height is set against the x-height, not the cap height, and that is the
+   whole trick. Cutting at 55% of the CAPS looked correct on paper and was wrong
+   on screen: it left M, k, L and the y ascender tall while showing barely a
+   third of a, r, e and r, so the word read as a row of disconnected vertical
+   bars rather than as "MarkLayer". At 0.6em the lowercase letters keep about
+   four fifths of their x-height and the word stays a word, while the mask below
+   dissolves the lower half so it still reads as half-there.
+
+   THE FADE. Twelve stops on an ease-out alpha curve, reaching fully transparent
+   at the clip. A short fade, or one still at partial opacity where the box ends,
+   would put a visible band across the glyphs — which is the failure this is
+   built to avoid. */
+.lp-wordmark-clip {
+  font-size: 21cqw;
+  height: 0.6em;
+  overflow: hidden;
+  text-align: center;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 44%,
+    rgb(0 0 0 / 95%) 52%,
+    rgb(0 0 0 / 87%) 60%,
+    rgb(0 0 0 / 76%) 67%,
+    rgb(0 0 0 / 63%) 73%,
+    rgb(0 0 0 / 49%) 79%,
+    rgb(0 0 0 / 35%) 85%,
+    rgb(0 0 0 / 22%) 90%,
+    rgb(0 0 0 / 11%) 94%,
+    rgb(0 0 0 / 3%) 97%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 44%,
+    rgb(0 0 0 / 95%) 52%,
+    rgb(0 0 0 / 87%) 60%,
+    rgb(0 0 0 / 76%) 67%,
+    rgb(0 0 0 / 63%) 73%,
+    rgb(0 0 0 / 49%) 79%,
+    rgb(0 0 0 / 35%) 85%,
+    rgb(0 0 0 / 22%) 90%,
+    rgb(0 0 0 / 11%) 94%,
+    rgb(0 0 0 / 3%) 97%,
+    transparent 100%
+  );
+}
+
+.lp-wordmark {
+  display: block;
+  margin-top: -0.125em;
+  /* Named, not inherited: the sizing and the cut above are Geist's metrics, and the page voice is not Geist. */
+  font-family: var(--ml-font-ui);
+  font-size: 1em;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-align: center;
+  white-space: nowrap;
+  /* Stronger than the tone it replaced, because the mask takes most of it back;
+     a value tuned to look right unmasked goes invisible once faded. */
+  color: color-mix(in srgb, var(--color-ml-fg) 19%, transparent);
 }
 
 /* Voice activity bars on cursor badges */

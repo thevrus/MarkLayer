@@ -152,17 +152,17 @@ export function Landing() {
         <main>
           <div class="mx-auto w-full max-w-page px-6 sm:px-10">
             {/* The hero owns the fold: nav plus this section is exactly one screen. */}
-            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-start pt-[clamp(180px,27vw,390px)] pb-20 text-center sm:pb-40">
+            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-start pt-[clamp(96px,11vw,150px)] pb-20 text-center sm:pb-40">
               {/* The sky: a dusk ridge, dithered to pixels, running the width of the
                   page behind the nav and dissolving into white before the headline. */}
               <div id="lp-sky-top" class="pointer-events-none absolute inset-x-0 top-0 h-[200px]" aria-hidden="true" />
               <div class="lp-sky -z-1" aria-hidden="true">
                 <img
                   src="/hero-dusk.webp"
-                  srcset="/hero-dusk-sm.webp 1000w, /hero-dusk.webp 2000w"
+                  srcset="/hero-dusk-sm.webp 1300w, /hero-dusk.webp 2600w"
                   sizes="100vw"
-                  width={2000}
-                  height={869}
+                  width={2600}
+                  height={1130}
                   alt=""
                   decoding="async"
                   fetchpriority="high"
@@ -173,7 +173,8 @@ export function Landing() {
 
               {/* Two explicit lines, no `text-balance`: only line two holds the
                   cycling word, so the block's height never changes as it swaps. */}
-              <h1 class="lp-display lp-fade-up text-hero text-ml-fg" style={{ animationDelay: '0.05s' }}>
+              {/* On the sky: white type, and the channel's marker band turns to frosted glass. */}
+              <h1 class="lp-display lp-fade-up lp-on-sky text-hero text-white" style={{ animationDelay: '0.05s' }}>
                 <span class="block">{copy.headlinePrefix}</span>
                 <span class="block">
                   {copy.headlineJoiner} <ChannelCycle /> {copy.headlineSuffix}
@@ -181,7 +182,7 @@ export function Landing() {
               </h1>
 
               <p
-                class="lp-fade-up mt-6 max-w-[48ch] text-intro text-ml-fg/60 text-balance"
+                class="lp-fade-up mt-6 max-w-[48ch] text-intro text-white/80 text-balance"
                 style={{ animationDelay: '0.1s' }}
               >
                 Send one link. Your client comments on the live page. Nothing to install, no account.
@@ -272,16 +273,7 @@ export function Landing() {
               {/* A grid, not `flex-wrap`: wrapping drops the fourth column onto
                   its own row as soon as the links grow, leaving three columns
                   and an orphan off the shared baseline. */}
-              <div class="grid grid-cols-2 gap-x-8 gap-y-9 text-ui sm:grid-cols-[1.4fr_repeat(4,1fr)]">
-                <div class="col-span-2 sm:col-span-1">
-                  <a href="/" class="inline-flex items-center gap-2 no-underline">
-                    <Logo size={22} />
-                    <span class="font-ui text-body font-semibold tracking-brand text-ml-fg">MarkLayer</span>
-                  </a>
-                  <p class="m-0 mt-3 max-w-[24ch] text-ui leading-prose text-ml-fg/60">
-                    Feedback on the live page. Free, open source, nothing to install.
-                  </p>
-                </div>
+              <div class="grid grid-cols-2 gap-x-8 gap-y-9 text-ui sm:grid-cols-4">
                 {FOOTER_COLUMNS.map((col) => (
                   <div key={col.heading}>
                     <p class="m-0 mb-3 text-ui font-semibold tracking-label text-ml-fg">{col.heading}</p>
@@ -381,6 +373,16 @@ export function Landing() {
                   {STATUS_LABEL[systemStatus.value]}
                 </p>
               </div>
+            </div>
+
+            {/* The signature wordmark: full-bleed, cut at roughly half the cap
+                height, dissolving into the page. It sits outside the capped
+                container on purpose: the one element meant to touch both edges.
+                Lifted a little clear of the bottom edge, because the product's
+                own toolbar floats there and swallowed it when flush. `aria-hidden`:
+                the accessible wordmark is the one in the nav. */}
+            <div class="lp-wordmark-clip mt-12 select-none" aria-hidden="true">
+              <span class="lp-wordmark">MarkLayer</span>
             </div>
           </footer>
         </main>
