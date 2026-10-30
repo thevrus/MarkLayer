@@ -12,13 +12,14 @@ const MARK = '#8b5cf6';
    showing a piece of the product, and under it the claim, one step below the
    section head so it never rivals it, with at most one line of support.
    Artifacts speak Geist, because they are the product. */
-const CARD_CLS = 'lp-card relative flex flex-col p-2.5 sm:p-3';
+const CARD_CLS = 'lp-card relative flex flex-col p-5';
 /* The stage takes a fixed height per row and the caption the rest, so every
    title in a row starts on the same line however long its neighbour's copy runs. */
-const ART_CLS = 'lp-card-art relative flex shrink-0 flex-col justify-center overflow-hidden px-5 py-8 sm:px-8 sm:py-10';
-const TEXT_CLS = 'flex-1 px-4 pt-7 pb-4 sm:px-6 sm:pt-8 sm:pb-5';
-const TITLE_CLS = 'lp-display m-0 text-title text-ml-fg text-balance';
-const DESC_CLS = 'm-0 mt-2.5 text-lede leading-prose text-ml-fg/55 text-pretty';
+const ART_CLS =
+  'lp-card-art relative mt-5 flex shrink-0 flex-col justify-center overflow-hidden px-5 py-8 sm:px-8 sm:py-10';
+const TEXT_CLS = 'min-h-[3.75rem]';
+const TITLE_CLS = 'm-0 font-ui text-lede font-semibold tracking-ui text-ml-fg text-balance';
+const DESC_CLS = 'm-0 mt-1.5 text-body leading-prose text-ml-fg/55 text-pretty';
 const CHROME_CLS = 'font-ui text-ui-lg text-(--ds-gray-1000)';
 
 /* Brand marks from simple-icons. Slack and Teams have no
@@ -140,6 +141,7 @@ export function ProblemRow() {
   return (
     <div class="grid gap-4 md:grid-cols-2 sm:gap-5">
       <Card>
+        <Caption title="Make them install something, and they stop." />
         <Art class="h-[300px] px-3 sm:px-8">
           <div class="relative h-48 sm:h-52">
             {GATES.map((g, i) => (
@@ -165,10 +167,10 @@ export function ProblemRow() {
             ))}
           </div>
         </Art>
-        <Caption title="Make them install something, and they stop." />
       </Card>
 
       <Card>
+        <Caption title="So it comes back in four apps, and loses the page." />
         <Art class="h-[300px]">
           <ul class="m-0 flex list-none flex-col gap-2.5 p-0">
             {SCATTER.map((m) => {
@@ -201,7 +203,6 @@ export function ProblemRow() {
             })}
           </ul>
         </Art>
-        <Caption title="So it comes back in four apps, and loses the page." />
       </Card>
     </div>
   );
@@ -244,6 +245,7 @@ export function ProofGrid() {
   return (
     <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-12 sm:gap-5">
       <Card class="lg:col-span-8">
+        <Caption title="Click the page. Say what’s wrong.">The comment stays put, even after the page changes.</Caption>
         <Art class="p-0 sm:p-0">
           {/* A corner of somebody's page, with a thread left on its button. */}
           <div class="px-6 pt-7 pb-8 sm:px-9 sm:pt-9 sm:pb-24">
@@ -283,7 +285,6 @@ export function ProofGrid() {
             </p>
           </div>
         </Art>
-        <Caption title="Click the page. Say what’s wrong.">The comment stays put, even after the page changes.</Caption>
       </Card>
 
       <Card class="items-center justify-center px-6 py-14 text-center lg:col-span-4">
@@ -294,6 +295,7 @@ export function ProofGrid() {
       </Card>
 
       <Card class="lg:col-span-4">
+        <Caption title="Three steps, start to finish." />
         <Art class="h-[260px]">
           <ol class="m-0 list-none divide-y divide-ml-rule p-0">
             {STEPS.map((s, i) => (
@@ -304,10 +306,12 @@ export function ProofGrid() {
             ))}
           </ol>
         </Art>
-        <Caption title="Three steps, start to finish." />
       </Card>
 
       <Card class="lg:col-span-8">
+        <Caption title="It remembers what they were looking at.">
+          Browser, screen and page come attached. Nobody has to ask.
+        </Caption>
         <Art class="h-[260px]">
           <div class="flex flex-wrap items-end gap-x-10 gap-y-5">
             {/* The product's own meta footer, filled in from this visit. */}
@@ -330,9 +334,6 @@ export function ProofGrid() {
             <p class="m-0 max-w-[22ch] text-ui leading-prose text-ml-fg/55">Yours, read from this browser just now.</p>
           </div>
         </Art>
-        <Caption title="It remembers what they were looking at.">
-          Browser, screen and page come attached. Nobody has to ask.
-        </Caption>
       </Card>
     </div>
   );
@@ -435,8 +436,8 @@ export function AgentRow({ moments }: { moments: { title: string; desc: string }
         const ArtBody = AGENT_ARTS[i];
         return (
           <Card key={m.title}>
-            <Art class="h-[260px]">{ArtBody && <ArtBody />}</Art>
             <Caption title={m.title}>{m.desc}</Caption>
+            <Art class="h-[260px]">{ArtBody && <ArtBody />}</Art>
           </Card>
         );
       })}

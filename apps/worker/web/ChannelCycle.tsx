@@ -219,7 +219,7 @@ export function ChannelCycle() {
 
           The colour swaps with the text, which happens while the word is
           invisible, so it is never seen cross-fading between two brands. */}
-      <span class="lp-mark-hl" style={{ color: CHANNELS[index].color }} aria-hidden="true" />
+      <span class="lp-mark-hl" aria-hidden="true" />
       {/* White on the wash — a marked-up text selection. The word carried the
           brand colour itself at first, which put the hue on a wash of itself and
           cost most of the contrast; then it carried the headline's ink, which
@@ -231,7 +231,7 @@ export function ChannelCycle() {
           span carries the real accessible name instead. */}
       <span
         ref={wordRef}
-        class="inline-flex items-baseline text-white"
+        class="inline-flex items-baseline text-ml-fg"
         style={slot ? { paddingRight: `${slot.trail}px` } : undefined}
         aria-hidden="true"
       >

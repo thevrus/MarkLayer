@@ -1,3 +1,4 @@
+import { DEMO_ROOM } from '@marklayer/types';
 import { DemoWindow } from './DemoWindow';
 
 /**
@@ -15,18 +16,20 @@ export function DemoStage() {
       {/* The runway is its own box so the caption follows it: inside it, the pinned desk slid over the caption. */}
       <div class="lp-stage-run">
         <div class="lp-stage-pin">
-          <div class="lp-desk lp-panel">
-            <img
-              src="/wallpaper-hills.webp"
-              width={1200}
-              height={800}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              class="absolute inset-0 h-full w-full object-cover"
-            />
+          <div class="lp-desk">
             <div class="lp-desk-pad">
               <div class="lp-window">
+                {/* Browser chrome: the window lights, and the room's address in the bar. */}
+                <div class="lp-window-bar relative flex h-10 shrink-0 items-center px-4 font-ui" aria-hidden="true">
+                  <span class="flex gap-1.5">
+                    <i class="block size-2.5 rounded-full bg-ml-fg/15" />
+                    <i class="block size-2.5 rounded-full bg-ml-fg/15" />
+                    <i class="block size-2.5 rounded-full bg-ml-fg/15" />
+                  </span>
+                  <span class="absolute left-1/2 -translate-x-1/2 rounded-md bg-ml-fg/[0.05] px-3 py-1 font-mono text-meta text-ml-fg/60">
+                    marklayer.app/s/{DEMO_ROOM.id}
+                  </span>
+                </div>
                 <DemoWindow />
               </div>
             </div>

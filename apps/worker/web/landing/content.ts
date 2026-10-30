@@ -1,5 +1,4 @@
 import { HOW_IT_WORKS_PATH } from '@ext/lib/share';
-import { Eye, FileDown, Files, type LucideIcon, MonitorPlay, Ruler, Send, SquareKanban, Video } from 'lucide-preact';
 
 /** What an agent does once it is in the room, one claim per cell. */
 export const AGENT_MOMENTS: { title: string; desc: string }[] = [
@@ -24,38 +23,32 @@ export const AGENT_IDS = ['claude', 'cursor', 'copilot', 'windsurf', 'cline', 'z
  * The rest of the product, one line each. Eight, so the grid closes on a full
  * row at two columns and at four.
  */
-export const FEATURES: { title: string; desc: string; icon: LucideIcon }[] = [
-  { title: 'Talk it through.', desc: 'Voice and video calls inside the review.', icon: Video },
+export const FEATURES: { title: string; desc: string }[] = [
+  { title: 'Talk it through.', desc: 'Voice and video calls inside the review.' },
   {
     title: 'Walk people through it.',
     desc: 'Bring everyone to what you see, or follow someone else.',
-    icon: MonitorPlay,
   },
   {
     title: 'Track what is done.',
     desc: 'Status, priority and one board for every comment.',
-    icon: SquareKanban,
   },
   {
     title: 'Measure anything.',
     desc: 'Sizes and spacing in pixels, plus ruler guides.',
-    icon: Ruler,
   },
-  { title: 'Review a whole site.', desc: 'Up to 50 pages on one link, one tab each.', icon: Files },
+  { title: 'Review a whole site.', desc: 'Up to 50 pages on one link, one tab each.' },
   {
     title: 'Send it to your tools.',
     desc: 'Comments post to Slack, Teams or Discord. Any one becomes a Linear, GitHub, Jira or Trello task.',
-    icon: Send,
   },
   {
     title: 'Export the whole review.',
     desc: 'Every comment and reply as one document, copied or downloaded.',
-    icon: FileDown,
   },
   {
     title: 'Lock a link.',
     desc: 'Optional email sign-in: make a link read-only, set an expiry, see all your links.',
-    icon: Eye,
   },
 ];
 
@@ -127,4 +120,4 @@ export const FAQ: { q: string; a: string }[] = [
 export const HERO_PIN_ID = 'ml-hero-pin';
 
 export const CTA_CLS =
-  'lp-cta inline-flex items-center gap-2 h-12 px-7 rounded-full text-white text-body no-underline whitespace-nowrap transition-colors';
+  'lp-cta inline-flex items-center gap-2 h-11 px-5 rounded-lg text-white text-ui-lg font-medium no-underline whitespace-nowrap transition-colors';

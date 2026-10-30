@@ -88,9 +88,17 @@
   --color-ml-board: #fff;
   /* The stage inside a card, and a hovered link card. Warm, not the UI-kit
      cool grey, so it sits on the ink ramp's temperature. */
-  --color-ml-board-raised: #f7f6f4;
+  --color-ml-board-raised: #fafafa;
   /* Hairline rules: the FAQ rows, the stage's own edge. */
   --color-ml-rule: #00000014;
+  /* The drawn edge of a landing card. A real border, not a ring shadow: the
+     cards sit flat on the white page and the line is all that separates them. */
+  --color-ml-card-edge: #e6e6e6;
+  /* The marker band behind the headline's channel word: a grey highlighter,
+     the word stays in ink. */
+  --color-ml-hl: #e8e8e8;
+  /* The inverted slab the agent section sits in. */
+  --color-ml-slab: #0a0a0a;
   --color-ml-input: oklch(1 0 0 / 0.85);
   --color-ml-input-border: oklch(0 0 0 / 0.12);
   /* Glass overlay surfaces (toolbar, panels, popovers) */
@@ -171,12 +179,12 @@
      56-64px h1), and the section head, where the claim and its support run on
      as one paragraph at one size (its 24-32px two-tone block). Leading and
      tracking belong to the size, so each step carries its own. */
-  --text-hero: clamp(40px, 4.6vw, 72px);
-  --text-hero--line-height: 1;
+  --text-hero: clamp(40px, 4.6vw, 64px);
+  --text-hero--line-height: 1.05;
   --text-hero--letter-spacing: -0.045em;
-  --text-statement: clamp(24px, 2.3vw, 36px);
-  --text-statement--line-height: 1.2;
-  --text-statement--letter-spacing: -0.03em;
+  --text-statement: clamp(30px, 3.4vw, 48px);
+  --text-statement--line-height: 1.06;
+  --text-statement--letter-spacing: -0.035em;
 
   /* Tracking and leading by role, for the same reason: a value repeated in
      twelve class strings is a decision nobody can change in one place. */
@@ -726,6 +734,42 @@
   font-weight: 400;
 }
 
+/* The hero's dot grid: a 24px lattice that fades out before it reaches the
+   copy's edges, so it reads as paper behind the headline, not a sheet under the page. */
+.lp-dots {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle, #d6d6d6 1px, transparent 1.2px);
+  background-size: 24px 24px;
+  background-position: center top;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%);
+}
+
+/* The inverted slab. Redefining the ink token recolours every utility inside
+   it, opacity steps included, so the section needs no second set of classes. */
+.lp-dark,
+.ml-force-light .lp-dark,
+.ml-force-light .lp-dark * {
+  --color-ml-fg: #fff;
+}
+.lp-dark {
+  background: var(--color-ml-slab);
+  color: #fff;
+}
+.lp-dark .lp-panel {
+  background: #171717;
+  box-shadow: 0 0 0 1px #ffffff1f;
+}
+.lp-dark .lp-cta {
+  background: #fff;
+  color: var(--color-ml-slab);
+}
+.lp-dark .lp-cta:hover {
+  background: #e8e8e8;
+}
+
 /* The primary call to action: one flat black surface. The hover is a value
    step; nothing lifts, sweeps or glows. */
 .lp-cta {
@@ -742,15 +786,16 @@
   background: #fff;
   box-shadow: var(--ds-shadow-border-small);
 }
+/* A card is a flat white object drawn by one hairline: no shadow, no lift. */
 .lp-card {
   background: #fff;
-  border-radius: 1.5rem;
-  box-shadow: var(--ds-shadow-border-small);
+  border: 1px solid var(--color-ml-card-edge);
+  border-radius: 1rem;
 }
 .lp-card-art {
   background: var(--color-ml-board-raised);
-  border-radius: 1rem;
-  box-shadow: 0 0 0 1px var(--color-ml-rule);
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-ml-card-edge);
 }
 /* A link card's hover is a tonal step, not a lift. */
 a.lp-card {
@@ -825,9 +870,12 @@ details[open] .lp-faq-mark {
   position: relative;
   overflow: hidden;
   /* The card radius: the desk sits in the card column as one of them. */
-  border-radius: 1.5rem;
+  border-radius: 1rem;
   aspect-ratio: 16 / 10;
-  background-color: var(--color-ml-board-raised);
+  /* The desk is the hero's dot paper again, so the window reads as sitting on the page. */
+  background-color: #fff;
+  background-image: radial-gradient(circle, #dadada 1px, transparent 1.2px);
+  background-size: 24px 24px;
   /* The resting width of the runway desk, as a ratio of the viewport it is laid
      out at: the page column inside its gutter (2.5rem a side), so its edges
      line up with the cards. CSS has no length-over-length division and `scale`
@@ -846,10 +894,11 @@ details[open] .lp-faq-mark {
   overflow: hidden;
   background: #fff;
   border-radius: clamp(8px, 1.15cqw, 14px);
-  box-shadow:
-    0 0 0 1px #00000014,
-    0 1px 2px #0000000f,
-    0 12px 32px -16px #00000038;
+  border: 1px solid var(--color-ml-card-edge);
+  box-shadow: 0 1px 2px #0000000a;
+}
+.lp-window-bar {
+  border-bottom: 1px solid var(--color-ml-card-edge);
 }
 
 @media (min-width: 640px) and (prefers-reduced-motion: no-preference) {
@@ -884,7 +933,7 @@ details[open] .lp-faq-mark {
   0%,
   100% {
     scale: var(--lp-rest, 0.8);
-    border-radius: 1.25rem;
+    border-radius: 1rem;
   }
   35%,
   65% {
@@ -980,108 +1029,19 @@ button.lp-field:focus-visible {
   position: absolute;
   /* Slight side overshoot, as a real marker stroke has. The slot carries
      matching side margins (see ChannelCycle) so this eats neither word space. */
-  left: -0.05em;
-  right: -0.05em;
-  top: 50%;
-  height: 0.86em;
-  transform: translateY(calc(-50% - 0.012em));
-  border-radius: 0.06em;
-  background: currentColor;
+  left: -0.08em;
+  right: -0.08em;
+  /* A grey marker laid low across the word: from a little under the x-height
+     down past the baseline, the way a highlighter actually lands. */
+  top: 52%;
+  height: 0.5em;
+  transform: translateY(-0.1em) skewX(-6deg);
+  border-radius: 0.04em;
+  background: var(--color-ml-hl);
   z-index: -1;
   /* The wash holds its place while the word is mid-swap at zero opacity, so the
      headline reads as a highlight whose word is changing rather than as a hole. */
   transition: background-color 340ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-/* ── The footer signature wordmark ──
-
-   Full-bleed, centred, cut at about half its cap height and dissolved into the
-   page rather than stopped at a line.
-
-   SIZING. "MarkLayer" set in Geist 500 at -0.03em measures 4.7552x its own
-   font-size (measured in the browser, not guessed), so 21cqw is the size at
-   which the word's ink spans the footer. The footer is the container, not the
-   viewport: `vw` counts a classic scrollbar and clipped the last "r". Keep the
-   two in step: change the weight or the tracking and this number is wrong.
-
-   CENTRING. The ink is sized to fit rather than to overshoot, so there is no
-   overflow to centre. That matters: an overshooting nowrap line does not
-   overhang symmetrically — the engine clamps it to the container's left edge, so
-   an earlier version that bled ~2% past both sides actually sat 26px off centre.
-   With the line inside its box, `text-align: center` is exact, measured at 0px
-   error.
-
-   THE CUT. The font-size lives on the clip, so `em` inside it means the
-   wordmark's own em and every offset below is expressed in the type's terms
-   rather than in magic pixels. With `line-height: 1` Geist's baseline sits
-   0.855em from the top of the line box, its cap height is 0.73em and its
-   x-height about 0.52em — so caps run 0.125em to 0.855em and the lowercase tops
-   only begin at 0.335em. Pulling the span up by 0.125em puts the cap top exactly
-   on the container's top edge.
-
-   The height is set against the x-height, not the cap height, and that is the
-   whole trick. Cutting at 55% of the CAPS looked correct on paper and was wrong
-   on screen: it left M, k, L and the y ascender tall while showing barely a
-   third of a, r, e and r, so the word read as a row of disconnected vertical
-   bars rather than as "MarkLayer". At 0.6em the lowercase letters keep about
-   four fifths of their x-height and the word stays a word, while the mask below
-   dissolves the lower half so it still reads as half-there.
-
-   THE FADE. Twelve stops on an ease-out alpha curve, reaching fully transparent
-   at the clip. A short fade, or one still at partial opacity where the box ends,
-   would put a visible band across the glyphs — which is the failure this is
-   built to avoid. */
-.lp-wordmark-clip {
-  font-size: 21cqw;
-  height: 0.6em;
-  overflow: hidden;
-  text-align: center;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    rgb(0 0 0) 0%,
-    rgb(0 0 0) 44%,
-    rgb(0 0 0 / 95%) 52%,
-    rgb(0 0 0 / 87%) 60%,
-    rgb(0 0 0 / 76%) 67%,
-    rgb(0 0 0 / 63%) 73%,
-    rgb(0 0 0 / 49%) 79%,
-    rgb(0 0 0 / 35%) 85%,
-    rgb(0 0 0 / 22%) 90%,
-    rgb(0 0 0 / 11%) 94%,
-    rgb(0 0 0 / 3%) 97%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    rgb(0 0 0) 0%,
-    rgb(0 0 0) 44%,
-    rgb(0 0 0 / 95%) 52%,
-    rgb(0 0 0 / 87%) 60%,
-    rgb(0 0 0 / 76%) 67%,
-    rgb(0 0 0 / 63%) 73%,
-    rgb(0 0 0 / 49%) 79%,
-    rgb(0 0 0 / 35%) 85%,
-    rgb(0 0 0 / 22%) 90%,
-    rgb(0 0 0 / 11%) 94%,
-    rgb(0 0 0 / 3%) 97%,
-    transparent 100%
-  );
-}
-
-.lp-wordmark {
-  display: block;
-  margin-top: -0.125em;
-  /* Named, not inherited: the sizing and the cut above are Geist's metrics, and the page voice is not Geist. */
-  font-family: var(--ml-font-ui);
-  font-size: 1em;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  text-align: center;
-  white-space: nowrap;
-  /* Stronger than the tone it replaced, because the mask takes most of it back;
-     a value tuned to look right unmasked goes invisible once faded. */
-  color: color-mix(in srgb, var(--color-ml-fg) 19%, transparent);
 }
 
 /* Voice activity bars on cursor badges */

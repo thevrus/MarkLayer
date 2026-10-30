@@ -9,9 +9,9 @@ import { agentLabel, cn } from '@marklayer/types';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
-import { ArrowUpRight, type LucideIcon, Plus } from 'lucide-preact';
+import { ArrowUpRight, ChevronDown } from 'lucide-preact';
 import { nanoid } from 'nanoid';
-import type { ComponentChildren } from 'preact';
+import type { ComponentChildren, JSX } from 'preact';
 import { siProducthunt } from 'simple-icons';
 import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
@@ -20,9 +20,10 @@ import { frameViewport } from './iframeOverlay';
 import { ChromeIcon, ChromeStoreLink } from './landing/ChromeStoreLink';
 import { AGENT_IDS, AGENT_MOMENTS, COMPARISON_NAMES, COMPARISONS, FAQ, FEATURES, NAV_LINKS } from './landing/content';
 import { DemoStage } from './landing/DemoStage';
+import { FEATURE_ARTS } from './landing/FeatureArts';
 import { HeroSource } from './landing/HeroSource';
 import { McpCommand } from './landing/McpCommand';
-import { AgentRow, Card, MarginNote, ProblemRow, ProofGrid } from './landing/Proof';
+import { AgentRow, Art, Caption, Card, MarginNote, ProblemRow, ProofGrid } from './landing/Proof';
 import { useLandingCanvas } from './landing/useLandingCanvas';
 import { useLandingPresence } from './landing/useLandingPresence';
 import { useLandingShortcuts } from './landing/useLandingShortcuts';
@@ -34,33 +35,28 @@ import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
 
 /* One display step for every section head and one reading step for every
-   paragraph, so no section sets its own scale. The measure is in ems so it
-   holds about fifty characters a line at every size the step takes. */
-const HEAD_CLS = 'lp-display mx-auto max-w-[26em] text-center text-statement text-balance text-ml-fg';
+   paragraph, so no section sets its own scale. */
+const HEAD_CLS = 'lp-display mx-auto max-w-[18em] text-center text-statement text-balance text-ml-fg';
 const BODY_CLS = 'm-0 text-lede leading-prose text-ml-fg/60';
 
-/** A section head as figma.com sets one: the claim in ink, its support run on after it in grey, at one size. */
+/** A section head: the claim in the serif, its support on its own line under it in grey. */
 function SectionHead({ title, children }: { title: ComponentChildren; children?: ComponentChildren }) {
   return (
-    <div class={HEAD_CLS}>
-      <h2 class="inline">{title}</h2>
-      {children && (
-        <>
-          {' '}
-          <p class="m-0 inline text-ml-fg/50">{children}</p>
-        </>
-      )}
+    <div class="text-center">
+      <h2 class={HEAD_CLS}>{title}</h2>
+      {children && <p class="mx-auto mt-4 max-w-[46ch] text-intro text-balance text-ml-fg/55">{children}</p>}
     </div>
   );
 }
 
-/** One feature, as a compact card: a bare mark, the claim, a line of support. */
-function FeatureCard({ title, desc, icon: Icon }: { title: string; desc: string; icon: LucideIcon }) {
+/** One feature: the claim, a line of support, and the piece of the product it rests on. */
+function FeatureCard({ title, desc, art: ArtBody }: { title: string; desc: string; art: () => JSX.Element }) {
   return (
-    <Card class="px-7 pt-7 pb-8 sm:px-8 sm:pt-8 sm:pb-9">
-      <Icon size={24} strokeWidth={1.5} class="mb-7 block text-ml-fg" aria-hidden="true" />
-      <h3 class="lp-display m-0 text-title text-ml-fg text-balance">{title}</h3>
-      <p class={cn(BODY_CLS, 'mt-2 text-pretty')}>{desc}</p>
+    <Card>
+      <Caption title={title}>{desc}</Caption>
+      <Art class="h-[220px]">
+        <ArtBody />
+      </Art>
     </Card>
   );
 }
@@ -110,7 +106,7 @@ export function Landing() {
                   <a
                     key={href}
                     href={href}
-                    class="whitespace-nowrap rounded-full px-3 py-1.5 text-body text-ml-fg/75 no-underline transition-colors hover:bg-ml-fg/[0.05] hover:text-ml-fg"
+                    class="whitespace-nowrap px-3 py-1.5 text-ui-lg text-ml-fg/60 no-underline transition-colors hover:text-ml-fg"
                   >
                     {label}
                   </a>
@@ -133,7 +129,7 @@ export function Landing() {
                   href={CHROME_STORE_URL}
                   target="_blank"
                   rel="noopener"
-                  class="lp-cta ml-2 hidden h-8 items-center whitespace-nowrap rounded-full px-3.5 text-body text-white no-underline transition-colors lg:inline-flex"
+                  class="lp-cta ml-2 hidden h-8 items-center whitespace-nowrap rounded-lg px-3 text-ui font-medium text-white no-underline transition-colors lg:inline-flex"
                   onClick={() => capture('extension_install_clicked', { at: 'nav' })}
                 >
                   Add to Chrome
@@ -146,7 +142,8 @@ export function Landing() {
         <main>
           <div class="mx-auto w-full max-w-page px-6 sm:px-10">
             {/* The hero owns the fold: nav plus this section is exactly one screen. */}
-            <section class="relative flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-center pt-16 pb-20 text-center sm:pt-10 sm:pb-40">
+            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-center pt-16 pb-20 text-center sm:pt-10 sm:pb-40">
+              <div class="lp-dots -z-1" aria-hidden="true" />
               {/* The demo cursors belong to the fold and scroll away with it. */}
               <FakeCursors />
 
@@ -252,30 +249,33 @@ export function Landing() {
             {/* The agent handoff. The command is the install, not a room: pointing a visitor's
                 agent at the public demo board would feed it strangers' comments. */}
             <section class={cn(SECTION_CLS, 'text-center')}>
-              <SectionHead title="Let your AI coding tool make the fixes.">
-                Give Claude Code or Cursor the link. It reads each comment, fixes the code and ticks it off.
-              </SectionHead>
-              <div class="mt-12">
-                <McpCommand />
-              </div>
-              <p class="mt-5 text-ui text-ml-fg/60">
-                No install needed: add <code class="font-mono">/mcp</code> to any share link.
-              </p>
-              <div class="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-ui text-ml-fg/60">
-                <span id="lp-agents" class="text-ml-fg">
-                  Works with
-                </span>
-                <ul
-                  aria-labelledby="lp-agents"
-                  class="m-0 flex list-none flex-wrap items-center justify-center gap-x-6 gap-y-3 p-0"
-                >
-                  {AGENT_IDS.map((id) => (
-                    <li key={id} class="m-0 inline-flex items-center gap-1.5 p-0">
-                      <AgentMark id={id} size={15} />
-                      {agentLabel(id)}
-                    </li>
-                  ))}
-                </ul>
+              {/* The one inverted surface on the page: the agent's room, where the human is not. */}
+              <div class="lp-dark rounded-3xl px-6 py-16 sm:px-10 sm:py-24">
+                <SectionHead title="Let your AI coding tool make the fixes.">
+                  Give Claude Code or Cursor the link. It reads each comment, fixes the code and ticks it off.
+                </SectionHead>
+                <div class="mt-12">
+                  <McpCommand />
+                </div>
+                <p class="mt-5 text-ui text-ml-fg/60">
+                  No install needed: add <code class="font-mono">/mcp</code> to any share link.
+                </p>
+                <div class="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-ui text-ml-fg/60">
+                  <span id="lp-agents" class="text-ml-fg">
+                    Works with
+                  </span>
+                  <ul
+                    aria-labelledby="lp-agents"
+                    class="m-0 flex list-none flex-wrap items-center justify-center gap-x-6 gap-y-3 p-0"
+                  >
+                    {AGENT_IDS.map((id) => (
+                      <li key={id} class="m-0 inline-flex items-center gap-1.5 p-0">
+                        <AgentMark id={id} size={15} />
+                        {agentLabel(id)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
               <div class={cn(CARDS_CLS, 'text-left')}>
                 <AgentRow moments={AGENT_MOMENTS} />
@@ -290,9 +290,12 @@ export function Landing() {
                 </a>
                 .
               </SectionHead>
-              <div class={cn(CARDS_CLS, 'grid gap-4 md:grid-cols-2 xl:grid-cols-4 sm:gap-5')}>
-                {FEATURES.map((f) => (
-                  <FeatureCard key={f.title} {...f} />
+              {/* Two columns, alternating wide and narrow, so the pile reads as a pile and not a grid of equals. */}
+              <div class={cn(CARDS_CLS, 'grid gap-4 md:grid-cols-5 sm:gap-5')}>
+                {FEATURES.map((f, i) => (
+                  <div key={f.title} class={cn('grid', [0, 3].includes(i % 4) ? 'md:col-span-3' : 'md:col-span-2')}>
+                    <FeatureCard {...f} art={FEATURE_ARTS[i] ?? FEATURE_ARTS[0]} />
+                  </div>
                 ))}
               </div>
             </section>
@@ -345,13 +348,13 @@ export function Landing() {
                   <a
                     key={href}
                     href={href}
-                    class="lp-card relative flex flex-col gap-1 px-6 py-7 no-underline sm:px-8 sm:py-8"
+                    class="lp-card relative flex flex-col gap-1 px-5 py-5 no-underline sm:px-6 sm:py-6"
                   >
                     <span class="text-ui text-ml-fg/60">MarkLayer vs</span>
-                    <span class="lp-display text-title text-ml-fg">{name}</span>
+                    <span class="font-ui text-lede font-semibold tracking-ui text-ml-fg">{name}</span>
                     <ArrowUpRight
                       size={16}
-                      class="lp-compare-arrow absolute top-7.5 right-6 text-ml-fg/50 sm:top-8.5 sm:right-8"
+                      class="lp-compare-arrow absolute top-5.5 right-5 text-ml-fg/50 sm:top-6.5 sm:right-6"
                       aria-hidden="true"
                     />
                   </a>
@@ -359,27 +362,26 @@ export function Landing() {
               </nav>
             </section>
 
-            <section class={SECTION_CLS}>
-              <SectionHead title="Common questions." />
-              <Card class="lp-faq mx-auto mt-12 max-w-[760px] px-6 py-2 sm:px-10 sm:py-4">
-                <div class="divide-y divide-ml-rule">
-                  {FAQ.map((item) => (
-                    <details key={item.q}>
-                      <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-6 py-5 text-lede text-ml-fg">
-                        {item.q}
-                        <Plus class="lp-faq-mark shrink-0 text-ml-fg/60" size={14} strokeWidth={1.5} />
-                      </summary>
-                      <p class={cn(BODY_CLS, 'max-w-[62ch] pb-6 text-pretty')}>{item.a}</p>
-                    </details>
-                  ))}
-                </div>
-              </Card>
+            {/* The head on the left, the questions on the right: a list, not a card. */}
+            <section class={cn(SECTION_CLS, 'lp-faq mx-auto grid max-w-[1000px] gap-10 md:grid-cols-[1fr_2fr]')}>
+              <h2 class={cn(HEAD_CLS, 'mx-0 text-left')}>Questions</h2>
+              <div class="divide-y divide-ml-rule">
+                {FAQ.map((item) => (
+                  <details key={item.q}>
+                    <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-6 py-4 text-lede text-ml-fg">
+                      {item.q}
+                      <ChevronDown class="lp-faq-mark shrink-0 text-ml-fg/60" size={16} strokeWidth={1.5} />
+                    </summary>
+                    <p class={cn(BODY_CLS, 'max-w-[62ch] pb-5 text-pretty')}>{item.a}</p>
+                  </details>
+                ))}
+              </div>
             </section>
 
             {/* The close, and the only full-size install button on the page. It
                 takes the hero's step, so the page ends at the size it opened at. */}
             <section class="pt-28 pb-16 text-center sm:pt-36 sm:pb-20">
-              <h2 class="lp-display mx-auto mb-12 max-w-[16em] text-hero text-balance text-ml-fg">
+              <h2 class="lp-display mx-auto mb-10 max-w-[14em] text-hero text-balance text-ml-fg">
                 Get feedback on the page, not in your inbox.
               </h2>
               <ChromeStoreLink label="Add to Chrome" at="closing" />
@@ -394,7 +396,16 @@ export function Landing() {
               {/* A grid, not `flex-wrap`: wrapping drops the fourth column onto
                   its own row as soon as the links grow, leaving three columns
                   and an orphan off the shared baseline. */}
-              <div class="grid grid-cols-2 gap-x-8 gap-y-9 text-ui sm:grid-cols-4">
+              <div class="grid grid-cols-2 gap-x-8 gap-y-9 text-ui sm:grid-cols-[1.4fr_repeat(4,1fr)]">
+                <div class="col-span-2 sm:col-span-1">
+                  <a href="/" class="inline-flex items-center gap-2 no-underline">
+                    <Logo size={22} />
+                    <span class="font-ui text-body font-semibold tracking-brand text-ml-fg">MarkLayer</span>
+                  </a>
+                  <p class="m-0 mt-3 max-w-[24ch] text-ui leading-prose text-ml-fg/60">
+                    Feedback on the live page. Free, open source, nothing to install.
+                  </p>
+                </div>
                 {FOOTER_COLUMNS.map((col) => (
                   <div key={col.heading}>
                     <p class="m-0 mb-3 text-ui font-semibold tracking-label text-ml-fg">{col.heading}</p>
@@ -494,28 +505,6 @@ export function Landing() {
                   {STATUS_LABEL[systemStatus.value]}
                 </p>
               </div>
-            </div>
-
-            {/* The signature wordmark: full-bleed, cut at roughly half the cap
-                height, dissolving into the page.
-
-                It sits outside the page's capped container on purpose — this is
-                the one element that is meant to touch both edges, so it takes
-                no gutter and no max-width. Sized so the word spans the viewport
-                exactly at any width (see .lp-wordmark), clipped to a fraction of
-                its own cap height, and faded out with a long multi-stop mask so
-                the cut is never a visible line. Nothing sits beneath it.
-
-                It is lifted a little clear of the page's bottom edge rather
-                than welded to it, which is a deliberate departure from the
-                usual rule for this move — flush with no gap beneath — because
-                the product's own toolbar floats at the bottom of the viewport
-                and swallowed the band entirely when it sat right on the edge.
-
-                `aria-hidden` because the accessible wordmark is the one in the
-                nav; this is texture, not a second heading. */}
-            <div class="lp-wordmark-clip mt-12 select-none" aria-hidden="true">
-              <span class="lp-wordmark">MarkLayer</span>
             </div>
           </footer>
         </main>
