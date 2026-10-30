@@ -392,3 +392,33 @@ describe('fetchPage — leaving a host alone once it refuses the relay too', () 
     expect(relayCalls).toBe(2);
   });
 });
+
+describe('GET /proxy — entity-encoded attribute URLs (#4)', () => {
+  afterEach(() => {
+    globalThis.fetch = realFetchForRoutes;
+  });
+
+  const rewrite = async (html: string) =>
+    (
+      await getProxy({
+        query: `url=${encodeURIComponent('https://example.com/')}`,
+        respond: () => new Response(html, { headers: { 'content-type': 'text/html' } }),
+      })
+    ).text();
+
+  test('srcset and src are decoded before rewriting, as the browser would read them', async () => {
+    // Twig's html_attr escaper output.
+    const body = await rewrite(
+      '<img src="https&#x3A;&#x2F;&#x2F;example.com&#x2F;a.webp" srcset="https&#x3A;&#x2F;&#x2F;example.com&#x2F;a.webp 683w, &#x2F;b.webp 1024w">',
+    );
+    expect(body).toContain('src="http://localhost/px/example.com/a.webp"');
+    expect(body).toContain(
+      'srcset="http://localhost/px/example.com/a.webp 683w, http://localhost/px/example.com/b.webp 1024w"',
+    );
+  });
+
+  test('an ampersand in a rewritten query is re-escaped, so &copy= stays a parameter', async () => {
+    const body = await rewrite('<img src="/i.png?a=1&amp;copy=2">');
+    expect(body).toContain('src="http://localhost/px/example.com/i.png?a=1&amp;copy=2"');
+  });
+});
