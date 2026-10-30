@@ -20,6 +20,7 @@ import { Loader2 } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import { classifyProxyError } from '../src/proxy-errors';
 import { AnnotationPanel, AnnotationSheet, DockedAnnotationPanel } from './AnnotationPanel';
+import { capture } from './analytics';
 import { CursorLayer } from './CursorLayer';
 import { DeviceOverview } from './DeviceOverview';
 import { audioConstraint } from './devicePrefs';
@@ -153,7 +154,10 @@ function OwnerFix({ ip }: { ip: string }) {
       {advice && (
         <button
           type="button"
-          onClick={() => copy(advice.request({ ip, host }))}
+          onClick={() => {
+            copy(advice.request({ ip, host }));
+            capture('owner_fix_copied', { firewall });
+          }}
           class="px-3 py-1.5 rounded-lg border border-ml-fg/15 bg-transparent text-meta text-ml-fg cursor-pointer hover:bg-ml-fg/5 transition-colors"
         >
           {copied.value ? 'Copied' : 'Copy support request'}

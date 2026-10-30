@@ -5,6 +5,7 @@ import {
   type DraftRect,
   rectFromDraft,
 } from '@ext/components/AreaLayer';
+import { track } from '@ext/lib/analytics';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 import { scrollOffset } from '@ext/lib/scroller';
@@ -183,10 +184,19 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       captureViewport: frameViewport(frameRef.current),
     };
     pushDeviceOp(op);
+    track('area_committed', {
+      has_note: Boolean(comment),
+      has_priority: Boolean(priority),
+      mentions: mentions?.length ?? 0,
+      markup_strokes: 0,
+      width: Math.round(r.w),
+      height: Math.round(r.h),
+    });
     pending.value = null;
   };
 
   const cancel = () => {
+    track('area_cancelled', { markup_strokes: 0 });
     pending.value = null;
   };
 

@@ -524,6 +524,7 @@ export default function Viewer() {
         e.preventDefault();
         const opening = !showBoard.value;
         showBoard.value = opening;
+        capture('board_toggled', { open: opening, via: 'shortcut' });
         // It replaces the panel rather than stacking over it, the same way the
         // panel's own board button does.
         if (opening) showAnnotationPanel.value = false;

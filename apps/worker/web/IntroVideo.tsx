@@ -63,7 +63,10 @@ function VersionMenu({ list, shown }: { list: IntroOp[]; shown: IntroOp }) {
         <Menu.Item
           key={op.id}
           className={cn(menuItem, op.id === shown.id && 'font-semibold')}
-          onClick={() => (pickedId.value = i === 0 ? null : op.id)}
+          onClick={() => {
+            pickedId.value = i === 0 ? null : op.id;
+            capture('intro_version_selected');
+          }}
         >
           <span class="tabular-nums w-6">V{list.length - i}</span>
           <span class="flex-1 truncate">{op.author || 'Anonymous'}</span>
@@ -83,7 +86,13 @@ function IntroActions({ shown }: { shown: IntroOp }) {
   };
   return (
     <IntroMenu trigger={trigger}>
-      <Menu.Item className={menuItem} onClick={() => (introComposerOpen.value = true)}>
+      <Menu.Item
+        className={menuItem}
+        onClick={() => {
+          introComposerOpen.value = true;
+          capture('intro_composer_opened');
+        }}
+      >
         Record a new version
       </Menu.Item>
       <Menu.Item
@@ -93,6 +102,7 @@ function IntroActions({ shown }: { shown: IntroOp }) {
           if (!window.confirm('Delete this version of the intro video?')) return;
           pickedId.value = null;
           deleteOp(shown.id);
+          capture('intro_video_deleted');
         }}
       >
         Delete this version

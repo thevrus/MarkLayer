@@ -6,6 +6,7 @@ declare module 'tinykeys' {
     timeout?: number;
     event?: 'keydown' | 'keyup';
     capture?: boolean;
+    ignore?: (event: KeyboardEvent) => boolean;
   }
   export function tinykeys(
     target: Window | HTMLElement,

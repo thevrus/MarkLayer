@@ -4,6 +4,7 @@ import { operations, toast } from '@ext/lib/state';
 import { cn } from '@marklayer/types';
 import { Plus, Trash2, X } from 'lucide-preact';
 import { useState } from 'preact/hooks';
+import { capture } from './analytics';
 import {
   annotationId,
   createAnnotationFor,
@@ -57,6 +58,7 @@ export function ProjectTabs() {
     if (i === 0) url.searchParams.delete('page');
     else url.searchParams.set('page', String(i));
     history.replaceState(null, '', url);
+    capture('project_tab_switched', { pages: pages.length });
   };
 
   const deletePage = async (i: number, e: Event) => {
@@ -92,6 +94,7 @@ export function ProjectTabs() {
       toast('Failed to remove page', { type: 'error' });
       return;
     }
+    capture('project_page_removed', { pages: next.length });
     toast('Page removed', { type: 'success' });
   };
 
@@ -123,6 +126,7 @@ export function ProjectTabs() {
     const navUrl = new URL(location.href);
     navUrl.searchParams.set('page', String(next.length - 1));
     history.replaceState(null, '', navUrl);
+    capture('project_page_added', { pages: next.length });
     setNewUrl('');
     setAdding(false);
     projectLoading.value = false;

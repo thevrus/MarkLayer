@@ -6,6 +6,7 @@ import { cn } from '@marklayer/types';
 import { useComputed } from '@preact/signals';
 import { Check, ChevronDown, ChevronRight, Headphones, Mic, Video } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
+import { capture } from './analytics';
 import {
   availableDevices,
   refreshDevices,
@@ -75,6 +76,7 @@ export function DeviceMenu({ hasPermission }: Props) {
               selectedId={selectedAudioInput.value}
               onSelect={(id) => {
                 selectedAudioInput.value = id;
+                capture('voice_device_selected', { kind: 'microphone' });
               }}
             />
 
@@ -85,6 +87,7 @@ export function DeviceMenu({ hasPermission }: Props) {
               selectedId={selectedVideoInput.value}
               onSelect={(id) => {
                 selectedVideoInput.value = id;
+                capture('voice_device_selected', { kind: 'camera' });
               }}
             />
 
@@ -96,6 +99,7 @@ export function DeviceMenu({ hasPermission }: Props) {
                 selectedId={selectedAudioOutput.value}
                 onSelect={(id) => {
                   selectedAudioOutput.value = id;
+                  capture('voice_device_selected', { kind: 'speaker' });
                 }}
               />
             )}
@@ -108,7 +112,9 @@ export function DeviceMenu({ hasPermission }: Props) {
                 value={[videoQuality.value]}
                 onValueChange={(next: QualityPreset[]) => {
                   // One quality is always in force, so an empty selection holds it.
-                  if (next[0]) persistQuality(next[0]);
+                  if (!next[0]) return;
+                  persistQuality(next[0]);
+                  capture('video_quality_changed', { quality: next[0] });
                 }}
                 aria-label="Video quality"
                 className={cn(geist.track, 'flex w-full')}

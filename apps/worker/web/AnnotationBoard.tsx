@@ -4,6 +4,7 @@ import { CheckMark } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { StatusDot } from '@ext/components/StatusDot';
+import { track } from '@ext/lib/analytics';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import {
@@ -61,6 +62,7 @@ const isSort = (v: string): v is Sort => v in SORTS;
 const ANYONE = '\u0000anyone';
 const MINE = '\u0000mine';
 const UNASSIGNED = '\u0000unassigned';
+const ASSIGNEE_BUCKET: Record<string, string> = { [ANYONE]: 'anyone', [MINE]: 'mine', [UNASSIGNED]: 'unassigned' };
 const ANY_DEVICE = 'any';
 const FALLBACK_COLOR = 'var(--ds-gray-700)';
 
@@ -251,12 +253,12 @@ function CardMenu({ card, roster, onOpen }: { card: BoardCard; roster: Map<strin
 
 /** What else the annotation carries, counted, so a card says "there is a recording" without playing it. */
 function Media({ op }: { op: AnnotationOp }) {
-  if (op.tool !== 'comment') return null;
+  if (op.tool !== 'comment' && op.tool !== 'area') return null;
   const files = op.attachments?.length ?? 0;
   return (
     <>
-      {op.voice && <Mic size={12} strokeWidth={1.75} />}
-      {op.video && <Video size={12} strokeWidth={1.75} />}
+      {op.tool === 'comment' && op.voice && <Mic size={12} strokeWidth={1.75} />}
+      {op.tool === 'comment' && op.video && <Video size={12} strokeWidth={1.75} />}
       {files > 0 && (
         <span class="flex items-center gap-1 tabular-nums">
           <Paperclip size={11} strokeWidth={1.75} />
@@ -283,6 +285,7 @@ function Card({
     const next = COLUMNS[columnIndex(card.status) + dir];
     if (!next) return;
     setOpStatus(op.id, next);
+    track('board_card_moved', { status: next, via: 'keyboard' });
     // The card remounts in its new column, which drops focus to the body. Follow
     // it there, so a second arrow keeps moving the same card.
     requestAnimationFrame(() => {
@@ -539,6 +542,10 @@ function FilterMenu({ cards }: { cards: BoardCard[] }) {
             value={assigneeFilter.value}
             onValueChange={(value: string) => {
               assigneeFilter.value = value;
+              track('board_filter_changed', {
+                filter: 'assignee',
+                value: ASSIGNEE_BUCKET[value] ?? 'person',
+              });
             }}
           >
             {[
@@ -562,6 +569,7 @@ function FilterMenu({ cards }: { cards: BoardCard[] }) {
               onValueChange={(value: string) => {
                 const parsed = deviceModeSchema.safeParse(value);
                 deviceFilter.value = parsed.success ? parsed.data : ANY_DEVICE;
+                track('board_filter_changed', { filter: 'device', value: deviceFilter.value });
               }}
             >
               <Menu.RadioItem value={ANY_DEVICE} closeOnClick className={itemCls}>
@@ -585,6 +593,7 @@ function FilterMenu({ cards }: { cards: BoardCard[] }) {
           onClick={() => {
             assigneeFilter.value = ANYONE;
             deviceFilter.value = ANY_DEVICE;
+            track('board_filter_cleared');
           }}
           class={cn(geist.ctlSm, geist.ctlIdle)}
         >
@@ -610,7 +619,9 @@ function SortMenu() {
       <Menu.RadioGroup
         value={sortBy.value}
         onValueChange={(value: string) => {
-          if (isSort(value)) sortBy.value = value;
+          if (!isSort(value)) return;
+          sortBy.value = value;
+          track('board_sort_changed', { sort: value });
         }}
       >
         {Object.entries(SORTS).map(([value, text]) => (
@@ -669,6 +680,7 @@ export function AnnotationBoard() {
 
   const open = (card: BoardCard) => {
     focusedAnnotationId.value = card.op.id;
+    track('board_card_opened', { tool: card.op.tool });
     scrollToAnnotation(card.anchor.x, card.anchor.y);
     showBoard.value = false;
   };

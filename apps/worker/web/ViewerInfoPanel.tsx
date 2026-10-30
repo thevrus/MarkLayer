@@ -7,6 +7,7 @@ import { cn, type DrawOp, deletionDeadline } from '@marklayer/types';
 import { ArrowUpRight, BookOpen, Bot, Check, Columns2, Copy, Heart, X } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { DOCK_GUTTER, DOCKED_ANNOTATION_WIDTH, DockedPanel, PANEL_SIDEBAR, PANEL_TRANSITION } from './AnnotationPanel';
+import { capture } from './analytics';
 import { compareHref } from './compare/url';
 import { isUploadPath } from './docSource';
 import { IntegrationsSection } from './IntegrationsSection';
@@ -66,7 +67,10 @@ function CommandField({ label, value }: { label: string; value: string }) {
   return (
     <button
       type="button"
-      onClick={() => copy(value)}
+      onClick={() => {
+        copy(value);
+        capture('mcp_command_copied', { command: label });
+      }}
       title="Click to copy"
       aria-label={`Copy ${label}`}
       class="group w-full flex items-start gap-1.5 text-left px-2 py-1.5 rounded-lg cursor-pointer
@@ -100,7 +104,10 @@ function InfoPanelHeader() {
       <h2 class="text-body font-semibold tracking-ui text-(--ds-gray-1000) m-0">Details</h2>
       <button
         type="button"
-        onClick={() => (showInfoPanel.value = false)}
+        onClick={() => {
+          showInfoPanel.value = false;
+          capture('panel_toggled', { panel: 'details', open: false });
+        }}
         title="Close panel"
         aria-label="Close panel"
         class={cn(geist.ctl, geist.ctlIdle)}

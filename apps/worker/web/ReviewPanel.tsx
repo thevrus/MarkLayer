@@ -12,6 +12,7 @@ import {
 } from '@marklayer/types';
 import { useSignal } from '@preact/signals';
 import { Check } from 'lucide-preact';
+import { capture } from './analytics';
 import {
   askQuestion,
   castVote,
@@ -36,7 +37,10 @@ function StepRow({ step }: { step: StepOp }) {
       <Checkbox.Root
         checked={done}
         disabled={isReadonly.value}
-        onCheckedChange={() => toggleStep(step)}
+        onCheckedChange={(checked: boolean) => {
+          toggleStep(step);
+          capture('review_step_toggled', { done: checked });
+        }}
         aria-label={done ? `Mark "${step.text}" not done` : `Mark "${step.text}" done`}
         className={cn(
           'mt-0.5 size-4 shrink-0 grid place-items-center rounded-sm border appearance-none cursor-pointer p-0',
@@ -94,7 +98,10 @@ function QuestionCard({ question }: { question: QuestionOp }) {
               type="button"
               disabled={isReadonly.value}
               aria-pressed={chosen}
-              onClick={() => castVote({ question, option, mine })}
+              onClick={() => {
+                castVote({ question, option, mine });
+                capture('review_vote_cast', { changed: mine !== undefined });
+              }}
               class={cn(
                 'relative flex items-center justify-between gap-3 h-8 px-2.5 rounded-md overflow-hidden',
                 'appearance-none border-none bg-(--ds-gray-alpha-100) text-left cursor-pointer',
@@ -142,6 +149,7 @@ function QuestionComposer({ onDone }: { onDone: () => void }) {
         e.preventDefault();
         if (!ready) return;
         askQuestion({ prompt: prompt.value.trim(), options: filled });
+        capture('review_question_asked', { options: filled.length });
         onDone();
       }}
       onKeyDown={(e) => {

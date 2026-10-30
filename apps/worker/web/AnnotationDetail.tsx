@@ -7,6 +7,7 @@ import { MentionText } from '@ext/components/MentionText';
 import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
 import { Reactions } from '@ext/components/Reactions';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
+import { track } from '@ext/lib/analytics';
 import { composerCls, textareaBareCls } from '@ext/lib/buttons';
 import { replyRequest } from '@ext/lib/checkFix';
 import { geist } from '@ext/lib/geist';
@@ -218,6 +219,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
     const text = replyRef.current?.value.trim();
     if (!text || attachments.uploading) return;
     pushReply({ parent: op, text, mentions: mentions(), attachments: attachments.ids });
+    track('reply_submitted', { chars: text.length, has_attachment: attachments.ids.length > 0 });
     if (replyRef.current) replyRef.current.value = '';
     attachments.reset();
     setReplying(false);
@@ -343,6 +345,7 @@ function DetailBody({ item }: { item: AnnotationItem }) {
         <p class="text-meta text-(--ds-gray-900) m-0 mt-1.5 tabular-nums">
           {Math.round(Math.abs(op.endX - op.startX))} × {Math.round(Math.abs(op.endY - op.startY))} px
         </p>
+        {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
       </>
     );
   }
@@ -562,7 +565,10 @@ export function AnnotationDetail({
           </div>
           <button
             type="button"
-            onClick={() => onScrollTo(anchor.x, anchor.y)}
+            onClick={() => {
+              onScrollTo(anchor.x, anchor.y);
+              track('annotation_located', { tool: item.kind });
+            }}
             title="Scroll the page to this annotation"
             class={cn(geist.ctlSm, geist.ctlIdle)}
           >

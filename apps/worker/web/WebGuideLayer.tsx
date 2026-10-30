@@ -7,6 +7,7 @@ import {
   GuidePreview,
   guideReadout,
 } from '@ext/components/GuideLayer';
+import { track } from '@ext/lib/analytics';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { pickGuideAtPoint } from '@ext/lib/measure';
 import { scrollOffset } from '@ext/lib/scroller';
@@ -89,6 +90,7 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     e.preventDefault();
     e.stopPropagation();
     removeGuide(sel);
+    track('guide_deleted', { via: 'key' });
   };
   const popLastGuide = (e: KeyboardEvent) => {
     if (activeTool.value !== 'guide' || !guides.peek().length) return;
@@ -104,6 +106,7 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
       if (activeTool.value !== 'guide' || !guides.peek().length) return;
       e.preventDefault();
       e.stopPropagation();
+      track('guides_cleared', { count: guides.peek().length });
       clearGuides();
     },
     Backspace: deleteSelected,
@@ -258,8 +261,12 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
             const at = off(frameRef.current);
             const newPos = selected.orientation === 'vertical' ? iframeY + at.y : iframeX + at.x;
             flipGuide(selected.id, newPos);
+            track('guide_flipped');
           }}
-          onDelete={() => removeGuide(selected.id)}
+          onDelete={() => {
+            removeGuide(selected.id);
+            track('guide_deleted', { via: 'pill' });
+          }}
         />
       )}
     </>,

@@ -1,4 +1,5 @@
 import { MeasureOverlayContent, type MeasureState } from '@ext/components/MeasureLayer';
+import { track } from '@ext/lib/analytics';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { nextAnchorElement, type TraverseDir } from '@ext/lib/measure';
 import { measureActive, measureToolActive } from '@ext/lib/state';
@@ -39,6 +40,7 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
         anchors.value = cur.filter((_, i) => i !== existing);
       } else {
         anchors.value = [...cur, { id: nanoid(), el, rect: toViewportRect(frame, el) }];
+        track('measure_anchor_pinned', { anchors: cur.length + 1 });
         hover.value = null;
       }
     };
@@ -57,6 +59,7 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
     const tryTraverse = (e: KeyboardEvent, dir: TraverseDir) => {
       if (!measureToolActive.value) return;
       if (!traverse(dir)) return;
+      track('measure_walked', { dir });
       e.preventDefault();
       e.stopPropagation();
     };
@@ -72,6 +75,7 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
         if (!measureToolActive.value || !anchors.peek().length) return;
         e.preventDefault();
         e.stopPropagation();
+        track('measure_cleared', { anchors: anchors.peek().length });
         anchors.value = [];
       },
       Backspace: popPrimary,

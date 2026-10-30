@@ -1,5 +1,6 @@
 import { InspectorStackPanel } from '@ext/components/InspectorLayer';
 import { MultiSelectPopover, SelectedOutline } from '@ext/components/MultiInspectLayer';
+import { track } from '@ext/lib/analytics';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { getSelector, snapshotElement } from '@ext/lib/selector';
 import { activeTool, addToInspectorStack, inspectorStack, outputDetail, toast } from '@ext/lib/state';
@@ -106,7 +107,10 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
       const top = Math.min(d.startY, d.curY);
       const bottom = Math.max(d.startY, d.curY);
       const els = elementsInMarqueeInDoc(doc, { left, top, right, bottom });
-      if (els.length) addElsToSelection(els);
+      if (els.length) {
+        addElsToSelection(els);
+        track('multi_inspect_marquee_used', { matched: els.length });
+      }
     };
 
     // Suppress page click handlers (links, etc.) while in multi-select.
@@ -184,6 +188,7 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
       const snap = snapshotElement(el, selector, el.getBoundingClientRect(), detail);
       addToInspectorStack({ selector, comment, markdown: snap.markdown });
     }
+    track('multi_inspect_submitted', { elements: items.length, has_note: comment.length > 0 });
     selected.value = [];
     activeTool.value = 'navigate';
     const stackCount = inspectorStack.value.length;
@@ -194,6 +199,7 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
   };
 
   const cancel = () => {
+    track('multi_inspect_cancelled', { elements: selected.peek().length });
     selected.value = [];
   };
 

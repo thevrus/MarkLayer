@@ -2,6 +2,7 @@ import { CancelButton } from '@ext/components/CancelButton';
 import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
 import { PriorityPicker } from '@ext/components/PriorityPicker';
 import { SelectionEdit } from '@ext/components/SelectionEdit';
+import { track } from '@ext/lib/analytics';
 import { submitBtn, textareaCls } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
@@ -69,6 +70,16 @@ export function WebSelectionPopover({
         captureViewport,
       };
       pushDeviceOp(op);
+      track('selection_committed', {
+        auto,
+        has_note: Boolean(comment),
+        has_suggestion: Boolean(op.suggestion),
+        has_priority: Boolean(priority),
+        mentions: op.mentions?.length ?? 0,
+        chars: text.length,
+      });
+    } else {
+      track('selection_cancelled', { auto, has_suggestion: suggestion !== null });
     }
     window.getSelection()?.removeAllRanges();
     onClose();

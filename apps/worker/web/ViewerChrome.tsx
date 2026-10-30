@@ -36,6 +36,7 @@ import {
 } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
+import { capture } from './analytics';
 import { canvasFitted, canvasZoom, toggleCanvasFit } from './DeviceOverview';
 import { isUploadPath } from './docSource';
 import { PresenceMenu } from './PresenceMenu';
@@ -199,7 +200,10 @@ function DeviceOverviewButton() {
         icon={<Columns3 size={16} strokeWidth={1.5} aria-hidden="true" />}
         tip="All devices"
         on={deviceOverview.value}
-        onClick={() => (deviceOverview.value = !deviceOverview.value)}
+        onClick={() => {
+          deviceOverview.value = !deviceOverview.value;
+          capture('device_overview_toggled', { on: deviceOverview.value });
+        }}
       />
     </div>
   );
@@ -239,7 +243,10 @@ function CanvasZoomReadout() {
   return (
     <button
       type="button"
-      onClick={toggleCanvasFit}
+      onClick={() => {
+        toggleCanvasFit();
+        capture('canvas_fit_toggled');
+      }}
       aria-label={fitted ? `${pct}, zoom to 100%` : `${pct}, fit all devices`}
       class={cn(geist.ctl, geist.ctlIdle, 'w-11 shrink-0 text-meta font-medium tabular-nums')}
     >
@@ -315,6 +322,7 @@ function ZoomControl() {
         type="button"
         onClick={() => {
           viewerZoom.value = auto ? 1 : 'auto';
+          capture('zoom_reset', { to: auto ? '100' : 'auto' });
         }}
         aria-label={auto ? 'Auto, zoom to 100%' : `${pct}, fit to window`}
         class={cn(geist.ctl, geist.ctlIdle, 'w-11 text-meta font-medium tabular-nums')}
@@ -347,7 +355,9 @@ function PresenceGroup() {
       dim: !agent && p.cursor == null,
       title: agent ? `${label} (connected)` : p.cursor != null ? label : `${label} (inactive)`,
       onClick: () => {
-        if (p.cursor) onFollowScroll.value?.(p.cursor.y);
+        if (!p.cursor) return;
+        capture('peer_followed', { agent });
+        onFollowScroll.value?.(p.cursor.y);
       },
     };
   });
@@ -362,6 +372,7 @@ function JoinVoiceControls() {
         tip="Join voice"
         onClick={() => {
           voiceActive.value = true;
+          capture('voice_join_clicked');
         }}
       />
       <Suspense fallback={null}>
@@ -386,6 +397,7 @@ function InCallControls() {
         on={!voiceMuted.value}
         onClick={() => {
           voiceMuted.value = !voiceMuted.value;
+          capture('voice_mute_toggled', { muted: voiceMuted.value });
         }}
       />
       <BarButton
@@ -400,6 +412,7 @@ function InCallControls() {
         on={videoActive.value}
         onClick={() => {
           videoActive.value = !videoActive.value;
+          capture('camera_toggled', { on: videoActive.value });
         }}
       />
       <Suspense fallback={null}>
@@ -428,7 +441,12 @@ function VersionSwitcher() {
     }
     const label = `${dir === 'prev' ? 'Previous' : 'Next'} version (v${ref.version ?? '?'})`;
     return (
-      <a href={`/s/${ref.id}`} aria-label={label} class={cn(geist.ctlSm, geist.ctlIdle)}>
+      <a
+        href={`/s/${ref.id}`}
+        aria-label={label}
+        onClick={() => capture('version_navigated', { dir })}
+        class={cn(geist.ctlSm, geist.ctlIdle)}
+      >
         <Icon size={14} strokeWidth={1.5} aria-hidden="true" />
         <Tooltip text={label} placement="bottom" />
       </a>
@@ -462,7 +480,10 @@ function PresentButton() {
       icon={<MonitorPlay size={16} strokeWidth={1.5} aria-hidden="true" />}
       tip={on ? 'Stop presenting' : 'Present to everyone'}
       on={on}
-      onClick={() => setPresenting(!on)}
+      onClick={() => {
+        setPresenting(!on);
+        capture('presenting_toggled', { on: !on });
+      }}
     />
   );
 }
@@ -498,7 +519,10 @@ function ThemeButton() {
     <BarButton
       icon={<Icon size={16} strokeWidth={1.5} aria-hidden="true" />}
       tip={`Theme: ${label}`}
-      onClick={cycleTheme}
+      onClick={() => {
+        cycleTheme();
+        capture('theme_changed', { theme: theme.value });
+      }}
     />
   );
 }
@@ -514,7 +538,10 @@ export function ViewerTopBar() {
         icon={<Info size={16} strokeWidth={1.5} aria-hidden="true" />}
         tip="Details"
         on={showInfoPanel.value}
-        onClick={() => (showInfoPanel.value = !showInfoPanel.value)}
+        onClick={() => {
+          showInfoPanel.value = !showInfoPanel.value;
+          capture('panel_toggled', { panel: 'details', open: showInfoPanel.value });
+        }}
       />
       <div class={geist.sep} />
       <ViewportSwitcher />
@@ -532,7 +559,10 @@ export function ViewerTopBar() {
           icon={<MessageSquare size={16} strokeWidth={1.5} aria-hidden="true" />}
           tip="Annotations panel"
           on={showAnnotationPanel.value}
-          onClick={() => (showAnnotationPanel.value = !showAnnotationPanel.value)}
+          onClick={() => {
+            showAnnotationPanel.value = !showAnnotationPanel.value;
+            capture('panel_toggled', { panel: 'annotations', open: showAnnotationPanel.value });
+          }}
         />
         {!isReadonly.value && <SharePopover />}
         {!isReadonly.value && <SupportButton />}

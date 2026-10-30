@@ -4,6 +4,7 @@ import { annotationPanelOpen, peers, uiHidden } from '@ext/lib/state';
 import { cn } from '@marklayer/types';
 import { Lock, Mic, MicOff, MonitorPlay, X } from 'lucide-preact';
 import { lazy, Suspense } from 'preact/compat';
+import { capture } from './analytics';
 import { followingPeer, presenting, setPresenting } from './signals';
 import {
   audioBlocked,
@@ -57,7 +58,10 @@ export function VoicePill() {
     >
       <button
         type="button"
-        onClick={() => (voiceMuted.value = !voiceMuted.value)}
+        onClick={() => {
+          voiceMuted.value = !voiceMuted.value;
+          capture('voice_mute_toggled', { muted: voiceMuted.value });
+        }}
         class={cn(
           'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-[color,background-color] duration-150',
           muted ? 'bg-(--ds-gray-alpha-100) text-(--ds-gray-900)' : 'bg-green-500/20 text-green-400',
