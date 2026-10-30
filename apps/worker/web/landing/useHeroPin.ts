@@ -69,7 +69,7 @@ export function useHeroPin(heroFormRef: { current: HTMLElement | null }): void {
 
     let timer: ReturnType<typeof setTimeout>;
     // Only the viewport changing moves the field. Watching the document instead
-    // would re-place the pin every time a FAQ row opened.
+    // would re-place the pin every time anything below the fold changed height.
     const onResize = () => {
       clearTimeout(timer);
       timer = setTimeout(place, 120);

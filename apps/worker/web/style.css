@@ -81,24 +81,15 @@
   --color-ml-btn-fg: #fff;
   --color-ml-card: oklch(1 0 0 / 0.3);
   --color-ml-card-border: oklch(0.1 0 0 / 0.06);
-  /* Landing surfaces. The page is white and everything that matters sits on
-     it as a white card drawn by its hairline ring, the way Inflight lays its
-     product out: the card is the object, its inner stage is a half-step of
-     warm grey, and the artifact on the stage is white again. */
+  /* Landing surfaces. The page is white; the demo window is a white object on it. */
   --color-ml-board: #fff;
-  /* The stage inside a card, and a hovered link card. Warm, not the UI-kit
-     cool grey, so it sits on the ink ramp's temperature. */
-  --color-ml-board-raised: #fafafa;
-  /* Hairline rules: the FAQ rows, the stage's own edge. */
+  /* Hairline rules: the demo stage's own edge. */
   --color-ml-rule: #00000014;
-  /* The drawn edge of a landing card. A real border, not a ring shadow: the
-     cards sit flat on the white page and the line is all that separates them. */
+  /* The edge of the demo's browser frame. */
   --color-ml-card-edge: #e6e6e6;
   /* The marker band behind the headline's channel word: a grey highlighter,
      the word stays in ink. */
   --color-ml-hl: #e8e8e8;
-  /* The inverted slab the agent section sits in. */
-  --color-ml-slab: #0a0a0a;
   --color-ml-input: oklch(1 0 0 / 0.85);
   --color-ml-input-border: oklch(0 0 0 / 0.12);
   /* Glass overlay surfaces (toolbar, panels, popovers) */
@@ -702,12 +693,9 @@
 }
 
 /* ── The landing surface system ──
-   Three tones and one card. The page is the grey floor, `.lp-card` is a white
-   object on it, `.lp-card-art` is the grey stage inside the card where a piece
-   of the product is shown, and `.lp-panel` is the product itself, white again.
-   Depth is a hairline ring plus a 2px contact shadow, never a bloom: the same
-   token the toolbar and its tooltip use, so an object on the page and an
-   object in the product are lit identically. */
+   Two tones. The page is `.lp-board`, white, and `.lp-panel` is a piece of the
+   product resting on it. Depth is a hairline ring plus a 2px contact shadow,
+   never a bloom: the same token the toolbar and its tooltip use. */
 .lp-board {
   background: var(--color-ml-board);
 }
@@ -747,29 +735,6 @@
   mask-image: radial-gradient(ellipse 70% 60% at 50% 35%, #000 20%, transparent 75%);
 }
 
-/* The inverted slab. Redefining the ink token recolours every utility inside
-   it, opacity steps included, so the section needs no second set of classes. */
-.lp-dark,
-.ml-force-light .lp-dark,
-.ml-force-light .lp-dark * {
-  --color-ml-fg: #fff;
-}
-.lp-dark {
-  background: var(--color-ml-slab);
-  color: #fff;
-}
-.lp-dark .lp-panel {
-  background: #171717;
-  box-shadow: 0 0 0 1px #ffffff1f;
-}
-.lp-dark .lp-cta {
-  background: #fff;
-  color: var(--color-ml-slab);
-}
-.lp-dark .lp-cta:hover {
-  background: #e8e8e8;
-}
-
 /* The primary call to action: one flat black surface. The hover is a value
    step; nothing lifts, sweeps or glows. */
 .lp-cta {
@@ -786,35 +751,6 @@
   background: #fff;
   box-shadow: var(--ds-shadow-border-small);
 }
-/* A card is a field on the white page, and the demo sits straight on it: no
-   inner frame, no shadow. The card clips, so a demo may run off its edge. The
-   field is a tint of the mark's violet at the lowest chroma that still reads as
-   a colour: flat grey here read as dead. */
-.lp-card {
-  background: oklch(0.966 0.008 300);
-  border-radius: 1.25rem;
-}
-.lp-card-art {
-  /* The stage is the card itself; this only keeps the demo inside the rounding. */
-  overflow: hidden;
-}
-/* A demo that runs to the card's side edges: cancels the card's own gutter. */
-.lp-bleed {
-  margin-inline: -1.75rem;
-}
-@media (min-width: 640px) {
-  .lp-bleed {
-    margin-inline: -2rem;
-  }
-}
-/* A link card's hover is a tonal step, not a lift. */
-a.lp-card {
-  transition: background-color 160ms ease;
-}
-a.lp-card:hover {
-  background: oklch(0.945 0.012 300);
-}
-
 /* ── The nav ──
    Glass over the page, and it steps out of the way while the demo holds the
    screen, as the toolbar does. */
@@ -837,28 +773,6 @@ a.lp-card:hover {
     translate 320ms var(--ease-ml-spring),
     visibility 0s 320ms;
 }
-/* The arrow on a comparison card leans out on hover. */
-.lp-compare-arrow {
-  transition:
-    translate 220ms var(--ease-ml-spring),
-    color 160ms ease;
-}
-.lp-card:hover .lp-compare-arrow {
-  translate: 2px -2px;
-  color: var(--color-ml-fg);
-}
-
-/* The FAQ toggle: a plus, turned to a cross when open. */
-.lp-faq-mark {
-  transition: rotate 260ms var(--ease-ml-spring);
-}
-details[open] .lp-faq-mark {
-  rotate: 45deg;
-}
-.lp-faq summary::-webkit-details-marker {
-  display: none;
-}
-
 /* ── The demo stage ──
    A wallpaper desk with the live viewer on it. The viewer carries its own chrome,
    so the window is just its edge: radius in container units so it scales with

@@ -2,28 +2,24 @@ import { CommentPopover } from '@ext/components/CommentPopover';
 import { InspectorLayer } from '@ext/components/InspectorLayer';
 import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
-import { AgentMark } from '@ext/lib/agents';
 import { activeTool, color, comments as commentsComputed, isDrawingTool, lineWidth, selections } from '@ext/lib/state';
 import type { TextOp } from '@ext/lib/types';
-import { agentLabel, cn } from '@marklayer/types';
+import { cn } from '@marklayer/types';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
 import { CHROME_STORE_URL } from '@site/lib/site';
-import { ArrowUpRight, ChevronDown } from 'lucide-preact';
 import { nanoid } from 'nanoid';
-import type { ComponentChildren, JSX } from 'preact';
+import type { ComponentChildren } from 'preact';
 import { siProducthunt } from 'simple-icons';
 import { capture } from './analytics';
 import { ChannelCycle } from './ChannelCycle';
 import { FakeCursors } from './FakeCursors';
 import { frameViewport } from './iframeOverlay';
 import { ChromeIcon, ChromeStoreLink } from './landing/ChromeStoreLink';
-import { AGENT_IDS, AGENT_MOMENTS, COMPARISON_NAMES, COMPARISONS, FAQ, FEATURES, NAV_LINKS } from './landing/content';
+import { NAV_LINKS } from './landing/content';
 import { DemoStage } from './landing/DemoStage';
-import { FEATURE_ARTS } from './landing/FeatureArts';
 import { HeroSource } from './landing/HeroSource';
-import { McpCommand } from './landing/McpCommand';
-import { AgentRow, Art, Caption, Card, MarginNote, ProofGrid } from './landing/Proof';
+import { MarginNote } from './landing/Proof';
 import { useLandingCanvas } from './landing/useLandingCanvas';
 import { useLandingPresence } from './landing/useLandingPresence';
 import { useLandingShortcuts } from './landing/useLandingShortcuts';
@@ -37,7 +33,6 @@ import { WebSelectionPopover } from './WebSelectionPopover';
 /* One display step for every section head and one reading step for every
    paragraph, so no section sets its own scale. */
 const HEAD_CLS = 'lp-display mx-auto max-w-[18em] text-center text-statement text-balance text-ml-fg';
-const BODY_CLS = 'm-0 text-lede leading-prose text-ml-fg/60';
 
 /** A section head: the claim in the serif, its support on its own line under it in grey. */
 function SectionHead({ title, children }: { title: ComponentChildren; children?: ComponentChildren }) {
@@ -49,23 +44,10 @@ function SectionHead({ title, children }: { title: ComponentChildren; children?:
   );
 }
 
-/** One feature: the claim, a line of support, and the piece of the product it rests on. */
-function FeatureCard({ title, desc, art: ArtBody }: { title: string; desc: string; art: () => JSX.Element }) {
-  return (
-    <Card>
-      <Caption title={title}>{desc}</Caption>
-      {/* Anchored to the top and cut by the card's bottom edge, so a demo taller than its slot is cropped, not squeezed. */}
-      <Art class="h-[250px] justify-start pb-0">
-        <ArtBody />
-      </Art>
-    </Card>
-  );
-}
-
-/* The rhythm: every section opens with the same space above its head, and a
-   head sits one step above the cards it introduces. */
+/* The rhythm: a section opens with one space above its head, and the head sits
+   one step above the stage it introduces. */
 const SECTION_CLS = 'relative pt-28 sm:pt-36';
-const CARDS_CLS = 'mt-12 sm:mt-14';
+const STAGE_CLS = 'mt-12 sm:mt-14';
 
 /**
  * The marketing page, which is also a live board: every mark on the first screen
@@ -218,8 +200,7 @@ export function Landing() {
               </div>
             </section>
 
-            {/* The proof: the real viewer on a shared room, which scroll grows to
-                the whole screen, then the claims each proved by a piece of the product. */}
+            {/* The proof: the real viewer on a shared room, which scroll grows to the whole screen. */}
             <section class={SECTION_CLS}>
               <MarginNote class="top-[22%] right-[2%]" flip>
                 The whole fix
@@ -227,143 +208,8 @@ export function Landing() {
               <SectionHead title="One link is the whole setup.">
                 They open it and comment on the page. Nothing to install on either end.
               </SectionHead>
-              <div class={CARDS_CLS}>
+              <div class={STAGE_CLS}>
                 <DemoStage />
-              </div>
-              <div class="mt-16 sm:mt-20">
-                <ProofGrid />
-              </div>
-            </section>
-
-            {/* The agent handoff. The command is the install, not a room: pointing a visitor's
-                agent at the public demo board would feed it strangers' comments. */}
-            <section class={cn(SECTION_CLS, 'text-center')}>
-              {/* The one inverted surface on the page: the agent's room, where the human is not. */}
-              <div class="lp-dark rounded-3xl px-6 py-16 sm:px-10 sm:py-24">
-                <SectionHead title="Let your AI coding tool make the fixes.">
-                  Give Claude Code or Cursor the link. It reads each comment, fixes the code and ticks it off.
-                </SectionHead>
-                <div class="mt-12">
-                  <McpCommand />
-                </div>
-                <p class="mt-5 text-ui text-ml-fg/60">
-                  No install needed: add <code class="font-mono">/mcp</code> to any share link.
-                </p>
-                <div class="mt-9 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-ui text-ml-fg/60">
-                  <span id="lp-agents" class="text-ml-fg">
-                    Works with
-                  </span>
-                  <ul
-                    aria-labelledby="lp-agents"
-                    class="m-0 flex list-none flex-wrap items-center justify-center gap-x-6 gap-y-3 p-0"
-                  >
-                    {AGENT_IDS.map((id) => (
-                      <li key={id} class="m-0 inline-flex items-center gap-1.5 p-0">
-                        <AgentMark id={id} size={15} />
-                        {agentLabel(id)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-              <div class={cn(CARDS_CLS, 'text-left')}>
-                <AgentRow moments={AGENT_MOMENTS} />
-              </div>
-            </section>
-
-            <section class={SECTION_CLS}>
-              <SectionHead title="Everything else a review needs.">
-                All free. Full list on the{' '}
-                <a href="/features" class="text-ml-fg underline underline-offset-2 decoration-ml-fg/30">
-                  features page
-                </a>
-                .
-              </SectionHead>
-              {/* Two columns, alternating wide and narrow, so the pile reads as a pile and not a grid of equals. */}
-              <div class={cn(CARDS_CLS, 'grid gap-4 md:grid-cols-5 sm:gap-5')}>
-                {FEATURES.map((f, i) => (
-                  <div key={f.title} class={cn('grid', [0, 3].includes(i % 4) ? 'md:col-span-3' : 'md:col-span-2')}>
-                    <FeatureCard {...f} art={FEATURE_ARTS[i] ?? FEATURE_ARTS[0]} />
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section class={SECTION_CLS}>
-              <SectionHead
-                title={
-                  <>
-                    Free alternative <span class="text-ml-fg/50">to {COMPARISON_NAMES}.</span>
-                  </>
-                }
-              />
-              {/* The pricing claims live in home-copy.json, shared with HomeContent.astro. */}
-              <div class="mx-auto mt-12 grid max-w-[960px] gap-x-14 gap-y-5 md:grid-cols-2">
-                <p class={cn(BODY_CLS, 'text-pretty')}>{copy.pricingFacts}</p>
-                <p class={cn(BODY_CLS, 'text-pretty')}>
-                  MarkLayer is free by licence (Apache-2.0), not by a pricing policy that can change. Self-host it if
-                  you want.{' '}
-                  <a
-                    href="/guides/free-website-annotation-tools"
-                    class="text-ml-fg underline underline-offset-2 decoration-ml-fg/30"
-                  >
-                    See the full audit
-                  </a>
-                  , checked against live pricing pages.
-                </p>
-              </div>
-              <p class="mx-auto mt-10 max-w-[62ch] text-center text-ui leading-prose text-balance text-ml-fg/60">
-                More:{' '}
-                <a href="/compare" class="text-ml-fg/60 underline hover:text-ml-fg/80">
-                  all comparisons
-                </a>
-                {' · '}
-                <a href="/alternatives" class="text-ml-fg/60 underline hover:text-ml-fg/80">
-                  alternatives by tool
-                </a>
-                {' · '}
-                <a href="/alternatives/markup-io" class="text-ml-fg/60 underline hover:text-ml-fg/80">
-                  Markup.io alternatives by price
-                </a>
-                {' · '}
-                <a href="/for/staging-feedback-no-extension" class="text-ml-fg/60 underline hover:text-ml-fg/80">
-                  staging feedback without an extension
-                </a>
-              </p>
-
-              {/* One row of head-to-heads, each its own link card. */}
-              <nav aria-label="Comparisons" class={cn(CARDS_CLS, 'grid grid-cols-2 gap-4 sm:grid-cols-4 sm:gap-5')}>
-                {COMPARISONS.map(({ name, href }) => (
-                  <a
-                    key={href}
-                    href={href}
-                    class="lp-card relative flex flex-col gap-1 px-5 py-5 no-underline sm:px-6 sm:py-6"
-                  >
-                    <span class="text-ui text-ml-fg/60">MarkLayer vs</span>
-                    <span class="font-ui text-lede font-semibold tracking-ui text-ml-fg">{name}</span>
-                    <ArrowUpRight
-                      size={16}
-                      class="lp-compare-arrow absolute top-5.5 right-5 text-ml-fg/50 sm:top-6.5 sm:right-6"
-                      aria-hidden="true"
-                    />
-                  </a>
-                ))}
-              </nav>
-            </section>
-
-            {/* The head on the left, the questions on the right: a list, not a card. */}
-            <section class={cn(SECTION_CLS, 'lp-faq mx-auto grid max-w-[1000px] gap-10 md:grid-cols-[1fr_2fr]')}>
-              <h2 class={cn(HEAD_CLS, 'mx-0 text-left')}>Questions</h2>
-              <div class="divide-y divide-ml-rule">
-                {FAQ.map((item) => (
-                  <details key={item.q}>
-                    <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-6 py-4 text-lede text-ml-fg">
-                      {item.q}
-                      <ChevronDown class="lp-faq-mark shrink-0 text-ml-fg/60" size={16} strokeWidth={1.5} />
-                    </summary>
-                    <p class={cn(BODY_CLS, 'max-w-[62ch] pb-5 text-pretty')}>{item.a}</p>
-                  </details>
-                ))}
               </div>
             </section>
 
