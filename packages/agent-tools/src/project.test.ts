@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { areaOpSchema, commentOpSchema, inspectOpSchema, selectionOpSchema } from '@marklayer/types';
+import {
+  areaOpSchema,
+  commentOpSchema,
+  inspectOpSchema,
+  selectionOpSchema,
+  type TargetElement,
+} from '@marklayer/types';
 import { projectAnnotation } from './index';
 
 const API_BASE = 'https://marklayer.app';
@@ -39,6 +45,25 @@ describe('projectAnnotation — comment', () => {
       attachments: [],
       voice: null,
       video: null,
+    });
+  });
+
+  test('hands an area its screenshot as a fetchable URL', () => {
+    const area = areaOpSchema.parse({
+      id: 'op-a',
+      tool: 'area',
+      startX: 0,
+      startY: 0,
+      endX: 10,
+      endY: 20,
+      color: '#000',
+      lineWidth: 1,
+      ts: 1_700_000_000_000,
+      attachments: ['abc123def456ghi789jkl'],
+    });
+    expect(projectAnnotation(area, API_BASE)).toMatchObject({
+      kind: 'area',
+      attachments: ['https://marklayer.app/f/abc123def456ghi789jkl'],
     });
   });
 
@@ -184,6 +209,7 @@ describe('projectAnnotation — area', () => {
       comment: 'this whole section feels off',
       rect: { x: 10, y: 20, width: 100, height: 200 },
       target: { selector: '.hero', tag: 'section', markdown: '<section>hero</section>' },
+      attachments: [],
     });
   });
 });
@@ -278,7 +304,85 @@ describe('projectAnnotation — inspect', () => {
       comment: 'increase padding',
       markdown: '<div class="card">...</div>',
       rect: { x: 1, y: 2, width: 3, height: 4 },
+      styleEdits: [],
+      details: null,
     });
     expect(projected).not.toHaveProperty('target');
+  });
+
+  test('carries structured element details through the room parse to the agent', () => {
+    const details = {
+      id: 'cta',
+      classes: ['btn', 'btn-primary'],
+      attributes: { 'aria-label': 'Buy' },
+      visibleText: 'Buy now',
+      styles: { color: 'rgb(0, 0, 0)', position: 'static' },
+      component: { framework: 'React' as const, chain: ['BuyButton', 'Hero'] },
+    };
+    const inspect = inspectOpSchema.parse({
+      id: 'op-8',
+      tool: 'inspect',
+      selector: '#cta',
+      tag: 'button',
+      markdown: '<button/>',
+      rect: { x: 0, y: 0, width: 1, height: 1 },
+      details,
+      ts: 1,
+      color: '#000000',
+      lineWidth: 1,
+    });
+    expect(projectAnnotation(inspect, API_BASE)).toMatchObject({ details });
+  });
+
+  test('flattens live CSS edits into lines an agent reads at a glance', () => {
+    const inspect = inspectOpSchema.parse({
+      id: 'op-7',
+      tool: 'inspect',
+      selector: '.card',
+      tag: 'div',
+      markdown: '<div/>',
+      rect: { x: 0, y: 0, width: 1, height: 1 },
+      styleEdits: [{ property: 'color', from: '#111', to: '#222' }],
+      ts: 1,
+      color: '#000000',
+      lineWidth: 1,
+    });
+    expect(projectAnnotation(inspect, API_BASE)).toMatchObject({ styleEdits: ['color: #111 -> #222'] });
+  });
+});
+
+describe('projectAnnotation — element details', () => {
+  const base = {
+    id: 'op-9',
+    tool: 'comment',
+    num: 1,
+    text: 'tighten this',
+    x: 1,
+    y: 2,
+    color: '#f00',
+    lineWidth: 2,
+    ts: 1,
+  };
+
+  test('hands the agent the structured details alongside the markdown', () => {
+    const target: TargetElement = {
+      selector: '#buy',
+      tag: 'button',
+      markdown: '## Element Inspector',
+      id: 'buy',
+      classes: ['btn'],
+      attributes: { type: 'submit' },
+      visibleText: 'Buy now',
+      styles: { color: 'rgb(0, 0, 0)', display: 'block' },
+      component: { framework: 'React', chain: ['BuyButton'], source: { fileName: 'Buy.tsx', lineNumber: 7 } },
+    };
+    const projected = projectAnnotation(commentOpSchema.parse({ ...base, target }), API_BASE);
+    expect('target' in projected && projected.target).toEqual(target);
+  });
+
+  test('a target without details projects exactly as before', () => {
+    const target = { selector: '#buy', tag: 'button', markdown: 'm' };
+    const projected = projectAnnotation(commentOpSchema.parse({ ...base, target }), API_BASE);
+    expect('target' in projected && projected.target).toEqual(target);
   });
 });

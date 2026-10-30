@@ -247,12 +247,39 @@ export interface BaseOp {
 }
 
 /**
+ * What an agent gets per picked element beyond the selector, mirroring Cursor's
+ * Design Mode payload. Every field is optional so rooms written before they
+ * existed still parse.
+ */
+export const elementDetailsSchema = z.object({
+  id: z.optional(z.string()),
+  classes: z.optional(z.array(z.string())),
+  attributes: z.optional(z.record(z.string(), z.string())),
+  /** Visible text, whitespace-collapsed and capped at 200 chars by the capturer. */
+  visibleText: z.optional(z.string()),
+  /** color, background-color, font-size, font-family, display, position (kebab-case keys). */
+  styles: z.optional(z.record(z.string(), z.string())),
+  component: z.optional(
+    z.object({
+      framework: z.enum(['React', 'Vue', 'Svelte']),
+      /** Nearest component first. */
+      chain: z.array(z.string()),
+      source: z.optional(
+        z.object({ fileName: z.string(), lineNumber: z.number(), columnNumber: z.optional(z.number()) }),
+      ),
+    }),
+  ),
+});
+export type ElementDetails = z.infer<typeof elementDetailsSchema>;
+
+/**
  * Element context attached to an annotation so an MCP-connected agent can locate
  * what was being referenced without round-tripping back to the page. `markdown`
  * is the same `formatForAI()` payload the Inspect tool uses, so all annotation
  * tools converge on a single agent-readable shape.
  */
 export const targetElementSchema = z.object({
+  ...elementDetailsSchema.shape,
   selector: z.string(),
   tag: z.string(),
   markdown: z.string(),
@@ -661,6 +688,7 @@ export const areaOpSchema = z.object({
   ...triageable,
   ...mentioned,
   ...reactable,
+  ...attachable,
   tool: z.literal('area'),
   startX: z.number(),
   startY: z.number(),
@@ -671,6 +699,18 @@ export const areaOpSchema = z.object({
   ...authored,
 });
 export type AreaOp = z.infer<typeof areaOpSchema>;
+
+export const MAX_STYLE_EDITS = 40;
+export const MAX_STYLE_PROPERTY = 64;
+export const MAX_STYLE_VALUE = 200;
+
+/** One CSS property the reviewer changed live on the element: computed value before, what they typed after. */
+export const styleEditSchema = z.object({
+  property: z.string().check(z.minLength(1), z.maxLength(MAX_STYLE_PROPERTY)),
+  from: z.string().check(z.maxLength(MAX_STYLE_VALUE)),
+  to: z.string().check(z.maxLength(MAX_STYLE_VALUE)),
+});
+export type StyleEdit = z.infer<typeof styleEditSchema>;
 
 /**
  * Element-inspector handoff. Captures the selector, the element rect, and the full
@@ -688,6 +728,10 @@ export const inspectOpSchema = z.object({
   comment: z.optional(z.string()),
   markdown: z.string(),
   rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }),
+  /** Optional forever: rooms written before CSS editing existed carry no such key. */
+  styleEdits: z.optional(z.array(styleEditSchema).check(z.maxLength(MAX_STYLE_EDITS))),
+  /** Nested, not spread like `targetElementSchema` does: its `id` is the element's and would collide with the op's. */
+  details: z.optional(elementDetailsSchema),
   ts: z.number(),
   ...authored,
 });

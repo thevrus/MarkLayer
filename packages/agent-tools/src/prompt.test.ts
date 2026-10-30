@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { CommentOp } from '@marklayer/types';
+import type { CommentOp, InspectOp } from '@marklayer/types';
 import { buildAnnotationsPrompt } from './prompt';
 
 const comment = (over: Partial<CommentOp>): CommentOp => ({
@@ -38,6 +38,28 @@ describe('buildAnnotationsPrompt', () => {
       ops: [comment({ id: 'v', text: '', video: 'abc123def456ghi789jkl' })],
     });
     expect(out).toContain('1. (video note)');
+  });
+
+  test('an inspect with only CSS edits is still work, and carries each edit as an arrow line', () => {
+    const inspect: InspectOp = {
+      id: 'i',
+      tool: 'inspect',
+      color: '#000',
+      lineWidth: 2,
+      ts: 1,
+      selector: '.card',
+      tag: 'div',
+      markdown: '<div/>',
+      rect: { x: 0, y: 0, width: 1, height: 1 },
+      styleEdits: [
+        { property: 'color', from: '#111', to: '#222' },
+        { property: 'gap', from: '', to: '8px' },
+      ],
+    };
+    const out = buildAnnotationsPrompt({ ops: [inspect] });
+    expect(out).toContain('1. (CSS edits)');
+    expect(out).toContain('`color: #111 -> #222`');
+    expect(out).toContain('`gap: (unset) -> 8px`');
   });
 
   test('null when nothing is open', () => {

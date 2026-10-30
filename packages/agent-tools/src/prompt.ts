@@ -1,7 +1,11 @@
-import type { AnnotationOp, CommentOp, DrawOp } from '@marklayer/types';
+import type { AnnotationOp, CommentOp, DrawOp, StyleEdit } from '@marklayer/types';
 import { isAnnotationOp, resolveOpStatus } from '@marklayer/types';
 
 const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+/** `color: #111 -> #222`; an empty side is the property having no value there, spelled out so it is not read as a typo. */
+export const formatStyleEdit = ({ property, from, to }: StyleEdit): string =>
+  `${property}: ${oneLine(from) || '(unset)'} -> ${oneLine(to) || '(unset)'}`;
 
 function noteOf(op: AnnotationOp): string {
   if (op.tool === 'comment') return op.text.trim();
@@ -14,6 +18,7 @@ function isActionable(op: AnnotationOp): boolean {
   if (status !== 'open' && status !== 'in_progress') return false;
   if (op.tool === 'selection' && op.suggestion) return true;
   if (op.tool === 'comment' && (op.voice || op.video)) return true;
+  if (op.tool === 'inspect' && op.styleEdits?.length) return true;
   return noteOf(op).length > 0;
 }
 
@@ -28,6 +33,7 @@ const actionableRoots = (ops: DrawOp[]): AnnotationOp[] =>
 function recordingLabel(op: AnnotationOp): string {
   if (op.tool === 'comment' && op.voice) return '(voice note)';
   if (op.tool === 'comment' && op.video) return '(video note)';
+  if (op.tool === 'inspect' && op.styleEdits?.length) return '(CSS edits)';
   return '(no comment)';
 }
 
@@ -59,6 +65,10 @@ export function buildAnnotationsPrompt({ url, ops }: { url?: string; ops: DrawOp
     if (op.tool === 'selection') {
       lines.push(`   - Text: "${oneLine(op.text)}"`);
       if (op.suggestion) lines.push(`   - Change to: "${oneLine(op.suggestion)}"`);
+    }
+    if (op.tool === 'inspect' && op.styleEdits?.length) {
+      lines.push('   - CSS tried live:');
+      for (const edit of op.styleEdits) lines.push(`     - \`${formatStyleEdit(edit)}\``);
     }
     for (const r of replies.get(op.id) ?? []) {
       lines.push(`   - Reply (${r.author || 'Anonymous'}): ${oneLine(r.text)}`);

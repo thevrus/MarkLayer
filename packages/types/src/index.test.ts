@@ -19,6 +19,8 @@ import {
   isNewShareId,
   MAX_PAGE_ERROR_TEXT,
   MAX_PAGE_ERRORS,
+  MAX_STYLE_EDITS,
+  MAX_STYLE_VALUE,
   type Mention,
   MIN_SHARE_ID_LENGTH,
   mentionSegments,
@@ -30,7 +32,9 @@ import {
   redactSharePath,
   resolveOpStatus,
   selectionOpSchema,
+  type TargetElement,
   tallyQuestion,
+  targetElementSchema,
   toggleReaction,
   translateOp,
 } from './index';
@@ -472,6 +476,35 @@ describe('parseOps', () => {
   });
 });
 
+describe('inspect styleEdits', () => {
+  const inspect = {
+    id: 'i1',
+    tool: 'inspect',
+    color: '#000',
+    lineWidth: 2,
+    ts: 1,
+    selector: '.card',
+    tag: 'div',
+    markdown: '<div/>',
+    rect: { x: 0, y: 0, width: 1, height: 1 },
+  };
+  const edit = { property: 'color', from: '#111', to: '#222' };
+
+  // Every room stored before CSS editing shipped has no such key; requiring it would drop them all in `parseOps`.
+  test('an inspect op from before style edits still parses', () => {
+    expect(parseOps([inspect]).map((op) => op.id)).toEqual(['i1']);
+  });
+
+  test('caps the list and each value, so one runaway paste cannot bloat the room', () => {
+    const ok = (styleEdits: unknown) => inspectOpSchema.safeParse({ ...inspect, styleEdits }).success;
+    expect(ok([edit])).toBe(true);
+    expect(ok(Array.from({ length: MAX_STYLE_EDITS }, () => edit))).toBe(true);
+    expect(ok(Array.from({ length: MAX_STYLE_EDITS + 1 }, () => edit))).toBe(false);
+    expect(ok([{ ...edit, to: 'x'.repeat(MAX_STYLE_VALUE + 1) }])).toBe(false);
+    expect(ok([{ ...edit, property: '' }])).toBe(false);
+  });
+});
+
 describe('tallyQuestion', () => {
   const question: QuestionOp = {
     id: 'q1',
@@ -532,5 +565,35 @@ describe('toggleReaction', () => {
   test('a reactions patch survives applyOpPatch on a comment', () => {
     const merged = applyOpPatch({ op: comment, patch: { reactions: toggleReaction({ emoji: '🚀', by: me }) } });
     expect(merged && 'reactions' in merged ? merged.reactions : null).toEqual([{ emoji: '🚀', id: 'u1', name: 'Me' }]);
+  });
+});
+
+describe('targetElementSchema — element details', () => {
+  const old = { selector: '#hero', tag: 'h1', markdown: '## Element Inspector' };
+
+  test('a target written before the detail fields existed still parses', () => {
+    // Fails if any new field becomes required: every stored room holds targets like this.
+    expect(targetElementSchema.safeParse(old).success).toBe(true);
+    const comment = { id: 'c1', tool: 'comment', num: 1, text: 'hi', x: 1, y: 2, color: '#f00', lineWidth: 2, ts: 1 };
+    expect(commentOpSchema.safeParse({ ...comment, target: old }).success).toBe(true);
+  });
+
+  test('keeps the detail fields when present', () => {
+    const full: TargetElement = {
+      ...old,
+      id: 'hero',
+      classes: ['a', 'b'],
+      attributes: { role: 'banner' },
+      visibleText: 'Pricing',
+      styles: { color: 'rgb(0, 0, 0)' },
+      component: { framework: 'React', chain: ['Hero'], source: { fileName: 'Hero.tsx', lineNumber: 3 } },
+    };
+    expect(targetElementSchema.parse(full)).toEqual(full);
+  });
+
+  test('rejects a malformed component rather than passing it to an agent', () => {
+    expect(targetElementSchema.safeParse({ ...old, component: { framework: 'Angular', chain: [] } }).success).toBe(
+      false,
+    );
   });
 });

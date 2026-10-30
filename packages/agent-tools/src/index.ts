@@ -25,7 +25,7 @@ import {
   uploadPath,
 } from '@marklayer/types';
 import { z } from 'zod/mini';
-import { isWatchableOp } from './prompt';
+import { formatStyleEdit, isWatchableOp } from './prompt';
 
 /**
  * Everything about MarkLayer's agent tools that is not a transport.
@@ -100,6 +100,8 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       comment: op.comment ?? null,
       rect: { x: op.startX, y: op.startY, width: op.endX - op.startX, height: op.endY - op.startY },
       target: op.target ?? null,
+      // The marked-up screenshot of the area, when the reviewer drew on it.
+      attachments: attachmentUrls(op.attachments, apiBase),
     };
   }
   if (op.tool === 'selection') {
@@ -121,6 +123,10 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
     comment: op.comment ?? null,
     markdown: op.markdown,
     rect: op.rect,
+    // CSS the reviewer already tried live on the element, as `property: from -> to` lines to port into source.
+    styleEdits: op.styleEdits?.map(formatStyleEdit) ?? [],
+    // id, classes, attributes, visible text, key styles and component chain, so nothing has to be parsed out of `markdown`.
+    details: op.details ?? null,
   };
 }
 
