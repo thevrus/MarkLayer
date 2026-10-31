@@ -12,6 +12,7 @@ import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { capture } from './analytics';
 import type { UploadKind } from './landing/useLandingUpload';
+import { findPageIndex, normalizePageUrl } from './pageMatch';
 
 export interface ProjectPage {
   id: string;
@@ -118,6 +119,55 @@ export async function createAnnotationFor(url: string): Promise<string | null> {
 /** A typed address as a fetchable URL: `example.com` means https, and an Outlook Safe Link means its target. */
 export const withScheme = (url: string): string => unwrapSafeLink(/^https?:\/\//i.test(url) ? url : `https://${url}`);
 
+/** Show another page of the open project, keeping the live ops of the one being left. */
+export function switchPage(i: number) {
+  const idx = currentPageIdx.value;
+  if (i === idx) return;
+  projectPages.value = projectPages.value.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
+  currentPageIdx.value = i;
+  const url = new URL(location.href);
+  if (i === 0) url.searchParams.delete('page');
+  else url.searchParams.set('page', String(i));
+  history.replaceState(null, '', url);
+}
+
+/** Append `url` to the open project and show it, or show the page that already has it. Null on failure. */
+export async function addProjectPage(url: string): Promise<'added' | 'existing' | null> {
+  const pid = projectId.value;
+  if (!pid || projectLoading.value) return null;
+  // The same page twice would split its annotations across two rooms.
+  const existing = findPageIndex({ pages: projectPages.value, url });
+  if (existing !== -1) {
+    switchPage(existing);
+    return 'existing';
+  }
+  projectLoading.value = true;
+  const newPageId = await createAnnotationFor(url);
+  if (!newPageId) {
+    projectLoading.value = false;
+    capture('page_open_failed', { mode: 'project_page', step: 'create_page' });
+    showToast('Failed to add page', { type: 'error' });
+    return null;
+  }
+  const idx = currentPageIdx.value;
+  // Snapshot current page's live ops back into the cached list before switching
+  const snapshot = projectPages.value.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
+  const next: ProjectPage[] = [...snapshot, { id: newPageId, url, width: window.innerWidth, ops: [] }];
+  projectPages.value = next;
+  const ok = await saveProject(
+    pid,
+    next.map((p) => p.id),
+  );
+  projectLoading.value = false;
+  if (!ok) {
+    capture('page_open_failed', { mode: 'project_page', step: 'save_project' });
+    showToast('Failed to save project', { type: 'error' });
+    return null;
+  }
+  switchPage(next.length - 1);
+  return 'added';
+}
+
 /**
  * Navigate to a new URL.
  * - In project mode (`/p/:id`): append a new page to the project and switch to it (no full reload).
@@ -134,47 +184,22 @@ export async function navigateTo({
   kind?: UploadKind;
 }) {
   const pid = projectId.value;
+  const currentUrl = pageUrl.value;
+  if (!pid && currentUrl && normalizePageUrl(currentUrl) === normalizePageUrl(url)) {
+    showToast('That page is already open', { type: 'info' });
+    return;
+  }
   // Which of the three shapes a session takes — a first page, a second page that
   // promotes a share into a project, another page on an existing project — and
   // what asked for it. Counted here because this is where every entry point lands.
   capture('page_opened', { mode: pid ? 'project_page' : annotationId.value ? 'promoted' : 'new', source, kind });
   if (pid) {
-    if (projectLoading.value) return;
-    projectLoading.value = true;
-    const newPageId = await createAnnotationFor(url);
-    if (!newPageId) {
-      projectLoading.value = false;
-      capture('page_open_failed', { mode: 'project_page', step: 'create_page' });
-      showToast('Failed to add page', { type: 'error' });
-      return;
-    }
-    const pages = projectPages.value;
-    const idx = currentPageIdx.value;
-    // Snapshot current page's live ops back into the cached list before switching
-    const snapshot = pages.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
-    const next: ProjectPage[] = [...snapshot, { id: newPageId, url, width: window.innerWidth, ops: [] }];
-    projectPages.value = next;
-    const ok = await saveProject(
-      pid,
-      next.map((p) => p.id),
-    );
-    if (!ok) {
-      projectLoading.value = false;
-      capture('page_open_failed', { mode: 'project_page', step: 'save_project' });
-      showToast('Failed to save project', { type: 'error' });
-      return;
-    }
-    currentPageIdx.value = next.length - 1;
-    const navUrl = new URL(location.href);
-    navUrl.searchParams.set('page', String(next.length - 1));
-    history.replaceState(null, '', navUrl);
-    projectLoading.value = false;
+    await addProjectPage(url);
     return;
   }
 
   // Single-share mode: promote into a project bundling current + new
   const currentId = annotationId.value;
-  const currentUrl = pageUrl.value;
   if (currentId && currentUrl) {
     projectLoading.value = true;
     // Best-effort flush of current ops so the project's first page has them on first read

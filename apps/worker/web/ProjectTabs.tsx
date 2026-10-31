@@ -5,9 +5,9 @@ import { cn } from '@marklayer/types';
 import { Plus, Trash2, X } from 'lucide-preact';
 import { useState } from 'preact/hooks';
 import { capture } from './analytics';
+import { addProjectPage, switchPage } from './projects';
 import {
   annotationId,
-  createAnnotationFor,
   currentPageIdx,
   isReadonly,
   pageUrl,
@@ -50,14 +50,7 @@ export function ProjectTabs() {
 
   const switchTo = (i: number) => {
     if (i === idx) return;
-    // Snapshot current page's ops back into the cached list before switching
-    const updated = pages.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
-    projectPages.value = updated;
-    currentPageIdx.value = i;
-    const url = new URL(location.href);
-    if (i === 0) url.searchParams.delete('page');
-    else url.searchParams.set('page', String(i));
-    history.replaceState(null, '', url);
+    switchPage(i);
     capture('project_tab_switched', { pages: pages.length });
   };
 
@@ -102,34 +95,11 @@ export function ProjectTabs() {
     e.preventDefault();
     const typed = newUrl.trim();
     if (!typed) return;
-    const url = withScheme(typed);
-    projectLoading.value = true;
-    const newPageId = await createAnnotationFor(url);
-    if (!newPageId) {
-      projectLoading.value = false;
-      return;
-    }
-    // Persist current page's ops snapshot before switching
-    const snapshot = pages.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
-    const next: typeof pages = [...snapshot, { id: newPageId, url, width: window.innerWidth, ops: [] }];
-    projectPages.value = next;
-    const ok = await saveProject(
-      pid,
-      next.map((p) => p.id),
-    );
-    if (!ok) {
-      projectLoading.value = false;
-      return;
-    }
-    // Switch to the newly added tab
-    currentPageIdx.value = next.length - 1;
-    const navUrl = new URL(location.href);
-    navUrl.searchParams.set('page', String(next.length - 1));
-    history.replaceState(null, '', navUrl);
-    capture('project_page_added', { pages: next.length });
+    const added = await addProjectPage(withScheme(typed));
+    if (!added) return;
+    if (added === 'added') capture('project_page_added', { pages: projectPages.value.length });
     setNewUrl('');
     setAdding(false);
-    projectLoading.value = false;
   };
 
   return (
