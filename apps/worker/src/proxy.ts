@@ -322,6 +322,8 @@ export interface FetchedPage {
   firewall: Firewall | null;
   /** The relay's public address, when the relay is what answered. */
   egressIp: string | null;
+  /** A same-origin page this one bounces to at once — see `instantRefreshTarget`. */
+  refreshTo: string | null;
 }
 
 /**
@@ -343,13 +345,51 @@ async function describePage({
   const base = { status: resp.status, contentType, finalUrl, via, egressIp };
 
   if (!contentType.includes('text/html') || !resp.body) {
-    return { ...base, stream: resp.body, challenged: false, firewall: null };
+    return { ...base, stream: resp.body, challenged: false, firewall: null, refreshTo: null };
   }
   const { head, stream } = await peekBody(resp.body);
   const challenged = isChallenged({ status: resp.status, head });
   const firewall = challenged ? identifyFirewall({ headers: resp.headers, head }) : null;
-  return { ...base, stream, challenged, firewall };
+  // A challenge's refresh points at its CAPTCHA; following it would hide the block from the viewer.
+  const refreshTo = challenged ? null : instantRefreshTarget({ head, base: finalUrl });
+  return { ...base, stream, challenged, firewall, refreshTo };
 }
+
+const META_TAG = /<meta\b[^>]*>/gi;
+const REFRESH_CONTENT = /^\s*0+(?:\.0*)?(?:\s*[;,]\s*|\s+)(?:url\s*=\s*)?(['"]?)(.+?)\1\s*$/i;
+
+/** One attribute of a single tag, quoted or bare. */
+function attrOf({ tag, name }: { tag: string; name: string }): string | null {
+  const m = tag.match(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
+  return m ? decodeAttr(m[1] ?? m[2] ?? m[3] ?? '') : null;
+}
+
+/**
+ * Where a zero-delay `<meta http-equiv="refresh">` sends the page, when that is
+ * elsewhere on the same origin.
+ *
+ * Static hosts (Astro's redirect template) answer `/about` with a stub bouncing
+ * to `/about/`. In the frame it resolves after our `<base>` and `replaceState`
+ * land, so it either walks out to our own 404 or escapes to the raw target.
+ * Followed here like the HTTP redirect it stands in for, it never reaches the frame.
+ */
+function instantRefreshTarget({ head, base }: { head: string; base: string }): string | null {
+  for (const tag of head.match(META_TAG) ?? []) {
+    if (attrOf({ tag, name: 'http-equiv' })?.trim().toLowerCase() !== 'refresh') continue;
+    const target = attrOf({ tag, name: 'content' })?.match(REFRESH_CONTENT)?.[2];
+    if (!target) return null;
+    try {
+      const next = new URL(target, base);
+      return next.origin === new URL(base).origin && next.href !== base ? next.href : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** A chain of stubs longer than this is a loop, not a page. */
+const MAX_REFRESH_HOPS = 3;
 
 /**
  * `fetch`, bounding the wait for response headers and nothing else.
@@ -387,7 +427,16 @@ export async function fetchWithHeaderTimeout({
  * served the full page to an ordinary connection. So there is nothing to retry
  * with here — only somewhere else to retry *from*.
  */
-export async function fetchPage({ url, env }: { url: string; env: Env['Bindings'] }): Promise<FetchedPage> {
+export async function fetchPage({
+  url,
+  env,
+  hops = 0,
+}: {
+  url: string;
+  env: Env['Bindings'];
+  /** Meta-refresh stubs already followed to reach `url`. */
+  hops?: number;
+}): Promise<FetchedPage> {
   const origin = new URL(url).origin;
   const resp = await fetchWithHeaderTimeout({
     url,
@@ -405,6 +454,11 @@ export async function fetchPage({ url, env }: { url: string; env: Env['Bindings'
   });
 
   const direct = await describePage({ resp, finalUrl: resp.url || url, via: 'direct' });
+  const next = direct.refreshTo && hops < MAX_REFRESH_HOPS ? parseFetchableUrl(direct.refreshTo) : null;
+  if (next?.ok) {
+    void direct.stream?.cancel();
+    return fetchPage({ url: next.url.href, env, hops: hops + 1 });
+  }
   if (!direct.challenged) return direct;
 
   const relayed = await relayFetch({ url, env });

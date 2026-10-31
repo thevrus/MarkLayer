@@ -422,3 +422,83 @@ describe('GET /proxy — entity-encoded attribute URLs (#4)', () => {
     expect(body).toContain('src="http://localhost/px/example.com/i.png?a=1&amp;copy=2"');
   });
 });
+
+describe('fetchPage — meta-refresh redirect stubs', () => {
+  // biome-ignore lint/suspicious/noExplicitAny: no relay bindings, so a challenge is returned as-is.
+  const env = {} as any;
+  const page = '<html><head><title>About</title></head><body>the real page</body></html>';
+  let fetched: string[] = [];
+
+  const serve = (pages: Record<string, string>) => {
+    fetched = [];
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        const url = String(input);
+        fetched.push(url);
+        return new Response(pages[url] ?? page, { headers: { 'content-type': 'text/html' } });
+      },
+      { preconnect: realFetchForRoutes.preconnect },
+    );
+  };
+  const load = async (url: string) => {
+    const result = await fetchPage({ url, env });
+    return { ...result, body: result.stream ? await read(result.stream) : '' };
+  };
+
+  afterEach(() => {
+    globalThis.fetch = realFetchForRoutes;
+  });
+
+  test("Astro's head-less stub is followed to the page it points at", async () => {
+    serve({
+      'https://site.example/about':
+        '<!doctype html><title>Redirecting to: /about/</title><meta http-equiv="refresh" content="0;url=/about/"><meta name="robots" content="noindex"><body><a href="/about/">Redirecting</a></body>',
+    });
+    const result = await load('https://site.example/about');
+    expect(result.finalUrl).toBe('https://site.example/about/');
+    expect(result.body).toContain('the real page');
+  });
+
+  test('a stub with a head and its own redirect script is followed too', async () => {
+    serve({
+      'https://site.example/about':
+        "<html><head><META HTTP-EQUIV='Refresh' CONTENT=\"0; URL='/about/'\"><script>location.replace('/about/')</script></head></html>",
+    });
+    const result = await load('https://site.example/about');
+    expect(result.finalUrl).toBe('https://site.example/about/');
+    expect(result.body).toContain('the real page');
+  });
+
+  test('a delayed refresh is the page, not a stub', async () => {
+    serve({ 'https://site.example/a': '<html><head><meta http-equiv="refresh" content="5;url=/b"></head></html>' });
+    expect((await load('https://site.example/a')).finalUrl).toBe('https://site.example/a');
+    expect(fetched).toEqual(['https://site.example/a']);
+  });
+
+  test('a refresh to another host is left for the frame', async () => {
+    serve({ 'https://site.example/a': '<meta http-equiv="refresh" content="0;url=https://other.example/">' });
+    expect((await load('https://site.example/a')).finalUrl).toBe('https://site.example/a');
+    expect(fetched).toEqual(['https://site.example/a']);
+  });
+
+  test('a refresh loop stops after three hops', async () => {
+    serve({
+      'https://site.example/a': '<meta http-equiv="refresh" content="0;url=/b">',
+      'https://site.example/b': '<meta http-equiv="refresh" content="0;url=/a">',
+    });
+    await load('https://site.example/a');
+    expect(fetched).toHaveLength(4);
+  });
+
+  test("a challenge's refresh to its CAPTCHA is still reported as a challenge", async () => {
+    serve({
+      'https://site.example/':
+        '<html><head><meta http-equiv="refresh" content="0;/.well-known/sgcaptcha/?r=%2F"></head></html>',
+    });
+    const result = await load('https://site.example/');
+    expect(result.challenged).toBe(true);
+    expect(result.firewall).toBe('siteground');
+    expect(result.finalUrl).toBe('https://site.example/');
+    expect(fetched).toEqual(['https://site.example/']);
+  });
+});
