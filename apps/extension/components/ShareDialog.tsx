@@ -157,9 +157,9 @@ export function ShareDialog() {
   if (!showShareDialog.value || !shareUrl) return null;
 
   const roomId = getRoomId();
-  const claudeCommand = claudeMcpCommand(roomId);
-  const endpoint = mcpEndpoint(roomId);
-  const npxCommand = npxMcpCommand(roomId);
+  const claudeCommand = claudeMcpCommand({ roomId });
+  const endpoint = mcpEndpoint({ roomId });
+  const npxCommand = npxMcpCommand({ roomId });
   const shareable = isShareableUrl();
   const embedHostile = shareable && isLikelyEmbedHostile();
 

@@ -107,14 +107,23 @@ describe('MCP connect commands', () => {
   // Both surfaces offer these verbatim for copy-paste; a dropped flag or a room
   // id that never reaches the string hands the user a command that just fails.
   test('point at the room’s own endpoint, so nothing has to be installed', () => {
-    expect(mcpEndpoint('room-42')).toBe('https://marklayer.app/s/room-42/mcp');
-    expect(claudeMcpCommand('room-42')).toBe(
+    expect(mcpEndpoint({ roomId: 'room-42' })).toBe('https://marklayer.app/s/room-42/mcp');
+    expect(claudeMcpCommand({ roomId: 'room-42' })).toBe(
       'claude mcp add --transport http marklayer https://marklayer.app/s/room-42/mcp',
     );
   });
 
   test('keep the npx fallback intact, non-interactive flag and all', () => {
-    expect(npxMcpCommand('room-42')).toBe('npx -y marklayer-mcp --room room-42');
+    expect(npxMcpCommand({ roomId: 'room-42' })).toBe('npx -y marklayer-mcp --room room-42');
+  });
+
+  test('a self-hosted origin reaches every command, npx via --api-base', () => {
+    const origin = 'http://localhost:8787';
+    expect(mcpEndpoint({ roomId: 'r', origin })).toBe('http://localhost:8787/s/r/mcp');
+    expect(claudeMcpCommand({ roomId: 'r', origin })).toContain('http://localhost:8787/s/r/mcp');
+    expect(npxMcpCommand({ roomId: 'r', origin })).toBe(
+      'npx -y marklayer-mcp --room r --api-base http://localhost:8787',
+    );
   });
 });
 

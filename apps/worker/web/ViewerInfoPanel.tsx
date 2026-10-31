@@ -193,10 +193,10 @@ function AgentSection({ id }: { id: string }) {
         <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
           Your agent reads this page and resolves these annotations live. Run once in your project:
         </p>
-        <CommandField label="Claude Code command" value={claudeMcpCommand(id)} />
+        <CommandField label="Claude Code command" value={claudeMcpCommand({ roomId: id, origin: location.origin })} />
         <PanelSection label="Cursor, Codex, Windsurf…">
           <div class="flex flex-col gap-1.5">
-            <CommandField label="MCP server URL" value={mcpEndpoint(id)} />
+            <CommandField label="MCP server URL" value={mcpEndpoint({ roomId: id, origin: location.origin })} />
             <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
               Add as an HTTP MCP server named "marklayer". Nothing to install: the link is the server.
             </p>
@@ -204,7 +204,7 @@ function AgentSection({ id }: { id: string }) {
         </PanelSection>
         <PanelSection label="Local server (npx)">
           <div class="flex flex-col gap-1.5">
-            <CommandField label="npx command" value={npxMcpCommand(id)} />
+            <CommandField label="npx command" value={npxMcpCommand({ roomId: id, origin: location.origin })} />
             <p class="text-meta text-(--ds-gray-900) leading-snug m-0">
               For a client that cannot reach a remote MCP server yet.
             </p>
