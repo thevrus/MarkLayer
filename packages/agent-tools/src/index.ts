@@ -216,12 +216,18 @@ function targetFromParts({
 export const CreateInput = z
   .object({
     text: z.string().check(z.minLength(1)),
-    x: z.number(),
-    y: z.number(),
+    x: z.optional(z.number()),
+    y: z.optional(z.number()),
     priority: z.optional(commentPrioritySchema),
     ...targetParts,
   })
-  .check(targetTripleCheck);
+  .check(targetTripleCheck)
+  .check(
+    z.refine(
+      ({ x, y, selector }) => selector !== undefined || (x !== undefined && y !== undefined),
+      'give x and y, or selector + tag + markdown to pin to an element',
+    ),
+  );
 
 /**
  * `rects` mirrors the human selection tool's own shape — one box per line the
@@ -468,12 +474,12 @@ export const TOOLS: ToolSpec[] = [
       'Use this after you have looked at the page with your own tools (a screenshot, a DOM read) and decided ' +
       'something is worth flagging; call it once per finding so each becomes its own pin the human can triage. x/y ' +
       'are document pixels (not viewport pixels — scroll offset already added in). Pass selector + tag + markdown ' +
-      'together to anchor the pin to that element so it re-resolves if the page reflows; omit all three for a ' +
-      'fixed-point pin.',
+      '(straight from marklayer_read_page) to pin to that element: the pin sits on the element and follows it when ' +
+      'the page reflows, and x/y become optional (a fallback only). Omit all three for a fixed-point pin at x/y.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
-      required: ['text', 'x', 'y'],
+      required: ['text'],
       properties: {
         text: { type: 'string', description: 'The feedback itself.' },
         x: { type: 'number', description: 'Document-space X in CSS pixels.' },
@@ -910,7 +916,15 @@ export async function callRoomTool({
       const parsed = CreateInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
       const { text, x, y, priority, selector, tag, markdown } = parsed.data;
-      const created = await room.create({ text, x, y, priority, target: targetFromParts({ selector, tag, markdown }) });
+      const target = targetFromParts({ selector, tag, markdown });
+      // An element pin sits on the element and follows it; x/y are only the stale-selector fallback.
+      const created = await room.create({
+        text,
+        x: x ?? 0,
+        y: y ?? 0,
+        priority,
+        target: target && { ...target, offsetX: 0, offsetY: 0 },
+      });
       if (!created) return err(createFailure({ room, what: 'annotation' }));
       return ok({ id: created.id, status: 'open' });
     }

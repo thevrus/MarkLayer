@@ -149,9 +149,15 @@ describe('callRoomTool', () => {
     expect(body(await run('marklayer_create_annotation', whole, room)).id).toBe('new-1');
     await run('marklayer_create_annotation', { text: 'hi', x: 0, y: 0 }, room);
     expect(created.map((a) => a.target)).toEqual([
-      { selector: '#a', tag: 'button', markdown: '`<button>`' },
+      { selector: '#a', tag: 'button', markdown: '`<button>`', offsetX: 0, offsetY: 0 },
       undefined,
     ]);
+    // A selector stands in for coordinates, and the pin then sits on the element; without one both are required.
+    const anchored = { text: 'hi', selector: '#a', tag: 'button', markdown: '`<button>`' };
+    expect(body(await run('marklayer_create_annotation', anchored, room)).id).toBe('new-1');
+    expect(created.at(-1)?.target).toMatchObject({ offsetX: 0, offsetY: 0 });
+    expect((await run('marklayer_create_annotation', { text: 'hi' }, room))?.isError).toBe(true);
+    expect((await run('marklayer_create_annotation', { text: 'hi', x: 1 }, room))?.isError).toBe(true);
   });
 });
 
