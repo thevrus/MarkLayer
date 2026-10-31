@@ -114,6 +114,22 @@ describe('connectRoom', () => {
     expect(operations.value.map((o) => o.id)).toEqual(['R', 'L']);
   });
 
+  test('a long offline queue drains in slices, in order, without dropping the tail', async () => {
+    const socket = connect();
+    for (let i = 0; i < 1000; i++) onOpPushed.value?.(op(`q${i}`));
+    socket.open();
+    // Past the first burst the rest waits, and a live op queues behind it rather than overtaking.
+    expect(sentOpIds(socket)).toHaveLength(800);
+    onOpPushed.value?.(op('live'));
+    expect(sentOpIds(socket)).toHaveLength(800);
+
+    await Bun.sleep(2100);
+    const ids = sentOpIds(socket);
+    expect(ids).toHaveLength(1001);
+    expect(ids.at(-2)).toBe('q999');
+    expect(ids.at(-1)).toBe('live');
+  });
+
   test('a torn-down room cannot write ops', async () => {
     const socket = connect();
     socket.open();

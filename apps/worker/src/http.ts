@@ -42,14 +42,18 @@ export async function cachedPng({
   key,
   ctx,
   render,
+  admit,
 }: {
   bucket: R2Bucket;
   key: string;
   ctx: { waitUntil(promise: Promise<unknown>): void };
   render: () => Promise<ArrayBuffer>;
+  /** Asked on a miss only, so a rate limit spends nothing on a card already in R2. */
+  admit?: () => Promise<boolean>;
 }): Promise<Response> {
   const cached = await bucket.get(key);
   if (cached) return new Response(cached.body, { headers: dayCached('image/png') });
+  if (admit && !(await admit())) return new Response('Too many requests', { status: 429 });
 
   const png = await render();
   ctx.waitUntil(bucket.put(key, png, { httpMetadata: { contentType: 'image/png' } }));

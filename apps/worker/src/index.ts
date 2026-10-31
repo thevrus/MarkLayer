@@ -60,6 +60,12 @@ export type Env = {
     UPLOAD_LIMITER?: RateLimit;
     /** Caps sign-in and invite mail per client IP. */
     EMAIL_LIMITER?: RateLimit;
+    /** Caps top-level page fetches and OG renders per client IP. */
+    FETCH_LIMITER?: RateLimit;
+    /** Caps anonymous share API writes, MCP calls and socket opens per client IP. */
+    ROOM_LIMITER?: RateLimit;
+    /** Caps relay fallbacks for `/px/*` sub-resources per client IP. */
+    RELAY_LIMITER?: RateLimit;
     TURN_KEY_ID?: string;
     TURN_KEY_TOKEN?: string;
     POSTHOG_KEY?: string;
@@ -278,6 +284,8 @@ app.get('/og/page.png', async (c) => {
     key,
     ctx: c.executionCtx,
     render: () => generatePageOgImage({ heading, path }),
+    // The heading is caller-supplied, so varying it forces a fresh rasterize on every request.
+    admit: async () => !(await overRateLimit({ limiter: c.env.FETCH_LIMITER, req: c.req })),
   });
 });
 

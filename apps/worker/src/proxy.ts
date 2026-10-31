@@ -1,6 +1,7 @@
 import { parseFetchableUrl } from '@marklayer/types';
 import { Hono } from 'hono/tiny';
 import { errorRelayScript } from './error-relay';
+import { overRateLimit } from './http';
 import type { Env } from './index';
 import { captureBlockedSite, captureServer } from './posthog';
 import { PROXY_ERRORS } from './proxy-errors';
@@ -271,11 +272,14 @@ async function relaySubResource({
   accept,
   env,
   ctx,
+  admit,
 }: {
   url: string;
   accept: string | undefined;
   env: RelaySettings;
   ctx: { waitUntil(promise: Promise<unknown>): void };
+  /** Asked on a cache miss only: a hit costs the relay nothing. */
+  admit: () => Promise<boolean>;
 }): Promise<Response | null> {
   // The off switch covers what the relay already fetched, not only new fetches.
   if (!relayConfig(env)) return null;
@@ -284,6 +288,7 @@ async function relaySubResource({
   const key = new Request(url);
   const hit = await cache?.match(key);
   if (hit) return hit;
+  if (!(await admit())) return null;
 
   // A refusal here never rests the host: a 404 page for one stray image looks
   // just like a challenge to `isRefusedSubResource`. Only `fetchPage` judges that.
@@ -474,6 +479,8 @@ proxy.get('/proxy', async (c) => {
 
   const reqUrl = new URL(c.req.url);
   if (gate.url.hostname.toLowerCase() === reqUrl.hostname.toLowerCase()) return c.redirect('/#error=self');
+
+  if (await overRateLimit({ limiter: c.env.FETCH_LIMITER, req: c.req })) return c.text('Too many requests', 429);
 
   const fetchStart = Date.now();
   try {
@@ -782,6 +789,9 @@ proxy.all('/px/*', async (c) => {
         accept: c.req.header('Accept'),
         env: c.env,
         ctx: c.executionCtx,
+        // Limited here rather than per /px request: a page load bursts hundreds of
+        // assets, and a direct fetch spends nothing the Worker invocation has not.
+        admit: async () => !(await overRateLimit({ limiter: c.env.RELAY_LIMITER, req: c.req })),
       });
       if (relayed) {
         void direct.body?.cancel(); // the direct body lost; do not hold its connection open

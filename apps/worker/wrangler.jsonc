@@ -85,6 +85,27 @@
       "name": "UPLOAD_LIMITER",
       "namespace_id": "4273",
       "simple": { "limit": 30, "period": 60 }
+    },
+    {
+      // Top-level page fetches and renders per client IP: GET /proxy, /s/:id/page.json and an
+      // uncached /og/page.png. A viewer fetches one page per navigation; /px/* assets are not counted.
+      "name": "FETCH_LIMITER",
+      "namespace_id": "4274",
+      "simple": { "limit": 60, "period": 60 }
+    },
+    {
+      // Anonymous room traffic per client IP: share API writes, /s/:id/mcp calls and /ws opens.
+      // Sized for an agent working a queue of comments; autosave posts at most every 3s per tab.
+      "name": "ROOM_LIMITER",
+      "namespace_id": "4275",
+      "simple": { "limit": 120, "period": 60 }
+    },
+    {
+      // /px/* sub-resources fetched through the paid fixed-IP relay, per client IP, on a cache
+      // miss only. One challenged page can miss on a few hundred assets before the colo cache fills.
+      "name": "RELAY_LIMITER",
+      "namespace_id": "4276",
+      "simple": { "limit": 300, "period": 60 }
     }
   ],
   "d1_databases": [

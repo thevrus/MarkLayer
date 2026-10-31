@@ -2,6 +2,7 @@ import { isNewShareId } from '@marklayer/types';
 import { setCookie } from 'hono/cookie';
 import { csrf } from 'hono/csrf';
 import { Hono } from 'hono/tiny';
+import { overRateLimit } from './http';
 import type { Env } from './index';
 import { attemptPassword, lockedJson, lockedSocket, ROOM_GEN_HEADER, roomAccess, unlockCookie } from './lock/gate';
 import { safeReturnPath, unlockPage } from './lock/page';
@@ -75,6 +76,7 @@ rooms.post('/s/:id/unlock', csrf(), async (c) => {
  * WAF-blocked host needs, not from wherever someone happens to run a CLI.
  */
 rooms.get('/s/:id/page.json', async (c) => {
+  if (await overRateLimit({ limiter: c.env.FETCH_LIMITER, req: c.req })) return c.text('Too many requests', 429);
   const id = c.req.param('id');
   const stub = await getRoomStub({ id, env: c.env });
   if (!stub) return c.text('Share id too short', 400);
@@ -100,6 +102,7 @@ rooms.get('/s/:id/page.json', async (c) => {
  * someone else's logo on Cursor's annotations.
  */
 rooms.all('/s/:id/mcp', async (c) => {
+  if (await overRateLimit({ limiter: c.env.ROOM_LIMITER, req: c.req })) return c.text('Too many requests', 429);
   const id = c.req.param('id');
   const stub = await getRoomStub({ id, env: c.env });
   if (!stub) return c.text('Share id too short', 400);
@@ -120,6 +123,8 @@ rooms.all('/s/:id/mcp', async (c) => {
 rooms.get('/ws/:id', async (c) => {
   const id = c.req.param('id');
   if (c.req.header('Upgrade') !== 'websocket') return c.text('Expected WebSocket', 426);
+  // Each open buys a fresh per-socket message budget in the room, so opens are the thing to cap.
+  if (await overRateLimit({ limiter: c.env.ROOM_LIMITER, req: c.req })) return c.text('Too many requests', 429);
   const room = await getRoomStub({ id, env: c.env });
   if (!room) return c.text('Share id too short', 400);
   const access = await roomAccess({ db: c.env.DB, id, headers: c.req.raw.headers });

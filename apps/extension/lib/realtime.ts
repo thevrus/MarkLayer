@@ -37,6 +37,10 @@ export const isOwned = signal(false);
 export const serverUrl = signal<string | null>(null);
 export const serverWidth = signal<number | null>(null);
 
+/** Offline-queue flush pacing, kept under the room's per-socket cap (annotation-room.ts). */
+const DRAIN_BURST = 800;
+const DRAIN_SLICE = 150;
+
 /** Exposed so voice room can send signaling messages through the same WS */
 export const wsSend = signal<((msg: unknown) => void) | null>(null);
 /** Callback for incoming WebRTC signaling messages */
@@ -226,8 +230,18 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
 
   let ws: WebSocket | null = null;
   let retries = 0;
-  let pending: string[] = [];
+  const pending: string[] = [];
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let drainTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // The room closes a socket past 1000 messages at once (refilling 200/s), and an
+  // offline guide drag alone can queue more, so a long queue goes out in paced slices.
+  function drain({ socket, budget }: { socket: WebSocket; budget: number }) {
+    drainTimer = null;
+    if (socket.readyState !== WebSocket.OPEN) return;
+    for (const msg of pending.splice(0, budget)) socket.send(msg);
+    if (pending.length > 0) drainTimer = setTimeout(() => drain({ socket, budget: DRAIN_SLICE }), 1000);
+  }
 
   // Debounced REST API save as fallback persistence
   function scheduleSave() {
@@ -299,11 +313,7 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
       // only a peer leaving and a peer joining.
       hooks.capture?.('realtime_connected', { attempt: retries });
       retries = 0;
-      const queued = pending;
-      pending = [];
-      for (const msg of queued) {
-        socket.send(msg);
-      }
+      drain({ socket, budget: DRAIN_BURST });
       // Heartbeat: ping every 15s, expect pong within 5s
       pingTimer = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
@@ -527,6 +537,7 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     socket.onclose = (event) => {
       if (pingTimer) clearInterval(pingTimer);
       if (pongTimeout) clearTimeout(pongTimeout);
+      if (drainTimer) clearTimeout(drainTimer);
       connected.value = false;
       ws = null;
       // Password-protected and this session is not (or no longer) unlocked: retrying cannot help.
@@ -559,12 +570,13 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
   // Wire up sync callbacks
   const sendMsg = (msg: unknown) => {
     const str = JSON.stringify(msg);
-    if (ws?.readyState === WebSocket.OPEN) {
+    // While a queue drains, new messages wait behind it so the room applies them in order.
+    if (ws?.readyState === WebSocket.OPEN && pending.length === 0) {
       ws.send(str);
-    } else {
-      pending.push(str);
-      scheduleSave();
+      return;
     }
+    pending.push(str);
+    if (ws?.readyState !== WebSocket.OPEN) scheduleSave();
   };
 
   onOpPushed.value = (op: DrawOp) => sendMsg({ type: 'op', op });
@@ -620,6 +632,7 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     if (cursorTimer) clearTimeout(cursorTimer);
     if (followScrollTimer) clearTimeout(followScrollTimer);
     if (saveTimer) clearTimeout(saveTimer);
+    if (drainTimer) clearTimeout(drainTimer);
     // Drop stale handlers BEFORE close so any in-flight messages from the old
     // room don't leak into operations after the user has switched pages.
     if (ws) {

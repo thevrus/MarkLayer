@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from 'bun:test';
 import { type DrawOp, ROOM_LOCKED_CLOSE_CODE } from '@marklayer/types';
 import { ROOM_GEN_HEADER } from './lock/gate';
 import { asDb, fakeDb } from './test-d1';
@@ -14,7 +14,7 @@ mock.module('cloudflare:workers', () => ({
     }
   },
 }));
-const { AnnotationRoom } = await import('./annotation-room');
+const { AnnotationRoom, SOCKET_BURST, SOCKET_RATE_LIMITED_CLOSE_CODE } = await import('./annotation-room');
 
 const ID = 'dsWPMrdw6EZ8jkkhxvFKS';
 const op: DrawOp = {
@@ -201,6 +201,49 @@ describe('AnnotationRoom password revoke', () => {
     } finally {
       Reflect.set(globalThis, 'WebSocketPair', hadPairClass);
     }
+  });
+});
+
+describe('AnnotationRoom per-socket message cap', () => {
+  function pair() {
+    const sender = fakeSocket({ id: 's', name: 'S', color: '#8b5cf6' });
+    const codes: number[] = [];
+    Object.assign(sender, { close: (code?: number) => void codes.push(code ?? 1000) });
+    const peer = fakeSocket({ id: 'p', name: 'P', color: '#8b5cf6' });
+    const { room } = makeRoom({ db: fakeDb({ first: editableRow }), sockets: [sender, peer] });
+    const send = () => room.webSocketMessage(loose(sender), JSON.stringify({ type: 'cursor', x: 1, y: 2 }));
+    return { codes, peer, send };
+  }
+
+  test('a reconnect flush followed by a long drag at display rate is never cut off', async () => {
+    const { codes, peer, send } = pair();
+    let now = 1_000_000;
+    setSystemTime(new Date(now));
+    try {
+      for (let i = 0; i < 800; i++) await send();
+      // 20 s at 150 messages a second: a 120 Hz guide drag plus 20 Hz cursors and change.
+      for (let i = 0; i < 3000; i++) {
+        now += 1000 / 150;
+        setSystemTime(new Date(now));
+        await send();
+      }
+    } finally {
+      setSystemTime();
+    }
+    expect(codes).toEqual([]);
+    expect(peer.sent).toHaveLength(3800);
+  });
+
+  test('a flood closes the socket and stops reaching peers', async () => {
+    const { codes, peer, send } = pair();
+    setSystemTime(new Date(1_000_000));
+    try {
+      for (let i = 0; i < SOCKET_BURST * 3; i++) await send();
+    } finally {
+      setSystemTime();
+    }
+    expect(codes[0]).toBe(SOCKET_RATE_LIMITED_CLOSE_CODE);
+    expect(peer.sent).toHaveLength(SOCKET_BURST);
   });
 });
 

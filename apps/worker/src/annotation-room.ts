@@ -91,6 +91,16 @@ const READ_ONLY_SAFE_TYPES = new Set<ClientMsg['type']>(['ping', 'cursor', 'ripp
  */
 const AGENT_PRESENCE_TTL_MS = 15 * 60_000;
 
+/**
+ * Per-socket message budget, as a token bucket. The burst covers a reconnect
+ * flushing its offline queue and a rename sending one `update_op` per annotation;
+ * the refill covers a guide drag at display rate plus 20 Hz cursors.
+ */
+export const SOCKET_BURST = 1000;
+export const SOCKET_REFILL_PER_S = 200;
+/** RFC 6455 "policy violation". The client reconnects with backoff, into a fresh budget. */
+export const SOCKET_RATE_LIMITED_CLOSE_CODE = 1008;
+
 /** Stored ops are unparsed JSON; this reads an id without trusting the shape. */
 const opIdOf = (o: unknown) =>
   typeof o === 'object' && o !== null && 'id' in o && typeof o.id === 'string' ? o.id : undefined;
@@ -230,6 +240,19 @@ export class AnnotationRoom extends DurableObject<Env> {
     const info = readPeerInfo(ws.deserializeAttachment());
     if (info) this.peerInfo.set(ws, info);
     return info;
+  }
+
+  /** In memory only: hibernation drops it, but a room only hibernates once its sockets go quiet. */
+  private socketBudget = new WeakMap<WebSocket, { tokens: number; at: number }>();
+
+  /** Spend one message from this socket's bucket; false once it is empty. */
+  private spendMessage(ws: WebSocket): boolean {
+    const now = Date.now();
+    const bucket = this.socketBudget.get(ws) ?? { tokens: SOCKET_BURST, at: now };
+    bucket.tokens = Math.min(SOCKET_BURST, bucket.tokens + ((now - bucket.at) / 1000) * SOCKET_REFILL_PER_S) - 1;
+    bucket.at = now;
+    this.socketBudget.set(ws, bucket);
+    return bucket.tokens >= 0;
   }
 
   /** Write peer metadata, keeping the memoized copy in step with the attachment. */
@@ -626,6 +649,15 @@ export class AnnotationRoom extends DurableObject<Env> {
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+    // Before any parsing: malformed frames cost the room as much as valid ones.
+    if (!this.spendMessage(ws)) {
+      try {
+        ws.close(SOCKET_RATE_LIMITED_CLOSE_CODE, 'rate limited');
+      } catch {
+        // Already closing; the first over-budget frame did it.
+      }
+      return;
+    }
     if (typeof message !== 'string') return;
 
     let raw: unknown;
