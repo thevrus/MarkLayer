@@ -54,7 +54,7 @@
     },
     "apps/mcp": {
       "name": "marklayer-mcp",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "bin": {
         "marklayer-mcp": "dist/cli.js",
       },
