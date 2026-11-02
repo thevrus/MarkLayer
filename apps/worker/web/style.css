@@ -757,43 +757,51 @@
    eased fade with many stops, so there is no line where the sky stops and the
    page starts. */
 .lp-sky {
+  /* The sky's own height, set by the width it spans; --lp-lift (below) only adds sky above it. */
+  --lp-sky-base: clamp(440px, 44vw, 640px);
+  --lp-sky-fade: linear-gradient(
+    to bottom,
+    rgb(0 0 0) 0%,
+    rgb(0 0 0) 58%,
+    rgb(0 0 0 / 96%) 63%,
+    rgb(0 0 0 / 89%) 68%,
+    rgb(0 0 0 / 78%) 73%,
+    rgb(0 0 0 / 65%) 78%,
+    rgb(0 0 0 / 50%) 83%,
+    rgb(0 0 0 / 35%) 87%,
+    rgb(0 0 0 / 21%) 91%,
+    rgb(0 0 0 / 10%) 95%,
+    rgb(0 0 0 / 3%) 98%,
+    transparent 100%
+  );
   position: absolute;
   top: -3.5rem;
   left: 50%;
   width: 100vw;
-  height: clamp(440px, 44vw, 640px);
+  height: calc(var(--lp-sky-base) + var(--lp-lift));
   translate: -50% 0;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    rgb(0 0 0) 0%,
-    rgb(0 0 0) 58%,
-    rgb(0 0 0 / 96%) 63%,
-    rgb(0 0 0 / 89%) 68%,
-    rgb(0 0 0 / 78%) 73%,
-    rgb(0 0 0 / 65%) 78%,
-    rgb(0 0 0 / 50%) 83%,
-    rgb(0 0 0 / 35%) 87%,
-    rgb(0 0 0 / 21%) 91%,
-    rgb(0 0 0 / 10%) 95%,
-    rgb(0 0 0 / 3%) 98%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    rgb(0 0 0) 0%,
-    rgb(0 0 0) 58%,
-    rgb(0 0 0 / 96%) 63%,
-    rgb(0 0 0 / 89%) 68%,
-    rgb(0 0 0 / 78%) 73%,
-    rgb(0 0 0 / 65%) 78%,
-    rgb(0 0 0 / 50%) 83%,
-    rgb(0 0 0 / 35%) 87%,
-    rgb(0 0 0 / 21%) 91%,
-    rgb(0 0 0 / 10%) 95%,
-    rgb(0 0 0 / 3%) 98%,
-    transparent 100%
-  );
+  -webkit-mask-image: var(--lp-sky-fade);
+  mask-image: var(--lp-sky-fade);
+}
+/* Spare height on a tall screen is split around the copy: the copy drops by
+   --lp-lift and the sky grows upward by as much, so white type stays on the sky. */
+.lp-board {
+  --lp-lift: 0px;
+}
+@media (min-width: 1024px) {
+  .lp-board {
+    --lp-lift: max(0px, (100svh - 960px) / 2);
+  }
+  /* The fade keeps its base height at the bottom; a solid layer covers the lift. */
+  .lp-sky {
+    -webkit-mask:
+      linear-gradient(#000, #000) top / 100% calc(100% - var(--lp-sky-base) + 1px) no-repeat,
+      var(--lp-sky-fade) bottom / 100% var(--lp-sky-base) no-repeat;
+    mask:
+      linear-gradient(#000, #000) top / 100% calc(100% - var(--lp-sky-base) + 1px) no-repeat,
+      var(--lp-sky-fade) bottom / 100% var(--lp-sky-base) no-repeat;
+  }
 }
 /* A phone stacks the headline to four lines and the subline to three, so the sky
    stays solid longer and only starts to dissolve under the subline. */
@@ -968,8 +976,14 @@
   }
 }
 
+/* `scale` shrinks about the centre and the rest scale comes from the width, so a
+   wide screen left a band above the desk; the entry frame lifts it back under the head. */
 @keyframes lpDeskExpand {
-  0%,
+  0% {
+    scale: var(--lp-rest, 0.8);
+    translate: 0 calc((var(--lp-rest, 0.8) - 1) * 50%);
+    border-radius: 1rem;
+  }
   100% {
     scale: var(--lp-rest, 0.8);
     border-radius: 1rem;
@@ -1077,11 +1091,9 @@ button.lp-field:focus-visible {
      matching side margins (see ChannelCycle) so this eats neither word space. */
   left: -0.08em;
   right: -0.08em;
-  /* A grey marker laid low across the word: from a little under the x-height
-     down past the baseline, the way a highlighter actually lands. */
-  top: 52%;
-  height: 0.5em;
-  transform: translateY(-0.1em) skewX(-6deg);
+  top: 50%;
+  height: 0.56em;
+  transform: translateY(calc(-50% - 0.012em)) skewX(-6deg);
   border-radius: 0.04em;
   background: var(--color-ml-hl);
   z-index: -1;

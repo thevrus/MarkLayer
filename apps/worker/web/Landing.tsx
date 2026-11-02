@@ -46,9 +46,14 @@ function SectionHead({ title, children }: { title: ComponentChildren; children?:
   );
 }
 
-/* The rhythm: a section opens with one space above its head, and the head sits
-   one step above the stage it introduces. */
-const SECTION_CLS = 'relative pt-28 sm:pt-36';
+/** Words that break as one: `text-balance` knows nothing of sentences. Still wraps inside when the screen is narrower. */
+function Phrase({ children }: { children: ComponentChildren }) {
+  return <span class="inline-block">{children}</span>;
+}
+
+/* The rhythm: the head sits one step above the stage it introduces. The opening
+   space is short because the hero's 108px toolbar clearance is already part of it. */
+const SECTION_CLS = 'relative pt-12 sm:pt-16';
 const STAGE_CLS = 'mt-12 sm:mt-14';
 
 /**
@@ -139,7 +144,7 @@ export function Landing() {
                   href={CHROME_STORE_URL}
                   target="_blank"
                   rel="noopener"
-                  class="lp-cta ml-2 hidden h-8 items-center whitespace-nowrap rounded-lg px-3 text-ui font-medium text-white no-underline transition-colors lg:inline-flex"
+                  class="lp-cta ml-2 hidden h-8 items-center whitespace-nowrap rounded-lg px-3 text-ui-lg font-medium text-white no-underline transition-colors lg:inline-flex"
                   onClick={() => capture('extension_install_clicked', { at: 'nav' })}
                 >
                   Add to Chrome
@@ -151,8 +156,9 @@ export function Landing() {
 
         <main>
           <div class="mx-auto w-full max-w-page px-6 sm:px-10">
-            {/* The hero owns the fold: nav plus this section is exactly one screen. */}
-            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-start pt-[clamp(96px,11vw,150px)] [@media(max-height:820px)]:pt-24 pb-20 text-center sm:pb-40">
+            {/* The hero owns the fold: nav plus this section is exactly one screen.
+                `--lp-lift` (style.css, beside `.lp-sky`) spends a tall screen's spare height above the copy. */}
+            <section class="relative isolate flex min-h-[calc(100svh-3.5rem)] flex-col items-center justify-start pt-[calc(clamp(96px,11vw,150px)+var(--lp-lift))] [@media(max-height:820px)]:pt-24 pb-20 text-center sm:pb-40">
               {/* The sky: a dusk ridge behind the nav and the white headline, running the
                   width of the page and dissolving into white before the URL field. */}
               <div id="lp-sky-top" class="pointer-events-none absolute inset-x-0 top-0 h-[200px]" aria-hidden="true" />
@@ -182,10 +188,11 @@ export function Landing() {
               </h1>
 
               <p
-                class="lp-fade-up mt-6 max-w-[48ch] text-intro text-white/80 text-balance"
+                class="lp-fade-up mt-6 max-w-[56ch] text-intro text-white/80 text-balance"
                 style={{ animationDelay: '0.1s' }}
               >
-                Send one link. Your client comments on the live page. Nothing to install, no account.
+                <Phrase>Send one link. Your client comments on the live page.</Phrase>{' '}
+                <Phrase>Nothing to install, no account.</Phrase>
               </p>
 
               {/* Pasting a URL delivers the product in one step; the install
@@ -248,7 +255,8 @@ export function Landing() {
                 The whole fix
               </MarginNote>
               <SectionHead title="One link is the whole setup.">
-                They open it and comment on the page. Nothing to install on either end.
+                <Phrase>They open it and comment on the page.</Phrase>{' '}
+                <Phrase>Nothing to install on either end.</Phrase>
               </SectionHead>
               <div class={STAGE_CLS}>
                 <DemoStage />
@@ -259,7 +267,7 @@ export function Landing() {
                 takes the hero's step, so the page ends at the size it opened at. */}
             <section class="pt-28 pb-16 text-center sm:pt-36 sm:pb-20">
               <h2 class="lp-display mx-auto mb-10 max-w-[14em] text-hero text-balance text-ml-fg">
-                Get feedback on the page, not in your inbox.
+                <Phrase>Get feedback on the page,</Phrase> <Phrase>not in your inbox.</Phrase>
               </h2>
               <ChromeStoreLink label="Add to Chrome" at="closing" />
               <p class="mt-4 text-ui text-ml-fg/60">Free &middot; No sign-up</p>
