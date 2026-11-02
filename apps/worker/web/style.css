@@ -544,6 +544,35 @@
   }
 }
 
+/* Cursor-chat caret. Steps, not a fade: a real caret blinks hard. */
+@keyframes mlCaret {
+  50% {
+    opacity: 0;
+  }
+}
+.ml-caret {
+  width: 1.5px;
+  height: 1em;
+  margin-left: 1px;
+  border-radius: 1px;
+  background: currentColor;
+  animation: mlCaret 1s steps(1) infinite;
+}
+
+/* Each typed character lands rather than blinks into place. No fill-mode, so a
+   character whose animation never runs is simply there. */
+@keyframes mlCharIn {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+    transform: translateY(3px);
+  }
+}
+.ml-char-in {
+  display: inline-block;
+  animation: mlCharIn 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 /* Same shape as `.ml-live` in apps/site's global.css, on this app's own tokens:
    one class pair driven by a data attribute, so the on/off states are not also
    written out as ternaries at the only call site. */

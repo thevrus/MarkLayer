@@ -1,4 +1,5 @@
-import { lineWidth, operations } from '@ext/lib/state';
+import { flashAnnotation } from '@ext/lib/checkFix';
+import { commentCounter, getCommentStatus, lineWidth, operations } from '@ext/lib/state';
 import { useEffect } from 'preact/hooks';
 import { seedDeviceOp } from '../signals';
 import { HERO_PIN_ID } from './content';
@@ -87,4 +88,29 @@ export function useHeroPin(heroFormRef: { current: HTMLElement | null }): void {
       window.removeEventListener('resize', onResize);
     };
   }, [heroFormRef]);
+}
+
+const HERO_REPLY_ID = 'ml-hero-pin-reply';
+
+/** A demo cursor's real reply on the seeded pin. False when there is nothing honest to reply to (pin gone, settled, or already answered). */
+export function seedHeroReply({ author, color }: { author: string; color: string }): boolean {
+  const ops = operations.peek();
+  const pin = ops.find((op) => op.id === HERO_PIN_ID);
+  if (pin?.tool !== 'comment' || getCommentStatus(pin) !== 'open') return false;
+  if (ops.some((op) => op.id === HERO_REPLY_ID)) return false;
+  seedDeviceOp({
+    id: HERO_REPLY_ID,
+    tool: 'comment',
+    num: commentCounter.peek() + 1,
+    text: 'Replies like this one reach everyone on the link the moment they are sent.',
+    x: pin.x,
+    y: pin.y,
+    color,
+    lineWidth: lineWidth.peek(),
+    ts: Date.now(),
+    parentId: HERO_PIN_ID,
+    author,
+  });
+  flashAnnotation(HERO_PIN_ID);
+  return true;
 }
