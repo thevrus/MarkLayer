@@ -3,7 +3,7 @@ import HomeContent from '../components/home/HomeContent.astro';
 import schema from '../data/home-schema.json';
 import dates from '../data/page-dates.json';
 import { getCurrentVersion } from '../lib/collections';
-import { OG_IMAGE, ORIGIN, WORKER_DEV } from '../lib/site';
+import { OG_IMAGE, OG_VIDEO, ORIGIN, WORKER_DEV } from '../lib/site';
 
 /**
  * The application shell for `/`.
@@ -58,6 +58,10 @@ const ld = {
     <meta property="og:title" content={ogTitle} />
     <meta property="og:description" content={ogDescription} />
     <meta property="og:image" content={OG_IMAGE} />
+    <meta property="og:video" content={OG_VIDEO} />
+    <meta property="og:video:type" content="video/mp4" />
+    <meta property="og:video:width" content="1200" />
+    <meta property="og:video:height" content="630" />
     <meta property="og:url" content={ORIGIN} />
     <meta property="og:site_name" content="MarkLayer" />
     <meta property="og:type" content="website" />

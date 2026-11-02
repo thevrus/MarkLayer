@@ -2,6 +2,8 @@ export const ORIGIN = 'https://marklayer.app';
 export const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc';
 /** The fallback card, for anything with no heading of its own to draw. */
 export const OG_IMAGE = `${ORIGIN}/og.jpg`;
+/** The home card's moving twin, 1200×630 like the still; Telegram plays it, everyone else shows `OG_IMAGE`. */
+export const OG_VIDEO = `${ORIGIN}/og.mp4`;
 /** YouTube id of the product demo, which `VideoEmbed` falls back to. Unset until a demo is published. */
 export const DEMO_VIDEO: string | undefined = undefined;
 
