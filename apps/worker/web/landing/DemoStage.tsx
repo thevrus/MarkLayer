@@ -34,7 +34,7 @@ export function DemoStage() {
               <div class="lp-window">
                 {/* Browser chrome, Safari's at rest: the lights, back and forward, the address in the middle. */}
                 <div
-                  class="lp-window-bar grid h-11 shrink-0 grid-cols-[1fr_minmax(0,30rem)_1fr] items-center gap-3 px-3.5 font-ui"
+                  class="lp-window-bar grid h-11 shrink-0 grid-cols-[auto_minmax(0,1fr)] items-center sm:grid-cols-[1fr_minmax(0,30rem)_1fr] gap-3 px-3.5 font-ui"
                   aria-hidden="true"
                 >
                   <span class="flex items-center gap-4">
@@ -50,7 +50,10 @@ export function DemoStage() {
                   </span>
                   <span class="flex h-7 min-w-0 items-center justify-center gap-1.5 rounded-md bg-ml-fg/[0.06] px-3 text-meta text-ml-fg/70">
                     <Lock size={11} strokeWidth={2.25} class="shrink-0 text-ml-fg/45" />
-                    <span class="truncate">marklayer.app/s/{DEMO_ROOM.id}</span>
+                    {/* Safari shows the bare domain at rest; the room's path only fits from `sm`. */}
+                    <span class="truncate">
+                      marklayer.app<span class="hidden sm:inline">/s/{DEMO_ROOM.id}</span>
+                    </span>
                   </span>
                 </div>
                 <DemoWindow />
