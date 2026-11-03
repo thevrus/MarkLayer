@@ -21,6 +21,15 @@ export function DemoStage() {
       <div class="lp-stage-run">
         <div class="lp-stage-pin">
           <div class="lp-desk">
+            <img
+              src="/desk-mesa.webp"
+              width={1300}
+              height={732}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              class="lp-desk-art"
+            />
             <div class="lp-desk-pad">
               <div class="lp-window">
                 {/* Browser chrome, Safari's at rest: the lights, back and forward, the address in the middle. */}

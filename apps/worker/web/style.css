@@ -918,16 +918,29 @@
   overflow: hidden;
   /* The card radius: the desk sits in the card column as one of them. */
   border-radius: 1rem;
-  aspect-ratio: 16 / 10;
-  /* The desk is the hero's dot paper again, so the window reads as sitting on the page. */
-  background-color: #fff;
-  background-image: radial-gradient(circle, #dadada 1px, transparent 1.2px);
-  background-size: 24px 24px;
+  /* Taller on a phone: at 16:10 the room inside was a strip the toolbar covered. */
+  aspect-ratio: 4 / 3;
+  /* The painting's own sky, so the desk is never white while the wallpaper loads. */
+  background-color: #2c4189;
   /* The resting width of the runway desk, as a ratio of the viewport it is laid
      out at: the page column inside its gutter (2.5rem a side), so its edges
      line up with the cards. CSS has no length-over-length division and `scale`
      takes a number, so tan(atan2(a, b)) does the division. */
   --lp-rest: tan(atan2(min(100vw, var(--container-page)) - 5rem, 100vw));
+}
+@media (min-width: 640px) {
+  .lp-desk {
+    aspect-ratio: 16 / 10;
+  }
+}
+/* The desk's wallpaper, blurred into the file rather than by `filter`: the desk scales on scroll, and a live blur would re-run every frame. */
+.lp-desk-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 70%;
 }
 .lp-desk-pad {
   position: absolute;
