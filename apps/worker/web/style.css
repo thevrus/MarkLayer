@@ -945,7 +945,16 @@
   box-shadow: 0 1px 2px #0000000a;
 }
 .lp-window-bar {
+  background: #f6f6f6;
   border-bottom: 1px solid var(--color-ml-card-edge);
+}
+/* Each light carries the hairline ring macOS draws, so the yellow holds its edge on the grey bar. */
+.lp-window-light {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12);
 }
 
 @media (min-width: 640px) and (prefers-reduced-motion: no-preference) {
