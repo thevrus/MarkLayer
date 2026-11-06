@@ -230,6 +230,39 @@ export function annotationStore(db: D1Database) {
       return row?.url ?? null;
     },
 
+    /** The project an open link was promoted into. Re-checks the link guard: an owner may have locked it down since. */
+    async getPromotion(id: string): Promise<{ projectId: string; pageIds: string[]; expiresAt: number | null } | null> {
+      const row = await db
+        .prepare(
+          `SELECT a.project_id, p.page_ids, p.expires_at FROM annotations a
+           LEFT JOIN projects p ON p.id = a.project_id
+           WHERE a.id = ? AND a.project_id IS NOT NULL AND a.access = 'edit' AND a.password_hash IS NULL`,
+        )
+        .bind(id)
+        .first<{ project_id: string; page_ids: string | null; expires_at: number | null }>();
+      if (!row) return null;
+      return { projectId: row.project_id, pageIds: parseIds(row.page_ids ?? '[]'), expiresAt: row.expires_at };
+    },
+
+    /** Points each open, unprotected page that has no project yet at `projectId`. */
+    linkProject({ projectId, pageIds }: { projectId: string; pageIds: string[] }): Promise<unknown> {
+      return db
+        .prepare(
+          `UPDATE annotations SET project_id = ?
+           WHERE id IN (SELECT value FROM json_each(?))
+             AND project_id IS NULL AND access = 'edit' AND password_hash IS NULL`,
+        )
+        .bind(projectId, JSON.stringify(pageIds))
+        .run();
+    },
+
+    unlinkProject({ id, projectId }: { id: string; projectId: string }): Promise<unknown> {
+      return db
+        .prepare('UPDATE annotations SET project_id = NULL WHERE id = ? AND project_id = ?')
+        .bind(id, projectId)
+        .run();
+    },
+
     async getOps(id: string): Promise<unknown[] | null> {
       const row = await db.prepare('SELECT ops FROM annotations WHERE id = ?').bind(id).first<{ ops: string }>();
       return row ? parseJsonArray(row.ops) : null;

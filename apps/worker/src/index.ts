@@ -32,7 +32,7 @@ import { collectTally, EMPTY_TALLY_LABEL, plural, tallyParts } from './og-tally'
 import { RELAY_PREFIX, relayToPosthog } from './posthog-relay';
 import { proxy } from './proxy';
 import { ogLocked, rooms } from './rooms';
-import { annotationStore, nowInSeconds, projectStore, unlockFailureStore, uploadStore } from './store';
+import { annotationStore, isExpired, nowInSeconds, projectStore, unlockFailureStore, uploadStore } from './store';
 import {
   type ByteSpan,
   classifyUpload,
@@ -147,13 +147,26 @@ app.route('/api', api);
  */
 const SHELL_CACHE = 'no-store';
 
+/** `/p/:id` opened at page `idx`, keeping the rest of the share link's query. */
+function projectPageUrl({ projectId, idx, search }: { projectId: string; idx: number; search: string }): string {
+  const params = new URLSearchParams(search);
+  if (idx === 0) params.delete('page');
+  else params.set('page', String(idx));
+  const qs = params.toString();
+  return `/p/${projectId}${qs ? `?${qs}` : ''}`;
+}
+
 // Shared annotation page — injects dynamic OG tags then serves the SPA
 app.get('/s/:id', async (c) => {
   const annotationId = c.req.param('id');
   const reqUrl = new URL(c.req.url);
   const annotations = annotationStore(c.env.DB);
 
-  const access = await roomAccess({ db: c.env.DB, id: annotationId, headers: c.req.raw.headers });
+  // Fetched alongside the access check so a link that was never promoted pays no extra round trip.
+  const [access, promotion] = await Promise.all([
+    roomAccess({ db: c.env.DB, id: annotationId, headers: c.req.raw.headers }),
+    annotations.getPromotion(annotationId),
+  ]);
   if (!access.open) return unlockPage({ roomId: annotationId, returnTo: `/s/${annotationId}`, reason: access.reason });
   // Unlocked, but the tags below are what a link preview caches and reposts, so they stay generic.
   if (access.guarded) {
@@ -170,6 +183,18 @@ app.get('/s/:id', async (c) => {
       await ensureDemoRoom(annotations);
     }
     return c.env.ASSETS.fetch(new Request(new URL('/', reqUrl)));
+  }
+
+  // Opening a second page from a share link made a new /p/ link; the /s/ link already sent follows it there.
+  if (promotion && annotationId !== DEMO_ROOM.id) {
+    const { projectId, pageIds, expiresAt } = promotion;
+    const idx = isExpired(expiresAt) ? -1 : pageIds.indexOf(annotationId);
+    if (idx >= 0) {
+      const location = projectPageUrl({ projectId, idx, search: reqUrl.search });
+      return new Response(null, { status: 302, headers: { Location: location, 'Cache-Control': 'no-store' } });
+    }
+    // Gone, expired or dropped this page: free the link for the next promotion.
+    c.executionCtx.waitUntil(annotations.unlinkProject({ id: annotationId, projectId }));
   }
 
   let domain = 'a webpage';

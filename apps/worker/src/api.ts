@@ -786,6 +786,7 @@ api.openapi(storeProject, async (c) => {
   if (!(await projectStore(c.env.DB).put({ id, pageIds, expiresAt }))) {
     return c.json({ error: WEAK_NEW_ID }, 400);
   }
+  await annotationStore(c.env.DB).linkProject({ projectId: id, pageIds });
   return c.json({ ok: true }, 200);
 });
 
