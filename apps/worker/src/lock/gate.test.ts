@@ -3,7 +3,8 @@ import { ROOM_LOCKED_CLOSE_CODE } from '@marklayer/types';
 import { api } from '../api';
 import { ogLocked, rooms } from '../rooms';
 import { nowInSeconds } from '../store';
-import { asDb, fakeDb } from '../test-d1';
+import { fakeDb } from '../test-d1';
+import { FakeExecutionContext } from '../test-env';
 import { MAX_FAILURES, ROOM_GEN_HEADER, roomAccess } from './gate';
 import { hashPassword, signUnlock, unlockCookieName, verifyPassword } from './password';
 
@@ -42,7 +43,7 @@ describe('roomAccess', () => {
   test('a wrong password is refused and counted; the right one opens', async () => {
     const wrongDb = fakeDb({ firstQueue: [lockRow(), { failures: 0 }] });
     const wrong = await roomAccess({
-      db: asDb(wrongDb),
+      db: wrongDb,
       id: ID,
       headers: new Headers({ Authorization: 'Bearer nope' }),
     });
@@ -51,7 +52,7 @@ describe('roomAccess', () => {
 
     const rightDb = fakeDb({ firstQueue: [lockRow(), { failures: 0 }] });
     const right = await roomAccess({
-      db: asDb(rightDb),
+      db: rightDb,
       id: ID,
       headers: new Headers({ 'X-MarkLayer-Password': PASSWORD }),
     });
@@ -62,7 +63,7 @@ describe('roomAccess', () => {
   test('a client over the limit is refused even with the right password', async () => {
     const db = fakeDb({ firstQueue: [lockRow(), { failures: MAX_FAILURES }] });
     const res = await roomAccess({
-      db: asDb(db),
+      db: db,
       id: ID,
       headers: new Headers({ Authorization: `Bearer ${PASSWORD}` }),
     });
@@ -71,7 +72,7 @@ describe('roomAccess', () => {
 
   test('no password and no cookie is locked, with nothing counted', async () => {
     const db = fakeDb({ firstQueue: [lockRow({ owner_id: null })] });
-    expect(await roomAccess({ db: asDb(db), id: ID, headers: new Headers() })).toEqual({
+    expect(await roomAccess({ db: db, id: ID, headers: new Headers() })).toEqual({
       open: false,
       reason: 'locked',
     });
@@ -81,7 +82,7 @@ describe('roomAccess', () => {
   test('an unlock cookie from before a password change is refused', async () => {
     const current = await cookieFor({ gen: 1 });
     const open = await roomAccess({
-      db: asDb(fakeDb({ firstQueue: [lockRow()] })),
+      db: fakeDb({ firstQueue: [lockRow()] }),
       id: ID,
       headers: new Headers({ Cookie: current }),
     });
@@ -89,7 +90,7 @@ describe('roomAccess', () => {
 
     // Changed to the same password: only the generation moved, and that alone must void it.
     const sameRecord = await roomAccess({
-      db: asDb(fakeDb({ firstQueue: [lockRow({ password_gen: 2, owner_id: null })] })),
+      db: fakeDb({ firstQueue: [lockRow({ password_gen: 2, owner_id: null })] }),
       id: ID,
       headers: new Headers({ Cookie: current }),
     });
@@ -99,7 +100,7 @@ describe('roomAccess', () => {
     const forged = await cookieFor({ gen: 2 });
     const newRecord = await hashPassword(PASSWORD);
     const refused = await roomAccess({
-      db: asDb(fakeDb({ firstQueue: [lockRow({ password_hash: newRecord, password_gen: 2, owner_id: null })] })),
+      db: fakeDb({ firstQueue: [lockRow({ password_hash: newRecord, password_gen: 2, owner_id: null })] }),
       id: ID,
       headers: new Headers({ Cookie: forged }),
     });
@@ -109,14 +110,14 @@ describe('roomAccess', () => {
   test('the owner skips the prompt; another signed-in user does not', async () => {
     const session = { id: 'owner', email: 'o@x.co', last_seen_at: nowInSeconds(), expires_at: nowInSeconds() + 60 };
     const owner = await roomAccess({
-      db: asDb(fakeDb({ firstQueue: [lockRow(), session] })),
+      db: fakeDb({ firstQueue: [lockRow(), session] }),
       id: ID,
       headers: new Headers({ Cookie: 'ml_session=abc' }),
     });
     expect(owner.open).toBe(true);
 
     const stranger = await roomAccess({
-      db: asDb(fakeDb({ firstQueue: [lockRow(), { ...session, id: 'someone-else' }] })),
+      db: fakeDb({ firstQueue: [lockRow(), { ...session, id: 'someone-else' }] }),
       id: ID,
       headers: new Headers({ Cookie: 'ml_session=abc' }),
     });
@@ -133,13 +134,11 @@ function roomEnv(db: ReturnType<typeof fakeDb>) {
       return new Response(null, { status: 204 });
     },
   };
-  const env = { DB: asDb(db), ANNOTATION_ROOM: { idFromName: () => 'do', get: () => stub } };
+  const env = { DB: db, ANNOTATION_ROOM: { idFromName: () => 'do', get: () => stub } };
   return { env, reached };
 }
 
-const testCtx = { waitUntil: (p: Promise<unknown>) => void p, passThroughOnException: () => {} };
-// biome-ignore lint/suspicious/noExplicitAny: a fake of only the bindings these routes touch.
-const loose = (value: unknown): any => value;
+const testCtx = new FakeExecutionContext();
 
 describe('GET /ws/:id', () => {
   const closes: number[] = [];
@@ -165,7 +164,7 @@ describe('GET /ws/:id', () => {
   test('without an unlock the socket never reaches the room and is closed as locked', async () => {
     closes.length = 0;
     const { env, reached } = roomEnv(fakeDb({ firstQueue: [lockRow({ owner_id: null })] }));
-    const res = await rooms.fetch(upgrade(), loose(env), loose(testCtx));
+    const res = await rooms.fetch(upgrade(), env, testCtx);
     expect(res.status).toBe(101);
     expect(reached).toHaveLength(0);
     expect(closes).toEqual([ROOM_LOCKED_CLOSE_CODE]);
@@ -173,11 +172,7 @@ describe('GET /ws/:id', () => {
 
   test('an unlocked socket reaches the room stamped with the checked generation, whatever the client claimed', async () => {
     const { env, reached } = roomEnv(fakeDb({ firstQueue: [lockRow()] }));
-    await rooms.fetch(
-      upgrade({ Cookie: await cookieFor({ gen: 1 }), [ROOM_GEN_HEADER]: '999' }),
-      loose(env),
-      loose(testCtx),
-    );
+    await rooms.fetch(upgrade({ Cookie: await cookieFor({ gen: 1 }), [ROOM_GEN_HEADER]: '999' }), env, testCtx);
     expect(reached).toHaveLength(1);
     expect(reached[0]?.headers.get(ROOM_GEN_HEADER)).toBe('1');
   });
@@ -187,13 +182,13 @@ describe('other room readers', () => {
   test('page.json, the remote MCP endpoint and the share API refuse a locked room', async () => {
     for (const path of [`/s/${ID}/page.json`, `/s/${ID}/mcp`]) {
       const { env, reached } = roomEnv(fakeDb({ firstQueue: [lockRow({ owner_id: null })] }));
-      const res = await rooms.fetch(new Request(`https://marklayer.app${path}`), loose(env), loose(testCtx));
+      const res = await rooms.fetch(new Request(`https://marklayer.app${path}`), env, testCtx);
       expect(res.status).toBe(401);
       expect(reached).toHaveLength(0);
     }
     for (const path of [`/${ID}`, `/${ID}/integrations`, `/${ID}/versions`]) {
       const db = fakeDb({ firstQueue: [lockRow({ owner_id: null })] });
-      const res = await api.request(path, {}, loose({ DB: asDb(db) }), loose(testCtx));
+      const res = await api.request(path, {}, { DB: db }, testCtx);
       expect(res.status).toBe(401);
       // The gate is the only read: no ops, no destinations.
       expect(db.calls).toHaveLength(1);
@@ -210,8 +205,8 @@ describe('other room readers', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ url: 'https://example.com', title: 'v2', repo: 'a/b', branch: 'main', previous: ID }),
       },
-      loose({ DB: asDb(db) }),
-      loose(testCtx),
+      { DB: db },
+      testCtx,
     );
     expect(res.status).toBe(400);
     expect(db.calls).toHaveLength(1);
@@ -228,21 +223,19 @@ describe('other room readers', () => {
       owner_id: null,
     };
     const db = fakeDb({ first: { page_ids: JSON.stringify([ID]), created_at: 1, expires_at: null }, all: [page] });
-    const res = await api.request('/p/someProjectIdThatIsLong', {}, loose({ DB: asDb(db) }), loose(testCtx));
+    const res = await api.request('/p/someProjectIdThatIsLong', {}, { DB: db }, testCtx);
     const body = await res.json();
     expect(JSON.stringify(body)).not.toContain('internal.example');
     expect(JSON.stringify(body)).not.toContain('secret');
   });
 
   test('the OG card is withheld for a protected room and for a project led by one', async () => {
-    expect(await ogLocked({ db: asDb(fakeDb({ firstQueue: [lockRow()] })), id: ID })).toBe(true);
-    expect(await ogLocked({ db: asDb(fakeDb({ firstQueue: [lockRow({ password_hash: null })] })), id: ID })).toBe(
-      false,
-    );
+    expect(await ogLocked({ db: fakeDb({ firstQueue: [lockRow()] }), id: ID })).toBe(true);
+    expect(await ogLocked({ db: fakeDb({ firstQueue: [lockRow({ password_hash: null })] }), id: ID })).toBe(false);
     // No room by that id: it is a project, whose first page is protected.
     const project = fakeDb({
       firstQueue: [null, { page_ids: JSON.stringify([ID]), created_at: 1, expires_at: null }, lockRow()],
     });
-    expect(await ogLocked({ db: asDb(project), id: 'someProjectIdThatIsLong' })).toBe(true);
+    expect(await ogLocked({ db: project, id: 'someProjectIdThatIsLong' })).toBe(true);
   });
 });

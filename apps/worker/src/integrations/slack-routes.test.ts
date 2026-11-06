@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import type { CommentOp, DrawOp } from '@marklayer/types';
-import { asDb, fakeDb } from '../test-d1';
+import { fakeDb } from '../test-d1';
 import { encryptToken, signSlackBody } from './slack-app';
 import { slackRoutes } from './slack-routes';
 import { postBatchToSlack } from './slack-sync';
@@ -66,7 +66,7 @@ function setup(firstQueue: unknown[]) {
     },
   };
   const env = {
-    DB: asDb(fakeDb({ firstQueue })),
+    DB: fakeDb({ firstQueue }),
     ANNOTATION_ROOM: { idFromName: (name: string) => name, get: () => stub },
     SLACK_CLIENT_ID: 'id',
     SLACK_CLIENT_SECRET: 'secret',
@@ -194,7 +194,7 @@ describe('postBatchToSlack', () => {
       ],
     });
     const result = await postBatchToSlack({
-      db: asDb(fakeDb({ firstQueue: [await installRow(ROOM), null] })),
+      db: fakeDb({ firstQueue: [await installRow(ROOM), null] }),
       tokenKey: KEY,
       roomId: ROOM,
       items: [parent, reply],

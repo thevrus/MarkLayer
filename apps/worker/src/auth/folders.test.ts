@@ -1,28 +1,9 @@
 import { Database } from 'bun:sqlite';
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
-import { asDb, fakeDb } from '../test-d1';
+import { fakeDb, SqliteD1 } from '../test-d1';
 import { auth } from './routes';
 import { folderStore, ownedStore } from './store';
-
-/** Real SQLite behind the slice of D1 the stores call, so ownership guards run as SQL rather than as string matches. */
-function sqliteD1(sqlite: Database): D1Database {
-  const prepare = (sql: string) => {
-    let args: (string | number | null)[] = [];
-    const stmt = {
-      bind(...bindings: (string | number | null)[]) {
-        args = bindings;
-        return stmt;
-      },
-      first: async () => sqlite.query(sql).get(...args),
-      all: async () => ({ results: sqlite.query(sql).all(...args) }),
-      run: async () => ({ success: true, meta: { changes: sqlite.query(sql).run(...args).changes } }),
-    };
-    return stmt;
-  };
-  // biome-ignore lint/suspicious/noExplicitAny: a fake of only the methods the stores call.
-  return { prepare } as any;
-}
 
 // The real schema, every migration in order, so a later migration touching these tables is exercised too.
 const migrationsDir = new URL('../../migrations/', import.meta.url);
@@ -40,7 +21,7 @@ describe('folders are owner-scoped', () => {
     sqlite.exec(
       "INSERT INTO annotations (id, ops, owner_id, access) VALUES ('mine', '[]', 'alice', 'edit'), ('theirs', '[]', 'bob', 'edit')",
     );
-    db = sqliteD1(sqlite);
+    db = new SqliteD1(sqlite);
   });
 
   const folderOf = (id: string) => sqlite.query('SELECT folder_id FROM annotations WHERE id = ?').get(id);
@@ -94,7 +75,7 @@ describe('folder routes need a session', () => {
         headers: { 'Content-Type': 'application/json' },
         body: method === 'GET' || method === 'DELETE' ? undefined : '{}',
       },
-      { DB: asDb(db) },
+      { DB: db },
     );
     expect(res.status).toBe(401);
     expect(db.calls).toHaveLength(0);

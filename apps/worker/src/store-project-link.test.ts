@@ -3,26 +3,10 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { annotationStore } from './store';
+import { SqliteD1 } from './test-d1';
 
 // The link guard lives in SQL, which the recording fake in test-d1.ts cannot run, so these use real SQLite.
 const MIGRATIONS = join(import.meta.dir, '../migrations');
-
-function sqliteD1(sqlite: Database) {
-  return {
-    prepare(sql: string) {
-      let args: (string | number | null)[] = [];
-      const stmt = {
-        bind(...bindings: (string | number | null)[]) {
-          args = bindings;
-          return stmt;
-        },
-        first: async () => sqlite.query(sql).get(...args),
-        run: async () => ({ success: true, meta: { changes: sqlite.query(sql).run(...args).changes } }),
-      };
-      return stmt;
-    },
-  };
-}
 
 let sqlite: Database;
 let store: ReturnType<typeof annotationStore>;
@@ -63,8 +47,7 @@ const pointer = (id: string) =>
 
 beforeEach(() => {
   sqlite = new Database(':memory:');
-  // biome-ignore lint/suspicious/noExplicitAny: the adapter implements only the slice of D1 the store touches.
-  store = annotationStore(sqliteD1(sqlite) as any);
+  store = annotationStore(new SqliteD1(sqlite));
 });
 
 describe('linkProject', () => {

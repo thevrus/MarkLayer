@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from 'bun:test';
 import { type DrawOp, ROOM_LOCKED_CLOSE_CODE } from '@marklayer/types';
 import { ROOM_GEN_HEADER } from './lock/gate';
-import { asDb, fakeDb } from './test-d1';
+import { fakeDb } from './test-d1';
+import { FakeDurableObjectState, FakeWebSocket, fakeEnv } from './test-env';
 
 // The runtime module only exists inside workerd; the room needs nothing of it but a base class.
 mock.module('cloudflare:workers', () => ({
@@ -39,38 +40,11 @@ afterAll(() => {
   else Reflect.deleteProperty(globalThis, 'WebSocketRequestResponsePair');
 });
 
-// biome-ignore lint/suspicious/noExplicitAny: the fakes implement only the slice of the DO runtime the room touches.
-const loose = (value: unknown): any => value;
+const fakeSocket = (attachment: unknown) => new FakeWebSocket(attachment);
 
-function fakeSocket(attachment: unknown) {
-  let stored = attachment;
-  const sent: unknown[] = [];
-  return {
-    sent,
-    readyState: 1,
-    send: (msg: string) => sent.push(JSON.parse(msg)),
-    close() {},
-    serializeAttachment: (value: unknown) => {
-      stored = value;
-    },
-    deserializeAttachment: () => stored,
-  };
-}
-
-function makeRoom({ db, sockets = [] }: { db: ReturnType<typeof fakeDb>; sockets?: ReturnType<typeof fakeSocket>[] }) {
-  const alarms: number[] = [];
-  const ctx = {
-    setWebSocketAutoResponse() {},
-    getWebSockets: () => sockets,
-    getTags: () => [ID],
-    waitUntil() {},
-    storage: {
-      setAlarm: async (at: number) => {
-        alarms.push(at);
-      },
-    },
-  };
-  return { room: new AnnotationRoom(loose(ctx), loose({ DB: asDb(db) })), alarms };
+function makeRoom({ db, sockets = [] }: { db: ReturnType<typeof fakeDb>; sockets?: FakeWebSocket[] }) {
+  const ctx = new FakeDurableObjectState({ sockets, tags: [ID] });
+  return { room: new AnnotationRoom(ctx, fakeEnv({ DB: db })), alarms: ctx.alarms };
 }
 
 /** A D1 whose annotation writes reject until `heal()` is called. */
@@ -78,7 +52,7 @@ function flakyDb() {
   const db = fakeDb({ first: editableRow });
   const isWrite = (sql: string) => /INSERT INTO annotations|UPDATE annotations SET ops/.test(sql);
   let failing = true;
-  const prepare = db.prepare;
+  const prepare = db.prepare.bind(db);
   db.prepare = (sql: string) => {
     const stmt = prepare(sql);
     if (failing && isWrite(sql)) {
@@ -120,7 +94,7 @@ describe('AnnotationRoom flush', () => {
     const { room } = makeRoom({ db, sockets: [peer] });
     expect(await room.agentPushOp(ID, op)).toBe(true);
 
-    await expect(room.webSocketClose(loose(peer))).resolves.toBeUndefined();
+    await expect(room.webSocketClose(peer)).resolves.toBeUndefined();
     heal();
     const before = writes().length;
     await room.alarm();
@@ -139,7 +113,7 @@ describe('AnnotationRoom view-only enforcement', () => {
 
     for (const msg of [{ type: 'clear' }, { type: 'undo', opId: op.id }, { type: 'op', op }]) {
       viewer.sent.length = 0;
-      await room.webSocketMessage(loose(viewer), JSON.stringify(msg));
+      await room.webSocketMessage(viewer, JSON.stringify(msg));
       expect(viewer.sent).toEqual([{ type: 'error', code: 'read_only' }]);
     }
     expect(other.sent).toEqual([]);
@@ -211,7 +185,7 @@ describe('AnnotationRoom per-socket message cap', () => {
     Object.assign(sender, { close: (code?: number) => void codes.push(code ?? 1000) });
     const peer = fakeSocket({ id: 'p', name: 'P', color: '#8b5cf6' });
     const { room } = makeRoom({ db: fakeDb({ first: editableRow }), sockets: [sender, peer] });
-    const send = () => room.webSocketMessage(loose(sender), JSON.stringify({ type: 'cursor', x: 1, y: 2 }));
+    const send = () => room.webSocketMessage(sender, JSON.stringify({ type: 'cursor', x: 1, y: 2 }));
     return { codes, peer, send };
   }
 

@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { MAX_EXPIRES_IN_SECONDS } from '@marklayer/types';
 import { api } from './api';
-import { asDb, fakeDb } from './test-d1';
+import { fakeDb } from './test-d1';
+import { FakeExecutionContext } from './test-env';
 
 /** A real nanoid: a short id now 400s before the body is read, so every assertion below would pass for the wrong reason. */
 const ID = 'dsWPMrdw6EZ8jkkhxvFKS';
 
 /** The route validates the body before it reads anything, so these need no live bindings. */
-const testCtx = { waitUntil: (p: Promise<unknown>) => void p, passThroughOnException: () => {} };
+const testCtx = new FakeExecutionContext();
 
 function post({ id, body, db, cookie }: { id: string; body: unknown; db: ReturnType<typeof fakeDb>; cookie?: string }) {
   return api.request(
@@ -17,10 +18,8 @@ function post({ id, body, db, cookie }: { id: string; body: unknown; db: ReturnT
       headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
       body: JSON.stringify(body),
     },
-    // biome-ignore lint/suspicious/noExplicitAny: same reason as asDb — a fake of only what the route touches.
-    { DB: asDb(db) } as any,
-    // biome-ignore lint/suspicious/noExplicitAny: ditto for the execution context.
-    testCtx as any,
+    { DB: db },
+    testCtx,
   );
 }
 
@@ -83,14 +82,7 @@ describe('GET /health — the bindings, not a hardcoded ok', () => {
   // line on every page started reading it. A green light through a D1 outage is
   // the whole bug these guard.
   const health = ({ db, storage }: { db: () => Promise<unknown>; storage: () => Promise<unknown> }) =>
-    api.request(
-      '/health',
-      {},
-      // biome-ignore lint/suspicious/noExplicitAny: a fake of only what the route touches.
-      { DB: { prepare: () => ({ first: db }) }, OG_BUCKET: { head: storage } } as any,
-      // biome-ignore lint/suspicious/noExplicitAny: ditto for the execution context.
-      testCtx as any,
-    );
+    api.request('/health', {}, { DB: { prepare: () => ({ first: db }) }, OG_BUCKET: { head: storage } }, testCtx);
 
   /** `/health` is not an OpenAPI route, so Hono infers its body as `undefined`. */
   const body = (res: Response): Promise<unknown> => res.json();
@@ -147,10 +139,8 @@ describe('integration routes never expose a credential', () => {
       body === undefined
         ? {}
         : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-      // biome-ignore lint/suspicious/noExplicitAny: same reason as asDb — a fake of only what the route touches.
-      { DB: asDb(db) } as any,
-      // biome-ignore lint/suspicious/noExplicitAny: ditto for the execution context.
-      testCtx as any,
+      { DB: db },
+      testCtx,
     );
 
   test('summaries carry a hint, never the config', async () => {

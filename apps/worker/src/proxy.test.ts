@@ -9,6 +9,7 @@ import {
   relayFetch,
   resetRelayBreaker,
 } from './proxy';
+import { FakeExecutionContext, fakeEnv } from './test-env';
 
 /** A body delivered in fixed-size chunks, so the peek boundary lands mid-stream. */
 function streamOf(text: string, chunkSize: number): ReadableStream<Uint8Array> {
@@ -266,14 +267,7 @@ const realFetchForRoutes = globalThis.fetch;
 /** Serve every upstream fetch from `respond`, then GET `/proxy` with no bindings (so no relay). */
 async function getProxy({ query, respond }: { query: string; respond: () => Response }): Promise<Response> {
   globalThis.fetch = Object.assign(async () => respond(), { preconnect: realFetchForRoutes.preconnect });
-  return proxy.request(
-    `/proxy?${query}`,
-    {},
-    // biome-ignore lint/suspicious/noExplicitAny: a fake env with no bindings; the route only reads optional ones.
-    {} as any,
-    // biome-ignore lint/suspicious/noExplicitAny: ditto for the execution context.
-    { waitUntil() {}, passThroughOnException() {} } as any,
-  );
+  return proxy.request(`/proxy?${query}`, {}, fakeEnv(), new FakeExecutionContext());
 }
 
 describe("GET /proxy — a stranger's non-HTML bytes", () => {
@@ -342,8 +336,7 @@ describe('GET /proxy — naming the firewall that refused us', () => {
 
 describe('fetchPage — leaving a host alone once it refuses the relay too', () => {
   const relay = { FETCHER_URL: 'https://relay.invalid', FETCHER_TOKEN: 'tok' };
-  // biome-ignore lint/suspicious/noExplicitAny: only the relay bindings are read.
-  const env = relay as any;
+  const env = fakeEnv(relay);
   const challenge = '<html><head><meta http-equiv="refresh" content="0;/.well-known/sgcaptcha/?r=%2F"></head></html>';
   let relayCalls = 0;
 
@@ -383,8 +376,7 @@ describe('fetchPage — leaving a host alone once it refuses the relay too', () 
       '/px/flagged.example/missing.png',
       { headers: { Accept: 'image/avif,image/webp,*/*' } },
       env,
-      // biome-ignore lint/suspicious/noExplicitAny: a fake execution context.
-      { waitUntil() {}, passThroughOnException() {} } as any,
+      new FakeExecutionContext(),
     );
     expect(relayCalls).toBe(1);
 
@@ -424,8 +416,8 @@ describe('GET /proxy — entity-encoded attribute URLs (#4)', () => {
 });
 
 describe('fetchPage — meta-refresh redirect stubs', () => {
-  // biome-ignore lint/suspicious/noExplicitAny: no relay bindings, so a challenge is returned as-is.
-  const env = {} as any;
+  // No relay bindings, so a challenge is returned as-is.
+  const env = fakeEnv();
   const page = '<html><head><title>About</title></head><body>the real page</body></html>';
   let fetched: string[] = [];
 

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { MAX_EXPIRES_IN_SECONDS } from '@marklayer/types';
 import { nowInSeconds } from '../store';
-import { asDb, fakeDb } from '../test-d1';
+import { fakeDb } from '../test-d1';
+import { FakeExecutionContext } from '../test-env';
 import { auth } from './routes';
 import { authStore, ownedStore } from './store';
 import { hashToken, mintToken } from './tokens';
@@ -46,12 +47,12 @@ describe('tokens', () => {
 describe('authStore.redeemLoginToken', () => {
   test('returns null when the conditional update matched no row', async () => {
     // Two tabs opening the same link: the loser's UPDATE returns nothing.
-    expect(await authStore(asDb(fakeDb({ first: null }))).redeemLoginToken('tok')).toBeNull();
+    expect(await authStore(fakeDb({ first: null })).redeemLoginToken('tok')).toBeNull();
   });
 
   test('guards single use and expiry inside the UPDATE, not in a prior read', async () => {
     const db = fakeDb({ first: { email: 'someone@example.com' } });
-    expect(await authStore(asDb(db)).redeemLoginToken('tok')).toBe('someone@example.com');
+    expect(await authStore(db).redeemLoginToken('tok')).toBe('someone@example.com');
     expect(db.calls).toHaveLength(1);
     expect(db.calls[0].sql).toContain('used_at IS NULL');
     expect(db.calls[0].sql).toContain('expires_at >');
@@ -62,7 +63,7 @@ describe('authStore.redeemLoginToken', () => {
 describe('authStore.upsertUser', () => {
   test('signs up and signs in with one upsert, taking the id back from the row', async () => {
     const db = fakeDb({ first: { id: 'existing', email: 'a@b.com' } });
-    expect(await authStore(asDb(db)).upsertUser('a@b.com')).toEqual({ id: 'existing', email: 'a@b.com' });
+    expect(await authStore(db).upsertUser('a@b.com')).toEqual({ id: 'existing', email: 'a@b.com' });
     expect(db.calls).toHaveLength(1);
     expect(db.calls[0].sql).toContain('ON CONFLICT(email)');
   });
@@ -79,7 +80,7 @@ describe('authStore.userForSession', () => {
 
   test('returns null for an expired session without writing anything', async () => {
     const db = fakeDb({ first: { ...session(now), expires_at: now - 1 } });
-    expect(await authStore(asDb(db)).userForSession('tok')).toBeNull();
+    expect(await authStore(db).userForSession('tok')).toBeNull();
     expect(db.calls).toHaveLength(1);
   });
 
@@ -87,7 +88,7 @@ describe('authStore.userForSession', () => {
   // person can use this for a month without the sign-in path ever running again.
   test('refreshes last_seen_at when it is older than the bump window', async () => {
     const db = fakeDb({ first: session(now - SEEN_BUMP_SECONDS - 60) });
-    expect(await authStore(asDb(db)).userForSession('tok')).toEqual({ id: 'u1', email: 'a@b.com' });
+    expect(await authStore(db).userForSession('tok')).toEqual({ id: 'u1', email: 'a@b.com' });
     expect(db.calls).toHaveLength(2);
     expect(db.calls[1].sql).toContain('UPDATE users SET last_seen_at');
     expect(db.calls[1].bindings[1]).toBe('u1');
@@ -95,7 +96,7 @@ describe('authStore.userForSession', () => {
 
   test('leaves it alone within the window, so an active session is one read', async () => {
     const db = fakeDb({ first: session(now - 60) });
-    expect(await authStore(asDb(db)).userForSession('tok')).not.toBeNull();
+    expect(await authStore(db).userForSession('tok')).not.toBeNull();
     expect(db.calls).toHaveLength(1);
   });
 
@@ -103,19 +104,19 @@ describe('authStore.userForSession', () => {
   // that most need a first real timestamp, not a crash or a skipped write.
   test('treats a null last_seen_at as due for a refresh', async () => {
     const db = fakeDb({ first: session(null) });
-    await authStore(asDb(db)).userForSession('tok');
+    await authStore(db).userForSession('tok');
     expect(db.calls).toHaveLength(2);
   });
 });
 
 describe('authStore.throttleSeconds', () => {
   test('allows the first request for an address', async () => {
-    expect(await authStore(asDb(fakeDb({ first: null }))).throttleSeconds('a@b.com')).toBe(0);
+    expect(await authStore(fakeDb({ first: null })).throttleSeconds('a@b.com')).toBe(0);
   });
 
   test('reports the remaining wait while a fresh link is outstanding', async () => {
     const createdAt = Math.floor(Date.now() / 1000) - 20;
-    const wait = await authStore(asDb(fakeDb({ first: { created_at: createdAt } }))).throttleSeconds('a@b.com');
+    const wait = await authStore(fakeDb({ first: { created_at: createdAt } })).throttleSeconds('a@b.com');
     expect(wait).toBeGreaterThan(0);
     expect(wait).toBeLessThanOrEqual(40);
   });
@@ -124,12 +125,12 @@ describe('authStore.throttleSeconds', () => {
 describe('ownedStore.claimAnnotation', () => {
   test('only claims a link nobody owns', async () => {
     const db = fakeDb({ changes: 1 });
-    expect(await ownedStore(asDb(db)).claimAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(true);
+    expect(await ownedStore(db).claimAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(true);
     expect(db.calls[0].sql).toContain('owner_id IS NULL');
   });
 
   test('reports failure when the row is already owned', async () => {
-    expect(await ownedStore(asDb(fakeDb({ changes: 0 }))).claimAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
+    expect(await ownedStore(fakeDb({ changes: 0 })).claimAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
   });
 });
 
@@ -138,14 +139,14 @@ describe('ownedStore.releaseAnnotation', () => {
   // view-only had no owner left to ever flip it back — permanently locked.
   test('also resets access and the owner expiry, not just owner_id', async () => {
     const db = fakeDb({ changes: 1 });
-    expect(await ownedStore(asDb(db)).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(true);
+    expect(await ownedStore(db).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(true);
     expect(db.calls[0].sql).toContain("access = 'edit'");
     expect(db.calls[0].sql).toContain('owner_expires_at = NULL');
     expect(db.calls[0].sql).toContain('owner_id = NULL');
   });
 
   test('reports failure when the session does not own the link', async () => {
-    expect(await ownedStore(asDb(fakeDb({ changes: 0 }))).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
+    expect(await ownedStore(fakeDb({ changes: 0 })).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
   });
 });
 
@@ -163,12 +164,9 @@ function fakeRoom() {
     }),
   };
 }
-// biome-ignore lint/suspicious/noExplicitAny: same reason as asDb — a fake of only the methods the route calls.
-const asRoom = (ns: ReturnType<typeof fakeRoom>) => ns as any;
 
 /** The route hands the room ping to `waitUntil`; nothing here needs to await it. */
-// biome-ignore lint/suspicious/noExplicitAny: same reason as asRoom.
-const testCtx = { waitUntil: (p: Promise<unknown>) => void p, passThroughOnException: () => {} } as any;
+const testCtx = new FakeExecutionContext();
 
 describe('PATCH /links/:id', () => {
   const room = fakeRoom();
@@ -191,7 +189,7 @@ describe('PATCH /links/:id', () => {
     const res = await auth.request(
       '/links/abc',
       { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ access: 'view' }) },
-      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      { DB: db, ANNOTATION_ROOM: room },
       testCtx,
     );
     expect(res.status).toBe(200);
@@ -210,7 +208,7 @@ describe('PATCH /links/:id', () => {
     const res = await auth.request(
       '/links/abc',
       { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ access: 'view' }) },
-      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      { DB: db, ANNOTATION_ROOM: room },
       testCtx,
     );
     expect(res.status).toBe(200);
@@ -224,7 +222,7 @@ describe('PATCH /links/:id', () => {
     const res = await auth.request(
       '/links/abc',
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access: 'view' }) },
-      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      { DB: db, ANNOTATION_ROOM: room },
       testCtx,
     );
     expect(res.status).toBe(401);
@@ -240,7 +238,7 @@ describe('PATCH /links/:id', () => {
         headers: jsonHeaders,
         body: JSON.stringify({ ownerExpiresIn: MAX_EXPIRES_IN_SECONDS + 1 }),
       },
-      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      { DB: db, ANNOTATION_ROOM: room },
       testCtx,
     );
     expect(res.status).toBe(400);
@@ -253,7 +251,7 @@ describe('PATCH /links/:id', () => {
     const res = await auth.request(
       '/links/abc',
       { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ ownerExpiresIn: null }) },
-      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      { DB: db, ANNOTATION_ROOM: room },
       testCtx,
     );
     expect(res.status).toBe(200);
@@ -275,7 +273,7 @@ describe('DELETE /links/:id', () => {
     const res = await auth.request(
       '/links/abc',
       { method: 'DELETE', headers: { Cookie: cookie } },
-      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      { DB: db, ANNOTATION_ROOM: room },
       testCtx,
     );
     expect(res.status).toBe(200);
@@ -288,7 +286,7 @@ describe('DELETE /links/:id', () => {
     const res = await auth.request(
       '/links/abc',
       { method: 'DELETE', headers: { Cookie: cookie } },
-      { DB: asDb(db), ANNOTATION_ROOM: asRoom(room) },
+      { DB: db, ANNOTATION_ROOM: room },
       testCtx,
     );
     expect(await res.json<{ released: boolean }>()).toEqual({ released: false });
@@ -307,7 +305,7 @@ describe('/verify', () => {
 
   test('GET leaves the token unspent, so a mail scanner opening the link cannot burn it', async () => {
     const db = fakeDb({ first: { email: 'someone@example.com' } });
-    const res = await auth.request(`/verify?token=${token}`, {}, { DB: asDb(db) }, testCtx);
+    const res = await auth.request(`/verify?token=${token}`, {}, { DB: db }, testCtx);
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toBeNull();
     expect(db.calls).toHaveLength(0);
@@ -315,21 +313,21 @@ describe('/verify', () => {
   });
 
   test('GET with a token that is not one of ours never echoes it into the page', async () => {
-    const res = await auth.request('/verify?token="><script>x</script>', {}, { DB: asDb(fakeDb()) }, testCtx);
+    const res = await auth.request('/verify?token="><script>x</script>', {}, { DB: fakeDb() }, testCtx);
     expect(res.status).toBe(400);
     expect(await res.text()).not.toContain('<script>x');
   });
 
   test('POST spends the token, sets the session and leaves for the app', async () => {
     const db = fakeDb({ firstQueue: [{ email: 'someone@example.com' }, { id: 'u1', email: 'someone@example.com' }] });
-    const res = await auth.request('/verify', post(`token=${token}`), { DB: asDb(db) }, testCtx);
+    const res = await auth.request('/verify', post(`token=${token}`), { DB: db }, testCtx);
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe('/app');
     expect(res.headers.get('set-cookie')).toContain(`${SESSION_COOKIE}=`);
   });
 
   test('POST with a spent token explains instead of landing signed out', async () => {
-    const res = await auth.request('/verify', post(`token=${token}`), { DB: asDb(fakeDb({ first: null })) }, testCtx);
+    const res = await auth.request('/verify', post(`token=${token}`), { DB: fakeDb({ first: null }) }, testCtx);
     expect(res.status).toBe(400);
     expect(res.headers.get('set-cookie')).toBeNull();
   });
@@ -339,7 +337,7 @@ describe('/verify', () => {
     const res = await auth.request(
       '/verify',
       post(`token=${token}`, { Origin: 'https://evil.example' }),
-      { DB: asDb(db) },
+      { DB: db },
       testCtx,
     );
     expect(res.status).toBe(403);
