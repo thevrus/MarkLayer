@@ -40,8 +40,6 @@ afterAll(() => {
   else Reflect.deleteProperty(globalThis, 'WebSocketRequestResponsePair');
 });
 
-const fakeSocket = (attachment: unknown) => new FakeWebSocket(attachment);
-
 function makeRoom({ db, sockets = [] }: { db: ReturnType<typeof fakeDb>; sockets?: FakeWebSocket[] }) {
   const ctx = new FakeDurableObjectState({ sockets, tags: [ID] });
   return { room: new AnnotationRoom(ctx, fakeEnv({ DB: db })), alarms: ctx.alarms };
@@ -52,8 +50,8 @@ function flakyDb() {
   const db = fakeDb({ first: editableRow });
   const isWrite = (sql: string) => /INSERT INTO annotations|UPDATE annotations SET ops/.test(sql);
   let failing = true;
-  const prepare = db.prepare.bind(db);
-  db.prepare = (sql: string) => {
+  const { prepare } = db;
+  db.prepare = (sql) => {
     const stmt = prepare(sql);
     if (failing && isWrite(sql)) {
       stmt.run = async () => {
@@ -90,7 +88,7 @@ describe('AnnotationRoom flush', () => {
 
   test('the last peer leaving during an outage closes cleanly and leaves the op for a later flush', async () => {
     const { db, writes, heal } = flakyDb();
-    const peer = fakeSocket({ id: 'p1', name: 'A', color: '#8b5cf6' });
+    const peer = new FakeWebSocket({ id: 'p1', name: 'A', color: '#8b5cf6' });
     const { room } = makeRoom({ db, sockets: [peer] });
     expect(await room.agentPushOp(ID, op)).toBe(true);
 
@@ -107,8 +105,8 @@ describe('AnnotationRoom flush', () => {
 describe('AnnotationRoom view-only enforcement', () => {
   test('a read-only peer is refused every mutation and nothing reaches the room', async () => {
     const db = fakeDb({ first: editableRow });
-    const viewer = fakeSocket({ id: 'viewer', name: 'V', color: '#8b5cf6', canEdit: false });
-    const other = fakeSocket({ id: 'editor', name: 'E', color: '#8b5cf6', canEdit: true });
+    const viewer = new FakeWebSocket({ id: 'viewer', name: 'V', color: '#8b5cf6', canEdit: false });
+    const other = new FakeWebSocket({ id: 'editor', name: 'E', color: '#8b5cf6', canEdit: true });
     const { room, alarms } = makeRoom({ db, sockets: [viewer, other] });
 
     for (const msg of [{ type: 'clear' }, { type: 'undo', opId: op.id }, { type: 'op', op }]) {
@@ -125,7 +123,7 @@ describe('AnnotationRoom view-only enforcement', () => {
     const viewRow = { access: 'view', owner_id: 'u1', owner_expires_at: null };
     // Order: the refresh's access read, then the agent's first load (still 'edit'), then its own access read.
     const db = fakeDb({ firstQueue: [viewRow, editableRow], first: viewRow });
-    const peer = fakeSocket({ id: 'p1', name: 'A', color: '#8b5cf6', canEdit: true, userId: 'u2' });
+    const peer = new FakeWebSocket({ id: 'p1', name: 'A', color: '#8b5cf6', canEdit: true, userId: 'u2' });
     const { room, alarms } = makeRoom({ db, sockets: [peer] });
 
     const res = await room.fetch(new Request(`https://room/refresh-access?id=${ID}`, { method: 'POST' }));
@@ -139,18 +137,11 @@ describe('AnnotationRoom view-only enforcement', () => {
 });
 
 describe('AnnotationRoom password revoke', () => {
-  /** The real close carries the code the client acts on, which `fakeSocket` drops. */
-  function closingSocket(attachment: unknown) {
-    const socket = fakeSocket(attachment);
-    const codes: number[] = [];
-    return Object.assign(socket, { codes, close: (code?: number) => void codes.push(code ?? 1000) });
-  }
-
   test('a password change closes every session but the owner, and refuses a socket admitted before it', async () => {
     const db = fakeDb({ first: { access: 'edit', owner_id: 'owner', owner_expires_at: null } });
-    const guest = closingSocket({ id: 'g', name: 'G', color: '#8b5cf6', userId: 'someone-else' });
-    const anon = closingSocket({ id: 'a', name: 'A', color: '#8b5cf6' });
-    const owner = closingSocket({ id: 'o', name: 'O', color: '#8b5cf6', userId: 'owner' });
+    const guest = new FakeWebSocket({ id: 'g', name: 'G', color: '#8b5cf6', userId: 'someone-else' });
+    const anon = new FakeWebSocket({ id: 'a', name: 'A', color: '#8b5cf6' });
+    const owner = new FakeWebSocket({ id: 'o', name: 'O', color: '#8b5cf6', userId: 'owner' });
     const { room } = makeRoom({ db, sockets: [guest, anon, owner] });
     await room.fetch(new Request(`https://room/refresh-access?id=${ID}`, { method: 'POST' }));
 
@@ -159,9 +150,9 @@ describe('AnnotationRoom password revoke', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     const res = await room.fetch(new Request(`https://room/revoke?id=${ID}&gen=2`, { method: 'POST' }));
     expect(res.status).toBe(204);
-    expect(guest.codes).toEqual([ROOM_LOCKED_CLOSE_CODE]);
-    expect(anon.codes).toEqual([ROOM_LOCKED_CLOSE_CODE]);
-    expect(owner.codes).toEqual([]);
+    expect(guest.closes).toEqual([ROOM_LOCKED_CLOSE_CODE]);
+    expect(anon.closes).toEqual([ROOM_LOCKED_CLOSE_CODE]);
+    expect(owner.closes).toEqual([]);
     // A watching agent wakes empty-handed rather than receiving what lands after the change.
     expect(await parked).toEqual([]);
 
@@ -180,13 +171,11 @@ describe('AnnotationRoom password revoke', () => {
 
 describe('AnnotationRoom per-socket message cap', () => {
   function pair() {
-    const sender = fakeSocket({ id: 's', name: 'S', color: '#8b5cf6' });
-    const codes: number[] = [];
-    Object.assign(sender, { close: (code?: number) => void codes.push(code ?? 1000) });
-    const peer = fakeSocket({ id: 'p', name: 'P', color: '#8b5cf6' });
+    const sender = new FakeWebSocket({ id: 's', name: 'S', color: '#8b5cf6' });
+    const peer = new FakeWebSocket({ id: 'p', name: 'P', color: '#8b5cf6' });
     const { room } = makeRoom({ db: fakeDb({ first: editableRow }), sockets: [sender, peer] });
     const send = () => room.webSocketMessage(sender, JSON.stringify({ type: 'cursor', x: 1, y: 2 }));
-    return { codes, peer, send };
+    return { codes: sender.closes, peer, send };
   }
 
   test('a reconnect flush followed by a long drag at display rate is never cut off', async () => {

@@ -4,7 +4,7 @@ import { api } from '../api';
 import { ogLocked, rooms } from '../rooms';
 import { nowInSeconds } from '../store';
 import { fakeDb } from '../test-d1';
-import { FakeExecutionContext } from '../test-env';
+import { FakeExecutionContext, fakeEnv } from '../test-env';
 import { MAX_FAILURES, ROOM_GEN_HEADER, roomAccess } from './gate';
 import { hashPassword, signUnlock, unlockCookieName, verifyPassword } from './password';
 
@@ -188,7 +188,7 @@ describe('other room readers', () => {
     }
     for (const path of [`/${ID}`, `/${ID}/integrations`, `/${ID}/versions`]) {
       const db = fakeDb({ firstQueue: [lockRow({ owner_id: null })] });
-      const res = await api.request(path, {}, { DB: db }, testCtx);
+      const res = await api.request(path, {}, fakeEnv({ DB: db }), testCtx);
       expect(res.status).toBe(401);
       // The gate is the only read: no ops, no destinations.
       expect(db.calls).toHaveLength(1);
@@ -205,7 +205,7 @@ describe('other room readers', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ url: 'https://example.com', title: 'v2', repo: 'a/b', branch: 'main', previous: ID }),
       },
-      { DB: db },
+      fakeEnv({ DB: db }),
       testCtx,
     );
     expect(res.status).toBe(400);
@@ -223,7 +223,7 @@ describe('other room readers', () => {
       owner_id: null,
     };
     const db = fakeDb({ first: { page_ids: JSON.stringify([ID]), created_at: 1, expires_at: null }, all: [page] });
-    const res = await api.request('/p/someProjectIdThatIsLong', {}, { DB: db }, testCtx);
+    const res = await api.request('/p/someProjectIdThatIsLong', {}, fakeEnv({ DB: db }), testCtx);
     const body = await res.json();
     expect(JSON.stringify(body)).not.toContain('internal.example');
     expect(JSON.stringify(body)).not.toContain('secret');

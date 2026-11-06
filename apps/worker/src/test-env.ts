@@ -21,8 +21,6 @@ export class FakeExecutionContext implements ExecutionContext {
   passThroughOnException(): void {}
   exports = {};
   props = undefined;
-  restore = unsupported;
-  mapVirtualHost = unsupported;
   tracing = { enterSpan: unsupported, startActiveSpan: unsupported, startSpan: unsupported, Span: FakeSpan };
   abort = unsupported;
 }
@@ -30,12 +28,15 @@ export class FakeExecutionContext implements ExecutionContext {
 class FakeFetcher implements Fetcher {
   fetch = unsupported;
   connect = unsupported;
-  queue = unsupported;
-  scheduled = unsupported;
 }
 
-class FakeBucket implements R2Bucket {
-  head = unsupported;
+/** `head` is the one R2 call a test scripts; the rest throw. */
+export class FakeBucket implements R2Bucket {
+  constructor(script: { head?: R2Bucket['head'] } = {}) {
+    this.head = script.head ?? unsupported;
+  }
+
+  head: R2Bucket['head'];
   get = unsupported;
   put = unsupported;
   createMultipartUpload = unsupported;
@@ -60,7 +61,6 @@ class FakeRoomNamespace implements DurableObjectNamespace<AnnotationRoom> {
   idFromString = unsupported;
   get = unsupported;
   getByName = unsupported;
-  getExisting = unsupported;
   jurisdiction = unsupported;
 }
 
@@ -77,9 +77,10 @@ export function fakeEnv(over: Partial<Env['Bindings']> = {}): Env['Bindings'] {
   };
 }
 
-/** Unlike the platform socket, `close` is a property so a test can swap in one that records the code. */
+/** `closes` records the code of every `close()`, which the platform socket would send to the client. */
 export class FakeWebSocket implements WebSocket {
   readonly sent: unknown[] = [];
+  readonly closes: number[] = [];
   readyState = WebSocket.OPEN;
   url = '';
   protocol = '';
@@ -91,7 +92,9 @@ export class FakeWebSocket implements WebSocket {
   send(message: string | Blob | ArrayBufferLike | ArrayBufferView): void {
     this.sent.push(JSON.parse(String(message)));
   }
-  close(): void {}
+  close(code = 1000): void {
+    this.closes.push(code);
+  }
   serializeAttachment(attachment: unknown): void {
     this.attachment = attachment;
   }
@@ -108,6 +111,7 @@ export class FakeWebSocket implements WebSocket {
   OPEN = 1 as const;
   CLOSING = 2 as const;
   CLOSED = 3 as const;
+
   accept = unsupported;
   addEventListener = unsupported;
   removeEventListener = unsupported;
@@ -198,7 +202,6 @@ export class FakeDurableObjectState implements DurableObjectState {
     return this.opts.tags;
   }
 
-  restore = unsupported;
   id = new FakeId();
   blockConcurrencyWhile = unsupported;
   acceptWebSocket = unsupported;
@@ -207,5 +210,4 @@ export class FakeDurableObjectState implements DurableObjectState {
   setHibernatableWebSocketEventTimeout = unsupported;
   getHibernatableWebSocketEventTimeout = unsupported;
   abort = unsupported;
-  configureReadReplication = unsupported;
 }

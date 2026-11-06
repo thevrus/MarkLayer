@@ -1,14 +1,6 @@
 import type { Database } from 'bun:sqlite';
 
-/**
- * A D1 stand-in that records the SQL it was handed and replays queued rows.
- *
- * Enough to exercise the stores' parsing, expiry and conditional-write rules,
- * which is where call sites have disagreed; it deliberately does not model
- * SQLite. `changes` matters because the guards are conditional UPDATEs whose
- * whole meaning is in that number — a fake that always says "success" would
- * pass while the guard did nothing.
- */
+/** A D1 stand-in that records SQL and replays queued rows. `changes` matters because the guards are conditional UPDATEs: a fake that always succeeds would pass while the guard did nothing. */
 export function fakeDb({
   first = null,
   firstQueue,
@@ -82,15 +74,15 @@ class FakeStatement implements D1PreparedStatement {
 }
 
 /** Records the SQL it was handed; `calls` is what tests assert on. */
-export class FakeD1 implements D1Database {
+class FakeD1 implements D1Database {
   readonly calls: { sql: string; bindings: unknown[] }[] = [];
   constructor(private readonly script: Replay) {}
 
-  prepare(sql: string): FakeStatement {
+  prepare: D1Database['prepare'] = (sql) => {
     const call = { sql, bindings: [] };
     this.calls.push(call);
     return new FakeStatement(call, this.script);
-  }
+  };
 
   batch = unsupported;
   exec = unsupported;

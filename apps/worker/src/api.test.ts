@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { MAX_EXPIRES_IN_SECONDS } from '@marklayer/types';
 import { api } from './api';
 import { fakeDb } from './test-d1';
-import { FakeExecutionContext } from './test-env';
+import { FakeBucket, FakeExecutionContext, fakeEnv } from './test-env';
 
 /** A real nanoid: a short id now 400s before the body is read, so every assertion below would pass for the wrong reason. */
 const ID = 'dsWPMrdw6EZ8jkkhxvFKS';
@@ -18,7 +18,7 @@ function post({ id, body, db, cookie }: { id: string; body: unknown; db: ReturnT
       headers: { 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
       body: JSON.stringify(body),
     },
-    { DB: db },
+    fakeEnv({ DB: db }),
     testCtx,
   );
 }
@@ -81,32 +81,42 @@ describe('GET /health — the bindings, not a hardcoded ok', () => {
   // This route answered a literal `{ status: 'ok' }` until the footer's status
   // line on every page started reading it. A green light through a D1 outage is
   // the whole bug these guard.
-  const health = ({ db, storage }: { db: () => Promise<unknown>; storage: () => Promise<unknown> }) =>
-    api.request('/health', {}, { DB: { prepare: () => ({ first: db }) }, OG_BUCKET: { head: storage } }, testCtx);
+  const health = ({ db, storage }: { db: D1Database; storage: R2Bucket['head'] }) =>
+    api.request('/health', {}, fakeEnv({ DB: db, OG_BUCKET: new FakeBucket({ head: storage }) }), testCtx);
 
   /** `/health` is not an OpenAPI route, so Hono infers its body as `undefined`. */
   const body = (res: Response): Promise<unknown> => res.json();
 
-  const reachable = async () => ({ 1: 1 });
+  const reachable = () => fakeDb({ first: { 1: 1 } });
   const missing = async () => null;
   const down = async () => {
     throw new Error('binding unreachable');
   };
+  const unreachable = () => {
+    const db = fakeDb();
+    const { prepare } = db;
+    db.prepare = (sql) => {
+      const stmt = prepare(sql);
+      stmt.first = down;
+      return stmt;
+    };
+    return db;
+  };
 
   test('reports ok only when both bindings answer', async () => {
-    const res = await health({ db: reachable, storage: missing });
+    const res = await health({ db: reachable(), storage: missing });
     expect(res.status).toBe(200);
     expect(await body(res)).toEqual({ status: 'ok', checks: { db: true, storage: true } });
   });
 
   test('degrades with a 503 when D1 is unreachable', async () => {
-    const res = await health({ db: down, storage: missing });
+    const res = await health({ db: unreachable(), storage: missing });
     expect(res.status).toBe(503);
     expect(await body(res)).toEqual({ status: 'degraded', checks: { db: false, storage: true } });
   });
 
   test('degrades when R2 is unreachable, so one binding cannot hide the other', async () => {
-    const res = await health({ db: reachable, storage: down });
+    const res = await health({ db: reachable(), storage: down });
     expect(res.status).toBe(503);
     expect(await body(res)).toEqual({ status: 'degraded', checks: { db: true, storage: false } });
   });
@@ -139,7 +149,7 @@ describe('integration routes never expose a credential', () => {
       body === undefined
         ? {}
         : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
-      { DB: db },
+      fakeEnv({ DB: db }),
       testCtx,
     );
 

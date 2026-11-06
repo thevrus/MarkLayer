@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { MAX_EXPIRES_IN_SECONDS } from '@marklayer/types';
 import { nowInSeconds } from '../store';
 import { fakeDb } from '../test-d1';
-import { FakeExecutionContext } from '../test-env';
+import { FakeExecutionContext, fakeEnv } from '../test-env';
 import { auth } from './routes';
 import { authStore, ownedStore } from './store';
 import { hashToken, mintToken } from './tokens';
@@ -305,7 +305,7 @@ describe('/verify', () => {
 
   test('GET leaves the token unspent, so a mail scanner opening the link cannot burn it', async () => {
     const db = fakeDb({ first: { email: 'someone@example.com' } });
-    const res = await auth.request(`/verify?token=${token}`, {}, { DB: db }, testCtx);
+    const res = await auth.request(`/verify?token=${token}`, {}, fakeEnv({ DB: db }), testCtx);
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toBeNull();
     expect(db.calls).toHaveLength(0);
@@ -313,21 +313,26 @@ describe('/verify', () => {
   });
 
   test('GET with a token that is not one of ours never echoes it into the page', async () => {
-    const res = await auth.request('/verify?token="><script>x</script>', {}, { DB: fakeDb() }, testCtx);
+    const res = await auth.request('/verify?token="><script>x</script>', {}, fakeEnv({ DB: fakeDb() }), testCtx);
     expect(res.status).toBe(400);
     expect(await res.text()).not.toContain('<script>x');
   });
 
   test('POST spends the token, sets the session and leaves for the app', async () => {
     const db = fakeDb({ firstQueue: [{ email: 'someone@example.com' }, { id: 'u1', email: 'someone@example.com' }] });
-    const res = await auth.request('/verify', post(`token=${token}`), { DB: db }, testCtx);
+    const res = await auth.request('/verify', post(`token=${token}`), fakeEnv({ DB: db }), testCtx);
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe('/app');
     expect(res.headers.get('set-cookie')).toContain(`${SESSION_COOKIE}=`);
   });
 
   test('POST with a spent token explains instead of landing signed out', async () => {
-    const res = await auth.request('/verify', post(`token=${token}`), { DB: fakeDb({ first: null }) }, testCtx);
+    const res = await auth.request(
+      '/verify',
+      post(`token=${token}`),
+      fakeEnv({ DB: fakeDb({ first: null }) }),
+      testCtx,
+    );
     expect(res.status).toBe(400);
     expect(res.headers.get('set-cookie')).toBeNull();
   });
@@ -337,7 +342,7 @@ describe('/verify', () => {
     const res = await auth.request(
       '/verify',
       post(`token=${token}`, { Origin: 'https://evil.example' }),
-      { DB: db },
+      fakeEnv({ DB: db }),
       testCtx,
     );
     expect(res.status).toBe(403);
