@@ -9,21 +9,7 @@
  */
 
 import { lsGet, lsSet } from '@ext/lib/storage';
-import { type CommentStatus, type DrawOp, isAnnotationOp, isSettled, resolveOpStatus } from '@marklayer/types';
-
-/**
- * The Polar checkout the card opens — the "Support MarkLayer" product, priced
- * pay-what-you-want with a $3 floor and $5 prefilled.
- *
- * The card's button deliberately does not name that $5: Polar is merchant of
- * record and adds VAT on top, so an EU supporter is charged $6.15. A button
- * promising a price the checkout then contradicts is a small lie.
- *
- * Left empty and the card degrades to its no-payment form rather than offering a
- * button that goes nowhere, which is also what should happen if the product is
- * ever retired.
- */
-export const POLAR_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_DBsDl9Ufd2O0mOEodJrcrIDpuOu2iEc0UqG4w4cXdk2';
+import { type CommentStatus, type DrawOp, isAnnotationOp, isSettled, resolveOpStatus } from '@marklayer/types/ops';
 
 /**
  * What the project actually costs to run each month, or `null` while unknown.
@@ -141,16 +127,7 @@ export function parseSupportRecord(raw: string | null): SupportRecord {
  * The second and third asks are for whoever is still at it: a fortnight after the
  * last answer, and with real use since.
  */
-export function shouldOfferSupport({
-  record,
-  hasCheckout,
-  date = today(),
-}: {
-  record: SupportRecord;
-  hasCheckout: boolean;
-  date?: string;
-}): boolean {
-  if (!hasCheckout) return false; // nothing to offer
+export function shouldOfferSupport({ record, date = today() }: { record: SupportRecord; date?: string }): boolean {
   if (record.supported || record.answers >= MAX_ANSWERS) return false;
   if (record.answers > 0) {
     // An undated legacy answer has not started its wait yet.

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { DrawOp } from '@marklayer/types';
+import type { DrawOp } from '@marklayer/types/ops';
 
 /**
  * IndexedDB does not exist in the test DOM, and the store is what the debounce

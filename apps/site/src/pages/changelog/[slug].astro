@@ -4,7 +4,7 @@ import LinkGrid from '../../components/LinkGrid.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getReleases, type SiteLink } from '../../lib/collections';
 import { articleSchema, type Crumb } from '../../lib/schema';
-import { formatReleaseDate } from '../../lib/site';
+import { formatReleaseDate, releasePath } from '../../lib/site';
 
 export async function getStaticPaths() {
   const releases = await getReleases();
@@ -43,7 +43,7 @@ const groups = GROUPS.map((g) => ({
    release page holding — a version number from an update prompt or a bug report,
    not the name we gave the release. */
 const step = (r: typeof entry, direction: string): SiteLink => ({
-  href: `/changelog/${r.id}`,
+  href: releasePath(r.id),
   label: `${direction}: ${r.data.version} \u00b7 ${r.data.name}`,
 });
 
@@ -53,7 +53,7 @@ const nav: SiteLink[] = [
   { href: '/changelog', label: 'All releases' },
 ];
 
-const path = `/changelog/${entry.id}`;
+const path = releasePath(entry.id);
 const breadcrumbs: Crumb[] = [
   { name: 'MarkLayer', path: '/' },
   { name: 'Changelog', path: '/changelog' },

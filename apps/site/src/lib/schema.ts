@@ -1,4 +1,5 @@
-import { AUTHOR_EMAIL, AUTHOR_NAME, OG_IMAGE, ORIGIN } from './site';
+import { ORIGIN } from '@marklayer/brand';
+import { AUTHOR_EMAIL, AUTHOR_NAME, OG_IMAGE } from './site';
 
 export type Crumb = { name: string; path?: string };
 export type QA = { q: string; a: string };

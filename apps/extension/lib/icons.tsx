@@ -46,7 +46,7 @@ import {
 import type { SimpleIcon } from 'simple-icons';
 import { siReact, siSvelte, siTailwindcss, siVuedotjs } from 'simple-icons';
 
-const iconMap: Record<string, typeof MousePointer2> = {
+const iconMap = {
   navigate: MousePointer2,
   highlight: Highlighter,
   pen: Pen,
@@ -90,9 +90,11 @@ const iconMap: Record<string, typeof MousePointer2> = {
   info: Info,
   copy: Copy,
   link: Link2,
-};
+} satisfies Record<string, typeof MousePointer2>;
 
-export function Icon({ name, size = 18, strokeWidth = 2 }: { name: string; size?: number; strokeWidth?: number }) {
+export type IconName = keyof typeof iconMap;
+
+export function Icon({ name, size = 18, strokeWidth = 2 }: { name: IconName; size?: number; strokeWidth?: number }) {
   const Comp = iconMap[name];
   if (!Comp) return null;
   return <Comp size={size} strokeWidth={strokeWidth} />;

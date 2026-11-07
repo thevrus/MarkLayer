@@ -3,6 +3,7 @@ import ArticleLayout from '../layouts/ArticleLayout.astro';
 import { getAlternatives } from '../lib/collections';
 import { articleSchema } from '../lib/schema';
 import dates from '../data/page-dates.json';
+import { alternativesPath } from '../lib/site';
 
 const alternatives = await getAlternatives();
 const { published, modified } = dates['hub-alternatives'];
@@ -35,7 +36,7 @@ const h1 = 'Free annotation tool alternatives';
     {
       alternatives.map((a) => (
         <li>
-          <a href={`/alternatives/${a.id}`}>Free {a.data.target} alternative</a>
+          <a href={alternativesPath(a.id)}>Free {a.data.target} alternative</a>
           {a.data.hubBlurb ? ` — ${a.data.hubBlurb}` : null}
         </li>
       ))

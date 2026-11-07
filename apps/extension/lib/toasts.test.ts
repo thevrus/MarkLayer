@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, jest, test } from 'bun:test';
 import { type AnalyticsProps, setAnalytics } from './analytics';
 import { copyText, pauseToast, resumeToast, toast, toasts } from './toasts';
 
@@ -30,19 +30,46 @@ describe('toast', () => {
     expect(toasts.value[0]?.type).toBe('info');
   });
 
-  test('dismisses itself after its own duration', async () => {
-    toast('Quick', { duration: 10 });
-    expect(toasts.value).toHaveLength(1);
-    await tick(30);
-    expect(toasts.value).toEqual([]);
-  });
+  describe('timers', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
 
-  test('dismisses by id, so a short toast cannot take a longer one with it', async () => {
-    // Removing by index would drop whichever toast happened to sit there.
-    toast('long', { duration: 400 });
-    toast('short', { duration: 10 });
-    await tick(40);
-    expect(toasts.value.map((t) => t.message)).toEqual(['long']);
+    test('dismisses itself after its own duration', () => {
+      toast('Quick', { duration: 10 });
+      expect(toasts.value).toHaveLength(1);
+      jest.advanceTimersByTime(10);
+      expect(toasts.value).toEqual([]);
+    });
+
+    test('dismisses by id, so a short toast cannot take a longer one with it', () => {
+      // Removing by index would drop whichever toast happened to sit there.
+      toast('long', { duration: 400 });
+      toast('short', { duration: 10 });
+      jest.advanceTimersByTime(40);
+      expect(toasts.value.map((t) => t.message)).toEqual(['long']);
+    });
+
+    test('pausing clears the timer so the toast outlives its original duration', () => {
+      toast('hovered', { duration: 10 });
+      const id = toasts.value[0]?.id as number;
+      pauseToast(id);
+      jest.advanceTimersByTime(30);
+      expect(toasts.value).toHaveLength(1);
+    });
+
+    test('resuming picks up the remaining time rather than a fresh full duration', () => {
+      toast('hovered', { duration: 30 });
+      const id = toasts.value[0]?.id as number;
+      jest.advanceTimersByTime(20);
+      pauseToast(id);
+      jest.advanceTimersByTime(50);
+      expect(toasts.value).toHaveLength(1);
+      resumeToast(id);
+      jest.advanceTimersByTime(5);
+      expect(toasts.value).toHaveLength(1);
+      jest.advanceTimersByTime(5);
+      expect(toasts.value).toEqual([]);
+    });
   });
 
   test('gives every toast a distinct id, even for the same message', () => {
@@ -50,28 +77,6 @@ describe('toast', () => {
     toast('same');
     const [a, b] = toasts.value;
     expect(a?.id).not.toBe(b?.id);
-  });
-
-  test('pausing clears the timer so the toast outlives its original duration', async () => {
-    toast('hovered', { duration: 10 });
-    const id = toasts.value[0]?.id as number;
-    pauseToast(id);
-    await tick(30);
-    expect(toasts.value).toHaveLength(1);
-  });
-
-  test('resuming picks up the remaining time rather than a fresh full duration', async () => {
-    toast('hovered', { duration: 30 });
-    const id = toasts.value[0]?.id as number;
-    await tick(20);
-    pauseToast(id);
-    await tick(50);
-    expect(toasts.value).toHaveLength(1);
-    resumeToast(id);
-    await tick(5);
-    expect(toasts.value).toHaveLength(1);
-    await tick(20);
-    expect(toasts.value).toEqual([]);
   });
 
   test('carries an optional action through to the queued toast', () => {

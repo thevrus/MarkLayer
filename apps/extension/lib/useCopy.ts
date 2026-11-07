@@ -1,6 +1,6 @@
 import { useSignal } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { toast } from './state';
+import { toast } from './toasts';
 
 /**
  * Click-to-copy state shared by every copy control. The controls look nothing

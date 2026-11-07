@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import type { CommentOp, DrawOp } from '@marklayer/types';
+import type { CommentOp, DrawOp } from '@marklayer/types/ops';
 import { fakeDb } from '../test-d1';
-import { encryptToken, signSlackBody } from './slack-app';
+import { encryptToken, signSlackBody } from './slack-crypto';
 import { slackRoutes } from './slack-routes';
+import { slackStore } from './slack-store';
 import { postBatchToSlack } from './slack-sync';
 
 const SIGNING = 'signing-secret';
@@ -58,16 +59,16 @@ async function installRow(roomId: string) {
 
 function setup(firstQueue: unknown[]) {
   const pushed: { roomId: string; op: DrawOp }[] = [];
-  const stub = {
-    agentSnapshot: async () => ({ ops: [decoy, parent] }),
-    agentPushOp: async (roomId: string, op: DrawOp) => {
-      pushed.push({ roomId, op });
+  const stubFor = (roomId: string) => ({
+    snapshot: async () => ({ ops: [decoy, parent] }),
+    send: async (msg: { type: string; op?: DrawOp }) => {
+      if (msg.op) pushed.push({ roomId, op: msg.op });
       return true;
     },
-  };
+  });
   const env = {
     DB: fakeDb({ firstQueue }),
-    ANNOTATION_ROOM: { idFromName: (name: string) => name, get: () => stub },
+    ANNOTATION_ROOM: { idFromName: (name: string) => name, get: stubFor },
     SLACK_CLIENT_ID: 'id',
     SLACK_CLIENT_SECRET: 'secret',
     SLACK_SIGNING_SECRET: SIGNING,
@@ -193,8 +194,11 @@ describe('postBatchToSlack', () => {
         { ok: true, ts: '111.2' },
       ],
     });
+    const install = await slackStore(fakeDb({ first: await installRow(ROOM) })).install(ROOM);
+    if (!install) throw new Error('no install');
     const result = await postBatchToSlack({
-      db: fakeDb({ firstQueue: [await installRow(ROOM), null] }),
+      db: fakeDb({ first: null }),
+      install,
       tokenKey: KEY,
       roomId: ROOM,
       items: [parent, reply],

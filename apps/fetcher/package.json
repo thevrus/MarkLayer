@@ -11,6 +11,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@marklayer/brand": "workspace:*",
     "@marklayer/types": "workspace:*"
   },
   "devDependencies": {

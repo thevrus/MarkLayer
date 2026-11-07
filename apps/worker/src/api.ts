@@ -1,32 +1,24 @@
 import { createRoute, OpenAPIHono, z } from '@hono/zod-openapi';
-import { SharePreviewInput } from '@marklayer/agent-tools';
-import {
-  canEditLink,
-  drawOpSchema,
-  effectiveExpiresAt,
-  MAX_EXPIRES_IN_SECONDS,
-  MAX_INTEGRATIONS_PER_ROOM,
-  MIN_SHARE_ID_LENGTH,
-  opsArraySchema,
-} from '@marklayer/types';
+import { MAX_PREVIEW_QUESTIONS, SharePreviewInput } from '@marklayer/agent-tools';
+import { MAX_PAGES_PER_PROJECT, ORIGIN } from '@marklayer/brand';
+import { MIN_SHARE_ID_LENGTH } from '@marklayer/brand/links';
+import { MAX_QUESTION_OPTIONS, MIN_QUESTION_OPTIONS, opsArraySchema } from '@marklayer/types/ops';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
+import { DAY_SECONDS, MAX_EXPIRES_IN_SECONDS } from '../shared/accounts';
+import { ErrorResponse, IdParam, jsonRes, LOCKED_RESPONSES, openApiRoom, shareIdParam } from './api-shared';
 import { userFromCookieHeader } from './auth';
-import { dayCached, once, overRateLimit } from './http';
-import type { Env } from './index';
-import {
-  deliverOne,
-  hasAllSecrets,
-  parseIntegrations,
-  publicConfig,
-  validateIntegration,
-  withSecrets,
-} from './integrations/deliver';
-import { providerById, providerList } from './integrations/providers';
-import { notifiableFrom } from './integrations/types';
-import { lockedError, lockedPages, roomAccess } from './lock/gate';
+import { dayCached } from './cache';
+import type { Env } from './env';
+import { providerList } from './integrations/providers';
+import { integrationRoutes } from './integrations/routes';
+import { FAILURE_WINDOW_MINUTES, MAX_FAILURES } from './lock/failures';
+import { agentIdentityFrom, lockedPages } from './lock/gate';
+import { once } from './memo';
 import { captureServer } from './posthog';
 import { createPreviewRoom } from './preview';
+import { overRateLimit } from './rate-limit';
+import { expiresAtFrom, removeProjects, saveRoom } from './rooms-lifecycle';
 import { annotationStore, isExpired, projectStore } from './store';
 
 const api = new OpenAPIHono<Env>();
@@ -84,11 +76,10 @@ const openApiJson = once(() =>
       info: {
         title: 'MarkLayer Share API',
         version: '1.0.0',
-        description:
-          'Anonymous, no-auth API for creating and reading MarkLayer annotation share links. Pick an unguessable id (nanoid/uuid) — the id is the access token. Share links open at https://marklayer.app/s/{id} (or /p/{id} for project bundles). A link its owner protected with a password answers 401 to every /{id} route unless the request sends `Authorization: Bearer <password>` (or `X-MarkLayer-Password`); ten wrong guesses in 15 minutes answer 429.',
+        description: `Anonymous, no-auth API for creating and reading MarkLayer annotation share links. Pick an unguessable id (nanoid/uuid) — the id is the access token. Share links open at ${ORIGIN}/s/{id} (or /p/{id} for project bundles). A link its owner protected with a password answers 401 to every /{id} route unless the request sends \`Authorization: Bearer <password>\` (or \`X-MarkLayer-Password\`); ${MAX_FAILURES} wrong guesses in ${FAILURE_WINDOW_MINUTES} minutes answer 429.`,
         license: { name: 'MIT', url: 'https://github.com/thevrus/MarkLayer/blob/main/LICENSE' },
       },
-      servers: [{ url: 'https://marklayer.app/api' }],
+      servers: [{ url: `${ORIGIN}/api` }],
     }),
   ),
 );
@@ -96,58 +87,16 @@ api.get('/openapi.json', (c) =>
   c.body(openApiJson(), 200, dayCached('application/vnd.oai.openapi+json;version=3.1.0')),
 );
 
-// ---------- Shared schemas ----------
-
-/** Said by both create routes, and by nothing else. */
+/** The preview route's. The share save's weak new id stops at the door, as a 404. */
 const WEAK_NEW_ID = `A new share id needs at least ${MIN_SHARE_ID_LENGTH} characters of [A-Za-z0-9_-]`;
 
-const ErrorResponse = z.object({ error: z.string() }).openapi('Error');
 const OkResponse = z.object({ ok: z.boolean() }).openapi('Ok');
-
-// A JSON response entry for a route's `responses` map — collapses the repeated
-// `{ description, content: { 'application/json': { schema } } }` shape.
-const jsonRes = <S extends z.ZodType>(schema: S, description: string) => ({
-  description,
-  content: { 'application/json': { schema } },
-});
-
-/**
- * The share API's half of the password gate: every `/{id}` route reads or
- * changes the room, so each asks before touching it. Null means go ahead.
- */
-async function refuseLocked({
-  c,
-  id,
-}: {
-  c: Context<Env>;
-  id: string;
-}): Promise<{ status: 401 | 429; error: string } | null> {
-  const access = await roomAccess({ db: c.env.DB, id, headers: c.req.raw.headers });
-  return access.open ? null : lockedError(access);
-}
-
-/** Declared on every gated route, so the spec says what a protected link answers. */
-const LOCKED_RESPONSES = {
-  401: jsonRes(ErrorResponse, 'Password-protected link: send `Authorization: Bearer <password>`'),
-  429: jsonRes(ErrorResponse, 'Too many wrong passwords for this link from this client'),
-};
 
 const RATE_LIMITED = 'Too many requests';
 const RATE_LIMITED_RESPONSE = { 429: jsonRes(ErrorResponse, 'Too many writes from this client; retry in a minute') };
 
 /** Anonymous writes share one per-client budget with MCP calls and socket opens. */
 const overWriteLimit = (c: Context<Env>) => overRateLimit({ limiter: c.env.ROOM_LIMITER, req: c.req });
-
-// Seconds-from-now → absolute unix expiry, or null when unset / non-positive.
-function expiresAtFrom(expiresIn: number | undefined): number | null {
-  return typeof expiresIn === 'number' && expiresIn > 0 ? Math.floor(Date.now() / 1000) + expiresIn : null;
-}
-
-const shareIdParam = (description: string) =>
-  z.object({ id: z.string().openapi({ description, example: 'dsWPMrdw6EZ8jkkhxvFKS' }) });
-
-/** Reading: unconstrained, so a room minted before the floor existed still resolves. */
-const IdParam = shareIdParam('Unguessable share id (nanoid/uuid) — it is the access token');
 
 /** Creating: documented here, enforced in `store.ts`, the layer every writer shares. */
 const NewIdParam = shareIdParam(
@@ -205,16 +154,20 @@ api.openapi(listProviders, (c) =>
   ),
 );
 
-// ---------- Annotations ----------
-
-/** Both annotations and projects take the same optional retention override. */
+/**
+ * Both annotations and projects take the same optional retention override.
+ * Omitted keeps the expiry the link already has; `null` (or 0) clears it.
+ */
 const expiresInField = z
   .int()
   .max(MAX_EXPIRES_IN_SECONDS)
+  .nullable()
   .optional()
-  .openapi({ description: `Seconds until cleanup (max ${MAX_EXPIRES_IN_SECONDS} = 30 days)` });
+  .openapi({
+    description: `Seconds until cleanup (max ${MAX_EXPIRES_IN_SECONDS} = ${MAX_EXPIRES_IN_SECONDS / DAY_SECONDS} days). Omit to keep the current expiry; null clears it.`,
+  });
 
-// Accepts `{ ops, url?, width?, expires_in? }` or a raw ops array (backwards compat).
+// Accepts `{ ops, url?, width?, expires_in? }` or a raw ops array (the autosave, merged rather than replaced).
 const StoreAnnotationBody = z
   .union([
     z.array(z.unknown()),
@@ -226,6 +179,10 @@ const StoreAnnotationBody = z
         .openapi({ format: 'uri', description: 'Page the share link overlays annotations onto' }),
       width: z.int().optional().openapi({ description: 'Reference viewport width in CSS pixels (e.g. 1440)' }),
       expires_in: expiresInField,
+      explicit: z
+        .boolean()
+        .optional()
+        .openapi({ description: 'Someone deliberately published this save, as opposed to an autosave' }),
     }),
   ])
   .openapi('StoreAnnotation');
@@ -270,6 +227,8 @@ const storeAnnotation = createRoute({
   method: 'post',
   path: '/{id}',
   summary: 'Create or replace a share link',
+  description:
+    "The object form replaces the link's annotations with `ops`: anything absent is removed. A bare ops array is merged instead: annotations whose id the link lacks are added, and nothing is removed or changed. Remove or edit through the object form, or live over the room's WebSocket.",
   request: {
     params: NewIdParam,
     body: { required: true, content: { 'application/json': { schema: StoreAnnotationBody } } },
@@ -286,58 +245,43 @@ const storeAnnotation = createRoute({
 api.openapi(storeAnnotation, async (c) => {
   if (await overWriteLimit(c)) return c.json({ error: RATE_LIMITED }, 429);
   const { id } = c.req.valid('param');
-  // Writes too: replacing a protected room's ops is as much a breach as reading them.
-  const locked = await refuseLocked({ c, id });
-  if (locked) return c.json({ error: locked.error }, locked.status);
   const body = c.req.valid('json');
+  const result = opsArraySchema.safeParse(Array.isArray(body) ? body : body.ops);
+  if (!result.success) return c.json({ error: 'Invalid operations data' }, 400);
 
-  let ops: unknown;
-  let expiresAt: number | null = null;
-  let url: string | null = null;
-  let width: number | null = null;
-  if (Array.isArray(body)) {
-    ops = body;
-  } else {
-    ops = body.ops;
-    expiresAt = expiresAtFrom(body.expires_in);
-    if (body.url) url = body.url;
-    if (body.width && body.width > 0) width = body.width;
-  }
+  // Writes too: replacing a protected room's ops is as much a breach as reading them.
+  const { room, refused } = await openApiRoom({ c, id });
+  if (refused) return c.json({ error: refused.error }, refused.status);
 
-  const result = opsArraySchema.safeParse(ops);
-  if (!result.success) {
-    return c.json({ error: 'Invalid operations data' }, 400);
-  }
+  // The bare-array autosave never touches url, width or expiry, and only adds: extensions
+  // older than the room-as-sole-writer send it with a possibly stale list of the room.
+  const fields = Array.isArray(body) ? null : body;
+  const url = fields?.url || null;
+  const width = fields?.width && fields.width > 0 ? fields.width : null;
 
-  // The DO's websocket gate isn't the only writer: this REST route is the one
-  // real-time sync falls back to when the socket is down, and the one thing
-  // anonymous API callers hit directly. Both must respect a link the owner set
-  // to view-only, so the check lives here too rather than only in the DO.
-  const store = annotationStore(c.env.DB);
-  const current = await store.getAccess(id);
+  // No row means no owner to be: the session is only worth reading when the room can say no.
+  const user = room.exists
+    ? await userFromCookieHeader({ header: c.req.header('cookie') ?? null, db: c.env.DB })
+    : null;
+  const saved = await saveRoom({
+    env: c.env,
+    id,
+    exists: room.exists,
+    userId: user?.id,
+    ops: result.data,
+    mode: fields ? 'replace' : 'merge',
+    url,
+    width,
+    expiresIn: fields?.expires_in,
+  });
+  if (saved === 'refused') return c.json({ error: 'This link is view-only.' }, 403);
 
-  // `canEditLink` is the rule, shared with the room's own gate. The `view` test
-  // in front of it only skips a session lookup on a link where it cannot say no.
-  if (current?.access === 'view') {
-    const user = await userFromCookieHeader({ header: c.req.header('cookie') ?? null, db: c.env.DB });
-    if (!canEditLink({ ...current, userId: user?.id })) {
-      return c.json({ error: 'This link is view-only.' }, 403);
-    }
-  }
-
-  // False: too weak an id to mint, and no existing room to update. The store
-  // decides that; this reports it.
-  if (!(await store.put({ id, ops: result.data, url, width, expiresAt }))) {
-    return c.json({ error: WEAK_NEW_ID }, 400);
-  }
-
-  // The web app autosaves a bare ops array every few seconds (useRealtimeSync);
-  // the extension and API callers send the object form only when someone
-  // deliberately publishes. `explicit` separates the two so real publishes are
-  // countable instead of being drowned by autosave traffic.
+  // The extension autosaves a bare ops array while its socket is down; it and the web
+  // app send the object form only when someone deliberately publishes. `explicit`
+  // separates the two so real publishes are countable, not drowned by autosaves.
   captureServer(c.env, c.executionCtx, 'share_link_saved', {
     surface: surfaceFrom({ origin: c.req.header('origin'), host: c.req.header('host') }),
-    explicit: !Array.isArray(body),
+    explicit: fields?.explicit ?? fields !== null,
     ops_count: result.data.length,
   });
 
@@ -352,30 +296,20 @@ const getAnnotation = createRoute({
   responses: {
     ...LOCKED_RESPONSES,
     200: jsonRes(AnnotationResponse, 'Annotation payload'),
-    404: jsonRes(ErrorResponse, 'Not found'),
-    410: jsonRes(ErrorResponse, 'Expired'),
   },
 });
 
 api.openapi(getAnnotation, async (c) => {
   const { id } = c.req.valid('param');
-  const locked = await refuseLocked({ c, id });
-  if (locked) return c.json({ error: locked.error }, locked.status);
+  const { room, refused } = await openApiRoom({ c, id });
+  if (refused) return c.json({ error: refused.error }, refused.status);
+  if (!room.exists) return c.json({ error: 'not found' }, 404);
   const store = annotationStore(c.env.DB);
   const row = await store.get(id);
-
   if (!row) return c.json({ error: 'not found' }, 404);
-
-  if (isExpired(effectiveExpiresAt(row))) {
-    c.executionCtx.waitUntil(store.remove(id));
-    return c.json({ error: 'expired' }, 410);
-  }
-
   c.executionCtx.waitUntil(store.touch(id));
   return c.json({ ops: row.ops, url: row.url, width: row.width }, 200);
 });
-
-// ---------- Preview rooms + versions ----------
 
 /** Documents the request; `SharePreviewInput` from agent-tools is what validates it, shared with the MCP tool. */
 const PreviewBody = z
@@ -389,7 +323,9 @@ const PreviewBody = z
     questions: z
       .array(z.object({ prompt: z.string(), options: z.array(z.string()) }))
       .optional()
-      .openapi({ description: 'Polls to open the room with: 2–6 options each, at most 5' }),
+      .openapi({
+        description: `Polls to open the room with: ${MIN_QUESTION_OPTIONS}–${MAX_QUESTION_OPTIONS} options each, at most ${MAX_PREVIEW_QUESTIONS}`,
+      }),
     previous: z.string().optional().openapi({
       description:
         'A room you hold (link or id). With the same repo and branch, the new room becomes its next version. Naming it is the proof you hold it: rooms are never chained by repo and branch alone.',
@@ -436,14 +372,14 @@ api.openapi(createPreview, async (c) => {
   const created = await createPreviewRoom({
     db: c.env.DB,
     request: parsed.data,
-    agentId: body.agent?.trim().slice(0, 64) || 'agent',
+    agentId: agentIdentityFrom(body.agent),
     origin: new URL(c.req.url).origin,
     headers: c.req.raw.headers,
     id,
   });
   if ('error' in created) return c.json({ error: created.error }, created.taken ? 409 : 400);
-  captureServer(c.env, c.executionCtx, 'preview_shared', { versioned: created.previousId !== null });
-  return c.json({ id: created.id, url: created.link, version: created.version, previous: created.previousId }, 200);
+  captureServer(c.env, c.executionCtx, 'preview_shared', { versioned: created.previous !== null });
+  return c.json(created, 200);
 });
 
 const VersionRefSchema = z
@@ -470,275 +406,20 @@ const getVersions = createRoute({
   request: { params: IdParam },
   responses: {
     200: jsonRes(VersionsResponse, 'Version info'),
-    404: jsonRes(ErrorResponse, 'Not found'),
     ...LOCKED_RESPONSES,
   },
 });
 
 api.openapi(getVersions, async (c) => {
   const { id } = c.req.valid('param');
-  const locked = await refuseLocked({ c, id });
-  if (locked) return c.json({ error: locked.error }, locked.status);
+  const { refused } = await openApiRoom({ c, id });
+  if (refused) return c.json({ error: refused.error }, refused.status);
   const info = await annotationStore(c.env.DB).getVersions(id);
   if (!info) return c.json({ error: 'not found' }, 404);
   return c.json(info, 200);
 });
 
-// ---------- Integrations ----------
-
-/** What a client may see: which destinations exist, never their configuration. */
-const IntegrationSummary = z
-  .object({ provider: z.string(), hint: z.string().nullable() })
-  .openapi('IntegrationSummary');
-
-const IntegrationsResponse = z.object({ integrations: z.array(IntegrationSummary) }).openapi('Integrations');
-
-/**
- * Enough to tell two destinations apart, and never enough to rebuild either.
- *
- * Which half of a config is safe to echo is the provider's call, so this reads
- * the manifest rather than guessing at key names: a `text` field is an address
- * (`owner/repo`, a project key) and shows whole, a `url` carries its credential
- * in the path and shows only its tail, and a `secret` is never shown at all.
- */
-function summarizeIntegration(i: { provider: string; config: Record<string, unknown> }) {
-  const fields = providerById(i.provider)?.fields ?? [];
-  const value = (name: string) => (typeof i.config[name] === 'string' ? i.config[name] : '');
-
-  const named = fields.find((f) => f.type === 'text' && value(f.name).trim());
-  if (named) return { provider: i.provider, hint: value(named.name).slice(0, 40) };
-
-  // The field the manifest declares, not a key name this function assumes.
-  const urlField = fields.find((f) => f.type === 'url');
-  const tail = (urlField ? value(urlField.name) : '').split(/[/?#]/).filter(Boolean).pop() ?? '';
-  return { provider: i.provider, hint: tail ? `…${tail.slice(-4)}` : null };
-}
-
-const getIntegrations = createRoute({
-  method: 'get',
-  path: '/{id}/integrations',
-  summary: "A room's destinations",
-  description:
-    'Reports which destinations are configured, never their configuration: the room id is its own access token, so returning a webhook URL would hand out a credential.',
-  request: { params: IdParam },
-  responses: {
-    ...LOCKED_RESPONSES,
-    200: jsonRes(IntegrationsResponse, 'Configured destinations'),
-    404: jsonRes(ErrorResponse, 'Not found'),
-  },
-});
-
-api.openapi(getIntegrations, async (c) => {
-  const { id } = c.req.valid('param');
-  const locked = await refuseLocked({ c, id });
-  if (locked) return c.json({ error: locked.error }, locked.status);
-  const row = await annotationStore(c.env.DB).getIntegrations(id);
-  if (!row) return c.json({ error: 'not found' }, 404);
-  return c.json({ integrations: parseIntegrations(row.integrations).map(summarizeIntegration) }, 200);
-});
-
-/**
- * The request shape, declared with the OpenAPI `z` rather than the zod/mini
- * `integrationSchema` in packages/types: the two are different builders and only
- * this one carries `.openapi()`. An unknown provider is caught a line later by
- * `validateIntegration`, so the loose string here costs nothing.
- */
-const AddIntegrationBody = z
-  .object({ provider: z.string(), config: z.record(z.string(), z.unknown()) })
-  .openapi('AddIntegration');
-
-/**
- * Add or replace one destination.
- *
- * Additive rather than a whole-list PUT on purpose: a client is never sent a
- * stored config, so it cannot send one back, and a replace-the-list API would
- * mean either round-tripping credentials or blanking the ones it did not know.
- * One destination per provider, which is also what the panel shows.
- */
-const addIntegration = createRoute({
-  method: 'post',
-  path: '/{id}/integrations',
-  summary: 'Add a destination to a room',
-  request: {
-    params: IdParam,
-    body: {
-      required: true,
-      content: { 'application/json': { schema: AddIntegrationBody } },
-    },
-  },
-  responses: {
-    ...LOCKED_RESPONSES,
-    200: jsonRes(IntegrationsResponse, 'Stored'),
-    400: jsonRes(ErrorResponse, 'Destination rejected'),
-    404: jsonRes(ErrorResponse, 'Not found'),
-  },
-});
-
-api.openapi(addIntegration, async (c) => {
-  const { id } = c.req.valid('param');
-  const locked = await refuseLocked({ c, id });
-  if (locked) return c.json({ error: locked.error }, locked.status);
-  const incoming = c.req.valid('json');
-
-  // Refuse where somebody can see it, rather than silently never delivering.
-  // This is also where the host guard runs, so a bad URL never reaches storage.
-  const verdict = validateIntegration(incoming);
-  if (!verdict.ok) return c.json({ error: `${incoming.provider}: ${verdict.reason}` }, 400);
-
-  const store = annotationStore(c.env.DB);
-  const row = await store.getIntegrations(id);
-  if (!row) return c.json({ error: 'not found' }, 404);
-
-  const existing = parseIntegrations(row.integrations).filter((i) => i.provider !== incoming.provider);
-  if (existing.length + 1 > MAX_INTEGRATIONS_PER_ROOM) {
-    return c.json({ error: `at most ${MAX_INTEGRATIONS_PER_ROOM} destinations per room` }, 400);
-  }
-  // The secret half is dropped here and never written, with no branch that can
-  // write the raw config: `validateIntegration` already resolved the provider,
-  // so there is no miss to fall back from. A room stores where to file, never
-  // what authorises it.
-  const stored = { ...incoming, config: publicConfig({ provider: verdict.provider, config: incoming.config }) };
-  const next = [...existing, stored];
-  await store.setIntegrations({ id, json: JSON.stringify(next) });
-  return c.json({ integrations: next.map(summarizeIntegration) }, 200);
-});
-
-const removeIntegration = createRoute({
-  method: 'delete',
-  path: '/{id}/integrations/{provider}',
-  summary: 'Remove a destination from a room',
-  request: { params: IdParam.extend({ provider: z.string() }) },
-  responses: {
-    ...LOCKED_RESPONSES,
-    200: jsonRes(IntegrationsResponse, 'Removed'),
-    404: jsonRes(ErrorResponse, 'Not found'),
-  },
-});
-
-api.openapi(removeIntegration, async (c) => {
-  const { id, provider } = c.req.valid('param');
-  const locked = await refuseLocked({ c, id });
-  if (locked) return c.json({ error: locked.error }, locked.status);
-  const store = annotationStore(c.env.DB);
-  const row = await store.getIntegrations(id);
-  if (!row) return c.json({ error: 'not found' }, 404);
-
-  const next = parseIntegrations(row.integrations).filter((i) => i.provider !== provider);
-  await store.setIntegrations({ id, json: next.length > 0 ? JSON.stringify(next) : null });
-  return c.json({ integrations: next.map(summarizeIntegration) }, 200);
-});
-
-// ---------- Filing one annotation ----------
-
-const PushBody = z
-  .object({
-    provider: z.string().openapi({ description: 'A configured destination whose trigger is manual' }),
-    secrets: z.record(z.string(), z.string()).optional().openapi({
-      description:
-        'The credential fields for this destination, supplied per request. They are used for this one call and never stored.',
-    }),
-  })
-  .openapi('PushAnnotation');
-
-const PushResponse = z
-  .object({
-    url: z.string().nullable().openapi({ description: 'The created issue, where the destination returns one' }),
-  })
-  .openapi('PushResult');
-
-/**
- * File one annotation at one destination, now, because somebody asked.
- *
- * The counterpart to the automatic delivery the room does on its own: chat
- * destinations post every batch unasked, and an issue tracker never does. An
- * issue per comment is the behaviour that gets an integration switched off, so
- * a tracker only ever fires through this route, one annotation at a time.
- *
- * Anonymous like the rest of the API: the room id is the access token, and
- * whoever holds it already configured the destination this files into.
- */
-const pushAnnotation = createRoute({
-  method: 'post',
-  path: '/{id}/annotations/{opId}/push',
-  summary: 'File one annotation at a destination',
-  request: {
-    params: IdParam.extend({ opId: z.string().openapi({ description: 'Id of the annotation op to file' }) }),
-    body: { required: true, content: { 'application/json': { schema: PushBody } } },
-  },
-  responses: {
-    ...LOCKED_RESPONSES,
-    200: jsonRes(PushResponse, 'Filed'),
-    400: jsonRes(ErrorResponse, 'Could not be filed'),
-    404: jsonRes(ErrorResponse, 'Not found'),
-    410: jsonRes(ErrorResponse, 'Expired'),
-  },
-});
-
-api.openapi(pushAnnotation, async (c) => {
-  const { id, opId } = c.req.valid('param');
-  const locked = await refuseLocked({ c, id });
-  if (locked) return c.json({ error: locked.error }, locked.status);
-  const { provider: providerId, secrets } = c.req.valid('json');
-
-  // Resolved before any I/O, because it reads nothing but the static manifest:
-  // a bogus provider id should not cost a room read and an ops parse first.
-  const provider = providerById(providerId);
-  if (!provider) return c.json({ error: 'unknown provider' }, 400);
-  if (provider.trigger !== 'manual') {
-    return c.json({ error: `${provider.label} posts automatically and cannot be filed to` }, 400);
-  }
-
-  // Two reads rather than widening `get`: its shape is what GET /{id} answers
-  // with, and a stored credential must never become reachable by a handler
-  // spreading a row it assumed was safe. They are independent, so they overlap.
-  const store = annotationStore(c.env.DB);
-  const [row, destinations] = await Promise.all([store.get(id), store.getIntegrations(id)]);
-  if (!row) return c.json({ error: 'not found' }, 404);
-  if (isExpired(effectiveExpiresAt(row))) {
-    c.executionCtx.waitUntil(store.remove(id));
-    return c.json({ error: 'expired' }, 410);
-  }
-
-  const integration = parseIntegrations(destinations?.integrations ?? null).find((i) => i.provider === providerId);
-  if (!integration) return c.json({ error: `${provider.label} is not connected to this room` }, 400);
-
-  // The one moment a complete config exists: the room's half, plus the token
-  // the person filing just sent. It lives for this request and is not written
-  // anywhere, which is what makes a leaked share link not a leaked credential.
-  const config = withSecrets({ provider, config: integration.config, secrets: secrets ?? {} });
-  if (!hasAllSecrets({ provider, config })) {
-    return c.json({ error: `${provider.label} needs a token to file with` }, 400);
-  }
-
-  // Find first, then validate the one: parsing the whole room to reach a single
-  // op means running the op union over every freehand point array in it.
-  const raw = row.ops.find((o) => typeof o === 'object' && o !== null && 'id' in o && o.id === opId);
-  const parsed = raw === undefined ? undefined : drawOpSchema.safeParse(raw);
-  const op = parsed?.success ? parsed.data : undefined;
-  // The room persists on a debounce, so an annotation typed a second ago is
-  // real but not yet a row here. That is a wait, not a missing annotation, and
-  // saying so is the difference between "try again" and "what did I break".
-  if (!op) return c.json({ error: 'that annotation has not saved yet. Try again in a moment' }, 404);
-
-  const item = notifiableFrom(op);
-  if (!item) return c.json({ error: 'that annotation has no text to file' }, 400);
-
-  const result = await deliverOne({
-    integration: { ...integration, config },
-    event: { type: 'annotation.pushed', items: [item] },
-    roomUrl: `${new URL(c.req.url).origin}/s/${id}`,
-    pageUrl: row.url,
-  });
-
-  if (!result.ok) return c.json({ error: result.reason }, 400);
-
-  captureServer(c.env, c.executionCtx, 'annotation_filed', { provider: providerId });
-  return c.json({ url: result.url }, 200);
-});
-
-// ---------- Projects (multi-page bundles) ----------
-
-const MAX_PAGES_PER_PROJECT = 50;
+api.route('/', integrationRoutes);
 
 const StoreProjectBody = z
   .object({
@@ -782,7 +463,7 @@ api.openapi(storeProject, async (c) => {
   if (pageIds.length > MAX_PAGES_PER_PROJECT) {
     return c.json({ error: `Project exceeds ${MAX_PAGES_PER_PROJECT} pages` }, 400);
   }
-  const expiresAt = expiresAtFrom(body.expires_in);
+  const expiresAt = body.expires_in === undefined ? undefined : expiresAtFrom(body.expires_in);
   if (!(await projectStore(c.env.DB).put({ id, pageIds, expiresAt }))) {
     return c.json({ error: WEAK_NEW_ID }, 400);
   }
@@ -808,7 +489,7 @@ api.openapi(getProject, async (c) => {
   const row = await projects.get(id);
   if (!row) return c.json({ error: 'not found' }, 404);
   if (isExpired(row.expiresAt)) {
-    c.executionCtx.waitUntil(projects.remove(id));
+    c.executionCtx.waitUntil(removeProjects({ env: c.env, ids: [id] }));
     return c.json({ error: 'expired' }, 410);
   }
   c.executionCtx.waitUntil(projects.touch(id));

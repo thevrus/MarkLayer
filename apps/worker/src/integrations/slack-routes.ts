@@ -1,24 +1,16 @@
-import { canEditLink } from '@marklayer/types';
 import type { Context } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { Hono } from 'hono/tiny';
 import { nanoid } from 'nanoid';
+import { canEditLink } from '../../shared/accounts';
 import { userFromCookieHeader } from '../auth';
-import type { Env } from '../index';
+import type { Env } from '../env';
 import { roomAccess } from '../lock/gate';
 import { annotationStore } from '../store';
-import {
-  authorizeUrl,
-  encryptToken,
-  exchangeCode,
-  inboundReply,
-  joinChannel,
-  signInstallState,
-  slackConfig,
-  uninstalledTeam,
-  verifyInstallState,
-  verifySlackSignature,
-} from './slack-app';
+import { authorizeUrl, exchangeCode, joinChannel } from './slack-api';
+import { slackConfig } from './slack-config';
+import { encryptToken, signInstallState, verifyInstallState, verifySlackSignature } from './slack-crypto';
+import { inboundReply, uninstalledTeam } from './slack-events';
 import { slackStore } from './slack-store';
 import { applyInboundReply } from './slack-sync';
 
@@ -39,7 +31,7 @@ const redirectUri = (c: Context<Env>) => `${new URL(c.req.url).origin}${COOKIE_P
  * on a view-only link means its owner. The same rule the room's own gate uses.
  */
 async function editor({ c, roomId }: { c: Context<Env>; roomId: string }) {
-  const access = await annotationStore(c.env.DB).getAccess(roomId);
+  const access = await annotationStore(c.env.DB).getMeta(roomId);
   if (!access) return { ok: false, status: 404 } as const;
   if (!(await roomAccess({ db: c.env.DB, id: roomId, headers: c.req.raw.headers })).open) {
     return { ok: false, status: 401 } as const;

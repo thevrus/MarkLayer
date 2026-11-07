@@ -1,3 +1,5 @@
+import { postJson } from '@marklayer/types/http';
+import { signal } from '@preact/signals';
 import {
   createFolderResponseSchema,
   errorResponseSchema,
@@ -5,22 +7,16 @@ import {
   foldersResponseSchema,
   type OwnedLink,
   ownedLinksResponseSchema,
-  postJson,
   resolveOwnerExpiresAt,
   type SessionUser,
   sessionResponseSchema,
   type UpdateLinkSettings,
   updateLinkResponseSchema,
-} from '@marklayer/types';
-import { signal } from '@preact/signals';
+} from '../../shared/accounts';
 
 /**
- * Dashboard state, deliberately its own module.
- *
- * `web/signals.ts` runs `parseViewParam()` against `location.pathname` at module
- * load and installs effects that write to `history` — all of it viewer logic
- * that would fire on `/app` and mean nothing here. The dashboard shares the
- * stylesheet and nothing else.
+ * Dashboard state, deliberately its own module: `/app` never runs the viewer's
+ * `bootFromUrl`, so nothing here may depend on what that sets up.
  */
 export const user = signal<SessionUser | null>(null);
 export const sessionLoading = signal(true);

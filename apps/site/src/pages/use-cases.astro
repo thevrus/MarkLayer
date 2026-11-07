@@ -4,6 +4,7 @@ import { getUseCases } from '../lib/collections';
 import { articleSchema } from '../lib/schema';
 import { plainText } from '../lib/markdown';
 import dates from '../data/page-dates.json';
+import { forPath } from '../lib/site';
 
 const useCases = await getUseCases();
 const { published, modified } = dates['hub-use-cases'];
@@ -34,7 +35,7 @@ const h1 = 'MarkLayer use cases';
     useCases.map((u) => (
       <div class="ml-entry">
         <h3>
-          <a href={`/for/${u.id}`}>{u.data.h1}</a>
+          <a href={forPath(u.id)}>{u.data.h1}</a>
         </h3>
         <p>{plainText(u.body ?? '')}</p>
       </div>

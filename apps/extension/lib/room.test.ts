@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { DrawOp } from '@marklayer/types';
+import type { DrawOp } from '@marklayer/types/ops';
 
 // No IndexedDB in the test DOM, and every write to `operations` schedules a draft save.
 mock.module('idb-keyval', () => ({
@@ -9,9 +9,10 @@ mock.module('idb-keyval', () => ({
   del: async () => {},
 }));
 
-const { operations } = await import('./state');
-const { canPushSnapshot, getShareUrl, resetRoomIdentity } = await import('./share');
-const { activeRoomId, joinRoom } = await import('./room');
+const { operations } = await import('./ops');
+const { activeRoomId, canPushSnapshot, resetRoomIdentity } = await import('./room-id');
+const { getShareUrl } = await import('./share');
+const { joinRoom } = await import('./room');
 
 const op = (id: string): DrawOp => ({
   id,

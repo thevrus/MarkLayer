@@ -21,7 +21,7 @@ const BLOCKED_HOSTS = new Set(['localhost', 'metadata.google.internal', 'metadat
  */
 export function isBlockedHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
-  if (BLOCKED_HOSTS.has(h) || h.endsWith('.internal') || h.endsWith('.local')) return true;
+  if (BLOCKED_HOSTS.has(h) || h.endsWith('.internal') || h.endsWith('.local') || h.endsWith('.localhost')) return true;
   return isPrivateAddress(h);
 }
 
@@ -101,13 +101,19 @@ export type UnfetchableReason = 'invalid' | 'scheme' | 'blocked';
 
 export type FetchableUrl = { ok: true; url: URL } | { ok: false; reason: UnfetchableReason };
 
+/** A URL that points back at this deployment. Its own type so callers that never name `self` keep the three-way answer. */
+export type SelfUrl = { ok: false; reason: 'self' };
+
 /**
  * The single gate every fetcher of a stranger-supplied URL passes through: it is
  * HTTP(S) and its host is not blocked outright. Returns the parsed URL so
  * callers do not parse it twice, and the failing check so they can distinguish
- * a typo from a blocked target without re-deriving the rules.
+ * a typo from a blocked target without re-deriving the rules. Naming `self`
+ * also refuses this deployment's own origin, which a proxy would otherwise loop on.
  */
-export function parseFetchableUrl(raw: string | URL): FetchableUrl {
+export function parseFetchableUrl(raw: string | URL): FetchableUrl;
+export function parseFetchableUrl(raw: string | URL, opts: { self: string | URL }): FetchableUrl | SelfUrl;
+export function parseFetchableUrl(raw: string | URL, opts?: { self: string | URL }): FetchableUrl | SelfUrl {
   let url: URL;
   // Accepts an already-parsed URL so a caller that had to resolve one (a
   // redirect against its base, say) does not serialize it just to reparse it.
@@ -122,26 +128,9 @@ export function parseFetchableUrl(raw: string | URL): FetchableUrl {
   }
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return { ok: false, reason: 'scheme' };
   if (isBlockedHost(url.hostname)) return { ok: false, reason: 'blocked' };
-  return { ok: true, url };
-}
-
-/**
- * Outlook rewrites every link in a message to `<region>.safelinks.protection.outlook.com/?url=<real>`,
- * so a link pasted from an email names the scanner, which challenges the proxy. Returns the real
- * target, or the input untouched when it is not a Safe Link or carries no http(s) target.
- */
-export function unwrapSafeLink(raw: string): string {
-  try {
-    const u = new URL(raw);
-    if (
-      u.hostname !== 'safelinks.protection.outlook.com' &&
-      !u.hostname.endsWith('.safelinks.protection.outlook.com')
-    ) {
-      return raw;
-    }
-    const target = u.searchParams.get('url');
-    return target && /^https?:\/\//i.test(target) ? target : raw;
-  } catch {
-    return raw;
+  // Opt-in, so a caller that never names itself keeps the three-way answer it had.
+  if (opts && new URL(opts.self).hostname.toLowerCase() === url.hostname.toLowerCase()) {
+    return { ok: false, reason: 'self' };
   }
+  return { ok: true, url };
 }

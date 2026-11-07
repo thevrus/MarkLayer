@@ -12,15 +12,15 @@ published: 2026-02-26
 modified: 2026-09-24
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source: paste any URL and you're annotating in your browser. Nobody signs up and there are no seats to manage. It can file one Linear, GitHub, or Jira issue per annotation now, one way, or you can still paste the share link into any tracker yourself. Real-time live cursors and threaded comments come standard, and an MCP server lets an AI coding agent watch the room live and resolve or reply to marks directly."
     bestFor: "Teams that want a live shared canvas and zero billing."
   - name: "Jam.dev"
-    url: "/vs/jam"
+    compare: jam
     pitch: "Jam has a real free plan: five creator seats, 30 captures a month, automatic console errors, network logs and device details, and Jira and Linear integrations at no cost. That free tier caps recording links at five a month and clips each recording to five minutes; the Team plan at $14 per creator a month (billed yearly) raises the cap to 150 recording links a month and stretches recordings to 15 minutes. It's the closest match to Marker.io's own bug-report style of any option here."
     bestFor: "Engineering teams that need browser metadata in bug reports."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "BugHerd works most like Marker.io structurally: it pins comments to elements, then turns each one into a task on a built-in Kanban board rather than leaving you to paste links elsewhere. The Standard plan runs $50 a month for five members, with extra seats at $8 each, and it records browser, OS and screen resolution automatically, as Marker.io does. There's no free tier and no annotation-only rung, so you pay for the task board whether you use it or not."
     bestFor: "Teams shopping the paid bug-tracking category."
   - name: "GitHub Issues + manual annotation"

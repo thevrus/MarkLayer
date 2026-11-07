@@ -2,33 +2,31 @@ import { createStore, del, get, set } from 'idb-keyval';
 import type { DrawOp } from './types';
 
 export interface DraftStore {
-  /** Restore the draft if any, applying it via the configured setOps callback. */
   restore: () => Promise<void>;
-  /** Schedule a debounced save of the current ops. */
   scheduleSave: () => void;
-  /** Clear the saved draft (fire-and-forget). */
+  /** Fire-and-forget. */
   clear: () => void;
 }
 
 export interface DraftStoreOptions {
-  key: string;
+  /** A function when the key follows the page, so an SPA route saves under its own URL. */
+  key: string | (() => string);
   getOps: () => DrawOp[];
   setOps: (ops: DrawOp[]) => void;
-  /** Optional notification on successful restore. */
   notify?: (message: string) => void;
-  /** Debounce window for saves, defaults to 500ms. */
   debounceMs?: number;
 }
 
 export function createDraftStore(opts: DraftStoreOptions): DraftStore {
   const store = createStore('marklayer-drafts', 'drafts');
   const { key, getOps, setOps, notify, debounceMs = 500 } = opts;
+  const keyNow = () => (typeof key === 'function' ? key() : key);
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   return {
     restore: async () => {
       try {
-        const saved = await get<DrawOp[]>(key, store);
+        const saved = await get<DrawOp[]>(keyNow(), store);
         if (saved?.length && !getOps().length) {
           setOps(saved);
           notify?.('Draft restored');
@@ -40,11 +38,11 @@ export function createDraftStore(opts: DraftStoreOptions): DraftStore {
     scheduleSave: () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        set(key, getOps(), store).catch(() => {});
+        set(keyNow(), getOps(), store).catch(() => {});
       }, debounceMs);
     },
     clear: () => {
-      del(key, store).catch(() => {});
+      del(keyNow(), store).catch(() => {});
     },
   };
 }

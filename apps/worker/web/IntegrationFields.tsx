@@ -1,5 +1,5 @@
 import { geist } from '@ext/lib/geist';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import type { ConfigFieldInfo } from './integrations';
 
 /**

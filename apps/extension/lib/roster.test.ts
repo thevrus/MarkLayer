@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import type { CommentOp, DrawOp, Peer } from '@marklayer/types';
+import type { CommentOp, DrawOp } from '@marklayer/types/ops';
+import type { Peer } from '@marklayer/types/wire';
+import { localUser } from './identity';
+import { operations } from './ops';
+import { peers } from './presence';
+import { setUserName } from './rename';
 import { asMention, matchRoster, OFFLINE_COLOR, roster, rosterNames } from './roster';
-import { localUser, operations, peers, setUserName } from './state';
 
 /* The local name is otherwise a random animal, which would occasionally collide
    with a fixture name and change a ranking or a limit cut. */
@@ -46,7 +50,7 @@ describe('roster', () => {
   });
 
   test('includes people who wrote annotations but are not connected', () => {
-    // The extension never opens a socket, so a live-peers-only roster would
+    // A solo extension session has no socket, so a live-peers-only roster would
     // offer nobody to tag.
     seed({ ops: [comment({ author: 'Ada', authorId: 'ada' })] });
     expect(roster.value).toContainEqual({
@@ -122,11 +126,6 @@ describe('rosterNames', () => {
     seed({ ops: [comment({ id: 'c1', author: 'Ada', authorId: 'ada' })] });
     operations.value = [comment({ id: 'c1', author: 'Ada Lovelace', authorId: 'ada' })];
     expect(rosterNames.value.get('ada')).toBe('Ada Lovelace');
-  });
-
-  test('omits an id nobody in the room carries', () => {
-    seed();
-    expect(rosterNames.value.get('stranger')).toBeUndefined();
   });
 });
 

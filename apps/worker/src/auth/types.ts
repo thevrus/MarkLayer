@@ -1,5 +1,6 @@
-import { DAY_SECONDS, type SessionUser } from '@marklayer/types';
+import { DAY_SECONDS, type SessionUser } from '../../shared/accounts';
 import type { EmailEnv } from '../email';
+import type { Env } from '../env';
 
 /**
  * Auth needs a database and whatever the email engine needs; it defines neither
@@ -7,14 +8,8 @@ import type { EmailEnv } from '../email';
  * changed who may edit. POSTHOG_* is here so the funnel counters in routes.ts
  * can call captureServer without widening to the whole worker Env.
  */
-export type AuthEnv = EmailEnv & {
-  DB: D1Database;
-  ANNOTATION_ROOM: DurableObjectNamespace;
-  POSTHOG_KEY?: string;
-  POSTHOG_HOST?: string;
-  /** Caps mail to typed-in addresses per client IP. Absent in dev and tests, which then run unlimited. */
-  EMAIL_LIMITER?: RateLimit;
-};
+export type AuthEnv = EmailEnv &
+  Pick<Env['Bindings'], 'DB' | 'ANNOTATION_ROOM' | 'POSTHOG_KEY' | 'POSTHOG_HOST' | 'EMAIL_LIMITER'>;
 
 /**
  * The same shape `/auth/me` returns, inferred from the schema both sides parse
@@ -22,9 +17,6 @@ export type AuthEnv = EmailEnv & {
  * drift apart.
  */
 export type User = SessionUser;
-
-/** How long a magic link stays redeemable. Short: it is a single-use credential in someone's inbox. */
-export const LOGIN_TOKEN_TTL_SECONDS = 15 * 60;
 
 /** How long a signed-in session lasts without re-authenticating. */
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;

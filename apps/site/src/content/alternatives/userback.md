@@ -10,15 +10,15 @@ published: 2026-02-13
 modified: 2026-09-13
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source, no install, no seat cap: paste any URL and your team annotates the live page together, with live cursors so everyone sees changes as they're drawn. It only replaces the internal-annotation half of Userback's job - there's no in-app widget for your own users to submit feedback, no session replay, no NPS surveys, no roadmap board."
     bestFor: "Internal team annotation. Not a customer-feedback widget replacement."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "BugHerd's Standard plan runs $50/month for 5 members ($8 per extra seat), pinning feedback to page elements with an automatic Kanban board and native Jira, Trello, and GitHub sync. It captures browser, OS, and screen resolution on every report, but has no session replay or NPS tooling."
     bestFor: "Teams comfortable with a paid feedback platform."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "Marker.io starts at $59/month month-to-month ($39/month billed annually, 3 users), built around two-way Jira and GitHub sync plus console and network log capture on every bug report. Like Userback it needs an installed widget or extension, and it skips surveys and roadmapping entirely."
     bestFor: "Tracker-integrated B2B feedback workflows."
   - name: "GitHub Issues template + screenshots"

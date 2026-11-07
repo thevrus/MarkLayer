@@ -1,7 +1,6 @@
 export type {
   AnnotationOp,
   AreaOp,
-  BaseOp,
   CircleOp,
   CommentMeta,
   CommentOp,
@@ -15,28 +14,11 @@ export type {
   LineOp,
   Mention,
   PageError,
-  Peer,
   Point,
   RectOp,
   SelectionOp,
   SelectionRect,
   TextOp,
-} from '@marklayer/types';
-
-export type Tool =
-  | 'navigate'
-  | 'highlight'
-  | 'pen'
-  | 'line'
-  | 'arrow'
-  | 'rectangle'
-  | 'circle'
-  | 'comment'
-  | 'text'
-  | 'selection'
-  | 'eraser'
-  | 'inspect'
-  | 'multiInspect'
-  | 'measure'
-  | 'guide'
-  | 'area';
+} from '@marklayer/types/ops';
+export type { Tool } from '@marklayer/types/tools';
+export type { Peer } from '@marklayer/types/wire';

@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test';
-import type { CommentOp } from '@marklayer/types';
+import type { CommentOp } from '@marklayer/types/ops';
 
 mock.module('idb-keyval', () => ({
   createStore: () => ({}),

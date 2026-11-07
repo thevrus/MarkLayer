@@ -2,9 +2,16 @@ import { resolve } from 'node:path';
 import { cloudflare } from '@cloudflare/vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
+// Relative so Vite inlines them: a bare workspace import stays external, and Node would have to load the .ts.
+import { SITE_DEV_PORT, WORKER_DEV_PORT } from '../../packages/brand/src/index.ts';
+import routes from '../site/src/data/routes.json';
 
-/** `astro dev` in apps/site. Keep in sync with its dev port. */
-const SITE_DEV_SERVER = { target: 'http://localhost:4321', changeOrigin: true };
+/** `astro dev` in apps/site. */
+const SITE_DEV_SERVER = { target: `http://localhost:${SITE_DEV_PORT}`, changeOrigin: true };
+
+const alternation = (paths: string[]) => paths.map((path) => path.slice(1).replace('.', '\\.')).join('|');
+const sitePaths = alternation([...routes.pages, ...Object.keys(routes.documents), ...routes.uncached]);
+const siteTrees = alternation(routes.trees);
 
 export default defineConfig({
   plugins: [cloudflare(), tailwindcss()],
@@ -51,7 +58,7 @@ export default defineConfig({
     // to the next free port when 5173 is taken, which leaves `/` on :4321
     // pointing at whatever still holds 5173 — usually a stale server from an
     // earlier session, answering with 500s. Fail loudly on the collision instead.
-    port: 5173,
+    port: WORKER_DEV_PORT,
     strictPort: true,
     // In production these paths are prerendered files inside this Worker's asset
     // bundle (see scripts/embed-site.mjs), so the Worker never sees them. There
@@ -59,8 +66,8 @@ export default defineConfig({
     // `proxy.all('*')` catch-all and 404. Forward them to `astro dev` instead,
     // which `turbo run dev` starts alongside this server.
     proxy: {
-      '^/(compare|use-cases|about|privacy|404|sitemap\\.xml|pricing(\\.md)?)$': SITE_DEV_SERVER,
-      '^/(vs|for|alternatives|guides)(/.*)?$': SITE_DEV_SERVER,
+      [`^/(${sitePaths})$`]: SITE_DEV_SERVER,
+      [`^/(${siteTrees})(/.*)?$`]: SITE_DEV_SERVER,
       // The webfonts live in apps/site/public too; without this :5173 renders every face as its Arial fallback.
       '^/fonts/': SITE_DEV_SERVER,
     },

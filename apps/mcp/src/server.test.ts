@@ -2,20 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { parseRoomRef } from '@marklayer/agent-tools';
 
 describe('parseRoomRef', () => {
-  test('passes a bare room id through untouched', () => {
-    expect(parseRoomRef('abc123')).toBe('abc123');
-  });
-
-  test('trims surrounding whitespace', () => {
-    expect(parseRoomRef('  abc123  ')).toBe('abc123');
-  });
-
   test('extracts the id from a full share URL', () => {
     expect(parseRoomRef('https://marklayer.app/s/abc123')).toBe('abc123');
-  });
-
-  test('stops at the next slash when the URL has a path after the id', () => {
-    expect(parseRoomRef('https://marklayer.app/s/abc123/whatever')).toBe('abc123');
   });
 
   test('rejects empty or whitespace-only input', () => {

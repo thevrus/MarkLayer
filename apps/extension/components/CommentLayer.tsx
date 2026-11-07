@@ -1,15 +1,17 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { useSignalEffect } from '@preact/signals';
 import { useCallback, useState } from 'preact/hooks';
 import { applyAnchorDelta } from '../lib/anchor';
-import { shootViewport } from '../lib/capture';
 import { checkRequest, flashAnnotation } from '../lib/checkFix';
+import { host } from '../lib/host-config';
+import { pushOp, rootComments } from '../lib/ops';
 import { snapshotPin } from '../lib/pin-shot';
 import { MARKER_LAYER } from '../lib/popover';
-import { scrollPageTo } from '../lib/scroller';
+import { color } from '../lib/prefs';
+import { scrollPageTo, toClient, toDoc } from '../lib/scroller';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
 import { fileUrl, transcribeFile, uploadFile } from '../lib/share';
-import { activeTool, color, pushOp, rootComments } from '../lib/state';
+import { activeTool } from '../lib/tool-state';
 import { CommentPin } from './CommentPin';
 import { CommentPopover } from './CommentPopover';
 
@@ -39,16 +41,18 @@ export function CommentLayer() {
 
   const onClick = useCallback((e: MouseEvent) => {
     if (activeTool.value !== 'comment') return;
-    const x = e.clientX + scrollX;
-    const y = e.clientY + scrollY;
+    const { x, y } = toDoc({ x: e.clientX, y: e.clientY });
     const el = pickElementAtPoint(e.clientX, e.clientY);
-    const snapshot = snapshotPin({
-      shoot: shootViewport,
-      pin: { x: e.clientX, y: e.clientY },
-      viewport: { x: 0, y: 0, width: innerWidth, height: innerHeight },
-      color: color.value,
-      upload: uploadFile,
-    });
+    const shoot = host.capabilities.capture;
+    const snapshot = shoot
+      ? snapshotPin({
+          shoot,
+          pin: { x: e.clientX, y: e.clientY },
+          viewport: { x: 0, y: 0, width: innerWidth, height: innerHeight },
+          color: color.value,
+          upload: uploadFile,
+        })
+      : Promise.resolve(null);
     setPopover({ x, y, el, snapshot });
   }, []);
 
@@ -65,16 +69,14 @@ export function CommentLayer() {
         }}
       />
       <div class={cn(MARKER_LAYER, 'pointer-events-none')}>
-        {/* Placed pins */}
         {rootComments.value.map((c) => (
           <CommentPin key={c.id} op={c} />
         ))}
 
-        {/* Input popover */}
         {popover && (
           <CommentPopover
             at={{ x: popover.x, y: popover.y }}
-            anchorAt={{ x: popover.x - scrollX, y: popover.y - scrollY }}
+            anchorAt={toClient(popover)}
             capture={() => ({
               target: popover.el
                 ? captureTarget({ el: popover.el, anchor: { x: popover.x, y: popover.y } })

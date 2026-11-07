@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { Avatar } from './Avatar';

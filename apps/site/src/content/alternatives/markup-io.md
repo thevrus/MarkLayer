@@ -12,22 +12,22 @@ published: 2026-02-23
 modified: 2026-10-07
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source, with nothing to install: paste any URL at marklayer.app, annotate the live page with drawings, comments, arrows, and highlights, then share a link. Recipients need no install and no account, and real-time live cursors show reviewers working the page at the same time instead of leaving comments async. There is no paid tier to upgrade to, ever. Annotations are cleaned up 90 days after their last activity, and any comment or view resets that clock."
     bestFor: "Anyone who wants the core Markup.io use case (live webpage feedback) without sign-up or fees."
   - name: "PageProofer"
     pitch: "Visual feedback on staging sites with sticky-note style comments, closer to Markup.io's own project-review shape than the other options here. There is no permanent free plan. Plans run $39, $89 and $199 a month for 5, 25 and unlimited users, extra users cost $5 each, and the trial lasts 15 days."
     bestFor: "Teams already comfortable with a paid SaaS workflow."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A visual bug tracker built around a Kanban board and integrations into Jira, GitHub, Trello, and Asana, so a piece of feedback becomes a tracked task rather than a comment thread. No free plan; Standard runs $50/month for 5 members."
     bestFor: "Teams that need full bug-tracking workflow, not just feedback."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "A visual-feedback platform built for agency client review, with branded canvases and version tracking. The free plan is limited to 1 user and 1 canvas; Pro is $35/month, or $29/month billed annually."
     bestFor: "Agencies running structured client review cycles."
   - name: "Hypothesis"
-    url: "/vs/hypothesis"
+    compare: hypothesis
     pitch: "A free, open-source W3C-standard text annotation layer for highlighting and commenting on articles and PDFs, not for drawing on a live page's UI. Free, but the wrong shape if what you need is visual feedback on a webpage's layout."
     bestFor: "Scholarly or text-heavy annotation, not UI feedback."
 faq:

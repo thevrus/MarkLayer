@@ -1,5 +1,5 @@
-import { MCP_INSTALL } from './agent';
-import { ORIGIN } from './site';
+import { MCP_INSTALL } from '@marklayer/agent-tools';
+import { ORIGIN } from '@marklayer/brand';
 
 /**
  * The MCP setup, one snippet per client. `/mcp` renders these as the install

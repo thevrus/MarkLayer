@@ -66,15 +66,10 @@ interface Props {
   muted?: boolean;
   /** Mirror horizontally for the self-view (matches webcam intuition). */
   mirror?: boolean;
-  /** Default size in px. */
   defaultSize?: number;
-  /** Optional header chip rendered inside the bubble (e.g. peer name). */
   label?: string;
-  /** Optional ring color for the bubble. */
   ringColor?: string;
-  /** Optional close button — when provided, renders an "x" in the corner. */
   onClose?: () => void;
-  /** Optional speaking indicator. */
   speaking?: boolean;
 }
 

@@ -16,6 +16,8 @@
     "test": "bun test"
   },
   "devDependencies": {
+    "@marklayer/brand": "workspace:*",
+    "@marklayer/tokens": "workspace:*",
     "@react-email/components": "^1.0.12",
     "@react-email/render": "^2.1.0",
     "@types/bun": "^1.4.0",

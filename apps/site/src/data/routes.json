@@ -1,0 +1,23 @@
+{
+  "_comment": "Every path this site serves outside `/`, the one place a new section is registered. scripts/emit-headers.mjs turns it into dist/_headers rules and apps/worker/vite.config.ts into the :5173 dev proxy; verify-build.mjs fails a built page that is missing here. `pages` are exact, `trees` cover `/x/*` (a hub at `/x` goes in `pages` too), `documents` map a file to its Content-Type, `uncached` is served with no Cache-Control on purpose.",
+  "pages": [
+    "/features",
+    "/compare",
+    "/alternatives",
+    "/use-cases",
+    "/guides",
+    "/changelog",
+    "/pricing",
+    "/mcp",
+    "/about",
+    "/support",
+    "/privacy"
+  ],
+  "trees": ["/vs", "/for", "/alternatives", "/guides", "/changelog"],
+  "documents": {
+    "/pricing.md": "text/markdown; charset=utf-8",
+    "/mcp.md": "text/markdown; charset=utf-8",
+    "/sitemap.xml": "application/xml"
+  },
+  "uncached": ["/bot", "/thanks", "/404"]
+}

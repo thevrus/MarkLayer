@@ -1,8 +1,8 @@
 import { secondaryBtn } from '@ext/lib/buttons';
-import { APP_ORIGIN } from '@ext/lib/origin';
-import { shareUrl } from '@ext/lib/share';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
-import { cn } from '@marklayer/types';
+import { ORIGIN } from '@marklayer/brand';
+import { shareUrl } from '@marklayer/brand/links';
+import { cn } from '@marklayer/ui/cn';
 import { Code } from 'lucide-preact';
 import { useState } from 'preact/hooks';
 import { ActionRow } from './ActionRow';
@@ -15,7 +15,7 @@ import { feedbackButtonHtml, feedbackButtonMarkdown, feedbackWidgetScript } from
  * localhost. `ref=button` is what the viewer counts the arrival as.
  */
 export function feedbackLink({ kind, id }: { kind: 'project' | 'page'; id: string }): string {
-  return shareUrl({ origin: APP_ORIGIN, kind, id, ref: 'button' });
+  return shareUrl({ origin: ORIGIN, kind, id, ref: 'button' });
 }
 
 function CopyFormat({
@@ -69,11 +69,7 @@ export function FeedbackButtonSection({ kind, id }: { kind: 'project' | 'page'; 
       <div class="flex gap-1.5">
         <CopyFormat label="Copy HTML" value={html} format="html" />
         <CopyFormat label="Copy Markdown" value={feedbackButtonMarkdown({ url })} format="markdown" />
-        <CopyFormat
-          label="Copy script"
-          value={feedbackWidgetScript({ origin: APP_ORIGIN, kind, id })}
-          format="script"
-        />
+        <CopyFormat label="Copy script" value={feedbackWidgetScript({ origin: ORIGIN, kind, id })} format="script" />
       </div>
       <p class="text-meta leading-body text-(--ds-gray-900)">
         The script opens comment mode on your live page. With a CSP, allow https://marklayer.app in script-src, and

@@ -2,8 +2,7 @@ import type { Point } from '@ext/lib/types';
 import type { ReadonlySignal, Signal } from '@preact/signals';
 import { createContext } from 'preact';
 import { useContext } from 'preact/hooks';
-import type { Firewall } from '../src/proxy';
-import type { ExportData } from './AnnotationPanel';
+import type { Firewall } from '../shared/proxy-errors';
 
 /** Why the page never rendered. One list: the signal holds it, telemetry reports it. */
 export type RenderFailure = 'timeout' | 'no-marker' | 'iframe-error' | 'firewall' | 'upstream-error';
@@ -69,12 +68,10 @@ interface ViewerFrameActions {
   /** Screen coordinates → page coordinates, undoing the frame offset and CSS scale. */
   canvasCoords: (e: MouseEvent) => Point;
   startDrawing: (e: MouseEvent) => void;
-  share: () => void;
-  scrollToAnnotation: (x: number, y: number) => void;
-  buildExportData: () => ExportData;
-  reportRenderFailure: (reason: RenderFailure, extra?: Record<string, unknown>) => void;
-  /** The other half of the pair — without it a failure rate has no denominator. */
-  reportRenderSuccess: () => void;
+  scrollToAnnotation: (y: number) => void;
+  /** The proxied frame fired `load`, or failed to. `useRenderOutcome` decides what either means. */
+  frameLoaded: () => void;
+  frameErrored: () => void;
 }
 
 interface ViewerFrameMeta {

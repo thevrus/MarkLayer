@@ -1,62 +1,15 @@
 import { InspectorStackPanel } from '@ext/components/InspectorLayer';
-import { MultiSelectPopover, SelectedOutline } from '@ext/components/MultiInspectLayer';
-import { track } from '@ext/lib/analytics';
+import { MarqueeBox, MultiSelectPopover, SelectedOutline } from '@ext/components/MultiInspectLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
-import { getSelector, snapshotElement } from '@ext/lib/selector';
-import { activeTool, addToInspectorStack, inspectorStack, outputDetail, toast } from '@ext/lib/state';
+import { boundsOf, marqueeBox, useMultiSelect } from '@ext/lib/multi-select';
+import { activeTool } from '@ext/lib/tool-state';
 import { useSignal, useSignalEffect } from '@preact/signals';
 import { createPortal } from 'preact/compat';
 import { isElementNode, toViewportRect, useIframeOverlay, useIframeRectSync } from './iframeOverlay';
-import { cssScale } from './signals';
-
-interface DragState {
-  startX: number;
-  startY: number;
-  curX: number;
-  curY: number;
-  initialEl: Element | null;
-  dragged: boolean;
-}
-
-interface SelectedEl {
-  el: Element;
-  selector: string;
-}
-
-const DRAG_THRESHOLD = 4;
-
-/** Pick elements inside the iframe doc whose viewport rect intersects the marquee. */
-function elementsInMarqueeInDoc(
-  doc: Document,
-  rect: { left: number; top: number; right: number; bottom: number },
-): Element[] {
-  const all = doc.body.getElementsByTagName('*');
-  const candidates: Element[] = [];
-  const minIntersection = 0.5;
-  for (const el of all) {
-    const r = el.getBoundingClientRect();
-    if (r.width < 4 || r.height < 4) continue;
-    const ix = Math.max(0, Math.min(r.right, rect.right) - Math.max(r.left, rect.left));
-    const iy = Math.max(0, Math.min(r.bottom, rect.bottom) - Math.max(r.top, rect.top));
-    const ia = ix * iy;
-    if (ia <= 0) continue;
-    if (ia / (r.width * r.height) < minIntersection) continue;
-    candidates.push(el);
-  }
-  const set = new Set(candidates);
-  return candidates.filter((el) => {
-    let p = el.parentElement;
-    while (p) {
-      if (set.has(p)) return false;
-      p = p.parentElement;
-    }
-    return true;
-  });
-}
+import { cssScale } from './viewer-state';
 
 export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
-  const drag = useSignal<DragState | null>(null);
-  const selected = useSignal<SelectedEl[]>([]);
+  const { drag, selected, press, moveTo, release, submit, cancel } = useMultiSelect();
   // Bumped on iframe rect-sync events so outlines reposition with the page.
   const tick = useSignal(0);
 
@@ -68,14 +21,7 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
       e.stopPropagation();
       const initialEl =
         isElementNode(e.target) && e.target !== doc.body && e.target !== doc.documentElement ? e.target : null;
-      drag.value = {
-        startX: e.clientX,
-        startY: e.clientY,
-        curX: e.clientX,
-        curY: e.clientY,
-        initialEl,
-        dragged: false,
-      };
+      press({ x: e.clientX, y: e.clientY, el: initialEl });
       const target = isElementNode(e.target) ? e.target : doc.documentElement;
       try {
         target.setPointerCapture?.(e.pointerId);
@@ -85,35 +31,18 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      const d = drag.value;
-      if (!d) return;
+      if (!drag.value) return;
       e.preventDefault();
-      const dragged = d.dragged || Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > DRAG_THRESHOLD;
-      drag.value = { ...d, curX: e.clientX, curY: e.clientY, dragged };
+      moveTo(e.clientX, e.clientY);
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      const d = drag.value;
-      if (!d) return;
+      if (!drag.value) return;
       e.preventDefault();
       e.stopPropagation();
-      drag.value = null;
-      if (!d.dragged) {
-        if (d.initialEl) toggleEl(d.initialEl);
-        return;
-      }
-      const left = Math.min(d.startX, d.curX);
-      const right = Math.max(d.startX, d.curX);
-      const top = Math.min(d.startY, d.curY);
-      const bottom = Math.max(d.startY, d.curY);
-      const els = elementsInMarqueeInDoc(doc, { left, top, right, bottom });
-      if (els.length) {
-        addElsToSelection(els);
-        track('multi_inspect_marquee_used', { matched: els.length });
-      }
+      release(doc);
     };
 
-    // Suppress page click handlers (links, etc.) while in multi-select.
     const onClick = (e: MouseEvent) => {
       if (activeTool.value !== 'multiInspect') return;
       e.preventDefault();
@@ -138,70 +67,17 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
     };
   });
 
-  const toggleEl = (el: Element) => {
-    const cur = selected.value;
-    const idx = cur.findIndex((s) => s.el === el);
-    if (idx >= 0) selected.value = cur.slice(0, idx).concat(cur.slice(idx + 1));
-    else selected.value = [...cur, { el, selector: getSelector(el) }];
-  };
-
-  const addElsToSelection = (els: Element[]) => {
-    if (!els.length) return;
-    const cur = selected.value;
-    const have = new Set(cur.map((s) => s.el));
-    const additions: SelectedEl[] = [];
-    for (const el of els) {
-      if (have.has(el)) continue;
-      additions.push({ el, selector: getSelector(el) });
-      have.add(el);
-    }
-    if (additions.length) selected.value = [...cur, ...additions];
-  };
-
-  // Reset state when leaving the tool.
-  useSignalEffect(() => {
-    if (activeTool.value !== 'multiInspect') {
-      drag.value = null;
-      selected.value = [];
-    }
-  });
-
   useSignalEffect(() => {
     if (activeTool.value !== 'multiInspect') return;
     return injectCrosshairCursor(frameRef.current?.contentDocument);
   });
 
-  // Reposition outlines on iframe scroll/scale/resize.
   useIframeRectSync(
     () => activeTool.value === 'multiInspect',
     () => {
       tick.value++;
     },
   );
-
-  const submit = (comment: string) => {
-    const items = selected.value;
-    if (!items.length) return;
-    const detail = outputDetail.value;
-    for (const { el, selector } of items) {
-      if (!el.isConnected) continue;
-      const snap = snapshotElement(el, selector, el.getBoundingClientRect(), detail);
-      addToInspectorStack({ selector, comment, markdown: snap.markdown });
-    }
-    track('multi_inspect_submitted', { elements: items.length, has_note: comment.length > 0 });
-    selected.value = [];
-    activeTool.value = 'navigate';
-    const stackCount = inspectorStack.value.length;
-    toast(`Added ${items.length} element${items.length === 1 ? '' : 's'} (${stackCount} in stack)`, {
-      type: 'success',
-      duration: 2200,
-    });
-  };
-
-  const cancel = () => {
-    track('multi_inspect_cancelled', { elements: selected.peek().length });
-    selected.value = [];
-  };
 
   if (activeTool.value !== 'multiInspect') return null;
 
@@ -216,29 +92,13 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
   if (d?.dragged && frame) {
     const fr = frame.getBoundingClientRect();
     const s = cssScale.value;
-    const left = Math.min(d.startX, d.curX);
-    const top = Math.min(d.startY, d.curY);
-    const width = Math.abs(d.curX - d.startX);
-    const height = Math.abs(d.curY - d.startY);
+    const { left, top, width, height } = marqueeBox(d);
     marquee = { left: fr.left + left * s, top: fr.top + top * s, width: width * s, height: height * s };
   }
 
   // Selected outlines + bounding rect for popover anchor (host viewport coords).
-  let boundingRect: { left: number; top: number; right: number; bottom: number } | null = null;
-  const outlineRects: DOMRect[] = [];
-  for (const { el } of sel) {
-    if (!el.isConnected || !frame) continue;
-    const r = toViewportRect(frame, el);
-    outlineRects.push(r);
-    if (!boundingRect) {
-      boundingRect = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
-    } else {
-      boundingRect.left = Math.min(boundingRect.left, r.left);
-      boundingRect.top = Math.min(boundingRect.top, r.top);
-      boundingRect.right = Math.max(boundingRect.right, r.right);
-      boundingRect.bottom = Math.max(boundingRect.bottom, r.bottom);
-    }
-  }
+  const outlineRects = frame ? sel.filter(({ el }) => el.isConnected).map(({ el }) => toViewportRect(frame, el)) : [];
+  const boundingRect = boundsOf(outlineRects);
 
   return createPortal(
     <>
@@ -246,19 +106,7 @@ export function WebMultiInspectLayer({ frameRef }: { frameRef: { current: HTMLIF
         <SelectedOutline key={i} rect={r} />
       ))}
 
-      {marquee && (
-        <div
-          class="fixed z-2147483646 pointer-events-none rounded-[3px]"
-          style={{
-            left: marquee.left,
-            top: marquee.top,
-            width: marquee.width,
-            height: marquee.height,
-            background: 'color-mix(in oklch, var(--ds-green-700) 8%, transparent)',
-            boxShadow: '0 0 0 1.5px color-mix(in oklab, var(--ds-green-700) 90%, transparent)',
-          }}
-        />
-      )}
+      {marquee && <MarqueeBox box={marquee} />}
 
       {sel.length > 0 && !d && (
         <MultiSelectPopover count={sel.length} rect={boundingRect} onCommit={submit} onCancel={cancel} />

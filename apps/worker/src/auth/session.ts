@@ -7,10 +7,8 @@ import { SESSION_COOKIE, type User } from './types';
  * unrecognized, or expired.
  *
  * Takes the header string rather than a Hono `Context` or a `Request`: the
- * three callers each hold a different shape (`withUser` has a `Context`,
- * the Durable Object only a raw `Request`, and the share API's inline
- * view-only check used to just reimplement this against its own `Context`),
- * and the header string is the one thing all three can produce.
+ * callers hold different shapes (`withUser` a `Context`, the Durable Object
+ * only a raw `Request`), and the header is the one thing all can produce.
  */
 export async function userFromCookieHeader({
   header,

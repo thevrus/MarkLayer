@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { AnnotationOp, CommentOp } from '@marklayer/types';
-import { callCreateTool, callRoomTool, classifyOp, describedSchema, type RoomOps } from './index';
+import type { AnnotationOp, CommentOp } from '@marklayer/types/ops';
+import { callTool, classifyOp, type RoomOps, TOOLS } from './index';
 
 const comment = (over: Partial<CommentOp> = {}): CommentOp => ({
   id: 'op-1',
@@ -60,11 +60,17 @@ function fakeRoom(over: Partial<RoomOps> = {}): RoomOps & { calls: string[] } {
 }
 
 const run = (name: string, args: unknown, room: RoomOps = fakeRoom()) =>
-  callRoomTool({ name, args, room, apiBase: 'https://marklayer.app' });
+  callTool({
+    name,
+    args,
+    room,
+    apiBase: 'https://marklayer.app',
+    createPreview: async () => ({ error: 'no preview here' }),
+  });
 
 const body = (result: Awaited<ReturnType<typeof run>>) => JSON.parse(result?.content[0]?.text ?? '{}');
 
-describe('callRoomTool', () => {
+describe('callTool', () => {
   test('leaves a name it does not own to the caller', async () => {
     expect(await run('marklayer_connect_room', { room: 'x' })).toBeNull();
     expect(await run('nonsense', {})).toBeNull();
@@ -102,16 +108,49 @@ describe('callRoomTool', () => {
     expect(body(result).error).toBe('annotation not found: op-1');
   });
 
-  test('refuses to act on a connection that cannot carry the write', async () => {
+  const rects = [{ x: 0, y: 0, width: 1, height: 1 }];
+
+  test.each<[string, unknown]>([
+    ['marklayer_watch_annotations', {}],
+    ['marklayer_acknowledge', { id: 'op-1' }],
+    ['marklayer_resolve', { id: 'op-1' }],
+    ['marklayer_dismiss', { id: 'op-1', reason: 'not actionable' }],
+    ['marklayer_reply', { id: 'op-1', text: 'hi' }],
+    ['marklayer_create_annotation', { text: 'hi', x: 0, y: 0 }],
+    ['marklayer_suggest_edit', { text: 'Continue', suggestion: 'Next', rects }],
+    ['marklayer_set_next_steps', { steps: [{ text: 'Fix it' }] }],
+    ['marklayer_complete_next_step', { id: 'step-1' }],
+    ['marklayer_ask', { prompt: 'Ship?', options: ['yes', 'no'] }],
+  ])('%s refuses a connection that cannot carry it', async (name, args) => {
     const room = fakeRoom({ checkLive: () => 'socket closed' });
-    const result = await run('marklayer_reply', { id: 'op-1', text: 'hi' }, room);
-    expect(body(result).error).toBe('socket closed');
+    expect(body(await run(name, args, room)).error).toBe('socket closed');
     expect(room.calls).toEqual([]);
   });
 
-  test('awaits a mutation that answers asynchronously', async () => {
-    const room = fakeRoom({ acknowledge: async () => true });
-    expect(body(await run('marklayer_acknowledge', { id: 'op-1' }, room)).status).toBe('in_progress');
+  test.each<[string, unknown]>([
+    ['marklayer_read_page', {}],
+    ['marklayer_room_info', {}],
+    ['marklayer_list_annotations', {}],
+    ['marklayer_get_annotation', { id: 'op-1' }],
+    ['marklayer_get_feedback', {}],
+  ])('%s still answers from what a dead connection left behind', async (name, args) => {
+    const page = { url: 'https://example.com', title: null, entries: [], clientRendered: false, truncated: false };
+    const room = fakeRoom({ checkLive: () => 'socket closed', readPage: async () => page });
+    expect((await run(name, args, room))?.isError).toBeUndefined();
+  });
+
+  test('answers an acknowledge with the status it moved the thread to', async () => {
+    expect(body(await run('marklayer_acknowledge', { id: 'op-1' })).status).toBe('in_progress');
+  });
+
+  // A pending promise is truthy, so an unawaited refusal reads as success. The Worker's room answers over RPC.
+  test.each<[string, unknown, Partial<RoomOps>]>([
+    ['marklayer_acknowledge', { id: 'op-1' }, { acknowledge: async () => false }],
+    ['marklayer_resolve', { id: 'op-1' }, { resolve: async () => false }],
+    ['marklayer_dismiss', { id: 'op-1', reason: 'not actionable' }, { dismiss: async () => false }],
+    ['marklayer_reply', { id: 'op-1', text: 'hi' }, { reply: async () => false }],
+  ])('%s reports a refusal that arrives asynchronously', async (name, args, over) => {
+    expect((await run(name, args, fakeRoom(over)))?.isError).toBe(true);
   });
 
   test('carries the reply that handed a thread over, as the instruction', async () => {
@@ -159,6 +198,41 @@ describe('callRoomTool', () => {
     expect((await run('marklayer_create_annotation', { text: 'hi' }, room))?.isError).toBe(true);
     expect((await run('marklayer_create_annotation', { text: 'hi', x: 1 }, room))?.isError).toBe(true);
   });
+
+  // Counted as "given" by the triple check, then dropped as falsy: the result is an unanchored pin at 0,0.
+  test.each(['selector', 'tag', 'markdown'])(
+    'P12 refuses an empty %s instead of pinning at the origin',
+    async (key) => {
+      const created: unknown[] = [];
+      const room = fakeRoom({
+        create: (a) => {
+          created.push(a);
+          return { id: 'new-1' };
+        },
+      });
+      const empty = { text: 'hi', selector: '#a', tag: 'button', markdown: '`<button>`', [key]: '' };
+      expect((await run('marklayer_create_annotation', empty, room))?.isError).toBe(true);
+      expect(created).toEqual([]);
+    },
+  );
+
+  test('P103 refuses a whitespace-only suggestion rather than storing it raw', async () => {
+    const blank = { text: 'Continue', suggestion: '   ', rects: [{ x: 0, y: 0, width: 1, height: 1 }] };
+    expect((await run('marklayer_suggest_edit', blank))?.isError).toBe(true);
+  });
+
+  test('P103 hands the room a trimmed suggestion', async () => {
+    const suggested: string[] = [];
+    const room = fakeRoom({
+      suggestEdit: (a) => {
+        suggested.push(a.suggestion);
+        return { id: 'new-2' };
+      },
+    });
+    const padded = { text: 'Continue', suggestion: '  Next  ', rects: [{ x: 0, y: 0, width: 1, height: 1 }] };
+    await run('marklayer_suggest_edit', padded, room);
+    expect(suggested).toEqual(['Next']);
+  });
 });
 
 describe('classifyOp', () => {
@@ -202,15 +276,6 @@ describe('classifyOp', () => {
       expect(event?.reply?.id).toBe(c.op.id);
     });
   }
-});
-
-describe('describedSchema', () => {
-  test('advertises the tool’s own schema, and accepts what the dispatch will check', () => {
-    const json = { type: 'object' as const, properties: { id: { type: 'string' } } };
-    const schema = describedSchema(json);
-    expect(schema['~standard'].jsonSchema.input()).toEqual(json);
-    expect(schema['~standard'].validate({ anything: true })).toEqual({ value: { anything: true } });
-  });
 });
 
 describe('marklayer_read_page', () => {
@@ -257,20 +322,30 @@ describe('marklayer_read_page', () => {
   });
 });
 
-describe('callCreateTool', () => {
+describe('marklayer_share_preview', () => {
   const create = (args: unknown) => {
     const asked: unknown[] = [];
-    const result = callCreateTool({
+    const result = callTool({
       name: 'marklayer_share_preview',
       args,
+      room: null,
       apiBase: 'https://marklayer.app',
       createPreview: async (request) => {
         asked.push(request);
-        return { id: 'r1', link: 'https://marklayer.app/s/r1', version: 1, previousId: null };
+        return { id: 'r1', url: 'https://marklayer.app/s/r1', version: 1, previous: null };
       },
     });
     return { result, asked };
   };
+
+  test('needs no room, and hands back the link and where to reconnect', async () => {
+    const { result } = create({ url: 'https://preview.example.com', title: 'x' });
+    expect(body(await result)).toMatchObject({
+      url: 'https://marklayer.app/s/r1',
+      mcpUrl: 'https://marklayer.app/s/r1/mcp',
+      previous: null,
+    });
+  });
 
   // The URL is framed for every reviewer who opens the link; only a web page belongs there.
   test('refuses a preview url that is not http(s)', async () => {
@@ -287,5 +362,29 @@ describe('callCreateTool', () => {
     });
     expect((await result)?.isError).toBe(true);
     expect(asked).toEqual([]);
+  });
+});
+
+describe('with no room connected', () => {
+  const noRoom = (name: string) =>
+    callTool({
+      name,
+      args: {},
+      room: null,
+      apiBase: 'https://marklayer.app',
+      createPreview: async () => ({ error: 'unused' }),
+    });
+
+  const roomless = ['marklayer_connect_room', 'marklayer_share_preview'];
+
+  test.each(TOOLS.map((tool) => tool.name).filter((name) => !roomless.includes(name)))(
+    '%s says how to get one',
+    async (name) => {
+      expect((await noRoom(name))?.content[0]?.text).toContain('marklayer_connect_room');
+    },
+  );
+
+  test.each(['marklayer_connect_room', 'marklayer_nonsense'])('%s stays the caller’s to answer', async (name) => {
+    expect(await noRoom(name)).toBeNull();
   });
 });

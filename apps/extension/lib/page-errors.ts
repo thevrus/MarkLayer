@@ -1,5 +1,7 @@
-import { MAX_PAGE_ERROR_TEXT, MAX_PAGE_ERRORS, type PageError } from '@marklayer/types';
+import type { PageError } from '@marklayer/types/ops';
+import { MAX_PAGE_ERROR_TEXT, MAX_PAGE_ERRORS } from '@marklayer/types/relay';
 import { signal } from '@preact/signals';
+import { pageUrl } from './page-url';
 
 /** `href` is the page the error was thrown on; the web proxy's relay does not stamp it. */
 type BufferedError = PageError & { href?: string };
@@ -11,12 +13,11 @@ const clip = (s: string) => s.slice(0, MAX_PAGE_ERROR_TEXT);
 
 // A source URL's query and hash routinely carry tokens, and a comment's meta is shared.
 const bare = (url: string) => url.split(/[?#]/)[0] ?? '';
-const samePage = (a: string, b: string) => a.split('#')[0] === b.split('#')[0];
 
 /** The buffered errors that belong to the page the user is on now: an SPA navigation leaves the old ones behind. */
 export function errorsForPage(): PageError[] {
   return pageErrors.value
-    .filter((e) => e.href === undefined || samePage(e.href, location.href))
+    .filter((e) => e.href === undefined || pageUrl(e.href) === pageUrl())
     .map(({ href: _href, ...error }) => error);
 }
 
@@ -56,7 +57,7 @@ declare global {
  * Runs in the page's MAIN world, where `error` events and `console.error` are visible; the
  * isolated content script sees neither. Injected through `scripting.executeScript` like
  * `bridgePayload`, so it needs no new permission. Self-contained: it is serialised with
- * `.toString()`. The web proxy carries the same logic as a string in `apps/worker/src/proxy.ts`.
+ * `.toString()`. The web proxy carries the same logic as a string in `apps/worker/src/error-relay.ts`.
  */
 export function errorBufferPayload(): void {
   if (window.__ml_errors_installed) return;

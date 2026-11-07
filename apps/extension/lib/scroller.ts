@@ -16,10 +16,7 @@
  * corrected from live `scroll` events — a capture-phase listener sees the
  * target of an element scroll, which never bubbles to `window`.
  *
- * Only the web viewer registers a scroller today. The extension shares the read
- * path (`scrollOffset`, via anchor.ts and selector.ts) but never calls
- * `findPageScroller`/`notePageScroller`, so there the offset is still the
- * window's — adopting it there is the remaining half of this change.
+ * `toDoc` and `toClient` are the one conversion between the two spaces.
  */
 const SCROLLERS = new WeakMap<Document, Element>();
 
@@ -69,10 +66,6 @@ export function notePageScroller(doc: Document, target: EventTarget | null): voi
   SCROLLERS.set(doc, target);
 }
 
-export function pageScroller(doc: Document): Element | null {
-  return SCROLLERS.get(doc) ?? null;
-}
-
 /** The page's scroll offset: the document's own plus its scroller's, if any. */
 export function scrollOffset(win: Window): { x: number; y: number } {
   const el = SCROLLERS.get(win.document);
@@ -80,6 +73,32 @@ export function scrollOffset(win: Window): { x: number; y: number } {
     x: (win.scrollX || 0) + (el?.scrollLeft ?? 0),
     y: (win.scrollY || 0) + (el?.scrollTop ?? 0),
   };
+}
+
+/** A viewport point in document coordinates. */
+export function toDoc({ x, y, win = window }: { x: number; y: number; win?: Window }): { x: number; y: number } {
+  const o = scrollOffset(win);
+  return { x: x + o.x, y: y + o.y };
+}
+
+/** A document point in viewport coordinates. */
+export function toClient({ x, y, win = window }: { x: number; y: number; win?: Window }): { x: number; y: number } {
+  const o = scrollOffset(win);
+  return { x: x - o.x, y: y - o.y };
+}
+
+let tracking = false;
+
+/**
+ * Follow the scroller of the page this overlay sits on. Not for the viewer: its own
+ * document holds tall panels that would pass for one, and it registers each frame.
+ */
+export function trackPageScroller(): void {
+  if (tracking) return;
+  tracking = true;
+  findPageScroller(document);
+  // Capture: a scroll on an element never bubbles to `window`.
+  window.addEventListener('scroll', (e) => notePageScroller(document, e.target), { passive: true, capture: true });
 }
 
 export function scrollPageBy(win: Window, dx: number, dy: number): void {

@@ -1,6 +1,7 @@
-import { agentLabel, isAgentAuthored, resolveOpStatus } from '@marklayer/types';
+import { agentLabel, isAgentAuthored } from '@marklayer/types/agents';
+import { resolveOpStatus } from '@marklayer/types/ops';
 import { signal } from '@preact/signals';
-import { setOpStatus } from './state';
+import { setOpStatus } from './ops';
 import type { CommentOp } from './types';
 
 export interface AgentFix {

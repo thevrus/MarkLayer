@@ -1,7 +1,9 @@
-import type { Mention } from '@marklayer/types';
+import type { Mention } from '@marklayer/types/ops';
 import { computed } from '@preact/signals';
+import { localUser } from './identity';
+import { operations } from './ops';
+import { peers } from './presence';
 import { stableComputed } from './stable';
-import { localUser, operations, peers } from './state';
 
 /** Colour for someone who is not currently connected, so their own is unknown. */
 export const OFFLINE_COLOR = 'oklch(0.55 0.02 260)';
@@ -48,7 +50,7 @@ const sameEntries = (previous: RosterEntry[], next: RosterEntry[]) =>
 /**
  * Anyone already in the work: whoever wrote an annotation still on the page, and
  * whoever it tagged. They matter as much as the people currently in the tab —
- * the extension never opens a socket at all, so a live-peers-only roster would
+ * a solo extension session has no socket, so a live-peers-only roster would
  * offer nobody to tag.
  */
 const namedInOps = stableComputed({

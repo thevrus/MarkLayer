@@ -11,18 +11,18 @@ modified: 2026-09-24
 intro: "MarkLayer is the most direct free Pastel alternative: paste a URL and start annotating the live page, with no account required and no canvas limit to hit. Markup.io, PageProofer and BugHerd are the paid routes, worth it once you need Pastel's project structure or a bug-tracking board instead."
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source: paste a URL and annotate any live webpage in your browser, with live cursors and link-based sharing. No account is required. An optional free login lets you claim your links, set an expiry on each one, and see them all from one dashboard. PDFs and images work too, by link or by uploading a file up to 25MB. A comment can be marked approved, but there are no project folders and no version history of the kind Pastel keeps."
     bestFor: "Anyone who needs the core Pastel use case for free."
   - name: "Markup.io"
-    url: "/vs/markup-io"
+    compare: markup-io
     pitch: "Ceros' project-based review platform, structured closer to Pastel's canvas-and-workspace model than the other options here. It never had a one-canvas free tier to outgrow. Pro now starts at $79/month for 50 monthly MarkUps and climbs to $129 for 100, still with unlimited users in one workspace. You stop counting seats and start counting MarkUps. Fits teams that want persistent project history without counting seats."
     bestFor: "Teams that want managed project workspaces with unlimited users."
   - name: "PageProofer"
     pitch: "Built for reviewing staging sites before they go live, with the same click-to-comment model as Pastel. There's no permanent free plan, just a 15-day trial. Plans scale by user count: a 5-user Freelancer tier, a 20-user Team tier, then an unlimited-user Agency tier, with extra seats at $5 a month on any of them. PageProofer still doesn't publish the base monthly rate for any tier on its own pricing page."
     bestFor: "Teams comfortable on a paid SaaS plan."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "Turns click-to-annotate feedback into tickets on a built-in Kanban board, with native Jira, GitHub, and Trello sync. There's no free plan: Standard runs $50/month for five members, plus $8 for each additional seat. Worth the bill once you need the task-tracking half of the workflow as well as the annotation."
     bestFor: "QA-heavy teams who need a Kanban + integrations."
 faq:

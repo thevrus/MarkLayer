@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import type { ComponentChildren } from 'preact';
 
 /** Up to two initials, the most a 24px circle can hold legibly. */

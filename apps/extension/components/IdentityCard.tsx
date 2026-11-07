@@ -1,24 +1,17 @@
 import { Popover } from '@base-ui/react/popover';
 import { Radio } from '@base-ui/react/radio';
 import { RadioGroup } from '@base-ui/react/radio-group';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { Check, Shuffle } from 'lucide-preact';
 import type { RefObject } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { CURSOR_COLORS, cursorColorName, localUser, randomUserName, setUserColor } from '../lib/identity';
 import { portalContainer } from '../lib/portal';
-import {
-  CURSOR_COLORS,
-  cursorColorName,
-  localUser,
-  peers,
-  randomUserName,
-  relabelOwnWork,
-  setUserColor,
-  setUserName,
-} from '../lib/state';
+import { peers } from '../lib/presence';
+import { relabelOwnWork, setUserName } from '../lib/rename';
 import { Avatar } from './Avatar';
 
 /**

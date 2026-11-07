@@ -1,17 +1,11 @@
-import {
-  HoverHighlight,
-  type HoverState,
-  InspectorStackPanel,
-  SelectedHighlight,
-  SelectedPanel,
-} from '@ext/components/InspectorLayer';
-import { track } from '@ext/lib/analytics';
+import { type HoverState, InspectorOverlay } from '@ext/components/InspectorLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
 import { getSelector, type SelectedInfo, snapshotElement } from '@ext/lib/selector';
-import { activeTool } from '@ext/lib/state';
+import { activeTool } from '@ext/lib/tool-state';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { createPortal } from 'preact/compat';
 import { useCallback, useRef } from 'preact/hooks';
+import { capture } from './analytics';
 import { isElementNode, rectsEqual, toViewportRect, useIframeOverlay, useIframeRectSync } from './iframeOverlay';
 
 export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
@@ -63,7 +57,7 @@ export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFram
       const rect = toViewportRect(frame, el);
       selectedSelectorRef.current = selector;
       selectedElRef.current = el;
-      track('inspector_element_picked');
+      capture('inspector_element_picked');
       selected.value = snapshotElement(el, selector, rect);
     };
 
@@ -123,23 +117,15 @@ export function WebInspectorLayer({ frameRef }: { frameRef: { current: HTMLIFram
   if (activeTool.value !== 'inspect') return null;
 
   return createPortal(
-    <>
-      {hover.value && !selected.value && <HoverHighlight state={hover.value} />}
-      {selected.value && (
-        <>
-          <SelectedHighlight rect={selected.value.rect} />
-          <SelectedPanel
-            state={selected.value}
-            el={selectedElRef.current}
-            onClose={() => {
-              selected.value = null;
-            }}
-            onStyleChange={refresh}
-          />
-        </>
-      )}
-      <InspectorStackPanel />
-    </>,
+    <InspectorOverlay
+      hover={hover.value}
+      selected={selected.value}
+      el={selectedElRef.current}
+      onClose={() => {
+        selected.value = null;
+      }}
+      onStyleChange={refresh}
+    />,
     document.body,
   );
 }

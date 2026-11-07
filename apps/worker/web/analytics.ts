@@ -11,10 +11,10 @@
 // aggregate counters, not visitors — and honour Do Not Track.
 
 import { type AnalyticsProps, type Surface, setAnalytics } from '@ext/lib/analytics';
-import { parseShareRef, type ShareRef } from '@ext/lib/share';
-import { redactSharePath } from '@marklayer/types';
+import { parseShareRef, type ShareRef } from '@marklayer/brand/links';
 import type { CaptureResult } from 'posthog-js';
-import { RELAY_PREFIX } from '../src/posthog-relay';
+import { redactSharePath } from '../shared/demo-room';
+import { RELAY_PREFIX } from '../shared/posthog-relay-path';
 
 type Props = AnalyticsProps;
 type Role = 'editor' | 'viewer';
@@ -51,7 +51,7 @@ function isNoise(e: CaptureResult): boolean {
  */
 let role: Role = 'editor';
 
-/** Called from signals.ts, which cannot be imported here — it imports `capture`. */
+/** Called from boot.ts, since viewer state cannot be imported here: it imports `captureOnce`. */
 export function setRole(next: Role): void {
   role = next;
 }

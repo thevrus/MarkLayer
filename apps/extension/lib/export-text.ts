@@ -1,4 +1,4 @@
-import { getCommentStatus, STATUS_LABELS } from './state';
+import { getCommentStatus, STATUS_LABELS } from './status-ui';
 import type { CommentOp, DrawOp, SelectionOp, TextOp } from './types';
 
 interface ExportMeta {

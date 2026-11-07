@@ -14,6 +14,5 @@ export const glass = {
   /** The default (non-danger) menu row colours and highlight states. */
   menuItemHighlight: 'text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) data-highlighted:bg-(--ds-gray-alpha-100)',
 
-  /** Font stack */
   font: "font-[-apple-system,BlinkMacSystemFont,'SF_Pro_Display','Geist',system-ui,sans-serif]",
 } as const;

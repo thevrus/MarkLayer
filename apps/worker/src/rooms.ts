@@ -1,41 +1,21 @@
-import { isNewShareId } from '@marklayer/types';
+import { ROOM_GEN_HEADER } from '@marklayer/types/wire';
 import { setCookie } from 'hono/cookie';
 import { csrf } from 'hono/csrf';
 import { Hono } from 'hono/tiny';
-import { overRateLimit } from './http';
-import type { Env } from './index';
-import { attemptPassword, lockedJson, lockedSocket, ROOM_GEN_HEADER, roomAccess, unlockCookie } from './lock/gate';
+import type { Env } from './env';
+import { agentIdentityFrom, attemptPassword, openRoom, refuse, unlockCookie } from './lock/gate';
 import { safeReturnPath, unlockPage } from './lock/page';
 import { handleMcpRequest, readRoomPage } from './mcp';
-import { annotationStore, projectStore } from './store';
+import { overRateLimit } from './rate-limit';
+import { annotationStore } from './store';
 
 /**
  * Every route that reaches a room's content by id other than the share API and
  * the page shell: the agent surfaces, the realtime socket and the unlock form.
- * Kept out of index.ts so the gates run under test, which that module's
- * build-time imports do not allow.
+ * Each reader goes through `openRoom`, the one door, so none can forget the password,
+ * the expiry or the existence check; the form is what answers that door's prompt.
  */
 export const rooms = new Hono<Env>();
-
-/** The one door to a room: the store refuses to *persist* a guessable id, but
- *  the DO would still let strangers meet live on one. `&&` spares a real id the query. */
-async function getRoomStub({ id, env }: { id: string; env: Env['Bindings'] }) {
-  if (!isNewShareId(id) && !(await annotationStore(env.DB).exists(id))) return null;
-  return env.ANNOTATION_ROOM.get(env.ANNOTATION_ROOM.idFromName(id));
-}
-
-/**
- * Whether the OG card may describe room or project `id`. Read before the R2
- * cache, never after: a card rendered before the owner set a password is still
- * sitting there under the same key.
- */
-export async function ogLocked({ db, id }: { db: D1Database; id: string }): Promise<boolean> {
-  const lock = await annotationStore(db).getLock(id);
-  if (lock) return lock.passwordHash !== null;
-  const firstPageId = (await projectStore(db).get(id))?.pageIds[0];
-  if (!firstPageId) return false;
-  return (await annotationStore(db).getLock(firstPageId))?.passwordHash != null;
-}
 
 // csrf(): the form is ours, so a POST from elsewhere is someone planting their own unlock in the reader's browser.
 rooms.post('/s/:id/unlock', csrf(), async (c) => {
@@ -77,12 +57,9 @@ rooms.post('/s/:id/unlock', csrf(), async (c) => {
  */
 rooms.get('/s/:id/page.json', async (c) => {
   if (await overRateLimit({ limiter: c.env.FETCH_LIMITER, req: c.req })) return c.text('Too many requests', 429);
-  const id = c.req.param('id');
-  const stub = await getRoomStub({ id, env: c.env });
-  if (!stub) return c.text('Share id too short', 400);
-  const access = await roomAccess({ db: c.env.DB, id, headers: c.req.raw.headers });
-  if (!access.open) return lockedJson(access);
-  const reading = await readRoomPage({ stub, roomId: id, env: c.env });
+  const room = await openRoom({ env: c.env, id: c.req.param('id'), headers: c.req.raw.headers, ctx: c.executionCtx });
+  if (!room.ok) return refuse(room, 'json');
+  const reading = await readRoomPage({ stub: room.stub, env: c.env });
   return reading ? c.json(reading) : c.json({ error: 'could not read the page' }, 502);
 });
 
@@ -103,36 +80,30 @@ rooms.get('/s/:id/page.json', async (c) => {
  */
 rooms.all('/s/:id/mcp', async (c) => {
   if (await overRateLimit({ limiter: c.env.ROOM_LIMITER, req: c.req })) return c.text('Too many requests', 429);
-  const id = c.req.param('id');
-  const stub = await getRoomStub({ id, env: c.env });
-  if (!stub) return c.text('Share id too short', 400);
-  const access = await roomAccess({ db: c.env.DB, id, headers: c.req.raw.headers });
-  if (!access.open) return lockedJson(access);
+  const room = await openRoom({ env: c.env, id: c.req.param('id'), headers: c.req.raw.headers, ctx: c.executionCtx });
+  if (!room.ok) return refuse(room, 'json');
   return handleMcpRequest({
     request: c.req.raw,
-    stub,
-    roomId: id,
+    stub: room.stub,
+    roomId: room.id,
     apiBase: new URL(c.req.url).origin,
-    agentId: c.req.query('agent') ?? 'agent',
+    agentId: agentIdentityFrom(c.req.query('agent')),
     env: c.env,
     ctx: c.executionCtx,
   });
 });
 
-// WebSocket endpoint for realtime collaboration
 rooms.get('/ws/:id', async (c) => {
   const id = c.req.param('id');
   if (c.req.header('Upgrade') !== 'websocket') return c.text('Expected WebSocket', 426);
   // Each open buys a fresh per-socket message budget in the room, so opens are the thing to cap.
   if (await overRateLimit({ limiter: c.env.ROOM_LIMITER, req: c.req })) return c.text('Too many requests', 429);
-  const room = await getRoomStub({ id, env: c.env });
-  if (!room) return c.text('Share id too short', 400);
-  const access = await roomAccess({ db: c.env.DB, id, headers: c.req.raw.headers });
-  if (!access.open) return lockedSocket();
+  const room = await openRoom({ env: c.env, id, headers: c.req.raw.headers, ctx: c.executionCtx });
+  if (!room.ok) return refuse(room, 'socket');
   const url = new URL(c.req.url);
   url.searchParams.set('id', id);
   const headers = new Headers(c.req.raw.headers);
   // `set`, so a client that sends its own value is overwritten rather than believed.
-  headers.set(ROOM_GEN_HEADER, String(access.gen));
-  return room.fetch(new Request(url.toString(), { method: 'GET', headers }));
+  headers.set(ROOM_GEN_HEADER, String(room.gen));
+  return room.stub.fetch(new Request(url.toString(), { method: 'GET', headers }));
 });

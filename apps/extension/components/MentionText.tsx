@@ -1,7 +1,8 @@
-import { cn, type Mention, mentionSegments } from '@marklayer/types';
+import { type Mention, mentionSegments } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { useMemo } from 'preact/hooks';
+import { localUser } from '../lib/identity';
 import { rosterNames } from '../lib/roster';
-import { localUser } from '../lib/state';
 
 const URL_RE = /https?:\/\/[^\s<>"'“”]+/g;
 const LINK_CLASS =

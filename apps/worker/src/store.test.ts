@@ -1,23 +1,40 @@
-import { describe, expect, test } from 'bun:test';
-import { annotationStore, isExpired, projectStore } from './store';
-import { fakeDb } from './test-d1';
+import type { Database } from 'bun:sqlite';
+import { beforeEach, describe, expect, test } from 'bun:test';
+import { annotationStore, isExpired, nowInSeconds, projectStore } from './store';
+import { insertRow, migratedSqlite, SqliteD1 } from './test-d1';
+
+const WEAK = 'abc';
+const STRONG = 'dsWPMrdw6EZ8jkkhxvFKS';
+
+let sqlite: Database;
+let annotations: ReturnType<typeof annotationStore>;
+let projects: ReturnType<typeof projectStore>;
+
+beforeEach(() => {
+  sqlite = migratedSqlite();
+  const db = new SqliteD1(sqlite);
+  annotations = annotationStore(db);
+  projects = projectStore(db);
+});
+
+const room = (id: string, columns: Record<string, string | number | null> = {}) =>
+  insertRow({ sqlite, table: 'annotations', row: { id, ops: '[]', ...columns } });
+
+const rowCount = (table: 'annotations' | 'projects') =>
+  sqlite.query<{ n: number }, []>(`SELECT count(*) AS n FROM ${table}`).get()?.n;
 
 describe('annotationStore.get', () => {
   test('parses the ops column and maps the row to camelCase', async () => {
-    const db = fakeDb({
-      first: {
-        ops: '[{"tool":"comment"}]',
-        url: 'https://example.com',
-        width: 1280,
-        created_at: 10,
-        expires_at: null,
-        access: 'view',
-        owner_id: 'u1',
-        owner_expires_at: 999,
-      },
+    room('abc', {
+      ops: '[{"tool":"comment"}]',
+      url: 'https://example.com',
+      width: 1280,
+      created_at: 10,
+      access: 'view',
+      owner_id: 'u1',
+      owner_expires_at: 999,
     });
-    const row = await annotationStore(db).get('abc');
-    expect(row).toEqual({
+    expect(await annotations.get('abc')).toEqual({
       ops: [{ tool: 'comment' }],
       url: 'https://example.com',
       width: 1280,
@@ -30,61 +47,37 @@ describe('annotationStore.get', () => {
   });
 
   test('returns null when the row is missing', async () => {
-    expect(await annotationStore(fakeDb({ first: null })).get('nope')).toBeNull();
+    expect(await annotations.get('nope')).toBeNull();
   });
 
-  // A row from before `access` existed has no such column at all — the same
-  // shape a corrupt value would parse as, so both fall back to today's only mode.
-  test('falls back to edit access for a pre-migration row with no access column', async () => {
-    const db = fakeDb({
-      first: {
-        ops: '[]',
-        url: null,
-        width: null,
-        created_at: null,
-        expires_at: null,
-        owner_id: null,
-        owner_expires_at: null,
-      },
-    });
-    const row = await annotationStore(db).get('abc');
-    expect(row?.access).toBe('edit');
-    expect(row?.ownerId).toBeNull();
-    expect(row?.ownerExpiresAt).toBeNull();
+  test('falls back to edit access for a value it cannot read', async () => {
+    room('abc', { access: 'garbage' });
+    expect((await annotations.get('abc'))?.access).toBe('edit');
   });
 
   // Two call sites used to JSON.parse this unguarded, so a corrupt row was a 500.
   test('degrades a corrupt ops column to an empty list instead of throwing', async () => {
-    const db = fakeDb({ first: { ops: '{not json', url: null, width: null, created_at: null, expires_at: null } });
-    const row = await annotationStore(db).get('abc');
-    expect(row?.ops).toEqual([]);
+    room('abc', { ops: '{not json' });
+    expect((await annotations.get('abc'))?.ops).toEqual([]);
   });
 
   test('degrades a non-array ops column to an empty list', async () => {
-    const db = fakeDb({
-      first: { ops: '{"tool":"comment"}', url: null, width: null, created_at: null, expires_at: null },
-    });
-    expect((await annotationStore(db).get('abc'))?.ops).toEqual([]);
-  });
-});
-
-describe('annotationStore.getMany', () => {
-  test('does not query at all for an empty id list', async () => {
-    const db = fakeDb();
-    expect((await annotationStore(db).getMany([])).size).toBe(0);
-    expect(db.calls).toHaveLength(0);
+    room('abc', { ops: '{"tool":"comment"}' });
+    expect((await annotations.get('abc'))?.ops).toEqual([]);
   });
 });
 
 describe('projectStore.get', () => {
+  const project = (pageIds: string) => insertRow({ sqlite, table: 'projects', row: { id: 'p1', page_ids: pageIds } });
+
   test('parses page ids and drops non-string entries', async () => {
-    const db = fakeDb({ first: { page_ids: '["a",2,"b",null]', created_at: 5, expires_at: null } });
-    expect((await projectStore(db).get('p1'))?.pageIds).toEqual(['a', 'b']);
+    project('["a",2,"b",null]');
+    expect((await projects.get('p1'))?.pageIds).toEqual(['a', 'b']);
   });
 
   test('degrades a corrupt page_ids column to an empty list', async () => {
-    const db = fakeDb({ first: { page_ids: 'nonsense', created_at: null, expires_at: null } });
-    expect((await projectStore(db).get('p1'))?.pageIds).toEqual([]);
+    project('nonsense');
+    expect((await projects.get('p1'))?.pageIds).toEqual([]);
   });
 });
 
@@ -101,72 +94,83 @@ describe('isExpired', () => {
 });
 
 describe('annotationStore.deleteExpired', () => {
-  const sqlOf = (db: ReturnType<typeof fakeDb>) => (db.calls[0]?.sql ?? '').replace(/\s+/g, ' ');
+  const CUTOFF = 100;
+  const IDLE = CUTOFF - 1;
+  const RECENT = CUTOFF + 1;
+  const left = () => sqlite.query<{ id: string }, []>('SELECT id FROM annotations ORDER BY id').all();
 
-  // The fake does not run SQLite, so the rule is asserted where it is written.
-  // This guard is the whole point of signing in: drop the `owner_id IS NULL` and
-  // a kept link is swept 90 days later while the dashboard promises it will not be.
-  test('the idle window is gated on the link being unclaimed', async () => {
-    const db = fakeDb({ all: [{ id: 'a' }] });
-    expect(await annotationStore(db).deleteExpired({ unusedSince: 100 })).toEqual(['a']);
-    expect(sqlOf(db)).toContain('(owner_id IS NULL AND last_accessed_at < ?)');
+  // This guard is the whole point of signing in: lose it and a kept link is swept
+  // 90 days later while the dashboard promises it will not be.
+  test('the idle window takes only a link nobody claimed', async () => {
+    room('idle', { last_accessed_at: IDLE });
+    room('kept', { last_accessed_at: IDLE, owner_id: 'u1' });
+    room('recent', { last_accessed_at: RECENT });
+    expect(await annotations.deleteExpired({ unusedSince: CUTOFF })).toEqual(['idle']);
+    expect(left()).toEqual([{ id: 'kept' }, { id: 'recent' }]);
   });
 
+  // Keeping a link exempts it from the idle clock, never from a deadline that was actually set on it.
   test('an expiry someone chose still deletes, owner or not', async () => {
-    const db = fakeDb();
-    await annotationStore(db).deleteExpired({ unusedSince: 100 });
-    // Neither expiry clause mentions `owner_id`: keeping a link exempts it from
-    // the idle clock, never from a deadline that was actually set on it.
-    expect(sqlOf(db)).toContain('(expires_at IS NOT NULL AND expires_at < ?)');
-    expect(sqlOf(db)).toContain('(owner_expires_at IS NOT NULL AND owner_expires_at < ?)');
-    expect(db.calls[0]?.bindings[0]).toBe(100);
+    const past = nowInSeconds() - 60;
+    const future = nowInSeconds() + 60;
+    room('link-expired', { last_accessed_at: RECENT, owner_id: 'u1', expires_at: past });
+    room('owner-expired', { last_accessed_at: RECENT, owner_id: 'u1', owner_expires_at: past });
+    room('still-due', { last_accessed_at: RECENT, owner_id: 'u1', expires_at: future, owner_expires_at: future });
+    expect((await annotations.deleteExpired({ unusedSince: CUTOFF })).sort()).toEqual([
+      'link-expired',
+      'owner-expired',
+    ]);
+    expect(left()).toEqual([{ id: 'still-due' }]);
+  });
+});
+
+describe('projectStore.deleteExpired', () => {
+  const CUTOFF = 1_000_000;
+
+  test('a project whose claimed page was view-only when bundled keeps its idle exemption', async () => {
+    const sqlite = migratedSqlite();
+    const claimed = { id: 'p1', ops: '[]', access: 'view', owner_id: 'u1', last_accessed_at: CUTOFF + 1 };
+    insertRow({ sqlite, table: 'users', row: { id: 'u1', email: 'o@x' } });
+    insertRow({ sqlite, table: 'annotations', row: claimed });
+    const row = { id: 'proj', page_ids: '["p1"]', created_at: 1, last_accessed_at: 1 };
+    insertRow({ sqlite, table: 'projects', row });
+    insertRow({ sqlite, table: 'projects', row: { ...row, id: 'idle', page_ids: '[]' } });
+    expect(await projectStore(new SqliteD1(sqlite)).deleteExpired({ unusedSince: CUTOFF })).toEqual(['idle']);
   });
 });
 
 describe('the share-id entropy floor', () => {
-  // The floor lives here, not in the routes: `putOps` (realtime) and the MCP
-  // bridge reach this same layer, and a route-only check missed both.
-  const WEAK = 'abc';
-  const STRONG = 'dsWPMrdw6EZ8jkkhxvFKS';
-  const sql = (db: ReturnType<typeof fakeDb>) => db.calls.map((call) => call.sql).join(' ');
+  const row = { ops: [], url: null, width: null, expiresAt: null };
 
-  test('putOps never inserts at an id short enough to guess', async () => {
-    const db = fakeDb({ changes: 0 });
-    expect(await annotationStore(db).putOps({ id: WEAK, ops: [] })).toBe(false);
-    expect(sql(db)).not.toContain('INSERT');
+  test('putOps never inserts: a row that is not there was deleted, and a flush must not bring it back', async () => {
+    expect(await annotations.putOps({ id: STRONG, ops: [] })).toBe('gone');
+    expect(rowCount('annotations')).toBe(0);
   });
 
-  test('putOps still updates a room that already exists at a short id', async () => {
-    const db = fakeDb({ changes: 1 });
-    expect(await annotationStore(db).putOps({ id: WEAK, ops: [] })).toBe(true);
-    expect(sql(db)).toContain('UPDATE annotations');
+  test('putOps updates a room that exists, whatever its id looks like', async () => {
+    room(WEAK);
+    expect(await annotations.putOps({ id: WEAK, ops: [{ tool: 'pen' }] })).toBe('written');
+    expect(await annotations.getOps(WEAK)).toEqual([{ tool: 'pen' }]);
   });
 
-  test('putOps upserts as before for a well-formed id', async () => {
-    const db = fakeDb();
-    expect(await annotationStore(db).putOps({ id: STRONG, ops: [] })).toBe(true);
-    expect(sql(db)).toContain('INSERT INTO annotations');
+  // The floor lives here, not in the routes: the room's flush and the REST save
+  // both mint through `create`, and a route-only check missed the realtime path.
+  test('create mints only at a well-formed id', async () => {
+    expect(await annotations.create({ id: STRONG, ...row })).toBe(true);
+    expect(await annotations.exists(STRONG)).toBe(true);
+    expect(await annotations.create({ id: WEAK, ...row })).toBe(false);
+    expect(await annotations.exists(WEAK)).toBe(false);
   });
 
-  test('put and projectStore.put hold the same line', async () => {
-    const row = { id: WEAK, ops: [], url: null, width: null, expiresAt: null };
-    const missing = fakeDb({ changes: 0 });
-    expect(await annotationStore(missing).put(row)).toBe(false);
-    expect(sql(missing)).not.toContain('INSERT');
-
-    const project = fakeDb({ changes: 0 });
-    expect(await projectStore(project).put({ id: WEAK, pageIds: ['a'], expiresAt: null })).toBe(false);
-    expect(sql(project)).not.toContain('INSERT');
-
-    const fresh = fakeDb();
-    expect(await projectStore(fresh).put({ id: STRONG, pageIds: ['a'], expiresAt: null })).toBe(true);
-    expect(sql(fresh)).toContain('INSERT INTO projects');
+  test('projectStore.put holds the same line', async () => {
+    expect(await projects.put({ id: WEAK, pageIds: ['a'], expiresAt: null })).toBe(false);
+    expect(rowCount('projects')).toBe(0);
+    expect(await projects.put({ id: STRONG, pageIds: ['a'], expiresAt: null })).toBe(true);
+    expect((await projects.get(STRONG))?.pageIds).toEqual(['a']);
   });
 });
 
 describe('annotationStore.createPreview', () => {
-  const STRONG = 'dsWPMrdw6EZ8jkkhxvFKS';
-  const sql = (db: ReturnType<typeof fakeDb>) => db.calls.map((call) => call.sql).join(' ');
   const preview = {
     url: 'https://p.example.com',
     title: 'Hero',
@@ -178,27 +182,25 @@ describe('annotationStore.createPreview', () => {
 
   // The chain is what exposes a room's neighbours, so naming a room is not enough: it must be the same branch.
   test('chains to the named room only when its repo and branch match', async () => {
-    const same = fakeDb({ first: { repo: 'acme/web', branch: 'main', version: 2 } });
-    expect(await annotationStore(same).createPreview({ id: STRONG, ops: [], preview, previousId: 'prev' })).toEqual({
+    room('same', { repo: 'acme/web', branch: 'main', version: 2 });
+    room('other', { repo: 'acme/web', branch: 'feature', version: 2 });
+
+    expect(await annotations.createPreview({ id: STRONG, ops: [], preview, previousId: 'same' })).toEqual({
       created: true,
       version: 3,
-      previousId: 'prev',
+      previousId: 'same',
     });
-
-    const other = fakeDb({ first: { repo: 'acme/web', branch: 'feature', version: 2 } });
-    expect(await annotationStore(other).createPreview({ id: STRONG, ops: [], preview, previousId: 'prev' })).toEqual({
-      created: true,
-      version: 1,
-      previousId: null,
-    });
+    expect(
+      await annotations.createPreview({ id: 'xxWPMrdw6EZ8jkkhxvFKS', ops: [], preview, previousId: 'other' }),
+    ).toEqual({ created: true, version: 1, previousId: null });
   });
 
   test('never overwrites a room that already holds the id', async () => {
-    const taken = fakeDb({ changes: 0 });
-    expect(await annotationStore(taken).createPreview({ id: STRONG, ops: [], preview, previousId: null })).toEqual({
+    room(STRONG, { ops: '[{"id":"theirs"}]' });
+    expect(await annotations.createPreview({ id: STRONG, ops: [], preview, previousId: null })).toEqual({
       created: false,
       reason: 'taken',
     });
-    expect(sql(taken)).toContain('DO NOTHING');
+    expect(await annotations.getOps(STRONG)).toEqual([{ id: 'theirs' }]);
   });
 });

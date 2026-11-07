@@ -10,7 +10,7 @@ published: 2026-08-15
 modified: 2026-10-21
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source, and a different shape entirely: instead of recording the page, you annotate it live. Draw arrows, highlight regions, and pin comments directly on a real URL, then share the link so the recipient opens it in any browser and sees exactly what you meant in seconds. Replies thread right on the page itself, and when more than one person is looking at once, cursors move in real time instead of everyone recording their own separate video."
     bestFor: "The Looms that are really one screen and two sentences: a layout bug, a copy change, a design note."
   - name: "Tella"

@@ -1,47 +1,28 @@
-import { type CommentPriority, cn, normalizeSuggestion, type TargetElement } from '@marklayer/types';
-import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { isClosed, type TargetElement } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
+import { useCallback, useEffect, useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { reprojectRects } from '../lib/anchor';
-import { submitBtn, textareaCls } from '../lib/buttons';
 import { CardHold, useHoldLatch } from '../lib/card-hold';
 import { geist } from '../lib/geist';
-import { glass } from '../lib/glass';
+import { hostMutationTick, scrollTick } from '../lib/host-mutations';
 import { useMarkHover } from '../lib/mark-hover';
-import { MARKER_LAYER, useEdgeClamp, useSelectionDismiss } from '../lib/popover';
+import { deleteOp, pushOp, selections } from '../lib/ops';
+import { MARKER_LAYER } from '../lib/popover';
 import { hexToRgba } from '../lib/renderer';
+import { toClient } from '../lib/scroller';
+import { useSelectionCapture } from '../lib/selection-capture';
 import { captureTarget, isExtensionElement } from '../lib/selector';
 import { fileUrl, uploadFile } from '../lib/share';
-import {
-  activeTool,
-  color,
-  copyText,
-  deleteOp,
-  getCommentStatus,
-  getReplies,
-  hostMutationTick,
-  lineWidth,
-  openContextMenu,
-  pushOp,
-  STATUS_STYLES,
-  scrollTick,
-  selectionCaptureArmed,
-  selections,
-  setOpStatus,
-  signedBy,
-  toolEditsText,
-} from '../lib/state';
+import { getCommentStatus } from '../lib/status-ui';
 import { isTextEditing, startTextEdit } from '../lib/text-edit';
+import { activeTool, selectionCaptureArmed } from '../lib/tool-state';
+import { toolEditsText } from '../lib/tools';
 import type { SelectionOp, SelectionRect } from '../lib/types';
 import { BatchSwitch } from './BatchSwitch';
-import { CancelButton } from './CancelButton';
-import { TriageSection } from './CommentTriage';
 import { MentionText } from './MentionText';
-import { MentionTextarea, useMentions } from './MentionTextarea';
-import { PriorityPicker } from './PriorityPicker';
-import { Reactions } from './Reactions';
-import { SelectionEdit, SuggestionDiff } from './SelectionEdit';
-import { ReplyComposer, ThreadHeader, ThreadReplies } from './ThreadCard';
+import { SelectionComposer } from './SelectionComposer';
+import { SelectionMarker } from './SelectionMarker';
 
 interface PopoverState {
   x: number;
@@ -59,7 +40,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   scrollTick.value; // subscribe so highlights track host-page scroll
   hostMutationTick.value; // re-resolve anchor on SPA route / DOM reflow
   const status = getCommentStatus(op);
-  const resolved = status === 'resolved' || status === 'dismissed';
+  const resolved = isClosed(status);
   const hold = useHoldLatch();
   // Re-anchor against the captured element's CURRENT top-left when possible.
   // The offset was recorded relative to the first rect at capture time, so
@@ -68,7 +49,7 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   // size ratio — keeps the multi-rect highlight shape coherent as the
   // element reflows, with the first rect landing exactly on the anchor.
   const anchored = reprojectRects({ target: op.target, rects: op.rects });
-  const peek = useMarkHover(anchored?.rects.map((r) => ({ ...r, x: r.x - scrollX, y: r.y - scrollY })) ?? []);
+  const peek = useMarkHover(anchored?.rects.map((r) => ({ ...r, ...toClient(r) })) ?? []);
   const lift = hold.held || peek;
   if (!anchored) return null;
   const { x: anchorX, y: anchorY, rects, strategy } = anchored;
@@ -77,12 +58,11 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
   // centred on the anchor sits on the selection's own first letter, which is the
   // one character the quote can least afford to lose.
   const firstRect = rects[0];
-  const markerX = Math.max(2, anchorX - scrollX - 22);
-  const markerY = anchorY - scrollY + (firstRect ? firstRect.height / 2 - 8 : -8);
+  const anchorClient = toClient({ x: anchorX, y: anchorY });
+  const markerX = Math.max(2, anchorClient.x - 22);
+  const markerY = anchorClient.y + (firstRect ? firstRect.height / 2 - 8 : -8);
   const flipH = markerX + 340 > window.innerWidth;
   const flipV = markerY > window.innerHeight / 2;
-  // Replies hang off the selection's stored anchor, not the reprojected one.
-  const replyAnchor = op.rects[0];
 
   return (
     <CardHold value={hold.report}>
@@ -91,8 +71,8 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           key={`${op.id}-${i}`}
           class="absolute pointer-events-none"
           style={{
-            left: r.x - scrollX,
-            top: r.y - scrollY,
+            left: toClient(r).x,
+            top: toClient(r).y,
             width: r.width,
             height: r.height,
             background: resolved
@@ -103,226 +83,38 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
           }}
         />
       ))}
-      {/* The marker is the only interactive part: the highlight itself stays
-          pointer-transparent so an annotated paragraph on someone else's page
-          keeps its own links and text selection. */}
-      <div
-        class={cn('absolute pointer-events-auto hover:z-50 group/sel', lift && 'z-50')}
-        style={{ left: markerX, top: markerY }}
-        data-anchor-drift={strategy === 'text' ? 'text' : undefined}
-        data-marker
-        data-held={lift || undefined}
-        onContextMenu={(e) =>
-          openContextMenu(e, [
-            {
-              label: resolved ? 'Reopen' : 'Resolve',
-              icon: 'check',
-              onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
-            },
-            { label: 'Copy text', icon: 'copy', onClick: () => copyText(op.text, 'Selection copied') },
-            { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
-          ])
-        }
+      <SelectionMarker
+        op={op}
+        status={status}
+        x={markerX}
+        y={markerY}
+        flipH={flipH}
+        flipV={flipV}
+        lift={lift}
+        drifted={strategy === 'text'}
+        cardClass={cn(geist.surfaceSmall, 'max-h-[50vh]')}
+        onDelete={() => deleteOp(op.id)}
+        upload={uploadFile}
+        resolveUrl={fileUrl}
       >
-        <div
-          // Same treatment as a comment pin, at the size a word can carry: one
-          // flat fill, a surface ring to lift it off whatever is behind, and a
-          // ring that thickens on hover rather than a dot that grows.
-          class="w-4 h-4 rounded-full cursor-pointer
-                 shadow-[0_0_0_2px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.25)]
-                 transition-[box-shadow] duration-150 ease-out
-                 group-hover/sel:shadow-[0_0_0_3px_var(--ds-background-100),0_1px_2px_oklch(0_0_0/0.3)]"
-          style={{
-            background: status === 'open' ? op.color : STATUS_STYLES[status].bg,
-            opacity: STATUS_STYLES[status].pinOpacity,
-          }}
-          role="img"
-          aria-label={`Selection by ${op.author || 'Anonymous'}`}
-        />
-
-        {/* The marker-to-card gap is padding on this wrapper, not an offset — as
-            dead space it drops :hover mid-crossing and the card goes before the
-            pointer reaches the reply box. */}
-        <div
-          class={cn(
-            'absolute',
-            flipV ? 'bottom-0' : 'top-0',
-            flipH ? 'right-full pr-2.5' : 'left-full pl-2.5',
-            'pointer-events-none group-hover/sel:pointer-events-auto',
-            lift && 'pointer-events-auto',
-          )}
-        >
-          <div
-            class={cn(
-              geist.surfaceSmall,
-              glass.font,
-              'w-[300px] max-h-[50vh] overflow-y-auto overscroll-contain',
-              'opacity-0',
-              flipH ? 'translate-x-[6px]' : 'translate-x-[-6px]',
-              'transition-[opacity,translate] duration-150 ease-out',
-              'group-hover/sel:opacity-100 group-hover/sel:translate-x-0',
-              lift && 'opacity-100 translate-x-0',
-            )}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ThreadHeader
-              label={(op.author || '?').charAt(0).toUpperCase()}
-              color={op.color}
-              author={op.author}
-              ts={op.ts}
-              priority={op.priority}
-              onDelete={() => deleteOp(op.id)}
-            />
-
-            <div class={cn(geist.divider, 'mx-3')} />
-
-            <div class="px-3.5 py-3">
-              {op.suggestion ? (
-                <SuggestionDiff text={op.text} suggestion={op.suggestion} resolved={resolved} />
-              ) : (
-                <p class="text-meta text-(--ds-gray-900) m-0 line-clamp-3 leading-relaxed">"{op.text}"</p>
-              )}
-              {op.comment && (
-                <p
-                  class="text-ui text-(--ds-gray-1000) m-0 mt-2 leading-body wrap-break-word whitespace-pre-wrap"
-                  style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.55 : 1 }}
-                >
-                  <MentionText text={op.comment} mentions={op.mentions} />
-                </p>
-              )}
-              <Reactions class="mt-2" opId={op.id} reactions={op.reactions} />
-            </div>
-
-            <ThreadReplies replies={getReplies(op.id)} resolveUrl={fileUrl} />
-
-            <div class={cn(geist.divider, 'mx-3')} />
-
-            <TriageSection opId={op.id} status={status} assignee={op.assignee ?? null} />
-
-            <div class={cn(geist.divider, 'mx-3')} />
-
-            {replyAnchor && (
-              <ReplyComposer
-                parent={{ id: op.id, x: replyAnchor.x, y: replyAnchor.y }}
-                upload={uploadFile}
-                resolveUrl={fileUrl}
-              />
-            )}
-          </div>
-        </div>
-      </div>
+        {op.comment && <MentionText text={op.comment} mentions={op.mentions} />}
+      </SelectionMarker>
     </CardHold>
   );
 }
 
-function SelectionPopover({
-  x,
-  y,
-  text,
-  rects,
-  target,
-  auto,
-  suggestion: initial,
-  onClose,
-}: PopoverState & { onClose: () => void }) {
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
-  const [suggestion, setSuggestion] = useState<string | null>(initial ?? null);
-  const { mentionProps, mentions } = useMentions();
-
-  const commit = (save: boolean) => {
-    const comment = taRef.current?.value.trim();
-    if (save && rects.length > 0) {
-      const op: SelectionOp = {
-        id: nanoid(),
-        tool: 'selection',
-        text,
-        rects,
-        comment: comment || undefined,
-        suggestion: normalizeSuggestion({ text, suggestion }),
-        priority,
-        mentions: mentions(),
-        color: color.value,
-        lineWidth: lineWidth.value,
-        ts: Date.now(),
-        ...signedBy(),
-        target,
-        captureViewport: { width: window.innerWidth, height: window.innerHeight },
-      };
-      pushOp(op);
-      track('selection_committed', {
-        auto,
-        has_note: Boolean(comment),
-        has_suggestion: Boolean(op.suggestion),
-        has_priority: Boolean(priority),
-        mentions: op.mentions?.length ?? 0,
-        chars: text.length,
-      });
-    } else {
-      track('selection_cancelled', { auto, has_suggestion: suggestion !== null });
-    }
-    window.getSelection()?.removeAllRanges();
-    onClose();
-  };
-
-  const { panelProps } = useSelectionDismiss({ auto, focusRef: taRef, onDismiss: () => commit(false) });
-
-  const vx = x - scrollX;
-  const vy = y - scrollY;
-  const left = Math.min(vx + 16, innerWidth - 300);
-  const { ref: panelRef, top } = useEdgeClamp({ top: vy + 16 });
-
+function SelectionPopover({ x, y, ...draft }: PopoverState & { onClose: () => void }) {
   return (
-    <div
-      class={cn(
-        'fixed z-2147483647 pointer-events-auto',
-        'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        geist.surface,
-        glass.font,
-        'overflow-hidden w-[290px]',
-      )}
-      ref={panelRef}
-      style={{ left: Math.max(4, left), top }}
-      onClick={(e) => e.stopPropagation()}
-      {...panelProps}
+    <SelectionComposer
+      {...draft}
+      class="pointer-events-auto"
+      anchor={() => toClient({ x, y })}
+      captureViewport={() => ({ width: window.innerWidth, height: window.innerHeight })}
+      push={pushOp}
+      fieldClass="max-h-[140px]"
     >
-      <SelectionEdit text={text} suggestion={suggestion} onChange={setSuggestion} onSubmit={() => commit(true)} />
-
-      <div class={cn(geist.divider, 'mx-3.5')} />
-
-      {/* Optional comment */}
-      <div class="p-3.5">
-        <MentionTextarea
-          taRef={taRef}
-          {...mentionProps}
-          placeholder="Add a comment (optional)…"
-          rows={1}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              commit(true);
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              commit(false);
-            }
-          }}
-          class={cn(textareaCls, 'w-full min-h-10 max-h-[140px]', glass.font)}
-          style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
-        />
-        <PriorityPicker value={priority} onChange={setPriority} class="mt-1.5 -ml-1.5" />
-      </div>
-
-      <div class={cn(geist.divider, 'mx-3.5')} />
-
-      {/* Footer */}
-      <div class="flex items-center justify-between px-4 py-2.5">
-        <BatchSwitch />
-        <CancelButton onClick={() => commit(false)} />
-        <button type="button" onClick={() => commit(true)} class={submitBtn}>
-          Save ↵
-        </button>
-      </div>
-    </div>
+      <BatchSwitch />
+    </SelectionComposer>
   );
 }
 
@@ -354,52 +146,21 @@ export function SelectionLayer() {
   // Highlight repositioning on scroll happens inside SelectionHighlight via
   // the shared `scrollTick` signal — no per-layer forceUpdate needed.
 
-  // Listen for text selection — always attached, check signal inside handler.
   // Every selection tool qualifies, not just `selection`, so highlighting a
   // sentence offers to annotate it without a trip to the toolbar first.
-  const onMouseUp = useCallback((e: MouseEvent) => {
-    if (!selectionCaptureArmed.value || isTextEditing()) return;
+  useSelectionCapture({
     // Retargeted to the shadow host for anything inside our own UI, so this also
     // covers a mouseup that finished inside this very popover.
-    if (e.target instanceof Element && isExtensionElement(e.target)) return;
-    // The common case is a plain click, so answer it before scheduling a frame:
-    // only a live selection needs the post-layout rects the rAF waits for.
-    if (window.getSelection()?.isCollapsed !== false) return;
-    const auto = activeTool.value !== 'selection';
-    requestAnimationFrame(() => {
-      const sel = window.getSelection();
-      if (!sel || sel.isCollapsed || isTextEditing()) return;
-
-      const text = sel.toString();
-      if (!text.trim()) return;
-      const rects: SelectionRect[] = [];
-
-      for (let i = 0; i < sel.rangeCount; i++) {
-        const range = sel.getRangeAt(i);
-        const clientRects = range.getClientRects();
-        for (const cr of clientRects) {
-          rects.push({
-            x: cr.x + scrollX,
-            y: cr.y + scrollY,
-            width: cr.width,
-            height: cr.height,
-          });
-        }
-      }
-
-      if (rects.length === 0) return;
-
-      // Snapshot the enclosing element now — once the popover textarea takes
-      // focus the user's selection collapses and we lose this context.
-      const ancestor = sel.getRangeAt(0).commonAncestorContainer;
-      const el = ancestor instanceof Element ? ancestor : ancestor.parentElement;
+    armed: (e) =>
+      selectionCaptureArmed.value && !isTextEditing() && !(e.target instanceof Element && isExtensionElement(e.target)),
+    onCapture: ({ text, rects, el }) => {
       // A selection that lives in our own chrome — an annotation's hover card, the
       // toolbar — is not page copy, whatever the mouseup landed on.
-      if (isExtensionElement(el)) return;
-      const next = popoverAt({ text, rects, el, auto });
+      if (isTextEditing() || isExtensionElement(el)) return;
+      const next = popoverAt({ text, rects, el, auto: activeTool.value !== 'selection' });
       if (next) setPopover(next);
-    });
-  }, []);
+    },
+  });
 
   // Double-click edits the text in place; the result opens the usual popover with
   // the replacement filled in, so nothing is posted until Save.
@@ -421,13 +182,9 @@ export function SelectionLayer() {
   }, []);
 
   useEffect(() => {
-    window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('dblclick', onDblClick, true);
-    return () => {
-      window.removeEventListener('mouseup', onMouseUp);
-      window.removeEventListener('dblclick', onDblClick, true);
-    };
-  }, [onMouseUp, onDblClick]);
+    return () => window.removeEventListener('dblclick', onDblClick, true);
+  }, [onDblClick]);
 
   return (
     <div class={cn(MARKER_LAYER, 'pointer-events-none')}>

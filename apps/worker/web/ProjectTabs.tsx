@@ -1,31 +1,24 @@
 import { Tabs } from '@base-ui/react/tabs';
 import { glass } from '@ext/lib/glass';
-import { operations, toast } from '@ext/lib/state';
-import { cn } from '@marklayer/types';
+import { toast } from '@ext/lib/toasts';
+import { displayHost } from '@marklayer/brand/links';
+import { cn } from '@marklayer/ui/cn';
 import { Plus, Trash2, X } from 'lucide-preact';
 import { useState } from 'preact/hooks';
 import { capture } from './analytics';
-import { addProjectPage, switchPage } from './projects';
 import {
+  addProjectPage,
   annotationId,
   currentPageIdx,
-  isReadonly,
   pageUrl,
   projectId,
   projectLoading,
   projectPages,
-  saveProject,
+  removeProjectPage,
+  switchPage,
   withScheme,
-} from './signals';
-
-function hostnameOf(url: string | null, fallback: string): string {
-  if (!url) return fallback;
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return fallback;
-  }
-}
+} from './projects';
+import { isReadonly } from './viewer-state';
 
 function pathOf(url: string | null): string {
   if (!url) return '';
@@ -38,6 +31,9 @@ function pathOf(url: string | null): string {
 }
 
 export function ProjectTabs() {
+  // Subscribe, so the tabs re-render when the active page changes.
+  annotationId.value;
+  pageUrl.value;
   const [adding, setAdding] = useState(false);
   const [newUrl, setNewUrl] = useState('');
   const pid = projectId.value;
@@ -62,32 +58,13 @@ export function ProjectTabs() {
     }
     const page = pages[i];
     if (!page) return;
-    const label = page.url ? hostnameOf(page.url, `Page ${i + 1}`) : `Page ${i + 1}`;
+    const label = (page.url && displayHost(page.url)) || `Page ${i + 1}`;
     if (!window.confirm(`Remove "${label}" from this project? Annotations on that page will be lost.`)) return;
-    projectLoading.value = true;
-    // Snapshot live ops back into the active page's cache before mutating the list
-    const snapshot = pages.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
-    const next = snapshot.filter((_, j) => j !== i);
-    projectPages.value = next;
-    // Pick a sensible new index: stay on the same page, or shift left if we removed the active one
-    const nextIdx = i < idx ? idx - 1 : i === idx ? Math.min(idx, next.length - 1) : idx;
-    if (nextIdx !== currentPageIdx.value) {
-      currentPageIdx.value = nextIdx;
-      const navUrl = new URL(location.href);
-      if (nextIdx === 0) navUrl.searchParams.delete('page');
-      else navUrl.searchParams.set('page', String(nextIdx));
-      history.replaceState(null, '', navUrl);
-    }
-    const ok = await saveProject(
-      pid,
-      next.map((p) => p.id),
-    );
-    projectLoading.value = false;
-    if (!ok) {
+    if (!(await removeProjectPage(i))) {
       toast('Failed to remove page', { type: 'error' });
       return;
     }
-    capture('project_page_removed', { pages: next.length });
+    capture('project_page_removed', { pages: projectPages.value.length });
     toast('Page removed', { type: 'success' });
   };
 
@@ -116,7 +93,7 @@ export function ProjectTabs() {
       <Tabs.List className="flex items-center gap-1">
         {pages.map((p, i) => {
           const active = i === idx;
-          const host = hostnameOf(p.url, `Page ${i + 1}`);
+          const host = (p.url && displayHost(p.url)) || `Page ${i + 1}`;
           const path = pathOf(p.url);
           const canDelete = !readonly && pages.length > 1;
           return (
@@ -217,11 +194,6 @@ export function ProjectTabs() {
           </button>
         </form>
       )}
-      {/* Reference annotationId/pageUrl so this component re-renders when the active page changes */}
-      <span class="hidden">
-        {annotationId.value}
-        {pageUrl.value}
-      </span>
     </Tabs.Root>
   );
 }

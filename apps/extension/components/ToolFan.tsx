@@ -1,11 +1,11 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { signal } from '@preact/signals';
 import { useLayoutEffect, useRef } from 'preact/hooks';
 import { GLYPH, geist } from '../lib/geist';
 import { Icon } from '../lib/icons';
 import { prefersReducedMotion } from '../lib/media';
 import { capturePointer, pointerSampler } from '../lib/pointer';
-import { activeTool, selectTool, slotTool, visibleSlots } from '../lib/state';
+import { activeTool, selectTool, slotTool, visibleSlots } from '../lib/tool-state';
 import type { Tool } from '../lib/types';
 
 /**

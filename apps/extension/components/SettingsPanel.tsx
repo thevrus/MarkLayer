@@ -1,13 +1,15 @@
-import { cn } from '@marklayer/types';
+import { parseRoomRef } from '@marklayer/brand/links';
+import { cn } from '@marklayer/ui/cn';
 import { type ComponentChildren, createContext } from 'preact';
 import { useContext, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { animationsFrozen, toggleAnimationsFrozen } from '../lib/freeze';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
-import { Icon } from '../lib/icons';
-import { joinRoom } from '../lib/room';
-import { getRoomId, parseRoomRef } from '../lib/share';
+import { host } from '../lib/host-config';
+import { Icon, type IconName } from '../lib/icons';
+import { useDismissible } from '../lib/keymap';
+import { overlayHost } from '../lib/overlay-mount';
 import {
   blockInteractions,
   clearOnCopyEnabled,
@@ -16,20 +18,20 @@ import {
   isOutputDetail,
   lineWidth,
   markersVisible,
-  onSupport,
   outputDetail,
   PALETTE,
   setColor,
   setOutputDetail,
-  showSettings,
-  showShareDialog,
-  toast,
   toggleBlockInteractions,
   toggleClearOnCopy,
   toggleMarkersVisible,
   toggleToolbarMinimized,
   toolbarMinimized,
-} from '../lib/state';
+} from '../lib/prefs';
+import { joinRoom } from '../lib/room';
+import { getRoomId } from '../lib/room-id';
+import { toast } from '../lib/toasts';
+import { onSupport, requestShare, showSettings } from '../lib/ui-state';
 import { useCopyToClipboard } from '../lib/useCopy';
 import { version } from '../package.json';
 import { Toggle } from './Toggle';
@@ -49,7 +51,7 @@ const DEFAULT_HINT = 'Hover any setting for details.';
 
 /**
  * Context lifts the hint state out of the leaf rows. Without this every
- * interactive row (Row, ChevronLinkRow, ExportPngButton, etc.) would need an
+ * interactive row (Row, ChevronLinkRow, etc.) would need an
  * `onHint` prop drilled through it. With it, only the panel root holds the
  * state and any descendant can subscribe via `useHintSetter()`.
  */
@@ -203,7 +205,7 @@ function ColorChip({ value }: { value: string }) {
   );
 }
 
-function ChevronLinkRow({ icon, label, href, hint }: { icon: string; label: string; href: string; hint: string }) {
+function ChevronLinkRow({ icon, label, href, hint }: { icon: IconName; label: string; href: string; hint: string }) {
   const setHint = useHintSetter();
   return (
     <a
@@ -235,7 +237,7 @@ function ShareRow() {
       onMouseEnter={() => setHint('Get a public link and the command to connect an AI agent.')}
       onFocus={() => setHint('Get a public link and the command to connect an AI agent.')}
       onClick={() => {
-        showShareDialog.value = true;
+        requestShare();
         showSettings.value = false;
       }}
       class={cn(geist.row, geist.rowHover, 'justify-start gap-2.5')}
@@ -395,6 +397,12 @@ function PanelFootnote({ text }: { text: string }) {
 }
 
 export function SettingsPanel() {
+  useDismissible({
+    open: showSettings,
+    close: () => {
+      showSettings.value = false;
+    },
+  });
   const open = showSettings.value;
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; bottom: number; maxHeight: number } | null>(null);
@@ -408,7 +416,7 @@ export function SettingsPanel() {
       // to find whichever root we're in (ShadowRoot or Document) and query there.
       const root =
         (panelRef.current?.getRootNode() as Document | ShadowRoot | null) ??
-        (document.querySelector('mark-layer')?.shadowRoot as ShadowRoot | null) ??
+        (overlayHost()?.shadowRoot as ShadowRoot | null) ??
         document;
       const btn = root.querySelector?.('[data-ml-anchor="settings"]') as HTMLElement | null;
       if (!btn) {
@@ -537,7 +545,7 @@ export function SettingsPanel() {
           </Section>
 
           <div class={geist.divider} />
-          <ShareRow />
+          {host.capabilities.share && <ShareRow />}
           <RoomIdRow />
           <JoinRoomRow />
           <ChevronLinkRow

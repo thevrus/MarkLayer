@@ -1,4 +1,4 @@
-/** The Slack app's two tables (migrations/0011). The token column is ciphertext; see slack-app.ts. */
+/** The Slack app's two tables (migrations/0011). The token column is ciphertext; see slack-crypto.ts. */
 export interface SlackInstall {
   roomId: string;
   teamId: string;

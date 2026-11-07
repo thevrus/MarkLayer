@@ -1,3 +1,4 @@
+import { ORIGIN } from '@marklayer/brand';
 import { Body, Container, Head, Hr, Html, Preview, Section, Text } from '@react-email/components';
 import type { ReactNode } from 'react';
 
@@ -34,7 +35,7 @@ export function Layout({ preview, children }: { preview: string; children: React
           <Section>
             <Text className="m-0 text-[12px] leading-[18px] text-[#8f8f8f]">
               MarkLayer ·{' '}
-              <a href="https://marklayer.app" className="text-[#8f8f8f]">
+              <a href={ORIGIN} className="text-[#8f8f8f]">
                 marklayer.app
               </a>
             </Text>

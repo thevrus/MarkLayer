@@ -15,7 +15,7 @@ import {
   MAX_VOICE_BYTES,
   UPLOAD_FORMATS,
   type UploadFormat,
-} from '@marklayer/types';
+} from '@marklayer/types/uploads';
 
 const matches = (bytes: Uint8Array, { offset, bytes: magic }: UploadFormat['magic'][number]): boolean =>
   magic.every((byte, i) => bytes[offset + i] === byte);

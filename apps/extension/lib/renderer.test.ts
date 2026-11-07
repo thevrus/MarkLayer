@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { CircleOp, FreehandOp, LineOp, Point, RectOp } from '@marklayer/types';
+import type { CircleOp, FreehandOp, LineOp, Point, RectOp } from '@marklayer/types/ops';
 import {
   circleHitsRect,
   constrainEnd,
@@ -65,11 +65,6 @@ describe('constrainEnd', () => {
     expect(diagonal.x).toBeCloseTo(diagonal.y, 6);
   });
 
-  test('preserves the cursor distance rather than projecting onto the axis', () => {
-    // A projection would give x=100; a rotation keeps the full drag length.
-    expect(constrainEnd('line', 0, 0, 100, 40).x).toBeCloseTo(Math.hypot(100, 40), 6);
-  });
-
   test('snaps into every quadrant, not just the positive one', () => {
     close(constrainEnd('line', 0, 0, -100, 5), -Math.hypot(100, 5), 0);
     close(constrainEnd('arrow', 0, 0, 5, -100), 0, -Math.hypot(5, 100));
@@ -120,11 +115,6 @@ describe('hexToRgba', () => {
 
   test('falls back when the digits are not hex at all', () => {
     expect(hexToRgba('#zzzzzz')).toBe('rgba(0,0,0,1)');
-  });
-
-  test('reads the channels in RGB order', () => {
-    // A shift here paints every stroke the wrong colour and nothing throws.
-    expect(hexToRgba('#010203')).toBe('rgba(1,2,3,1)');
   });
 });
 

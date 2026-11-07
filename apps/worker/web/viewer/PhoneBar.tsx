@@ -2,12 +2,14 @@ import { Toggle } from '@base-ui/react/toggle';
 import { GLYPH, geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { Icon } from '@ext/lib/icons';
-import { activeTool, rootComments, selectTool, showAnnotationPanel } from '@ext/lib/state';
+import { rootComments } from '@ext/lib/ops';
+import { activeTool, selectTool } from '@ext/lib/tool-state';
 import type { Tool } from '@ext/lib/types';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { Lock } from 'lucide-preact';
 import { ShareDrawer } from '../SharePopover';
-import { isReadonly, PHONE_TOOLS } from '../signals';
+import { showAnnotationPanel } from '../ui-state';
+import { isReadonly, PHONE_TOOLS } from '../viewer-state';
 
 function ToolButton({ tool, label }: { tool: Tool; label: string }) {
   const on = activeTool.value === tool;

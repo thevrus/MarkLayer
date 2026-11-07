@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-11
 options:
   - name: "MarkLayer"
-    url: "/vs/feedbucket"
+    compare: feedbucket
     pitch: "Free and open source, with nothing to install for a public page: paste any URL at marklayer.app, annotate the live page with drawings, comments, arrows and highlights, then share a link. There is no member or project count and no script tag, so a client's production site or a competitor's checkout works the same as your own staging. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. A page behind a login needs the free browser extension, in each reviewer's own signed-in tab. An unclaimed link is deleted 90 days after its last activity; claiming it with the free account stops that clock."
     bestFor: "Anyone who wants to annotate a page without owning it, and teams reviewing together in real time."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "The closest paid match to Feedbucket's shape: a widget on your site, or a browser extension, that files annotated screenshots with environment details into a tracker. Starter is $59 a month, or $39 billed yearly, for three users, ten guests and ten projects with basic integrations. Two-way Jira sync, session replay, console logs, custom branding and CSV export need Team at $199 a month, or $149 yearly, for 15 users. Every plan has a 15-day trial, no card needed, and an Agency plan at $129 a month, or $99 yearly, is open to eligible small agencies."
     bestFor: "Engineering teams that want Feedbucket's widget model with developer tools on every report."
   - name: "Userback"
-    url: "/vs/userback"
+    compare: userback
     pitch: "The only widget tool here with a permanent free plan: two seats, two projects, and feedback that stays visible for 7 days. Team is $29 a month billed yearly, or $39 monthly, for five seats and five projects with two-way Jira and ClickUp sync, MCP connectors and Zapier. Session replay, custom branding and surveys need Business at $79 a month yearly, or $99 monthly, for unlimited seats and 25 projects. Business Plus at $159 yearly adds the REST API, webhooks and logo removal."
     bestFor: "Product teams collecting feedback from their own users as well as reviewers, on a budget."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A visual bug tracker with a built-in kanban board: every pinned comment becomes a task with browser, OS and resolution captured, and unlimited client users on every plan. There is no free plan. Standard is $50 a month, or $42 billed yearly, for five members with Trello, Slack and GitHub among its standard integrations. Jira, Asana, Linear, ClickUp and Monday sync, private team commenting and custom branding sit on Premium at $150 a month. Extra members are $8 a month each."
     bestFor: "QA teams that want the board inside the tool instead of routing everything out to a tracker."
 faq:

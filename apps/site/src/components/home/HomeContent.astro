@@ -1,15 +1,18 @@
 ---
 import copy from '../../data/home-copy.json';
+import faq from '../../data/home-faq.json';
 import { FOOTER_COLUMNS, TRADEMARK_NOTICE } from '../../lib/footer';
-import { CHROME_STORE_URL } from '../../lib/site';
+import { CHROME_STORE_URL } from '@marklayer/brand';
 
 // Prerendered marketing content for `/`.
 //
 // This is SEO surface, not UI: apps/worker/web/main.tsx clears #app on boot
 // (`root.innerHTML = ''`) and renders <Landing/> over it, so nobody with JS
 // ever sees this markup. That is exactly how it drifted — it used to live in
-// apps/worker/index.html and went months without review. Keep the claims here
-// in sync with apps/worker/web/Landing.tsx.
+// apps/worker/index.html and went months without review. The headline and
+// pricing facts come from home-copy.json, which Landing.tsx reads too, and the
+// FAQ from home-faq.json, which also fills the JSON-LD; verify-build.mjs checks
+// the claims that cannot move out of this markup.
 ---
 
 <p style="margin: 0 0 12px; color: #6e6e6e">Free forever. No sign-up. Open source.</p>
@@ -358,99 +361,14 @@ import { CHROME_STORE_URL } from '../../lib/site';
 
 <h2>Frequently Asked Questions</h2>
 <dl>
-  <dt>Is MarkLayer really free?</dt>
-  <dd>
-    Yes. 100% free. No paid plan, no trial, no per-seat pricing, no
-    usage cap.
-  </dd>
-  <dt>Is MarkLayer a browser extension?</dt>
-  <dd>
-    No. MarkLayer is a browser-based web app first: paste a URL at
-    <a href="https://marklayer.app">marklayer.app</a> and annotate the
-    live page in your browser with nothing installed. A free Chrome
-    extension exists as an optional companion for pages the web app
-    cannot embed, such as sites behind a login. Neither you nor the
-    people you share a link with ever need it.
-  </dd>
-  <dt>Do I need to install anything to use MarkLayer?</dt>
-  <dd>
-    No. The web app at
-    <a href="https://marklayer.app">marklayer.app</a> lets you paste
-    any URL and start annotating in your browser. No install, no
-    account. The Chrome extension is optional, for sites the web app
-    cannot embed (sites behind a login or with strict embed policies).
-  </dd>
-  <dt>Is MarkLayer anonymous?</dt>
-  <dd>
-    Yes, by default. No sign-up, no email, no profile. MarkLayer
-    generates a random local display name stored only in your browser.
-    Signing in with an email link is optional, and only manages links
-    you own.
-  </dd>
-  <dt>Do I need to create an account?</dt>
-  <dd>
-    No. Open the web app or install the extension and start
-    annotating. There is no registration step.
-  </dd>
-  <dt>Does the other person need the extension installed?</dt>
-  <dd>
-    No. Anyone can view your annotations via the share link. No
-    install and no account required.
-  </dd>
-  <dt>Does it work on any website?</dt>
-  <dd>
-    Yes. Production, staging, internal tools, third-party sites. The
-    web app works on any URL it can embed; the extension covers sites
-    behind a login or with strict embed policies.
-  </dd>
-  <dt>Can I annotate a PDF with MarkLayer?</dt>
-  <dd>
-    Yes. Paste a link to a PDF or upload one from your computer, up to
-    25MB, and the drawing, comment, area and highlight tools all work
-    on it. Text inside the PDF stays selectable, so a highlight binds
-    to the words rather than to a coordinate, and every mark records
-    the page it was made on. The annotations live in the share link
-    rather than inside the file, so nothing is written back into the
-    PDF. See <a href="/guides/how-to-annotate-a-pdf">how to annotate a
-    PDF</a>.
-  </dd>
-  <dt>Can I annotate an image or a screenshot?</dt>
-  <dd>
-    Yes. Paste the URL of an image, or upload a PNG, JPEG, GIF, WebP
-    or AVIF up to 25MB. Drawing, arrows, shapes, area captures and
-    pinned comments all work on it, and whoever opens the share link
-    can reply without an account. Text highlighting is the one tool
-    that does not, because an image has no text layer to attach a
-    highlight to. See <a href="/guides/how-to-annotate-an-image">how
-    to annotate an image</a>.
-  </dd>
-  <dt>Does it work on localhost?</dt>
-  <dd>
-    Yes, with the Chrome extension. It draws in your browser, so your
-    dev server never has to be reachable from the internet and there
-    is no proxy or tunnel involved. Share links do need a public URL,
-    so point collaborators at staging or a tunnel when someone else
-    has to open the page. See <a href="/for/localhost-ai-agents"
-      >annotating localhost for AI agents</a
-    >.
-  </dd>
-  <dt>Can multiple people annotate at the same time?</dt>
-  <dd>
-    Yes. Real-time live cursors and voice chat let unlimited
-    collaborators work together on any page.
-  </dd>
-  <dt>Can I keep a link private?</dt>
-  <dd>
-    Links are unguessable and unlisted. If you sign in with an email
-    link (optional), you can make one view-only or set when it
-    expires.
-  </dd>
-  <dt>Is MarkLayer open source?</dt>
-  <dd>
-    Yes. The full source is on
-    <a href="https://github.com/thevrus/MarkLayer">GitHub</a>. You can
-    audit, contribute, or self-host on Cloudflare.
-  </dd>
+  {
+    faq.map(({ q, a }) => (
+      <Fragment>
+        <dt>{q}</dt>
+        <dd set:html={a} />
+      </Fragment>
+    ))
+  }
 </dl>
 
 <h2>Get feedback on the page, not in your inbox.</h2>

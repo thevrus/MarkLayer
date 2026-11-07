@@ -1,14 +1,17 @@
 import { Popover } from '@base-ui/react/popover';
-import { type AnnotationOp, cn, opAnchor } from '@marklayer/types';
+import { type AnnotationOp, opAnchor } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { track } from '../lib/analytics';
 import { applyAnchorDelta } from '../lib/anchor';
 import { clearArmed, editHeld, heldNote, heldOps, pressClear, removeHeld } from '../lib/batch';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { hostMutationTick, scrollTick } from '../lib/host-mutations';
 import { Icon } from '../lib/icons';
+import { sendHeld } from '../lib/ops';
 import { MARKER_LAYER } from '../lib/popover';
 import { portalContainer } from '../lib/portal';
-import { hostMutationTick, scrollTick, sendHeld } from '../lib/state';
+import { toClient } from '../lib/scroller';
 
 const KIND: Record<AnnotationOp['tool'], string> = {
   comment: 'Comment',
@@ -31,7 +34,7 @@ export function HeldPins() {
   return (
     <div class={cn(MARKER_LAYER, 'pointer-events-none')}>
       {ops.map((op, i) => {
-        const { x, y } = heldPoint(op);
+        const { x, y } = toClient(heldPoint(op));
         return (
           <div
             key={op.id}
@@ -42,7 +45,7 @@ export function HeldPins() {
               'border-2 border-dashed border-(--ds-gray-900)',
               glass.font,
             )}
-            style={{ left: x - scrollX, top: y - scrollY }}
+            style={{ left: x, top: y }}
             title={heldNote(op) || KIND[op.tool]}
           >
             {i + 1}

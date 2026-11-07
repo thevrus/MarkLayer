@@ -11,7 +11,8 @@ import dates from '../data/page-dates.json';
 import { AGENT_TOOL_GROUPS, AGENT_TOOLS } from '../lib/agent-tools';
 import { MCP_CLIENTS, MCP_HABIT, MCP_PROMPTS, ROOM_MCP_URL } from '../lib/mcp-setup';
 import { articleSchema, breadcrumbSchema, faqSchema, howToSchema, type QA } from '../lib/schema';
-import { ORIGIN, pageOgImage } from '../lib/site';
+import { ORIGIN } from '@marklayer/brand';
+import { pageOgImage } from '../lib/site';
 
 const { published, modified } = dates.mcp;
 
@@ -154,11 +155,11 @@ const schema = [
               class="mt-5"
             >
               <CodeBlock code={c.code} lang={c.lang} class="my-0" label={c.file ?? (c.lang === 'bash' ? 'Terminal' : 'Remote MCP URL')} />
-              <p class="mt-3 mb-0 text-ui text-meta text-pretty">{c.after}</p>
+              <p class="mt-3 mb-0 text-site-ui text-meta text-pretty">{c.after}</p>
             </div>
           ))
         }
-        <p class="mt-6 text-center text-ui text-meta">
+        <p class="mt-6 text-center text-site-ui text-meta">
           The address is any share link plus <code>/mcp</code>; the Details panel on the link shows it filled in. Add
           <code>?agent=cursor</code>, or any name, so reviewers see who picked their comment up.
         </p>
@@ -173,11 +174,11 @@ const schema = [
           <div class="mcp-thread">
             <div class="mcp-pin" aria-hidden="true">3</div>
             <div class="min-w-0">
-              <p class="m-0 text-ui text-ink">
+              <p class="m-0 text-site-ui text-ink">
                 <strong class="font-medium">Priya</strong>
                 <span class="text-meta"> · hero button</span>
               </p>
-              <p class="mt-1 mb-0 text-body text-ink text-pretty">
+              <p class="mt-1 mb-0 text-site-body text-ink text-pretty">
                 This still says “Submit”. It should say “Start trial” like the pricing page.
               </p>
               <div class="mcp-target">
@@ -190,11 +191,11 @@ const schema = [
                 <li data-done>Resolved</li>
               </ol>
               <div class="mcp-reply">
-                <p class="m-0 text-ui text-ink">
+                <p class="m-0 text-site-ui text-ink">
                   <strong class="font-medium">claude</strong>
                   <span class="text-meta"> · reply</span>
                 </p>
-                <p class="mt-1 mb-0 text-ui text-ink text-pretty">
+                <p class="mt-1 mb-0 text-site-ui text-ink text-pretty">
                   Renamed the CTA in <code>Hero.tsx:42</code> and the matching test. Deployed to the preview.
                 </p>
               </div>
@@ -243,7 +244,7 @@ const schema = [
 
       <section class="mx-auto mt-24 max-w-[760px] text-center sm:mt-32">
         <p class="mcp-voice m-0 text-heading text-ink">Any MCP client.</p>
-        <ul class="m-0 mt-6 flex list-none flex-wrap items-center justify-center gap-x-7 gap-y-3 p-0 text-ui text-ink">
+        <ul class="m-0 mt-6 flex list-none flex-wrap items-center justify-center gap-x-7 gap-y-3 p-0 text-site-ui text-ink">
           {
             agents.map((a) => (
               <li class="m-0 inline-flex items-center gap-2 p-0">
@@ -292,21 +293,21 @@ const schema = [
           It works the other way too.
           <span class="text-meta"> When the agent has built something, it hands you a room instead of a paragraph.</span>
         </h2>
-        <p class="mt-6 text-body text-ink text-pretty">
+        <p class="mt-6 text-site-body text-ink text-pretty">
           <code>share_preview</code> opens a review room on the preview URL and returns the link. A later preview of the
           same repository and branch becomes the next version of that room, so reviewers step between them. The agent
           posts its plan as a checklist that ticks off as the work lands, and when it needs a decision rather than an
           opinion, it asks the room to vote.
         </p>
-        <p class="mt-4 text-body text-ink text-pretty">
+        <p class="mt-4 text-site-body text-ink text-pretty">
           Agents forget a tool exists unless something reminds them. Paste this into <code>CLAUDE.md</code> or
           <code>AGENTS.md</code> and yours will reach for MarkLayer on its own:
         </p>
         <CodeBlock code={MCP_HABIT} lang="markdown" label="CLAUDE.md / AGENTS.md" />
-        <p class="text-body text-ink text-pretty">Or just say it:</p>
+        <p class="text-site-body text-ink text-pretty">Or just say it:</p>
         <blockquote class="mcp-prompt">{MCP_PROMPTS.work}</blockquote>
         <blockquote class="mcp-prompt">{MCP_PROMPTS.review}</blockquote>
-        <p class="mt-6 text-ui text-meta">
+        <p class="mt-6 text-site-ui text-meta">
           Pointing an agent at the setup itself? <a href="/mcp.md">Plain-text instructions for agents</a>.
         </p>
       </section>
@@ -317,7 +318,7 @@ const schema = [
 
       <section class="mx-auto mt-20 mb-24 max-w-[760px] text-center sm:mt-28">
         <p class="mcp-voice m-0 text-title text-ink text-balance">Free, with no account, for everyone on the link.</p>
-        <p class="mt-4 text-body text-meta">
+        <p class="mt-4 text-site-body text-meta">
           <a href="/">Annotate a page</a> · <a href="/features">Every feature</a> ·
           <a href="/guides/bug-report-mcp-servers">How other tools’ MCP servers compare</a>
         </p>
@@ -335,7 +336,7 @@ const schema = [
         font-weight: 400;
       }
       .mcp-tab {
-        @apply inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border-0 bg-transparent px-3.5 text-ui text-meta transition-colors duration-150;
+        @apply inline-flex h-9 cursor-pointer items-center gap-2 rounded-full border-0 bg-transparent px-3.5 text-site-ui text-meta transition-colors duration-150;
       }
       .mcp-tab:hover {
         @apply bg-ink/5 text-ink;
@@ -396,7 +397,7 @@ const schema = [
         @apply col-span-2 italic;
       }
       .mcp-claims {
-        @apply m-0 mt-10 grid list-none gap-6 p-0 text-body text-meta md:grid-cols-3;
+        @apply m-0 mt-10 grid list-none gap-6 p-0 text-site-body text-meta md:grid-cols-3;
       }
       .mcp-claims li {
         @apply m-0 p-0 text-pretty;
@@ -415,13 +416,13 @@ const schema = [
         @apply grid gap-x-6 gap-y-1 border-b border-rule py-3 sm:grid-cols-[15rem_1fr];
       }
       .mcp-tool dt {
-        @apply m-0 text-ui;
+        @apply m-0 text-site-ui;
       }
       .mcp-tool dd {
-        @apply m-0 text-ui text-meta text-pretty;
+        @apply m-0 text-site-ui text-meta text-pretty;
       }
       .mcp-prompt {
-        @apply my-4 rounded-xl bg-sunken px-5 py-4 text-body text-ink text-pretty;
+        @apply my-4 rounded-xl bg-sunken px-5 py-4 text-site-body text-ink text-pretty;
       }
     </style>
 

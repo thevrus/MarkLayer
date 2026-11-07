@@ -118,10 +118,6 @@ export function unwatchDevices() {
   onChange = null;
 }
 
-export function listByKind(kind: DeviceKind): DeviceInfo[] {
-  return availableDevices.value.filter((d) => d.kind === kind);
-}
-
 /** Build a getUserMedia constraint object honoring the user's stored device picks. */
 export function audioConstraint(): MediaTrackConstraints {
   const id = selectedAudioInput.value;

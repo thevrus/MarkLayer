@@ -1,14 +1,5 @@
-import { getAlternatives, getComparisons, getGuides, getUseCases } from './collections';
-
-type Comparison = Awaited<ReturnType<typeof getComparisons>>[number];
-type Alternative = Awaited<ReturnType<typeof getAlternatives>>[number];
-
-/** The heading /vs/[slug] sets, here so the sidebar and search cannot drift from it. */
-export const compareH1 = ({ data }: Comparison): string =>
-  data.h1 ?? `${data.competitor} vs MarkLayer: a free ${data.competitor} alternative`;
-
-/** The heading /alternatives/[slug] sets. */
-export const alternativesH1 = ({ data }: Alternative): string => data.h1 ?? `Free ${data.target} alternatives`;
+import { alternativesH1, compareH1, getAlternatives, getComparisons, getGuides, getUseCases } from './collections';
+import { alternativesPath, forPath, guidePath, vsPath } from './site';
 
 export interface DocLink {
   href: string;
@@ -80,7 +71,7 @@ async function buildDocsNav(): Promise<DocsNav> {
       links: [
         hub({ href: '/guides', title: 'All guides', keywords: 'guides' }),
         ...guides.map((g) => ({
-          href: `/guides/${g.id}`,
+          href: guidePath(g.id),
           label: g.data.nav ?? g.data.h1,
           title: g.data.h1,
           keywords: `${g.data.description} ${sections(g)}`,
@@ -92,7 +83,7 @@ async function buildDocsNav(): Promise<DocsNav> {
       links: [
         hub({ href: '/use-cases', title: 'All use cases', keywords: 'use cases workflows' }),
         ...useCases.map((u) => ({
-          href: `/for/${u.id}`,
+          href: forPath(u.id),
           label: u.data.nav ?? u.data.h1,
           title: u.data.h1,
           keywords: `${u.data.audience} ${u.data.description} ${sections(u)}`,
@@ -104,7 +95,7 @@ async function buildDocsNav(): Promise<DocsNav> {
       links: [
         hub({ href: '/compare', title: 'All comparisons', keywords: 'compare versus' }),
         ...comparisons.map((c) => ({
-          href: `/vs/${c.id}`,
+          href: vsPath(c.id),
           label: c.data.competitor,
           title: compareH1(c),
           keywords: `versus ${c.data.competitorTagline} ${sections(c)}`,
@@ -116,7 +107,7 @@ async function buildDocsNav(): Promise<DocsNav> {
       links: [
         hub({ href: '/alternatives', title: 'All alternatives', keywords: 'alternatives' }),
         ...alternatives.map((a) => ({
-          href: `/alternatives/${a.id}`,
+          href: alternativesPath(a.id),
           label: a.data.target,
           title: alternativesH1(a),
           keywords: `${a.data.description} ${sections(a)}`,

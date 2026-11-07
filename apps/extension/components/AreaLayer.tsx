@@ -1,4 +1,5 @@
-import { type CommentPriority, cn, type Mention } from '@marklayer/types';
+import type { CaptureViewport, CommentPriority, Mention } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { useSignal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { ComponentChildren, TargetedEvent } from 'preact';
@@ -10,38 +11,30 @@ import { type AreaRect, dragRect } from '../lib/area-rect';
 import { snapshotArea } from '../lib/area-shot';
 import { submitBtn, textareaCls } from '../lib/buttons';
 import { shootViewport } from '../lib/capture';
+import { openContextMenu } from '../lib/context-menu';
 import { editableTarget } from '../lib/dom';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { hostMutationTick, scrollTick } from '../lib/host-mutations';
+import { signedBy } from '../lib/identity';
+import { areas, patchOp, pushOp } from '../lib/ops';
 import { MARKER_LAYER } from '../lib/popover';
+import { color, lineWidth } from '../lib/prefs';
 import { hexToRgba } from '../lib/renderer';
+import { scrollOffset, toClient, toDoc } from '../lib/scroller';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
 import { fileUrl, uploadFile } from '../lib/share';
-import {
-  activeTool,
-  areas,
-  color,
-  copyText,
-  deleteOp,
-  hostMutationTick,
-  lineWidth,
-  openContextMenu,
-  patchOp,
-  pushOp,
-  scrollTick,
-  setOpStatus,
-  signedBy,
-  toast,
-} from '../lib/state';
+import { toast } from '../lib/toasts';
+import { activeTool } from '../lib/tool-state';
 import type { AreaOp } from '../lib/types';
+import { AreaCard, areaMenuItems, areaPaint } from './AreaCard';
 import { AreaMarkupSurface, MarkupTools, useAreaMarkup } from './AreaMarkup';
 import { AttachmentGallery } from './AttachmentPicker';
 import { BatchSwitch } from './BatchSwitch';
 import { CancelButton } from './CancelButton';
 import { DictateButton } from './DictateButton';
-import { MentionText } from './MentionText';
 import { MentionTextarea, useMentions } from './MentionTextarea';
-import { PriorityBadge, PriorityPicker } from './PriorityPicker';
+import { PriorityPicker } from './PriorityPicker';
 
 export type DraftRect = AreaRect;
 
@@ -61,7 +54,7 @@ export function rectFromDraft(d: DraftAreaState): DraftRect {
 function AreaShape({ op }: { op: AreaOp }) {
   scrollTick.value; // subscribe — repositions when window scrolls
   hostMutationTick.value; // re-resolve anchor on SPA route / DOM reflow
-  const resolved = op.status === 'resolved';
+  const { resolved, stroke, fill } = areaPaint(op);
   // Re-anchor the rect's top-left to the captured element's CURRENT position
   // when possible, and scale the captured size along with the element so the
   // region tracks a responsive reflow instead of freezing at capture size.
@@ -78,25 +71,11 @@ function AreaShape({ op }: { op: AreaOp }) {
     endX: op.endX,
     endY: op.endY,
   });
-  const x = ax - scrollX;
-  const y = ay - scrollY;
-  const stroke = resolved ? 'var(--color-ml-resolved)' : op.color;
-  const fill = resolved ? 'color-mix(in oklch, var(--color-ml-resolved) 8%, transparent)' : hexToRgba(op.color, 0.12);
+  const { x, y } = toClient({ x: ax, y: ay });
   const flipH = x + w + 240 > innerWidth;
   const flipV = y + 240 > innerHeight;
 
-  const onAreaContextMenu = (e: MouseEvent) =>
-    openContextMenu(e, [
-      {
-        label: resolved ? 'Reopen' : 'Resolve',
-        icon: 'check',
-        onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
-      },
-      ...(op.comment
-        ? [{ label: 'Copy comment', icon: 'copy', onClick: () => copyText(op.comment ?? '', 'Comment copied') }]
-        : []),
-      { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
-    ]);
+  const onAreaContextMenu = (e: MouseEvent) => openContextMenu(e, areaMenuItems(op));
 
   return (
     <>
@@ -126,57 +105,9 @@ function AreaShape({ op }: { op: AreaOp }) {
         onContextMenu={onAreaContextMenu}
       >
         <div class="w-3 h-3 rounded-full ring-2 ring-(--ds-background-100)" style={{ background: stroke }} />
-        <div
-          class={cn(
-            'absolute hidden group-hover/area:block z-10 w-[240px]',
-            flipV ? 'bottom-3' : 'top-3',
-            flipH ? 'right-3' : 'left-3',
-            geist.surfaceSmall,
-            glass.font,
-            'p-3',
-          )}
-        >
-          <div class="flex items-center justify-between gap-2">
-            <span class={geist.sectionLabel}>Area</span>
-            {op.priority && <PriorityBadge priority={op.priority} />}
-          </div>
-          {op.comment ? (
-            <p
-              class="text-ui text-(--ds-gray-1000) m-0 mt-1 leading-relaxed whitespace-pre-wrap"
-              style={{ textDecoration: resolved ? 'line-through' : 'none', opacity: resolved ? 0.5 : 1 }}
-            >
-              <MentionText text={op.comment} mentions={op.mentions} />
-            </p>
-          ) : (
-            <p class="text-meta text-(--ds-gray-900) m-0 mt-1">No comment</p>
-          )}
+        <AreaCard op={op} class={cn(flipV ? 'bottom-3' : 'top-3', flipH ? 'right-3' : 'left-3')}>
           {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
-          <div class="flex items-center justify-between mt-2">
-            <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
-            <div class="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteOp(op.id);
-                }}
-                class={cn(geist.bareBtn, geist.bareBtnDanger, 'font-medium')}
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpStatus(op.id, resolved ? 'open' : 'resolved');
-                }}
-                class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
-              >
-                {resolved ? 'Reopen' : 'Resolve'}
-              </button>
-            </div>
-          </div>
-        </div>
+        </AreaCard>
       </div>
     </>
   );
@@ -187,6 +118,37 @@ export interface AreaDraft {
   comment: string;
   priority?: CommentPriority;
   mentions?: Mention[];
+}
+
+/** A saved area, from the rect and note. Anchors are the host's, as it reaches the page differently. */
+export function areaOpFrom({
+  rect: r,
+  draft: { comment, priority, mentions },
+  anchors,
+  captureViewport,
+}: {
+  rect: DraftRect;
+  draft: AreaDraft;
+  anchors: Pick<AreaOp, 'target' | 'pdf'>;
+  captureViewport: CaptureViewport;
+}): AreaOp {
+  return {
+    id: nanoid(),
+    tool: 'area',
+    color: color.value,
+    lineWidth: lineWidth.value,
+    startX: r.x,
+    startY: r.y,
+    endX: r.x + r.w,
+    endY: r.y + r.h,
+    comment: comment || undefined,
+    priority,
+    mentions: mentions?.length ? mentions : undefined,
+    ts: Date.now(),
+    ...signedBy(),
+    ...anchors,
+    captureViewport,
+  };
 }
 
 export function AreaPopover({
@@ -215,8 +177,7 @@ export function AreaPopover({
     mentions: mentions(),
   });
 
-  const vx = rect.x - scrollX;
-  const vy = rect.y - scrollY;
+  const { x: vx, y: vy } = toClient(rect);
   const panelW = 290;
   const margin = 8;
   const left = Math.max(margin, Math.min(vx + rect.w + 12, innerWidth - panelW - margin));
@@ -305,8 +266,7 @@ export function AreaLayer() {
       if (activeTool.value !== 'area' || pending.value) return;
       if (e.button !== 0) return;
       e.preventDefault();
-      const dx = e.clientX + scrollX;
-      const dy = e.clientY + scrollY;
+      const { x: dx, y: dy } = toDoc({ x: e.clientX, y: e.clientY });
       lastRaw.current = { x: dx, y: dy };
       shiftHeld.current = e.shiftKey;
       altHeld.current = e.altKey;
@@ -320,7 +280,7 @@ export function AreaLayer() {
     (e: TargetedEvent<HTMLDivElement, PointerEvent>) => {
       const d = draft.value;
       if (!d) return;
-      lastRaw.current = { x: e.clientX + scrollX, y: e.clientY + scrollY };
+      lastRaw.current = toDoc({ x: e.clientX, y: e.clientY });
       shiftHeld.current = e.shiftKey;
       altHeld.current = e.altKey;
       applyConstraint();
@@ -335,10 +295,11 @@ export function AreaLayer() {
       e.currentTarget.releasePointerCapture(e.pointerId);
       shiftHeld.current = e.shiftKey;
       altHeld.current = e.altKey;
+      const cur = toDoc({ x: e.clientX, y: e.clientY });
       const r = rectFromDraft({
         ...d,
-        curDocX: e.clientX + scrollX,
-        curDocY: e.clientY + scrollY,
+        curDocX: cur.x,
+        curDocY: cur.y,
         shift: e.shiftKey,
         alt: e.altKey,
       });
@@ -349,32 +310,21 @@ export function AreaLayer() {
     [draft, pending],
   );
 
-  const commit = ({ comment, priority, mentions }: AreaDraft) => {
+  const commit = (draft: AreaDraft) => {
+    const { comment, priority, mentions } = draft;
     const r = pending.value;
     if (!r) return;
     const marks = markup.ops.value;
     // Centre of the rect in viewport coords — find the topmost real page element
     // sitting under the area so the agent gets selector + markup, not just a box.
-    const cx = r.x + r.w / 2 - window.scrollX;
-    const cy = r.y + r.h / 2 - window.scrollY;
+    const { x: cx, y: cy } = toClient({ x: r.x + r.w / 2, y: r.y + r.h / 2 });
     const el = pickElementAtPoint(cx, cy);
-    const op: AreaOp = {
-      id: nanoid(),
-      tool: 'area',
-      color: color.value,
-      lineWidth: lineWidth.value,
-      startX: r.x,
-      startY: r.y,
-      endX: r.x + r.w,
-      endY: r.y + r.h,
-      comment: comment || undefined,
-      priority,
-      mentions: mentions?.length ? mentions : undefined,
-      ts: Date.now(),
-      ...signedBy(),
-      target: el ? captureTarget({ el, anchor: { x: r.x, y: r.y } }) : undefined,
+    const op = areaOpFrom({
+      rect: r,
+      draft,
+      anchors: { target: el ? captureTarget({ el, anchor: { x: r.x, y: r.y } }) : undefined },
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
-    };
+    });
     pending.value = null;
     markup.reset();
     pushOp(op);
@@ -391,7 +341,7 @@ export function AreaLayer() {
     void snapshotArea({
       shoot: shootViewport,
       rect: r,
-      scroll: { x: scrollX, y: scrollY },
+      scroll: scrollOffset(window),
       viewport: { width: innerWidth, height: innerHeight },
       ops: marks,
       upload: uploadFile,
@@ -458,9 +408,6 @@ export function AreaLayer() {
     };
   }, [draft, applyConstraint]);
 
-  // Show the rect both while dragging (`draft`) and while the comment popover
-  // is open (`pending`) — otherwise the area visually disappears the moment
-  // the user lifts the mouse, which is disorienting when typing the comment.
   const drawing = draft.value ? rectFromDraft(draft.value) : pending.value;
   const isAreaTool = activeTool.value === 'area';
 
@@ -485,8 +432,8 @@ export function AreaLayer() {
         <div
           class="absolute pointer-events-none rounded-[3px]"
           style={{
-            left: drawing.x - scrollX,
-            top: drawing.y - scrollY,
+            left: toClient(drawing).x,
+            top: toClient(drawing).y,
             width: drawing.w,
             height: drawing.h,
             background: hexToRgba(color.value, 0.12),

@@ -1,8 +1,11 @@
-import type { Folder, LinkAccess, OwnedLink } from '@marklayer/types';
+import { LOGIN_TOKEN_TTL_SECONDS } from '@marklayer/brand';
 import { nanoid } from 'nanoid';
-import { isExpired, nowInSeconds, parseLinkAccess, throttleRemaining } from '../store';
+import type { Folder } from '../../shared/accounts';
+import { annotationStore } from '../store';
+import { isExpired, nowInSeconds } from '../time';
+import { throttleRemaining } from './mail-throttle';
 import { hashToken } from './tokens';
-import { LOGIN_TOKEN_TTL_SECONDS, SEEN_BUMP_SECONDS, SESSION_TTL_SECONDS, type User } from './types';
+import { SEEN_BUMP_SECONDS, SESSION_TTL_SECONDS, type User } from './types';
 
 /**
  * One factory per concern, mirroring `store.ts` — the caller passes the D1
@@ -118,152 +121,20 @@ export function authStore(db: D1Database) {
   };
 }
 
-/** Links a person has claimed, most recently touched first. */
+/**
+ * The owner's view of the `annotations` table. The SQL lives in `annotationStore`
+ * (one store per table); this keeps the names the routes and tests call.
+ */
 export function ownedStore(db: D1Database) {
+  const annotations = annotationStore(db);
   return {
-    async listAnnotations(ownerId: string): Promise<OwnedLink[]> {
-      const res = await db
-        .prepare(
-          'SELECT id, url, created_at, last_accessed_at, expires_at, access, owner_expires_at, folder_id, password_hash IS NOT NULL AS password_protected FROM annotations WHERE owner_id = ? ORDER BY last_accessed_at DESC LIMIT 200',
-        )
-        .bind(ownerId)
-        .all<{
-          id: string;
-          url: string | null;
-          created_at: number;
-          last_accessed_at: number;
-          expires_at: number | null;
-          access: string;
-          owner_expires_at: number | null;
-          folder_id: string | null;
-          password_protected: number | null;
-        }>();
-      // Mapped here, not at the caller: snake_case is D1's shape and it should
-      // stop at this boundary, the way it does in `store.ts`.
-      return res.results.map((row) => ({
-        id: row.id,
-        url: row.url,
-        createdAt: row.created_at,
-        lastAccessedAt: row.last_accessed_at,
-        expiresAt: row.expires_at,
-        access: parseLinkAccess(row.access),
-        ownerExpiresAt: row.owner_expires_at,
-        folderId: row.folder_id,
-        // SQLite answers the IS NOT NULL as 0/1.
-        passwordProtected: row.password_protected === 1,
-      }));
-    },
-
-    /**
-     * Sets, replaces or (with `hash: null`) removes the password, bumping the
-     * generation every time so each unlock cookie issued before it stops working.
-     * Returns the new generation, or null when this session does not own the link.
-     */
-    async setPassword({
-      id,
-      ownerId,
-      hash,
-    }: {
-      id: string;
-      ownerId: string;
-      hash: string | null;
-    }): Promise<number | null> {
-      const row = await db
-        .prepare(
-          'UPDATE annotations SET password_hash = ?, password_gen = password_gen + 1 WHERE id = ? AND owner_id = ? RETURNING password_gen',
-        )
-        .bind(hash, id, ownerId)
-        .first<{ password_gen: number }>();
-      return row?.password_gen ?? null;
-    },
-
-    /** A claimed link's settings, or null when this session does not own it. */
-    async getSettings({
-      id,
-      ownerId,
-    }: {
-      id: string;
-      ownerId: string;
-    }): Promise<{ access: LinkAccess; ownerExpiresAt: number | null } | null> {
-      const row = await db
-        .prepare('SELECT access, owner_expires_at FROM annotations WHERE id = ? AND owner_id = ?')
-        .bind(id, ownerId)
-        .first<{ access: string; owner_expires_at: number | null }>();
-      if (!row) return null;
-      return { access: parseLinkAccess(row.access), ownerExpiresAt: row.owner_expires_at };
-    },
-
-    /** Takes resolved values — the route decides what a partial PATCH means. */
-    async updateSettings({
-      id,
-      ownerId,
-      access,
-      ownerExpiresAt,
-    }: {
-      id: string;
-      ownerId: string;
-      access: LinkAccess;
-      ownerExpiresAt: number | null;
-    }): Promise<boolean> {
-      const res = await db
-        .prepare('UPDATE annotations SET access = ?, owner_expires_at = ? WHERE id = ? AND owner_id = ?')
-        .bind(access, ownerExpiresAt, id, ownerId)
-        .run();
-      return (res.meta.changes ?? 0) > 0;
-    },
-
-    /**
-     * Claims an unowned link. The `owner_id IS NULL` guard is the whole
-     * authorization model: anyone holding the id may claim it once, and nobody
-     * can take one that is already claimed.
-     */
-    async claimAnnotation({ id, ownerId }: { id: string; ownerId: string }): Promise<boolean> {
-      const res = await db
-        .prepare('UPDATE annotations SET owner_id = ? WHERE id = ? AND owner_id IS NULL')
-        .bind(ownerId, id)
-        .run();
-      return (res.meta.changes ?? 0) > 0;
-    },
-
-    /**
-     * Also resets `access`, `owner_expires_at` and the password: all are
-     * owner-managed settings, and with `owner_id` gone
-     * `getSettings`'s `AND owner_id = ?` guard would make either permanent —
-     * nobody could ever reach the PATCH that undoes them.
-     */
-    async releaseAnnotation({ id, ownerId }: { id: string; ownerId: string }): Promise<boolean> {
-      const res = await db
-        .prepare(
-          "UPDATE annotations SET owner_id = NULL, access = 'edit', owner_expires_at = NULL, folder_id = NULL, password_hash = NULL, password_gen = password_gen + 1 WHERE id = ? AND owner_id = ?",
-        )
-        .bind(id, ownerId)
-        .run();
-      return (res.meta.changes ?? 0) > 0;
-    },
-
-    /**
-     * Files a link, or unfiles it with `folderId: null`. Both halves are
-     * owner-guarded in one statement: a guessed folder id must not file a link
-     * into someone else's list.
-     */
-    async moveAnnotation({
-      id,
-      ownerId,
-      folderId,
-    }: {
-      id: string;
-      ownerId: string;
-      folderId: string | null;
-    }): Promise<boolean> {
-      const res = await db
-        .prepare(
-          `UPDATE annotations SET folder_id = ? WHERE id = ? AND owner_id = ?
-           AND (? IS NULL OR EXISTS (SELECT 1 FROM folders WHERE id = ? AND owner_id = ?))`,
-        )
-        .bind(folderId, id, ownerId, folderId, folderId, ownerId)
-        .run();
-      return (res.meta.changes ?? 0) > 0;
-    },
+    listAnnotations: annotations.listOwned,
+    setPassword: annotations.setPassword,
+    getSettings: annotations.getSettings,
+    updateSettings: annotations.updateSettings,
+    claimAnnotation: annotations.claim,
+    releaseAnnotationGen: annotations.release,
+    moveAnnotation: annotations.move,
   };
 }
 

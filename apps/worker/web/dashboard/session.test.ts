@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import type { OwnedLink } from '@marklayer/types';
+import type { OwnedLink } from '../../shared/accounts';
 import { links, updateLinkSettings } from './session';
 
 const realFetch = globalThis.fetch;

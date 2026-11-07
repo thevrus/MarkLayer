@@ -1,53 +1,25 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import type { DrawOp } from '@marklayer/types';
+import { mcpAddCommand, mcpEndpoint } from '@marklayer/brand/links';
+import type { DrawOp } from '@marklayer/types/ops';
+import { getRoomId, resetRoomIdentity, setAnnotationId } from './room-id';
 import {
-  claudeMcpCommand,
-  getRoomId,
   getShareUrl,
   isLikelyEmbedHostile,
   isShareableUrl,
   loadAnnotations,
-  mcpEndpoint,
   npxMcpCommand,
-  parseRoomRef,
   parseShareRef,
-  parseUrlHash,
-  resetRoomIdentity,
   saveAnnotations,
-  setAnnotationId,
   shareUrl,
   withShareRef,
 } from './share';
 
-describe('parseRoomRef', () => {
-  test('takes a bare room id', () => {
-    expect(parseRoomRef('V1StGXR8Z5jdHi6BmyT')).toBe('V1StGXR8Z5jdHi6BmyT');
-    expect(parseRoomRef('  V1StGXR8Z5jdHi6BmyT  ')).toBe('V1StGXR8Z5jdHi6BmyT');
-  });
-
-  test('takes a share link, with or without its scheme or query', () => {
-    expect(parseRoomRef('https://marklayer.app/s/abc123')).toBe('abc123');
-    expect(parseRoomRef('marklayer.app/s/abc123')).toBe('abc123');
-    expect(parseRoomRef('https://marklayer.app/s/abc123?ref=ext')).toBe('abc123');
-    expect(parseRoomRef('https://marklayer.app/s/abc123/')).toBe('abc123');
-  });
-
-  // The floor on `isNewShareId` guards minting, not joining, so a short legacy id
-  // must still resolve.
-  test('accepts a short legacy id that could no longer be minted', () => {
-    expect(parseRoomRef('abc123')).toBe('abc123');
-  });
-
-  test('rejects anything that is not one', () => {
-    expect(parseRoomRef('')).toBeNull();
-    expect(parseRoomRef('   ')).toBeNull();
-    expect(parseRoomRef('has spaces')).toBeNull();
-    expect(parseRoomRef('https://marklayer.app/guides/how-marklayer-works')).toBeNull();
-    expect(parseRoomRef('a'.repeat(65))).toBeNull();
-  });
-});
-
 describe('isShareableUrl', () => {
+  test('X41 refuses every address the proxy refuses, not only loopback', () => {
+    const hosts = ['10.0.0.1', '172.16.0.1', '192.168.1.1', '169.254.169.254', 'db.internal'];
+    expect(hosts.filter((host) => isShareableUrl(`http://${host}`))).toEqual([]);
+  });
+
   test('accepts an ordinary public page over either web protocol', () => {
     expect(isShareableUrl('https://example.com/docs')).toBe(true);
     expect(isShareableUrl('http://example.com')).toBe(true);
@@ -108,7 +80,7 @@ describe('MCP connect commands', () => {
   // id that never reaches the string hands the user a command that just fails.
   test('point at the room’s own endpoint, so nothing has to be installed', () => {
     expect(mcpEndpoint({ roomId: 'room-42' })).toBe('https://marklayer.app/s/room-42/mcp');
-    expect(claudeMcpCommand({ roomId: 'room-42' })).toBe(
+    expect(mcpAddCommand({ roomId: 'room-42' })).toBe(
       'claude mcp add --transport http marklayer https://marklayer.app/s/room-42/mcp',
     );
   });
@@ -120,7 +92,7 @@ describe('MCP connect commands', () => {
   test('a self-hosted origin reaches every command, npx via --api-base', () => {
     const origin = 'http://localhost:8787';
     expect(mcpEndpoint({ roomId: 'r', origin })).toBe('http://localhost:8787/s/r/mcp');
-    expect(claudeMcpCommand({ roomId: 'r', origin })).toContain('http://localhost:8787/s/r/mcp');
+    expect(mcpAddCommand({ roomId: 'r', origin })).toContain('http://localhost:8787/s/r/mcp');
     expect(npxMcpCommand({ roomId: 'r', origin })).toBe(
       'npx -y marklayer-mcp --room r --api-base http://localhost:8787',
     );
@@ -188,34 +160,6 @@ describe('shareUrl', () => {
     expect(shareUrl({ origin: 'https://marklayer.app', kind: 'page', id: 'abc', readonly: true, ref: 'web' })).toBe(
       'https://marklayer.app/s/abc?readonly=1&ref=web',
     );
-  });
-});
-
-describe('parseUrlHash', () => {
-  const withHash = (hash: string) => {
-    window.location.hash = hash;
-    return parseUrlHash();
-  };
-
-  test('reads the capture width and room id out of the ant hash', () => {
-    expect(withHash('#ant=1440=abc123')).toEqual({ width: 1440, id: 'abc123' });
-  });
-
-  test('ignores a hash that is not ours, or no hash at all', () => {
-    expect(withHash('#section-2')).toBeNull();
-    expect(withHash('')).toBeNull();
-  });
-
-  test('rejects a width that would scale the capture to nothing', () => {
-    // A zero or negative width divides through the reprojection maths.
-    expect(withHash('#ant=0=abc')).toBeNull();
-    expect(withHash('#ant=-100=abc')).toBeNull();
-    expect(withHash('#ant=wide=abc')).toBeNull();
-  });
-
-  test('rejects a hash with a missing or extra segment', () => {
-    expect(withHash('#ant=1440')).toBeNull();
-    expect(withHash('#ant=1440=abc=extra')).toBeNull();
   });
 });
 
@@ -325,16 +269,6 @@ describe('saveAnnotations and loadAnnotations', () => {
       },
     );
     expect(fetchCalled).toBe(false);
-  });
-
-  test('still allows a snapshot push to a room this browser created', async () => {
-    getRoomId();
-    await withFetch(
-      async () => new Response('{}', { status: 200 }),
-      async () => {
-        expect(await saveAnnotations([op])).toEqual({ ok: true });
-      },
-    );
   });
 
   // GET /api/:id answers `{ ops, url, width }`; only the array spelling used to load, so joining failed in production.

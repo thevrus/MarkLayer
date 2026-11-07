@@ -1,5 +1,5 @@
-import type { StyleEdit } from '@marklayer/types';
-import { cn } from '@marklayer/types';
+import type { StyleEdit } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { type Signal, useSignal } from '@preact/signals';
 import { Search, Undo2 } from 'lucide-preact';
 import { useEffect, useMemo, useRef } from 'preact/hooks';

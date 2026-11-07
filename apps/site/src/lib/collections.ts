@@ -11,6 +11,13 @@ const byOrder = <T extends { data: { order: number } }>(entries: T[]): T[] =>
 export const getComparisons = async () => byOrder(await getCollection('compare'));
 type Comparison = Awaited<ReturnType<typeof getComparisons>>[number];
 export const getAlternatives = async () => byOrder(await getCollection('alternatives'));
+type Alternative = Awaited<ReturnType<typeof getAlternatives>>[number];
+
+/** The headings /vs/[slug] and /alternatives/[slug] set; the sidebar and search read the same function. */
+export const compareH1 = ({ data }: Comparison): string =>
+  data.h1 ?? `${data.competitor} vs MarkLayer: a free ${data.competitor} alternative`;
+export const alternativesH1 = ({ data }: Alternative): string => data.h1 ?? `Free ${data.target} alternatives`;
+
 export const getUseCases = async () => byOrder(await getCollection('useCases'));
 export const getGuides = async () => byOrder(await getCollection('guides'));
 

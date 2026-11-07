@@ -6,17 +6,16 @@ import { IdentityCard } from '@ext/components/IdentityCard';
 import { Tooltip } from '@ext/components/Tooltip';
 import { AgentMark } from '@ext/lib/agents';
 import { geist } from '@ext/lib/geist';
-import {
-  copyText,
-  cycleTheme,
-  elementToolsUnavailable,
-  peerCount,
-  peers,
-  showAnnotationPanel,
-  theme,
-} from '@ext/lib/state';
+import { cycleTheme, theme } from '@ext/lib/prefs';
+import { peerCount, peers } from '@ext/lib/presence';
+import { connected } from '@ext/lib/realtime';
+import { copyText } from '@ext/lib/toasts';
+import { elementToolsUnavailable } from '@ext/lib/tool-state';
 import type { DeviceMode } from '@ext/lib/types';
-import { agentLabel, cn, isAgentPeer } from '@marklayer/types';
+import { isUploadPath } from '@marklayer/brand/links';
+import { agentLabel, isAgentPeer } from '@marklayer/types/agents';
+import { DEVICE_MODES } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import {
   ChevronLeft,
   ChevronRight,
@@ -37,29 +36,16 @@ import {
 import type { ComponentChildren } from 'preact';
 import { lazy, Suspense } from 'preact/compat';
 import { capture } from './analytics';
-import { canvasFitted, canvasZoom, toggleCanvasFit } from './DeviceOverview';
-import { isUploadPath } from './docSource';
+import { canvasFitted, canvasZoom, toggleCanvasFit } from './deviceCamera';
 import { PresenceMenu } from './PresenceMenu';
+import { navigateTo, pageUrl, withScheme } from './projects';
 import { type PreviewInfo, previewInfo } from './review';
 import { SharePopover } from './SharePopover';
 import { DEVICE_ICONS, HOME_LINK_PROPS, Logo } from './shared';
-import {
-  cssScale,
-  deviceMode,
-  deviceOverview,
-  isReadonly,
-  navigateTo,
-  onFollowScroll,
-  pageUrl,
-  presenting,
-  setPresenting,
-  showInfoPanel,
-  viewerZoom,
-  withScheme,
-} from './signals';
 import { openSupportCard } from './support-ui';
-import { connected } from './useRealtimeSync';
-import { videoActive, voiceActive, voiceMuted } from './voiceSignals';
+import { onFollowScroll, presenting, setPresenting, showAnnotationPanel, showInfoPanel } from './ui-state';
+import { cssScale, deviceMode, deviceOverview, isReadonly, viewerZoom } from './viewer-state';
+import { toggleMute, videoActive, voiceActive, voiceMuted } from './voiceSignals';
 import { notchToZoom, thumbNotch, ZOOM_LARGE_STEP, ZOOM_NOTCHES } from './zoomScale';
 
 // Only fetched when a user joins voice/video or opens the device picker.
@@ -67,10 +53,6 @@ const DeviceMenu = lazy(() => import('./DeviceMenu').then((m) => ({ default: m.D
 
 // Local user sits at index 0, so the overflow badge lands at MAX_VISIBLE_PEERS + 1.
 const MAX_VISIBLE_PEERS = 3;
-
-/* ── Top bar ──
-   Each control below owns the signals it reads, so the bar itself is a
-   composition rather than a render with a dozen flags threaded through it. */
 
 /** Icon control in the bar. `on` is the control's state, not a style variant. */
 export function BarButton({
@@ -154,7 +136,6 @@ function UrlField() {
 
 type VersionRef = PreviewInfo['previous'];
 
-const VIEWPORTS = ['desktop', 'tablet', 'mobile'] as const;
 const viewportLabel = (m: DeviceMode) => `${m.charAt(0).toUpperCase() + m.slice(1)} viewport`;
 
 function ViewportToggle({ mode }: { mode: DeviceMode }) {
@@ -184,7 +165,7 @@ function ViewportSwitcher() {
       aria-label="Viewport"
       className={geist.track}
     >
-      {VIEWPORTS.map((mode) => (
+      {DEVICE_MODES.map((mode) => (
         <ViewportToggle key={mode} mode={mode} />
       ))}
     </ToggleGroup>
@@ -334,12 +315,6 @@ function ZoomControl() {
   );
 }
 
-/**
- * Dock-style hover spring for the avatar stack: the hovered avatar rises with a
- * slight scale and the lift ripples out, damped, across its neighbours. Writes
- * per-item CSS vars; the `.ml-avatar` class owns the transform and transition,
- * whose easings and duration these constants are matched to.
- */
 /** The other people in the room. You are not in the stack — you are the
  *  IdentityCard trigger beside it, which is also where you rename yourself. */
 function PresenceGroup() {
@@ -395,10 +370,7 @@ function InCallControls() {
         }
         tip={voiceMuted.value ? 'Unmute' : 'Mute'}
         on={!voiceMuted.value}
-        onClick={() => {
-          voiceMuted.value = !voiceMuted.value;
-          capture('voice_mute_toggled', { muted: voiceMuted.value });
-        }}
+        onClick={toggleMute}
       />
       <BarButton
         icon={

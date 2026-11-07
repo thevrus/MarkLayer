@@ -1,0 +1,79 @@
+/* The design tokens every MarkLayer surface shares: the web app, the extension's
+   shadow-root overlay, the marketing site and the emails build.
+
+   One file because the same components compile into the app and the extension,
+   and a token missing from one silently renders at the browser default. Each
+   stylesheet `@import`s this after `@import "tailwindcss"`; Tailwind inlines it
+   and only emits the variables a build actually uses.
+
+   Only values every consumer agrees on live here. What one surface alone needs
+   (the web app's display steps, the site's larger sizes under `--text-site-*`)
+   stays in its own @theme, so a shared component cannot pick up the wrong size. */
+@theme {
+  /* Page surfaces */
+  --color-ml-bg: #fbfaf9;
+  --color-ml-bg-viewer: #f5f5f5;
+  --color-ml-bg-device: #e5e5e5;
+  --color-ml-fg: #1a1a1a;
+  --color-ml-btn: #1a1a1a;
+  --color-ml-btn-hover: #333;
+  --color-ml-btn-fg: #fff;
+  --color-ml-card: oklch(1 0 0 / 0.3);
+  --color-ml-card-border: oklch(0.1 0 0 / 0.06);
+  /* Landing surfaces. The page is white; the demo window is a white object on it. */
+  --color-ml-board: #fff;
+  /* Hairline rules: the demo stage's own edge. */
+  --color-ml-rule: #00000014;
+  /* The edge of the demo's browser frame. */
+  --color-ml-card-edge: #e6e6e6;
+  /* The marker band behind the headline's channel word: a grey highlighter,
+     the word stays in ink. */
+  --color-ml-hl: #e8e8e8;
+  --color-ml-input: oklch(1 0 0 / 0.85);
+  --color-ml-input-border: oklch(0 0 0 / 0.12);
+  /* Glass overlay surfaces (toolbar, panels, popovers) */
+  --color-ml-glass-fg: #000;
+  --color-ml-glass-accent: oklch(0 0 0 / 0.06);
+  --color-ml-glass-muted: oklch(0 0 0 / 0.03);
+  /* Brand accent — used for primary submit buttons, focus rings, caret. */
+  --color-ml-accent: oklch(0.65 0.15 300);
+  /* Its readable foreground — the count inside an accent-tinted badge. Fixed in
+     both themes on purpose: the badge sits on the accent tint, not the page. */
+  --color-ml-accent-fg: oklch(0.86 0.08 300);
+  /* Resolved/muted neutral — used for done-state chips and de-emphasized swatches. */
+  --color-ml-resolved: oklch(0.55 0 0);
+  /* The footer status dot's green, and the only colour on the landing page that
+     is not an annotation mark: here green IS the datum. It borrows the
+     approved-thread green rather than minting a swatch, so it follows the theme
+     (#0a7d33 light: 5.26:1 on the white footer; the brighter --ds-green-700 reads
+     at 3.06 there). */
+  --color-ml-live: var(--ds-green-900);
+  /* Spring easing for entrance/exit motion. */
+  --ease-ml-spring: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ── The type scale ──
+     Every size in the product's own UI comes from this ladder, and nothing
+     sets a size outside it. It used to be fourteen hand-picked pixel values with
+     no relationship between them, which is how two copies of the same "Desktop
+     only" screen shipped at 24/15 and at 22/16 without anyone noticing.
+
+     These are product chrome: toolbar, pins, popovers, panels. Tailwind's own
+     `text-base` (16px) stays the step for a text input: below 16px, iOS Safari
+     zooms the page on focus. `packages/ui` teaches `cn` every name here and in
+     the consumer stylesheets (`bun run gen:type-scale` there; a test fails when
+     it is stale). */
+  --text-micro: 0.625rem; /* 10 — badge counts, avatar initials, guide readouts */
+  --text-mini: 0.6875rem; /* 11 — measure chips, key hints */
+  --text-meta: 0.75rem; /* 12 — the secondary line in every popover */
+  --text-ui: 0.8125rem; /* 13 — the product's default */
+  --text-ui-lg: 0.875rem; /* 14 — controls that have to carry */
+  --text-body: 0.9375rem; /* 15 — prose in the shared components */
+
+  /* Tracking and leading by role: a value repeated in twelve class strings is a
+     decision nobody can change in one place. */
+  --tracking-display: -0.02em; /* headings */
+  --tracking-ui: -0.01em; /* UI titles and labels */
+  --tracking-label: 0.011em; /* small mono and meta labels, opened up to read */
+  --leading-body: 1.55; /* comment and annotation prose */
+  --leading-ui: 1.4; /* the overlay's default */
+}

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && node scripts/verify-build.mjs",
+    "build": "astro build && node scripts/emit-headers.mjs && node scripts/verify-build.mjs",
     "preview": "astro preview",
     "check": "astro check",
     "test": "bun test src/lib",
@@ -22,8 +22,11 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@marklayer/agent-tools": "workspace:*",
     "@lobehub/icons-static-svg": "^1.95.1",
+    "@marklayer/agent-tools": "workspace:*",
+    "@marklayer/brand": "workspace:*",
+    "@marklayer/tokens": "workspace:*",
+    "@marklayer/types": "workspace:*",
     "@tailwindcss/vite": "^4.3.3",
     "@types/bun": "^1.4.0",
     "@types/hast": "^3.0.4",

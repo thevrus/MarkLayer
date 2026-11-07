@@ -48,7 +48,6 @@ export function toast(
   timers.set(id, { timer: setTimeout(() => dismiss(id), duration), remaining: duration, startedAt: Date.now() });
 }
 
-/** Copy text to clipboard with success/error toast feedback. */
 export function copyText(text: string, label = 'Copied') {
   navigator.clipboard.writeText(text).then(
     () => {

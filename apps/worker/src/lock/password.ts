@@ -1,4 +1,4 @@
-import { sha256Hex, toBase64Url } from '../http';
+import { fromBase64, sha256Hex, toBase64Url } from '../encoding';
 
 /**
  * PBKDF2-SHA256 at 100,000 iterations. That is the ceiling: Workers' WebCrypto
@@ -11,15 +11,6 @@ const KEY_BITS = 256;
 const SCHEME = 'pbkdf2-sha256';
 
 const encoder = new TextEncoder();
-
-function fromBase64Url(value: string): Uint8Array<ArrayBuffer> | null {
-  try {
-    const bin = atob(value.replaceAll('-', '+').replaceAll('_', '/'));
-    return Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
-  } catch {
-    return null;
-  }
-}
 
 async function derive({
   password,
@@ -55,8 +46,8 @@ async function deriveAndCompare({ password, record }: { password: string; record
   const [scheme, rounds, saltPart, keyPart] = record.split('$');
   const iterations = Number(rounds);
   if (scheme !== SCHEME || !Number.isInteger(iterations) || iterations < 1 || !saltPart || !keyPart) return false;
-  const salt = fromBase64Url(saltPart);
-  const expected = fromBase64Url(keyPart);
+  const salt = fromBase64(saltPart);
+  const expected = fromBase64(keyPart);
   if (!salt || !expected) return false;
   return equalBytes(await derive({ password, salt, iterations }), expected);
 }
@@ -133,7 +124,7 @@ export async function verifyUnlock({
   const tokenGen = Number(genPart);
   const expiresAt = Number(expPart);
   if (!Number.isInteger(tokenGen) || tokenGen !== gen || !Number.isInteger(expiresAt) || expiresAt <= now) return false;
-  const sig = sigPart ? fromBase64Url(sigPart) : null;
+  const sig = sigPart ? fromBase64(sigPart) : null;
   if (!sig) return false;
   // `verify`, not sign-and-compare: the platform's comparison is the constant-time one.
   return crypto.subtle.verify('HMAC', await hmacKey(record), sig, encoder.encode(`${roomId}.${gen}.${expiresAt}`));

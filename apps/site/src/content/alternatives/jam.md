@@ -10,15 +10,15 @@ published: 2026-01-28
 modified: 2026-10-21
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source, with nothing to install: paste a URL and start drawing. Live cursors show where your collaborators are pointing in real time, and an MCP server lets an AI coding agent watch the same room and act on what gets marked. It doesn't touch console errors, network requests, or device metadata, so for that half of Jam's job, you're on your own."
     bestFor: "Visual feedback, design review, lightweight QA where the bug is visible on the page."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A paid visual bug tracker built around a Kanban board, so pins become tasks with assignees and status, not just comments. The Standard plan runs $50 a month for 5 members as of August 2026, with extra seats at $8 each, and there's no free plan. It captures browser, OS, and screen resolution automatically, closer to Jam's metadata capture than MarkLayer gets, though console and network logs still aren't included."
     bestFor: "Teams that need full bug-tracking workflow on top of annotation."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "The closest paid match to Jam's engineering focus. Browser metadata and console logs land in the report automatically, and two-way sync pushes bugs into Jira, GitHub, or Trello without anyone copying and pasting. Pricing starts at $59 a month, or $39 on annual billing, for 3 team members. Its MCP server lets an agent read a bug report, but resolving and replying still happen by hand."
     bestFor: "Teams that need bug reports flowing into Jira/GitHub automatically."
   - name: "GitHub Issues + browser DevTools"

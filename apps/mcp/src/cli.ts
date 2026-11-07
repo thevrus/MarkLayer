@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { ORIGIN } from '@marklayer/brand';
 import { startServer } from './server.js';
 
 interface Args {
@@ -33,7 +34,7 @@ Environment:
 
 function parseArgs(argv: string[]): Args {
   const out: Args = {
-    apiBase: process.env.MARKLAYER_API_BASE ?? 'https://marklayer.app',
+    apiBase: process.env.MARKLAYER_API_BASE ?? ORIGIN,
     room: process.env.MARKLAYER_ROOM ?? null,
     agentId: process.env.MARKLAYER_AGENT ?? 'claude-code',
     help: false,

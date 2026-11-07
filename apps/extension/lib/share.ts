@@ -1,159 +1,31 @@
-import {
-  isShareId,
-  parseOps,
-  postBody,
-  postJson,
-  transcribeResponseSchema,
-  uploadPath,
-  uploadResponseSchema,
-} from '@marklayer/types';
-import { nanoid } from 'nanoid';
+import { ORIGIN } from '@marklayer/brand';
+import { parseShareRef, SHARE_REFS, type ShareRef, shareUrl, uploadPath, withShareRef } from '@marklayer/brand/links';
+import { HOW_IT_WORKS_PATH } from '@marklayer/brand/mark';
+import { postBody, postJson } from '@marklayer/types/http';
+import { isBlockedHost } from '@marklayer/types/net';
+import { parseOps } from '@marklayer/types/ops';
+import { transcribeResponseSchema, uploadResponseSchema } from '@marklayer/types/uploads';
 import { track } from './analytics';
-import { APP_ORIGIN } from './origin';
-import { connectionStatus } from './state';
+import { host } from './host-config';
+import { pageUrl } from './page-url';
+import { canPushSnapshot, getRoomId } from './room-id';
 import type { DrawOp } from './types';
 
-const API_BASE = `${APP_ORIGIN}/api/`;
+const apiUrl = (id: string) => `${host.origin}/api/${id}`;
 
-/**
- * Plain-English explainer. The path is what the landing page links to (same
- * origin); the absolute URL is what the extension dialog and the web info panel
- * need, since neither is guaranteed to be running on marklayer.app.
- */
-export const HOW_IT_WORKS_PATH = '/guides/how-marklayer-works';
-export const HOW_IT_WORKS_URL = `${APP_ORIGIN}${HOW_IT_WORKS_PATH}`;
+/** Plain-English explainer, absolute because neither the extension dialog nor the web info panel is sure to run on marklayer.app. */
+export const HOW_IT_WORKS_URL = `${ORIGIN}${HOW_IT_WORKS_PATH}`;
 
-export { nanoid };
-
-// Current annotation ID — reused across shares so multiple people edit the same canvas
-let currentAnnotationId: string | null = null;
-/** Whether this browser joined the current room (`setAnnotationId`) rather than
- * minting it (`getRoomId`). Half of `canPushSnapshot` below. */
-let joinedRoom = false;
-
-export function setAnnotationId(id: string) {
-  currentAnnotationId = id;
-  joinedRoom = true;
-}
-
-/** The room id every share surface addresses (generates one if needed). */
-export function getRoomId(): string {
-  if (!currentAnnotationId) {
-    currentAnnotationId = nanoid();
-    joinedRoom = false;
-  }
-  return currentAnnotationId;
-}
-
-/** Whether this browser is the room's only writer — it minted the id and no live
- * socket is carrying anyone else's ops. Read by every guard, so none can drift. */
-export function canPushSnapshot(): boolean {
-  return !joinedRoom && connectionStatus.peek() === null;
-}
-
-/** Test-only: room identity is a module singleton, so a spec needs a way back to zero. */
-export function resetRoomIdentity() {
-  currentAnnotationId = null;
-  joinedRoom = false;
-}
-
-function roomIdFromUrl(value: string): string | null {
-  // A pasted link often arrives without its scheme, and the bare-id path below
-  // would reject it on the slash, so try both spellings before giving up.
-  for (const candidate of [value, `https://${value}`]) {
-    try {
-      const match = /^\/s\/([^/]+)\/?$/.exec(new URL(candidate).pathname);
-      if (match?.[1]) return match[1];
-    } catch {
-      // not a URL in this spelling — fall through
-    }
-  }
-  return null;
-}
-
-/** A room id out of whatever someone pasted: a bare id, or a share link carrying one. */
-export function parseRoomRef(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  const candidate = roomIdFromUrl(trimmed) ?? trimmed;
-  // `isShareId`, not `isNewShareId`: that floor guards minting, and a room made
-  // before it existed still resolves.
-  return isShareId(candidate) ? candidate : null;
-}
-
-/**
- * Where a share link was made, carried on the link itself as `?ref=`.
- *
- * A link created, a viewer opened and a first mark drawn were three counters
- * with nothing joining them, so "did anyone act on what I sent" had no answer.
- * The label rides the link and the viewer stamps it on every event it reports.
- */
-export const SHARE_REFS = ['web', 'ext', 'dash', 'button', 'widget'] as const;
-export type ShareRef = (typeof SHARE_REFS)[number];
-
-/**
- * An allow-list, because the value arrives from the address bar: anything wider
- * lets a stranger write free text into our telemetry.
- */
-export function parseShareRef(value: string | null): ShareRef | null {
-  return SHARE_REFS.find((ref) => ref === value) ?? null;
-}
-
-/**
- * Params rather than string concatenation: these links already carry
- * `?readonly=1` and `?page=`, and a `readonly` silently dropped here is a
- * view-only link handed out as editable.
- */
-export function withShareRef({ url, ref }: { url: string; ref: ShareRef }): string {
-  const stamped = new URL(url);
-  stamped.searchParams.set('ref', ref);
-  return stamped.toString();
-}
-
-/**
- * The route a share link takes. Built in one place because `share()` copies this
- * string while the share popover displays it: two spellings means a field can
- * show a different link than the clipboard holds.
- */
-export function shareUrl({
-  origin,
-  kind,
-  id,
-  readonly = false,
-  ref,
-}: {
-  origin: string;
-  kind: 'project' | 'page';
-  id: string;
-  readonly?: boolean;
-  ref: ShareRef;
-}): string {
-  const path = kind === 'project' ? `/p/${id}` : `/s/${id}`;
-  return withShareRef({ url: `${origin}${path}${readonly ? '?readonly=1' : ''}`, ref });
-}
+export { parseShareRef, SHARE_REFS, type ShareRef, shareUrl, withShareRef };
 
 /** Get share URL synchronously (generates ID if needed) */
 export function getShareUrl(): string {
-  return shareUrl({ origin: APP_ORIGIN, kind: 'page', id: getRoomId(), ref: 'ext' });
-}
-
-/**
- * MCP connect commands for a room. Both the extension's ShareDialog and the web
- * viewer's info panel offer these, so they live here rather than being spelled
- * out twice — a drifted flag in one copy would hand users a command that fails.
- */
-export function claudeMcpCommand({ roomId, origin = APP_ORIGIN }: { roomId: string; origin?: string }): string {
-  return `claude mcp add --transport http marklayer ${mcpEndpoint({ roomId, origin })}`;
-}
-
-/** Where the room answers MCP. The share link is the address, so there is nothing to install. */
-export function mcpEndpoint({ roomId, origin = APP_ORIGIN }: { roomId: string; origin?: string }): string {
-  return `${origin}/s/${roomId}/mcp`;
+  return shareUrl({ origin: host.origin, kind: 'page', id: getRoomId(), ref: 'ext' });
 }
 
 /** The stdio fallback, for a client that cannot reach a remote server yet. A non-default origin needs `--api-base`. */
-export function npxMcpCommand({ roomId, origin = APP_ORIGIN }: { roomId: string; origin?: string }): string {
-  const apiBase = origin === APP_ORIGIN ? '' : ` --api-base ${origin}`;
+export function npxMcpCommand({ roomId, origin = ORIGIN }: { roomId: string; origin?: string }): string {
+  const apiBase = origin === ORIGIN ? '' : ` --api-base ${origin}`;
   return `npx -y marklayer-mcp --room ${roomId}${apiBase}`;
 }
 
@@ -166,11 +38,8 @@ export function isShareableUrl(url: string = window.location.href): boolean {
   try {
     const u = new URL(url);
     if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-    const h = u.hostname;
-    if (h === 'localhost' || h === '0.0.0.0' || h === '[::1]' || h === '::1') return false;
-    if (h.endsWith('.localhost') || h.endsWith('.local')) return false;
-    if (/^127\.\d+\.\d+\.\d+$/.test(h)) return false;
-    return true;
+    // `.localhost` resolves to this machine by spec, though no fetcher would ever be pointed at it.
+    return !isBlockedHost(u.hostname) && !u.hostname.endsWith('.localhost');
   } catch {
     return false;
   }
@@ -206,15 +75,11 @@ export function isLikelyEmbedHostile(url: string = window.location.href): boolea
 export type SaveFailure = 'view-only' | 'error' | 'joined-room';
 export type SaveResult = { ok: true } | { ok: false; reason: SaveFailure };
 
-/** Save ops to server. */
 export async function saveAnnotations(ops: DrawOp[]): Promise<SaveResult> {
   // POST /api/:id replaces the room's stored ops wholesale, so a shared room is
   // refused before the push ever reaches the network.
   if (!canPushSnapshot()) return { ok: false, reason: 'joined-room' };
-  const id = getRoomId();
-  const url = window.location.href.split('#')[0];
-  const width = window.innerWidth;
-  const res = await postJson(`${API_BASE}${id}`, { ops, url, width });
+  const res = await postJson(apiUrl(getRoomId()), { ops, url: pageUrl(), width: window.innerWidth });
   if (!res) {
     console.error('Error saving annotations: network failure');
     return { ok: false, reason: 'error' };
@@ -231,7 +96,7 @@ export async function saveAnnotations(ops: DrawOp[]): Promise<SaveResult> {
 
 export async function loadAnnotations(id: string): Promise<DrawOp[] | null> {
   try {
-    const res = await fetch(`${API_BASE}${id}`);
+    const res = await fetch(apiUrl(id));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const body: unknown = await res.json();
     if (typeof body !== 'object' || body === null || !('ops' in body) || !Array.isArray(body.ops)) {
@@ -244,12 +109,16 @@ export async function loadAnnotations(id: string): Promise<DrawOp[] | null> {
   }
 }
 
-/** Uploads a screenshot (or other supported file) for a comment attachment. Returns its upload id, or null on failure. */
-export async function uploadFile(file: File | Blob): Promise<string | null> {
-  const res = await postBody(`${APP_ORIGIN}/f`, file, file.type || 'application/octet-stream');
+/** Uploads a screenshot (or other supported file). Returns its upload id, or null on failure; `onRefused` hears the server's no. */
+export async function uploadFile(
+  file: File | Blob,
+  { onRefused, kind }: { onRefused?: (status: number) => void; kind?: 'video' } = {},
+): Promise<string | null> {
+  const path = kind ? `/f?kind=${kind}` : '/f';
+  const res = await postBody(`${host.origin}${path}`, file, file.type || 'application/octet-stream');
   if (!res?.ok) {
-    // Same reason values as the web app's `uploadFile`, so one funnel covers both surfaces.
     const reason = res ? `http_${res.status}` : 'network';
+    if (res) onRefused?.(res.status);
     console.error(`Error uploading file: ${reason}`);
     track('attachment_upload_failed', { reason });
     return null;
@@ -265,7 +134,7 @@ export async function uploadFile(file: File | Blob): Promise<string | null> {
 
 /** The transcript of a stored voice note, or null when it could not be had (the note still posts). */
 export async function transcribeFile(id: string): Promise<string | null> {
-  const res = await postJson(`${APP_ORIGIN}${uploadPath(id)}/transcribe`, {});
+  const res = await postJson(`${host.origin}${uploadPath(id)}/transcribe`, {});
   if (!res?.ok) return null;
   const parsed = transcribeResponseSchema.safeParse(await res.json());
   return parsed.success ? parsed.data.text : null;
@@ -273,19 +142,5 @@ export async function transcribeFile(id: string): Promise<string | null> {
 
 /** Where `uploadFile`'s id serves back from, in this browser's own origin. */
 export function fileUrl(id: string): string {
-  return `${APP_ORIGIN}${uploadPath(id)}`;
-}
-
-export function parseUrlHash(): { width: number; id: string } | null {
-  const hash = window.location.hash;
-  if (hash.startsWith('#ant=')) {
-    const parts = hash.substring(5).split('=');
-    const [rawWidth, id] = parts;
-    if (parts.length === 2 && rawWidth !== undefined && id !== undefined) {
-      const width = parseInt(rawWidth, 10);
-      if (!width || width <= 0 || Number.isNaN(width)) return null;
-      return { width, id };
-    }
-  }
-  return null;
+  return `${host.origin}${uploadPath(id)}`;
 }

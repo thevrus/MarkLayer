@@ -1,58 +1,55 @@
-import type {
-  AnnotationOp,
-  CommentOp,
-  CommentPriority,
-  CommentStatus,
-  DrawOp,
-  QuestionOp,
-  SelectionRect,
-  StepOp,
-  TargetElement,
-} from '@marklayer/types';
+import { mcpEndpoint, parseRoomRef as roomIdIn, uploadPath } from '@marklayer/brand/links';
+import type { AnnotationOp, CommentStatus, DrawOp, QuestionOp, StepOp } from '@marklayer/types/ops';
+import { isRootAnnotation, orderedSteps, resolveOpStatus, tallyQuestion } from '@marklayer/types/ops';
+import { formatStyleEdit } from './prompt';
+import type { PreviewCreated, RoomOps } from './room-core';
 import {
-  agentColor,
-  COMMENT_PRIORITIES,
-  commentPrioritySchema,
-  MAX_NEXT_STEPS,
-  MAX_QUESTION_OPTIONS,
-  MAX_QUESTION_TEXT,
-  MAX_STEP_TEXT,
-  MIN_QUESTION_OPTIONS,
-  orderedSteps,
-  resolveOpStatus,
-  selectionRectSchema,
-  tallyQuestion,
-  uploadPath,
-} from '@marklayer/types';
-import { z } from 'zod/mini';
-import { formatStyleEdit, isWatchableOp } from './prompt';
+  CompleteStepInput,
+  CreateInput,
+  DismissInput,
+  IdInput,
+  isToolName,
+  ListInput,
+  NEEDS_LIVE_ROOM,
+  NEEDS_ROOM,
+  type PreviewRequest,
+  QuestionInput,
+  ReplyInput,
+  ResolveInput,
+  SetStepsInput,
+  SharePreviewInput,
+  SuggestInput,
+  type ToolName,
+  WatchInput,
+} from './tools';
+
+export * from './room-core';
+export * from './server-card';
+export * from './tools';
 
 /**
- * Everything about MarkLayer's agent tools that is not a transport.
- *
- * The schemas, the annotation projection and the validation used to live inside
- * `marklayer-mcp`, the stdio server published to npm, which put them out of reach
- * of the Worker. Lifting them here is what lets a second runtime serve the same
- * tools over Streamable HTTP; that endpoint is not built yet, so `apps/mcp` is
- * still the only consumer. No MCP SDK appears here on purpose: the two sides
- * would bind this to different libraries, so what is shared is the contract,
+ * Everything about MarkLayer's agent tools that is not a transport: the tool table,
+ * the room core, the annotation projection and the dispatch. Two runtimes serve these
+ * tools, stdio (`apps/mcp`) and Streamable HTTP (the Worker). No MCP SDK appears here
+ * on purpose: they bind to different libraries, so what is shared is the contract,
  * not the wiring.
  */
 
-/** The JSON Schema a client is shown. Structurally the SDK's `Tool`, without depending on one. */
-export interface ToolSpec {
-  name: string;
-  description: string;
-  inputSchema: {
-    type: 'object';
-    properties?: Record<string, unknown>;
-    required?: string[];
-    additionalProperties?: boolean;
-  };
+/** Builds the `target` block once a schema carrying `targetTripleCheck` has already guaranteed all-or-none. */
+function targetFromParts({
+  selector,
+  tag,
+  markdown,
+}: {
+  selector?: string;
+  tag?: string;
+  markdown?: string;
+}): { selector: string; tag: string; markdown: string } | undefined {
+  return selector && tag && markdown ? { selector, tag, markdown } : undefined;
 }
 
 /** An attachment's upload id, resolved to a URL an agent can fetch on its own. */
-export function attachmentUrls(ids: string[] | undefined, apiBase: string): string[] {
+function attachmentUrls(ids: string[] | undefined, apiBase: string): string[] {
   return (ids ?? []).map((id) => `${apiBase}${uploadPath(id)}`);
 }
 
@@ -141,168 +138,6 @@ export function err(message: string): ToolContent {
 }
 
 /**
- * Kept as one list because it is advertised and enforced separately: the Zod
- * schema validates the call, the hand-written JSON Schema below tells the client
- * what to send. Two literals would drift into a tool that offers a value it
- * rejects.
- */
-export const STATUS_FILTERS = ['open', 'in_progress', 'resolved', 'approved', 'dismissed', 'all'] as const;
-export const StatusFilter = z.enum(STATUS_FILTERS);
-
-/** The annotation id every per-annotation tool takes, spread the way `targetParts` below is. */
-const idPart = { id: z.string().check(z.minLength(1)) };
-
-export const ConnectInput = z.object({ room: z.string().check(z.minLength(1)), password: z.optional(z.string()) });
-export const ListInput = z.object({ status: z.optional(StatusFilter) });
-export const IdInput = z.object({ ...idPart });
-/**
- * How long one `watch` blocks by default.
- *
- * Shared so the two transports cannot disagree about how long "watching" lasts.
- * The wait itself is free — the Durable Object parks a promise and wakes on the
- * next op — so a short window only buys an agent that stops looking sooner.
- *
- * The ceiling is the client's, not the edge's. Measured: a 182s hold returned
- * 200 through Cloudflare, because the Streamable HTTP transport sends SSE
- * keepalive comments. But a keepalive is not a progress notification, so it
- * does not reset an MCP client's per-request timer — and that timer defaults to
- * 60s (`DEFAULT_REQUEST_TIMEOUT_MSEC`). Anything at or above 60 races a timeout
- * the caller sees as a broken tool, which is worse than looking away sooner.
- */
-export const WATCH_DEFAULT_SECONDS = 50;
-
-export const WatchInput = z.object({
-  timeoutSeconds: z.optional(z.number().check(z.int(), z.gte(1), z.lte(600))),
-  batchMs: z.optional(z.number().check(z.int(), z.gte(0), z.lte(10000))),
-});
-export const ResolveInput = z.object({ ...idPart, summary: z.optional(z.string()) });
-export const DismissInput = z.object({ ...idPart, reason: z.string().check(z.minLength(1)) });
-export const ReplyInput = z.object({ ...idPart, text: z.string().check(z.minLength(1)) });
-/**
- * Shared by every tool that lets an agent anchor a new annotation to an
- * element: `selector`/`tag`/`markdown` must arrive all three or none, never a
- * partial triple that would fail `targetElementSchema`'s required fields at
- * the wire boundary. A schema-level refine, so it is rejected before the
- * handler ever runs — the same way every other tool's input is validated.
- */
-const targetTripleCheck = z.refine<{ selector?: string; tag?: string; markdown?: string }>(
-  ({ selector, tag, markdown }) => {
-    const given = [selector, tag, markdown].filter((v) => v !== undefined).length;
-    return given === 0 || given === 3;
-  },
-  'selector, tag and markdown must be given together, or not at all',
-);
-
-/** The element-anchor triple itself, spread into every schema that carries `targetTripleCheck`. */
-const targetParts = {
-  selector: z.optional(z.string()),
-  tag: z.optional(z.string()),
-  markdown: z.optional(z.string()),
-};
-
-/** Builds the `target` block once a schema carrying `targetTripleCheck` has already guaranteed all-or-none. */
-function targetFromParts({
-  selector,
-  tag,
-  markdown,
-}: {
-  selector?: string;
-  tag?: string;
-  markdown?: string;
-}): { selector: string; tag: string; markdown: string } | undefined {
-  return selector && tag && markdown ? { selector, tag, markdown } : undefined;
-}
-
-export const CreateInput = z
-  .object({
-    text: z.string().check(z.minLength(1)),
-    x: z.optional(z.number()),
-    y: z.optional(z.number()),
-    priority: z.optional(commentPrioritySchema),
-    ...targetParts,
-  })
-  .check(targetTripleCheck)
-  .check(
-    z.refine(
-      ({ x, y, selector }) => selector !== undefined || (x !== undefined && y !== undefined),
-      'give x and y, or selector + tag + markdown to pin to an element',
-    ),
-  );
-
-/**
- * `rects` mirrors the human selection tool's own shape — one box per line the
- * proposed edit spans — rather than a single bounding box, so a multi-line
- * selection renders as a multi-line highlight instead of one box swallowing
- * the whole paragraph between its first and last line.
- */
-export const SuggestInput = z
-  .object({
-    text: z.string().check(z.minLength(1)),
-    suggestion: z.string().check(z.minLength(1)),
-    rects: z.array(selectionRectSchema).check(z.minLength(1)),
-    comment: z.optional(z.string()),
-    priority: z.optional(commentPrioritySchema),
-    ...targetParts,
-  })
-  .check(
-    targetTripleCheck,
-    z.refine(
-      ({ text, suggestion }) => text.trim() !== suggestion.trim(),
-      'suggestion must differ from text — there is nothing to propose otherwise',
-    ),
-  );
-
-const MAX_PREVIEW_TEXT = 200;
-const MAX_PREVIEW_NOTE = 2000;
-/** More than a handful of polls on one preview is a survey, not a review. */
-export const MAX_PREVIEW_QUESTIONS = 5;
-
-const shortText = (max: number) => z.string().check(z.minLength(1), z.maxLength(max));
-
-export const QuestionInput = z.object({
-  prompt: shortText(MAX_QUESTION_TEXT),
-  options: z
-    .array(shortText(MAX_QUESTION_TEXT))
-    .check(z.minLength(MIN_QUESTION_OPTIONS), z.maxLength(MAX_QUESTION_OPTIONS)),
-});
-export type QuestionRequest = z.infer<typeof QuestionInput>;
-
-const isHttpUrl = (value: string): boolean => {
-  try {
-    const { protocol } = new URL(value);
-    return protocol === 'http:' || protocol === 'https:';
-  } catch {
-    return false;
-  }
-};
-
-export const SharePreviewInput = z.object({
-  url: z.string().check(z.refine(isHttpUrl, 'url must be an absolute http(s) URL')),
-  title: shortText(MAX_PREVIEW_TEXT),
-  repo: z.optional(shortText(MAX_PREVIEW_TEXT)),
-  branch: z.optional(shortText(MAX_PREVIEW_TEXT)),
-  sha: z.optional(shortText(MAX_PREVIEW_TEXT)),
-  note: z.optional(shortText(MAX_PREVIEW_NOTE)),
-  questions: z.optional(z.array(QuestionInput).check(z.maxLength(MAX_PREVIEW_QUESTIONS))),
-  previous: z.optional(shortText(MAX_PREVIEW_TEXT)),
-});
-export type PreviewRequest = z.infer<typeof SharePreviewInput>;
-
-export const SetStepsInput = z.object({
-  steps: z
-    .array(
-      z.object({
-        text: shortText(MAX_STEP_TEXT),
-        annotationIds: z.optional(z.array(z.string().check(z.minLength(1))).check(z.maxLength(MAX_NEXT_STEPS))),
-      }),
-    )
-    .check(z.minLength(1), z.maxLength(MAX_NEXT_STEPS)),
-});
-export type StepRequest = z.infer<typeof SetStepsInput>['steps'][number];
-
-export const CompleteStepInput = z.object({ ...idPart, done: z.optional(z.boolean()) });
-
-/**
  * A mutator returned false. It has two causes worth telling apart: the room
  * refuses this peer's writes, or the id genuinely is not there. Reporting the
  * first as "not found" sent an agent hunting for a missing annotation when the
@@ -321,502 +156,39 @@ export function fail(parseError: { issues: { path: PropertyKey[]; message: strin
   return err(`invalid arguments: ${flat}`);
 }
 
-export const TOOLS: ToolSpec[] = [
-  {
-    name: 'marklayer_read_page',
-    description:
-      'Read the page this room annotates — its headings, paragraphs, links, buttons and labels, each with the CSS ' +
-      'selector and tag that locate it. Call this FIRST when asked to review, audit or improve a page and no ' +
-      'annotations exist yet: without it you can only answer feedback someone else left, never find anything ' +
-      'yourself. Every entry is already in the shape marklayer_suggest_edit and marklayer_create_annotation take, ' +
-      'so pass `selector`, `tag` and `markdown` straight through to anchor a mark to the element you are talking ' +
-      'about. If the answer says the page renders client-side, the copy is not in the HTML and you should say so ' +
-      'rather than review an empty shell.',
-    inputSchema: { type: 'object', additionalProperties: false, properties: {} },
-  },
-  {
-    name: 'marklayer_connect_room',
-    description: 'Connect to a MarkLayer room (annotation session) by URL or bare room id. Disconnects any prior room.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['room'],
-      properties: {
-        room: {
-          type: 'string',
-          description: 'Room URL like https://marklayer.app/s/abc123 or a bare room id like abc123.',
-        },
-        password: {
-          type: 'string',
-          description: 'Only for a password-protected room: the password its owner shared.',
-        },
-      },
-    },
-  },
-  {
-    name: 'marklayer_room_info',
-    description: 'Get metadata about the connected room: page URL, viewport width, timestamps.',
-    inputSchema: { type: 'object', additionalProperties: false, properties: {} },
-  },
-  {
-    name: 'marklayer_list_annotations',
-    description:
-      'List every annotation in the connected room across all tools (comment, area, selection, inspect). ' +
-      'Each entry carries a `kind` discriminator and, where the user marked an element, a `target` block ' +
-      'with selector + markdown so you can address the change without reopening the page. ' +
-      'Filter by status: open, in_progress, resolved, approved, dismissed, or all (default). `approved` means the person who asked for the change confirmed the fix, so those need nothing from you.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        status: { type: 'string', enum: [...STATUS_FILTERS] },
-      },
-    },
-  },
-  {
-    name: 'marklayer_get_annotation',
-    description:
-      'Get full detail for a single annotation of any kind (comment, area, selection, inspect), including ' +
-      'its element `target` context and — for comments — the reply thread.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id'],
-      properties: { id: { type: 'string' } },
-    },
-  },
-  {
-    name: 'marklayer_watch_annotations',
-    description:
-      'Block until there is work, then return a batch of whatever arrives within a short window. ' +
-      'CALL THIS AGAIN IMMEDIATELY EVERY TIME IT RETURNS, including when it returns nothing — an empty result means ' +
-      'the window expired, not that the reviewer is done. Nothing pushes work to you: between your calls, a comment ' +
-      'someone leaves reaches no one. Keep looping until the person tells you to stop or ends the session. ' +
-      'Each event has a `kind`: "new" is an annotation someone just left; "handoff" is one given to you — assigned ' +
-      'to you, a reply that @mentions you, or a reply on a thread you already own. A handoff also carries ' +
-      '`request`, the reply that asked: read it, it is the instruction, and act on it rather than only ' +
-      'acknowledging. Every event carries the full annotation with its `target` element context.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        timeoutSeconds: {
-          type: 'integer',
-          minimum: 1,
-          maximum: 600,
-          description:
-            `How long to block before returning empty. Defaults to ${WATCH_DEFAULT_SECONDS}, which fits inside the 60s ` +
-            'request timeout most clients use. Raise it only if you know yours allows a longer tool call.',
-        },
-        batchMs: {
-          type: 'integer',
-          minimum: 0,
-          maximum: 10000,
-          description: 'After the first new annotation arrives, wait this long for more before returning. Default 750.',
-        },
-      },
-    },
-  },
-  {
-    name: 'marklayer_acknowledge',
-    description:
-      'Mark an annotation as in_progress and tag it with this agent so the human sees you are working on it.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id'],
-      properties: { id: { type: 'string' } },
-    },
-  },
-  {
-    name: 'marklayer_resolve',
-    description:
-      'Mark an annotation as resolved. Pass a summary describing what was changed — it will be posted as a reply to the thread.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id'],
-      properties: {
-        id: { type: 'string' },
-        summary: { type: 'string', description: 'Short description of what changed, posted as a reply.' },
-      },
-    },
-  },
-  {
-    name: 'marklayer_dismiss',
-    description: 'Mark an annotation as dismissed when it cannot be acted on. The reason will be visible to the human.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id', 'reason'],
-      properties: {
-        id: { type: 'string' },
-        reason: { type: 'string', description: 'Why you cannot act on this annotation.' },
-      },
-    },
-  },
-  {
-    name: 'marklayer_reply',
-    description: 'Post a reply to an annotation thread without changing its status. Use to ask clarifying questions.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id', 'text'],
-      properties: { id: { type: 'string' }, text: { type: 'string' } },
-    },
-  },
-  {
-    name: 'marklayer_create_annotation',
-    description:
-      'Leave a new comment annotation yourself — proactive feedback (a bug, a UX issue, an accessibility gap, an ' +
-      'idea) rather than only responding to a human’s. For an exact text replacement (a copy or grammar fix), use ' +
-      'marklayer_suggest_edit instead — it renders as a diff the human can accept, rather than prose describing one. ' +
-      'Use this after you have looked at the page with your own tools (a screenshot, a DOM read) and decided ' +
-      'something is worth flagging; call it once per finding so each becomes its own pin the human can triage. x/y ' +
-      'are document pixels (not viewport pixels — scroll offset already added in). Pass selector + tag + markdown ' +
-      '(straight from marklayer_read_page) to pin to that element: the pin sits on the element and follows it when ' +
-      'the page reflows, and x/y become optional (a fallback only). Omit all three for a fixed-point pin at x/y.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['text'],
-      properties: {
-        text: { type: 'string', description: 'The feedback itself.' },
-        x: { type: 'number', description: 'Document-space X in CSS pixels.' },
-        y: { type: 'number', description: 'Document-space Y in CSS pixels.' },
-        priority: {
-          type: 'string',
-          enum: [...COMMENT_PRIORITIES],
-          description: 'Triage priority, if this warrants one.',
-        },
-        selector: { type: 'string', description: 'CSS selector of the element this is about.' },
-        tag: { type: 'string', description: 'Tag name of that element, e.g. "button".' },
-        markdown: { type: 'string', description: 'Short markdown snapshot of the element, for the human to see.' },
-      },
-    },
-  },
-  {
-    name: 'marklayer_suggest_edit',
-    description:
-      'Propose an exact replacement for a piece of text on the page — a copy or grammar fix — as a diff the human ' +
-      'can accept, rather than a comment describing the change in prose. `rects` are the on-page bounding boxes of ' +
-      '`text`, in document pixels: one per line it spans, so a wrapped sentence highlights as several boxes rather ' +
-      'than one box swallowing the whole paragraph between its first and last line. Pass selector + tag + markdown ' +
-      'together to anchor it to the containing element so it re-resolves if the page reflows.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['text', 'suggestion', 'rects'],
-      properties: {
-        text: { type: 'string', description: 'The exact text on the page being replaced.' },
-        suggestion: { type: 'string', description: 'The exact replacement text.' },
-        rects: {
-          type: 'array',
-          minItems: 1,
-          items: {
-            type: 'object',
-            required: ['x', 'y', 'width', 'height'],
-            properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
-              width: { type: 'number' },
-              height: { type: 'number' },
-            },
-          },
-          description: 'Document-pixel bounding box(es) of `text` on the page — one per line it spans.',
-        },
-        comment: { type: 'string', description: 'Optional note explaining the fix, if it is not self-evident.' },
-        priority: {
-          type: 'string',
-          enum: [...COMMENT_PRIORITIES],
-          description: 'Triage priority, if this warrants one.',
-        },
-        selector: { type: 'string', description: 'CSS selector of the element containing this text.' },
-        tag: { type: 'string', description: 'Tag name of that element, e.g. "p".' },
-        markdown: { type: 'string', description: 'Short markdown snapshot of the element, for the human to see.' },
-      },
-    },
-  },
-  {
-    name: 'marklayer_share_preview',
-    description:
-      'Open a new review room on a page you built — a preview deploy, a staging URL — and get back the link to hand ' +
-      'to a human. Call this when you have something for someone to look at, rather than asking them to open a URL ' +
-      'and describe what they see. The page is framed live and reviewers annotate it directly; their feedback then ' +
-      'reaches you through the other tools. Pass `repo` + `branch` (and `sha`) when the page comes from a branch: ' +
-      'a later preview of the same repo and branch becomes the next version of this one, and reviewers can step ' +
-      'between versions. Over stdio this also connects you to the new room. Over HTTP the endpoint stays bound to ' +
-      'the room in its URL, so reconnect to the returned `mcpUrl` to work the new room.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['url', 'title'],
-      properties: {
-        url: { type: 'string', description: 'Absolute http(s) URL of the page to review.' },
-        title: { type: 'string', description: 'What this is, in a few words — shown to reviewers.' },
-        repo: { type: 'string', description: 'Repository, e.g. "acme/web". With `branch`, chains versions.' },
-        branch: { type: 'string', description: 'Branch the preview was built from.' },
-        sha: { type: 'string', description: 'Commit the preview was built from; shown beside the version.' },
-        note: { type: 'string', description: 'What changed and what to look at, for the reviewers.' },
-        questions: {
-          type: 'array',
-          maxItems: MAX_PREVIEW_QUESTIONS,
-          description: 'Polls to open the room with — a decision you want the reviewers to make.',
-          items: {
-            type: 'object',
-            required: ['prompt', 'options'],
-            properties: {
-              prompt: { type: 'string' },
-              options: {
-                type: 'array',
-                minItems: MIN_QUESTION_OPTIONS,
-                maxItems: MAX_QUESTION_OPTIONS,
-                items: { type: 'string' },
-              },
-            },
-          },
-        },
-        previous: {
-          type: 'string',
-          description:
-            'The room this is a new version of, as a link or id. Defaults to the room you are connected to. ' +
-            'Linked only when that room has the same repo and branch.',
-        },
-      },
-    },
-  },
-  {
-    name: 'marklayer_set_next_steps',
-    description:
-      'Publish your plan as a short ordered checklist the reviewers see live in the room, distilled from their ' +
-      'feedback — one step per change you will make, each naming the annotation ids it answers. Replaces any list ' +
-      'you set before. Tick steps off with marklayer_complete_next_step as you finish them, so the humans can watch ' +
-      'the work land instead of asking where it is.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['steps'],
-      properties: {
-        steps: {
-          type: 'array',
-          minItems: 1,
-          maxItems: MAX_NEXT_STEPS,
-          items: {
-            type: 'object',
-            required: ['text'],
-            properties: {
-              text: { type: 'string', description: 'The step, as an imperative: "Rename the CTA to Start trial".' },
-              annotationIds: {
-                type: 'array',
-                items: { type: 'string' },
-                description: 'Ids of the annotations this step addresses.',
-              },
-            },
-          },
-        },
-      },
-    },
-  },
-  {
-    name: 'marklayer_complete_next_step',
-    description: 'Tick a step of the checklist off (or back on with done: false). Reviewers see it change live.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['id'],
-      properties: {
-        id: { type: 'string', description: 'Step id, from marklayer_set_next_steps or marklayer_get_feedback.' },
-        done: { type: 'boolean', description: 'Defaults to true.' },
-      },
-    },
-  },
-  {
-    name: 'marklayer_ask',
-    description:
-      'Put a multiple-choice question to the room — "Which hero variant?", "Ship with the banner?" — when you need ' +
-      'a decision rather than open-ended feedback. Each reviewer gets one vote and may change it. Read the tally ' +
-      'with marklayer_get_feedback.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['prompt', 'options'],
-      properties: {
-        prompt: { type: 'string' },
-        options: {
-          type: 'array',
-          minItems: MIN_QUESTION_OPTIONS,
-          maxItems: MAX_QUESTION_OPTIONS,
-          items: { type: 'string' },
-        },
-      },
-    },
-  },
-  {
-    name: 'marklayer_get_feedback',
-    description:
-      'Everything the room has told you, in one read: annotation counts by status with the open ones in full, the ' +
-      'next-steps checklist and how far along it is, and every poll with its current tally. Use it to decide what ' +
-      'to do next; use marklayer_watch_annotations to wait for more.',
-    inputSchema: { type: 'object', additionalProperties: false, properties: {} },
-  },
-];
-
 /**
- * Advertise a tool's arguments to MCP without validating them twice.
- *
- * SDK v2 takes a Standard Schema that both validates a call and describes itself
- * for `tools/list`. The describing half is what is wanted here; the validating
- * half already happens in `callRoomTool`, against the per-tool Zod schemas that
- * own the error text an agent reads. So this accepts every value and says so,
- * rather than running a second, weaker check whose failures would report worse.
- *
- * (Zod cannot fill this slot directly: only the full `zod` package carries
- * `~standard.jsonSchema`, and this repo ships `zod/mini`, which does not.)
+ * Run one tool. `room` is null until something is connected, which only a tool that
+ * makes a room can work with. `null` means the name is not one of these: the caller
+ * owns anything transport-specific, such as stdio's connect_room.
  */
-export function describedSchema(json: ToolSpec['inputSchema']) {
-  const convert = () => json as unknown as Record<string, unknown>;
-  return {
-    '~standard': {
-      version: 1 as const,
-      vendor: 'marklayer',
-      validate: (value: unknown) => ({ value }),
-      // A Converter, not a function: the SDK asks input and output separately,
-      // and a tool's arguments are the input in both directions here.
-      jsonSchema: { input: convert, output: convert },
-    },
-  };
+export async function callTool({
+  name,
+  args,
+  room,
+  apiBase,
+  createPreview,
+}: {
+  name: string;
+  args: unknown;
+  room: RoomOps | null;
+  apiBase: string;
+  createPreview: CreatePreview;
+}): Promise<ToolContent | null> {
+  if (name === 'marklayer_share_preview') return sharePreview({ args, createPreview, apiBase });
+  if (!isToolName(name)) return null;
+  if (room) return workRoom({ name, args, room, apiBase });
+  return NEEDS_ROOM.has(name)
+    ? err('no room connected — call marklayer_connect_room first or set MARKLAYER_ROOM in the environment')
+    : null;
 }
 
-/** The JSON Schema a tool advertises, by name. */
-export const toolSchemaFor = (name: string): ToolSpec['inputSchema'] | undefined =>
-  TOOLS.find((tool) => tool.name === name)?.inputSchema;
-
-type Awaitable<T> = T | Promise<T>;
-
-/** One text-bearing element, in the shape the write tools already take. */
-export interface PageEntry {
-  selector: string;
-  tag: string;
-  text: string;
-  /** The same snapshot a human's Inspect comment carries — pass it straight to a write tool. */
-  markdown: string;
-}
-
-/** What `marklayer_read_page` answers with. */
-export interface PageReading {
-  url: string;
-  title: string | null;
-  entries: PageEntry[];
-  /** The document rendered client-side: this is the shell, not the copy. Say so rather than audit nothing. */
-  clientRendered: boolean;
-  truncated: boolean;
-}
-
-/** Room facts an agent asks for before doing anything else. */
-export interface RoomMeta {
-  url: string | null;
-  width: number | null;
-  createdAt: number | null;
-  expiresAt: number | null;
-}
-
-/**
- * Why `watch` woke up.
- *
- * `new` is someone leaving an annotation. `handoff` is someone giving one to
- * this agent — the thread was assigned to it, it was mentioned, or a person
- * replied on a thread it already owns. The last case is the one that matters
- * for how people actually work: replying "yes, do that" under the agent's own
- * comment is obviously addressed to the agent, and requiring an @mention there
- * would be ceremony for its own sake.
- */
-export interface WatchEvent {
-  kind: 'new' | 'handoff';
-  op: AnnotationOp;
-  /** The reply that handed it over, when a reply is what did. Read it: it is the instruction. */
-  reply?: CommentOp;
-}
-
-/**
- * One room, however it is reached.
- *
- * The stdio server holds a WebSocket to the room; the Worker calls the Durable
- * Object that owns it. Same tools, same answers — so the dispatch below is
- * written once against this, rather than twice against two clients that would
- * quietly drift into disagreeing about what `resolve` returns.
- */
-export interface RoomOps {
-  readonly roomId: string;
-  /**
-   * The page's own copy, so an agent can review it rather than only react to
-   * annotations someone already left. Both transports ask the Worker for it:
-   * the fetch belongs behind the SSRF guard and the blocked-host relay, not in
-   * a CLI on someone's laptop — but that is a reason to route it there, not a
-   * reason to withhold the tool from stdio.
-   */
-  readPage(): Promise<PageReading | null>;
-  readonly viewOnly: boolean;
-  getMeta(): RoomMeta;
-  /** An error to return instead of acting, when the connection cannot carry a write. */
-  checkLive(): string | null;
-  listAnnotations(filter?: { status?: CommentStatus | 'all' }): AnnotationOp[];
-  getAnnotation(id: string): { op: AnnotationOp; replies: CommentOp[] } | null;
-  watch(opts: { timeoutSeconds?: number; batchMs?: number }): Promise<WatchEvent[]>;
-  // Awaited by the dispatch: a socket send returns at once, an RPC call to the
-  // Durable Object does not, and both are legitimate ways to reach a room.
-  acknowledge(id: string): Awaitable<boolean>;
-  resolve(id: string, summary?: string): Awaitable<boolean>;
-  dismiss(id: string, reason: string): Awaitable<boolean>;
-  reply(id: string, text: string): Awaitable<boolean>;
-  create(a: {
-    text: string;
-    x: number;
-    y: number;
-    priority?: CommentPriority;
-    target?: TargetElement;
-  }): Awaitable<{ id: string } | null>;
-  suggestEdit(a: {
-    text: string;
-    suggestion: string;
-    rects: SelectionRect[];
-    comment?: string;
-    priority?: CommentPriority;
-    target?: TargetElement;
-  }): Awaitable<{ id: string } | null>;
-  /** Every op the room holds, for the reads that are not about annotations: steps, polls, votes. */
-  listOps(): readonly DrawOp[];
-  /** Replace the checklist. Null when the room refused the write. */
-  setNextSteps(steps: StepRequest[]): Awaitable<{ ids: string[] } | null>;
-  setStepDone(a: { id: string; done: boolean }): Awaitable<boolean>;
-  ask(question: QuestionRequest): Awaitable<{ id: string } | null>;
-}
-
-/** Tools that wait on or write to the room, so a dead socket has to fail them rather than hang or no-op. */
-const NEEDS_LIVE_ROOM = new Set([
-  'marklayer_watch_annotations',
-  'marklayer_acknowledge',
-  'marklayer_resolve',
-  'marklayer_dismiss',
-  'marklayer_reply',
-  'marklayer_create_annotation',
-  'marklayer_suggest_edit',
-  'marklayer_set_next_steps',
-  'marklayer_complete_next_step',
-  'marklayer_ask',
-]);
-
-/**
- * Run one tool against a room. `null` means the name is not one of these — the
- * caller owns anything transport-specific (the stdio server's connect_room has
- * no meaning over HTTP, where the room is already named in the URL).
- */
-export async function callRoomTool({
+async function workRoom({
   name,
   args,
   room,
   apiBase,
 }: {
-  name: string;
+  name: ToolName;
   args: unknown;
   room: RoomOps;
   apiBase: string;
@@ -977,8 +349,16 @@ export async function callRoomTool({
     case 'marklayer_get_feedback':
       return ok(feedbackSummary({ ops: room.listOps(), apiBase }));
 
-    default:
+    // Answered before a room is needed (share_preview) or by the transport itself (connect_room).
+    case 'marklayer_connect_room':
+    case 'marklayer_share_preview':
       return null;
+
+    default: {
+      // A tool in TOOL_DEFS with no case here fails the build instead of answering "unknown tool".
+      const unhandled: never = name;
+      return unhandled;
+    }
   }
 }
 
@@ -989,43 +369,8 @@ function createFailure({ room, what }: { room: RoomOps; what: string }): string 
     : `could not create the ${what} — the room connection may be down`;
 }
 
-export { isWatchableOp };
-
-/**
- * What one arriving op means to this agent, given what the room already holds.
- *
- * Shared because both transports must agree: a reply that wakes the WebSocket
- * client has to wake the HTTP one too, or the same room behaves differently
- * depending on how the agent happened to connect.
- *
- * A reply is addressed to the agent when it names it, or when it lands on a
- * thread the agent already owns. Without the second rule the obvious gesture —
- * replying "yes, do that" under the agent's own comment — reaches nobody; with
- * it, two people talking under someone else's thread still does not.
- */
-export function classifyOp({
-  op,
-  ops,
-  agentId,
-}: {
-  op: DrawOp;
-  ops: readonly DrawOp[];
-  agentId: string;
-}): WatchEvent | null {
-  // Taken before any narrowing: `isWatchableOp` is a type predicate, so testing
-  // it first would leave the else branch typed as everything a reply is not.
-  const reply = op.tool === 'comment' && op.parentId ? op : null;
-  if (!reply) return isWatchableOp(op) ? { kind: 'new', op } : null;
-  if (reply.author === agentId) return null;
-  const parent = ops.find((o): o is AnnotationOp => isWatchableOp(o) && o.id === reply.parentId);
-  if (!parent) return null;
-  const named = (reply.mentions ?? []).some((mention) => mention.id === agentId);
-  const mine = parent.author === agentId || parent.assignedAgent === agentId || parent.assignee === agentId;
-  return named || mine ? { kind: 'handoff', op: parent, reply } : null;
-}
-
 /** A poll as an agent reads it: each option with its votes, and who cast them. */
-export function projectQuestion({ question, ops }: { question: QuestionOp; ops: readonly DrawOp[] }) {
+function projectQuestion({ question, ops }: { question: QuestionOp; ops: readonly DrawOp[] }) {
   const tally = tallyQuestion({ question, ops });
   const ballots = [...tally.ballots.values()];
   return {
@@ -1041,7 +386,7 @@ export function projectQuestion({ question, ops }: { question: QuestionOp; ops: 
   };
 }
 
-export const projectStep = (step: StepOp) => ({
+const projectStep = (step: StepOp) => ({
   id: step.id,
   text: step.text,
   done: step.done ?? false,
@@ -1050,8 +395,8 @@ export const projectStep = (step: StepOp) => ({
 });
 
 /** `marklayer_get_feedback`: the room's state an agent plans from, in one answer. */
-export function feedbackSummary({ ops, apiBase }: { ops: readonly DrawOp[]; apiBase: string }) {
-  const annotations = ops.filter(isWatchableOp);
+function feedbackSummary({ ops, apiBase }: { ops: readonly DrawOp[]; apiBase: string }) {
+  const annotations = ops.filter(isRootAnnotation);
   const byStatus: Record<CommentStatus, number> = { open: 0, in_progress: 0, resolved: 0, approved: 0, dismissed: 0 };
   for (const op of annotations) byStatus[resolveOpStatus(op)] += 1;
   const steps = orderedSteps(ops);
@@ -1068,99 +413,39 @@ export function feedbackSummary({ ops, apiBase }: { ops: readonly DrawOp[]; apiB
   };
 }
 
-/** What every op an agent writes carries: its brand colour and its name as author. */
-export function agentSignature(agentId: string) {
-  return { color: agentColor(agentId), lineWidth: 2, author: agentId, authorId: agentId };
-}
+/** How a transport makes a room: it knows the way to the share API, the dispatch does not. */
+type CreatePreview = (request: PreviewRequest) => Promise<PreviewCreated | { error: string }>;
 
-/** Built here so the HTTP room, the stdio room and the share API mint identical ops. */
-export function agentQuestionOp({
-  id,
-  question,
-  agentId,
-}: {
-  id: string;
-  question: QuestionRequest;
-  agentId: string;
-}): QuestionOp {
-  return { ...agentSignature(agentId), id, tool: 'question', ts: Date.now(), ...question };
-}
-
-export function agentStepOps({
-  newId,
-  steps,
-  agentId,
-}: {
-  newId: () => string;
-  steps: StepRequest[];
-  agentId: string;
-}): StepOp[] {
-  const ts = Date.now();
-  return steps.map((step, order) => ({
-    ...agentSignature(agentId),
-    id: newId(),
-    tool: 'step',
-    text: step.text,
-    order,
-    ts,
-    ...(step.annotationIds?.length ? { annotationIds: step.annotationIds } : {}),
-  }));
-}
-
-/** What a transport hands back once it has made a preview room. */
-export interface PreviewCreated {
-  id: string;
-  /** The share link for humans. */
-  link: string;
-  version: number | null;
-  /** The room this one follows, when it was linked as a new version. */
-  previousId: string | null;
-}
-
-/**
- * The tool that makes a room rather than working one, so it needs no room: the
- * stdio server answers it before anything is connected. Null for any other name.
- */
-export async function callCreateTool({
-  name,
+/** Makes a room rather than working one, so stdio can answer it before anything is connected. */
+async function sharePreview({
   args,
   createPreview,
   apiBase,
 }: {
-  name: string;
   args: unknown;
-  createPreview: (request: PreviewRequest) => Promise<PreviewCreated | { error: string }>;
+  createPreview: CreatePreview;
   apiBase: string;
-}): Promise<ToolContent | null> {
-  if (name !== 'marklayer_share_preview') return null;
+}): Promise<ToolContent> {
   const parsed = SharePreviewInput.safeParse(args);
   if (!parsed.success) return fail(parsed.error);
   const created = await createPreview(parsed.data);
   if ('error' in created) return err(created.error);
   return ok({
     id: created.id,
-    url: created.link,
-    mcpUrl: `${apiBase}/s/${created.id}/mcp`,
+    url: created.url,
+    mcpUrl: mcpEndpoint({ origin: apiBase, roomId: created.id }),
     version: created.version,
-    previous: created.previousId,
+    previous: created.previous,
   });
 }
 
-/**
- * A room reference — a share URL or a bare id — reduced to the id. Throws with
- * the reason, since every caller reports it straight back to the agent.
- */
+/** The brand's reading of a room reference, throwing the reason: every caller reports it straight to the agent. */
 export function parseRoomRef(input: string): string {
+  const id = roomIdIn(input);
+  if (id) return id;
   const trimmed = input.trim();
   if (!trimmed) throw new Error('empty room reference');
-  if (!trimmed.includes('/')) return trimmed;
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    throw new Error(`invalid room reference: ${input}`);
-  }
-  const match = parsed.pathname.match(/\/s\/([^/]+)/);
-  if (match?.[1]) return match[1];
-  throw new Error(`could not extract room id from URL: ${input}`);
+  throw new Error(
+    /^https?:\/\//.test(trimmed) ? `could not extract room id from URL: ${input}` : `invalid room reference: ${input}`,
+  );
 }

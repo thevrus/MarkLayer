@@ -1,4 +1,4 @@
-import { type AnnotationOp, applyOpPatch, type DrawOp, isAnnotationOp } from '@marklayer/types';
+import { type AnnotationOp, applyOpPatch, type DrawOp, isAnnotationOp } from '@marklayer/types/ops';
 import { signal } from '@preact/signals';
 import { persistedFlag } from './storage';
 

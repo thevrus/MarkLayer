@@ -1,33 +1,34 @@
 import {
+  deleteSelectedGuide,
   GUIDE_HIT_PX,
   GuideHint,
   GuideLine,
   GuidePill,
   GuidePositionTag,
   GuidePreview,
+  grabGuide,
   guideReadout,
 } from '@ext/components/GuideLayer';
-import { track } from '@ext/lib/analytics';
 import { injectCrosshairCursor } from '@ext/lib/dom';
-import { pickGuideAtPoint } from '@ext/lib/measure';
-import { scrollOffset } from '@ext/lib/scroller';
 import {
-  activeTool,
-  addGuide,
   clearGuides,
   flipGuide,
   guides,
   type Orientation,
   removeGuide,
   selectedGuideId,
-  undo,
   updateGuide,
-} from '@ext/lib/state';
+} from '@ext/lib/guides';
+import { useDismissible } from '@ext/lib/keymap';
+import { pickGuideAtPoint } from '@ext/lib/measure';
+import { scrollOffset } from '@ext/lib/scroller';
+import { activeTool } from '@ext/lib/tool-state';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { createPortal } from 'preact/compat';
 import { tinykeys } from 'tinykeys';
+import { capture } from './analytics';
 import { isElementNode, sameOriginWindow, useIframeOverlay } from './iframeOverlay';
-import { cssScale, frameRect, iframeScrollY } from './signals';
+import { cssScale, frameRect, iframeScrollY } from './viewer-state';
 
 /** The frame's scroll offset, or none while the frame is down or has navigated out of the proxy. */
 const off = (frame: HTMLIFrameElement | null) => {
@@ -69,49 +70,18 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     if (activeTool.value !== 'guide') return;
     e.preventDefault();
     e.stopPropagation();
-    const docPoint = toIframeDoc(iframeX, iframeY);
-    const hit = pickGuideAtPoint(docPoint, guides.peek(), GUIDE_HIT_PX);
-    if (hit) {
-      selectedGuideId.value = hit.id;
-      dragId.value = hit.id;
-      return;
-    }
-    const orientation = e.shiftKey ? 'vertical' : 'horizontal';
-    const position = orientation === 'vertical' ? docPoint.x : docPoint.y;
-    const g = addGuide(orientation, position);
-    selectedGuideId.value = g.id;
-    dragId.value = g.id;
+    grabGuide({ point: toIframeDoc(iframeX, iframeY), vertical: e.shiftKey, dragId });
   };
 
   const deleteSelected = (e: KeyboardEvent) => {
-    if (activeTool.value !== 'guide') return;
-    const sel = selectedGuideId.peek() ?? guides.peek().at(-1)?.id;
-    if (!sel) return;
-    e.preventDefault();
-    e.stopPropagation();
-    removeGuide(sel);
-    track('guide_deleted', { via: 'key' });
-  };
-  const popLastGuide = (e: KeyboardEvent) => {
-    if (activeTool.value !== 'guide' || !guides.peek().length) return;
-    e.preventDefault();
-    e.stopPropagation();
-    undo();
+    if (activeTool.value === 'guide') deleteSelectedGuide(e);
   };
   const keyBindings = {
     Shift: () => {
       if (activeTool.value === 'guide') shift.value = true;
     },
-    Escape: (e: KeyboardEvent) => {
-      if (activeTool.value !== 'guide' || !guides.peek().length) return;
-      e.preventDefault();
-      e.stopPropagation();
-      track('guides_cleared', { count: guides.peek().length });
-      clearGuides();
-    },
     Backspace: deleteSelected,
     Delete: deleteSelected,
-    '$mod+KeyZ': popLastGuide,
   };
   const keyBindingsUp = {
     Shift: () => {
@@ -136,25 +106,29 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     win.addEventListener('mouseout', onOut, true);
     win.addEventListener('mousedown', onDown, true);
     win.addEventListener('mouseup', onUp, true);
-    const unbindDown = tinykeys(win, keyBindings);
-    const unbindUp = tinykeys(win, keyBindingsUp, { event: 'keyup' });
     return () => {
       try {
         win.removeEventListener('mousemove', onMove, true);
         win.removeEventListener('mouseout', onOut, true);
         win.removeEventListener('mousedown', onDown, true);
         win.removeEventListener('mouseup', onUp, true);
-        unbindDown();
-        unbindUp();
       } catch {
         /* iframe may have navigated cross-origin */
       }
     };
   });
 
-  // Keys follow focus, so they bind here too; the pointer stays with the frame. Over it the
-  // host only ever hears our own chrome, and reading that as the page dropped a guide under
-  // every click in a menu. Cleanup doubles as the tool-switch state reset.
+  useDismissible({
+    open: useComputed(() => activeTool.value === 'guide' && guides.value.length > 0),
+    close: () => {
+      capture('guides_cleared', { count: guides.peek().length });
+      clearGuides();
+    },
+  });
+
+  // Keys in the frame reach the host window as `ml-key`, so they bind here alone; the pointer
+  // stays with the frame. Over it the host only ever hears our own chrome, and reading that as
+  // the page dropped a guide under every click in a menu. Cleanup doubles as the tool-switch reset.
   useSignalEffect(() => {
     if (activeTool.value !== 'guide') return;
     const onUp = () => {
@@ -261,11 +235,11 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
             const at = off(frameRef.current);
             const newPos = selected.orientation === 'vertical' ? iframeY + at.y : iframeX + at.x;
             flipGuide(selected.id, newPos);
-            track('guide_flipped');
+            capture('guide_flipped');
           }}
           onDelete={() => {
             removeGuide(selected.id);
-            track('guide_deleted', { via: 'pill' });
+            capture('guide_deleted', { via: 'pill' });
           }}
         />
       )}

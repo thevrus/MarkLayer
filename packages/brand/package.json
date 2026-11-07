@@ -1,0 +1,29 @@
+{
+  "name": "@marklayer/brand",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./links": {
+      "types": "./src/links.ts",
+      "default": "./src/links.ts"
+    },
+    "./mark": {
+      "types": "./src/mark.ts",
+      "default": "./src/mark.ts"
+    }
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^7.0.2"
+  }
+}

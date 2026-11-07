@@ -1,5 +1,5 @@
-import type { AnnotationOp, CommentOp, DrawOp, StyleEdit } from '@marklayer/types';
-import { isAnnotationOp, resolveOpStatus } from '@marklayer/types';
+import type { AnnotationOp, DrawOp, StyleEdit } from '@marklayer/types/ops';
+import { indexOps, isRootAnnotation, resolveOpStatus } from '@marklayer/types/ops';
 
 const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim();
 
@@ -22,12 +22,8 @@ function isActionable(op: AnnotationOp): boolean {
   return noteOf(op).length > 0;
 }
 
-/** Replies belong to their parent thread, so they are not themselves watchable. */
-export const isWatchableOp = (op: DrawOp): op is AnnotationOp =>
-  isAnnotationOp(op) && !(op.tool === 'comment' && !!op.parentId);
-
 const actionableRoots = (ops: DrawOp[]): AnnotationOp[] =>
-  ops.filter((op): op is AnnotationOp => isWatchableOp(op) && isActionable(op));
+  ops.filter((op): op is AnnotationOp => isRootAnnotation(op) && isActionable(op));
 
 /** What stands in for the text of a thread that was spoken or recorded rather than typed. */
 function recordingLabel(op: AnnotationOp): string {
@@ -49,13 +45,7 @@ export function buildAnnotationsPrompt({ url, ops }: { url?: string; ops: DrawOp
   const items = actionableRoots(ops);
   if (!items.length) return null;
 
-  const replies = new Map<string, CommentOp[]>();
-  for (const op of ops) {
-    if (op.tool !== 'comment' || !op.parentId) continue;
-    const list = replies.get(op.parentId);
-    if (list) list.push(op);
-    else replies.set(op.parentId, [op]);
-  }
+  const { replies } = indexOps(ops);
 
   const blocks = items.map((op, i) => {
     const lines = [`${i + 1}. ${noteOf(op) || recordingLabel(op)}`];

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import type { TargetElement } from '@marklayer/types';
+import type { TargetElement } from '@marklayer/types/ops';
 import { type AnchorContext, applyAnchorDelta, reprojectBox, reprojectRects, resolveAnchorPoint } from './anchor';
-import { bumpAnchorGeneration } from './state';
+import { bumpAnchorGeneration } from './host-mutations';
 
 /**
  * happy-dom has no layout engine, so every rect is zero. Anchoring is entirely
@@ -131,22 +131,30 @@ describe('resolveAnchorPoint', () => {
     expect(resolveAnchorPoint(near, ctx)?.y).toBe(1000);
   });
 
-  test('returns null for an unresolvable target and stops re-scanning until the DOM changes', () => {
+  test('holds a failed lookup until the DOM changes, then finds the element', () => {
     mount('<h1 id="headline">Something else entirely</h1>');
-    const orphan = target({ selector: '#gone', text: 'Nothing matches this' });
+    const orphan = target();
     expect(resolveAnchorPoint(orphan, ctx)).toBeNull();
 
-    // The element the op wants now exists, but nothing has bumped the anchor
-    // generation, so the memoised failure still stands.
+    // The element the op wants now exists, but no mutation tick has announced it.
     mount('<h1 id="hero">Pricing</h1>');
     layout(pick('#hero'), { x: 100, y: 200, width: 400, height: 100 });
     expect(resolveAnchorPoint(orphan, ctx)).toBeNull();
 
-    // A mutation-observer tick invalidates the cached failure.
     bumpAnchorGeneration();
-    expect(resolveAnchorPoint(orphan, ctx)).toBeNull();
-    const reachable = target({ selector: '#hero' });
-    expect(resolveAnchorPoint(reachable, ctx)?.strategy).toBe('primary');
+    expect(resolveAnchorPoint(orphan, ctx)?.strategy).toBe('primary');
+  });
+
+  test('a failure against one document does not hold for the next', () => {
+    // The web viewer's frame starts on about:blank, then swaps in the proxied
+    // page with no mutation in between: a static page never bumps the generation.
+    const blank = document.implementation.createHTMLDocument('');
+    const t = target();
+    expect(resolveAnchorPoint(t, { doc: blank, win: window })).toBeNull();
+
+    mount('<h1 id="hero">Pricing</h1>');
+    layout(pick('#hero'), { x: 100, y: 200, width: 400, height: 100 });
+    expect(resolveAnchorPoint(t, ctx)?.strategy).toBe('primary');
   });
 
   test('re-resolves once the memoised element is detached from the document', () => {

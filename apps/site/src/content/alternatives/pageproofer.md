@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-11
 options:
   - name: "MarkLayer"
-    url: "/vs/pageproofer"
+    compare: pageproofer
     pitch: "Free and open source (Apache-2.0), with nothing to install for a public page: paste any URL at marklayer.app, draw, pin comments, highlight, then share a link. There is no user count and no plan. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. Pages behind a login need the free browser extension, on the reviewer's side as well as yours. An unclaimed link is deleted 90 days after its last activity; claiming it with a free account stops that clock."
     bestFor: "Anyone who wants PageProofer's on-page feedback without the monthly bill, and teams that review together in real time."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "The closest paid match to PageProofer's shape: a feedback tab on the site, each note becomes a task on a built-in kanban board, with browser and screen data captured automatically. There is no free plan. Standard is $50 a month, or $42 billed yearly, for five members, with extra seats at $8 a month. Jira and Linear sit on Premium at $150, or $125 yearly, for 25 members (checked October 2026)."
     bestFor: "Teams that want feedback to become tracked tasks and will pay per seat for it."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "Bug reporting with console logs and network requests attached to every report, which PageProofer partly covers with console errors and MarkLayer does not capture at all. Starter is $59 a month, or $39 billed yearly, for three users. Team is $199, or $149 yearly, for 15 users and adds Jira issue sync. Reporters are free and unlimited, and every plan has a 15-day trial (checked October 2026)."
     bestFor: "Engineering teams whose reports need a stack trace more than a drawing."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "A client-review workspace rather than a bug tracker: persistent canvases per site, version history and comment approvals. The free plan is one user and one active canvas, which PageProofer does not offer at all. Pro is $35 a month, or $29 billed yearly, for two users and three canvases; Team is $119, or $99 yearly, for five users with unlimited canvases (checked October 2026)."
     bestFor: "Agencies running structured client review rounds who want a free plan to start on."
 faq:

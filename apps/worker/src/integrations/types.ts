@@ -1,4 +1,6 @@
-import { type ConfigFieldInfo, type DrawOp, type IntegrationProvider, uploadPath } from '@marklayer/types';
+import { uploadPath } from '@marklayer/brand/links';
+import type { DrawOp } from '@marklayer/types/ops';
+import type { ConfigFieldInfo, IntegrationProvider } from '../../shared/integrations';
 
 /** One annotation, reduced to the line a destination should show for it. */
 export interface Notifiable {

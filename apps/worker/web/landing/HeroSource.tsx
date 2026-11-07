@@ -1,12 +1,14 @@
 import { Tabs } from '@base-ui/react/tabs';
-import { cn, MAX_UPLOAD_BYTES, UPLOAD_FORMATS, UPLOAD_IMAGE_ACCEPT } from '@marklayer/types';
+import { MAX_UPLOAD_BYTES, UPLOAD_FORMATS, UPLOAD_IMAGE_ACCEPT } from '@marklayer/types/uploads';
+import { cn } from '@marklayer/ui/cn';
 import { useSignal } from '@preact/signals';
 import { ArrowRight, FileText, Globe, Image, type LucideIcon } from 'lucide-preact';
 import { useRef } from 'preact/hooks';
 import { capture } from '../analytics';
-import { navigateTo, withScheme } from '../signals';
+import type { UploadKind } from '../projects';
+import { navigateTo, withScheme } from '../projects';
 import { useHeroPin } from './useHeroPin';
-import { type UploadKind, useLandingUpload } from './useLandingUpload';
+import { ADDRESS_START, useLandingUpload } from './useLandingUpload';
 import { useTypedPlaceholder } from './useTypedPlaceholder';
 
 type Source = 'website' | UploadKind;
@@ -129,7 +131,7 @@ export function HeroSource() {
                 class="h-11 flex-1 bg-transparent border-none text-ml-fg text-base sm:text-body placeholder:text-ml-fg/60 outline-none"
                 onInput={(e) => {
                   const v = e.currentTarget.value.trim();
-                  urlReady.value = v.length > 0 && /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i.test(v);
+                  urlReady.value = v.length > 0 && ADDRESS_START.test(v);
                 }}
               />
               <button

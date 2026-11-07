@@ -158,10 +158,6 @@ describe('freezeDocument', () => {
 });
 
 describe('thawDocument', () => {
-  test('does nothing for a document that was never frozen', () => {
-    expect(() => thawDocument(document)).not.toThrow();
-  });
-
   test('survives an animation removed while the page was frozen', () => {
     const page = animation({ target: pick('#page') });
     stubAnimations(document, [page]);

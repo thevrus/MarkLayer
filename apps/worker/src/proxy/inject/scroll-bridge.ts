@@ -1,0 +1,5 @@
+import { FRAME_MESSAGE, PARENT_MESSAGE } from '../../../shared/frame-protocol';
+
+/** The compare view's scroll bridge: inert until the parent sends ml-scroll-sync. */
+export const scrollBridgeScript = ({ selfOrigin }: { selfOrigin: string }): string =>
+  `<script>(function(){var on=false,lock=null;function se(){return document.scrollingElement||document.documentElement}window.addEventListener("message",function(e){if(e.source!==window.parent)return;var d=e.data;if(!d)return;if(d.type==="${PARENT_MESSAGE.scrollSync}"){on=d.on===true;return}if(!on||d.type!=="${PARENT_MESSAGE.scrollTo}"||typeof d.ratio!=="number")return;var s=se(),y=Math.round(Math.max(0,Math.min(1,d.ratio))*(s.scrollHeight-s.clientHeight));if(Math.abs(s.scrollTop-y)<2)return;lock=y;s.scrollTop=y});window.addEventListener("scroll",function(){if(!on)return;var s=se(),y=s.scrollTop;if(lock!==null&&Math.abs(y-lock)<2){lock=null;return}lock=null;var m=s.scrollHeight-s.clientHeight;window.parent.postMessage({type:"${FRAME_MESSAGE.scroll}",ratio:m>0?y/m:0},"${selfOrigin}")},{passive:true})})();</script>`;

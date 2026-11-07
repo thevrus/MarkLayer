@@ -1,5 +1,6 @@
 import { Menu } from '@base-ui/react/menu';
-import { cn, MAX_VIDEO_SECONDS } from '@marklayer/types';
+import { MAX_VIDEO_SECONDS } from '@marklayer/types/uploads';
+import { cn } from '@marklayer/ui/cn';
 import { useSignal } from '@preact/signals';
 import { Loader2, Monitor, Square, Video, X } from 'lucide-preact';
 import { track } from '../lib/analytics';
@@ -7,7 +8,7 @@ import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { portalContainer } from '../lib/portal';
 import { type OpenedStream, type RecorderSlot, useRecorder } from '../lib/recorder';
-import { toast } from '../lib/state';
+import { toast } from '../lib/toasts';
 import { clock } from './MediaNote';
 import { Tooltip } from './Tooltip';
 import { AUDIO_MIME_CANDIDATES } from './VoiceNote';

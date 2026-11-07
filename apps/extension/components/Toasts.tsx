@@ -1,8 +1,8 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
-import { pauseToast, resumeToast, toasts } from '../lib/state';
+import { pauseToast, resumeToast, toasts } from '../lib/toasts';
 
 /** Where the stack sits — the viewer clears its own top bar, the rest hug the top edge. */
 type Offset = 'top' | 'below-bar';

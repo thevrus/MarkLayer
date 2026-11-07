@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MAX_STYLE_EDITS, MAX_STYLE_VALUE } from '@marklayer/types';
+import { MAX_STYLE_EDITS, MAX_STYLE_VALUE } from '@marklayer/types/ops';
 import { createStyleSession, isColorValue, nudgeValue, toStyleEdits } from './style-edit';
 
 const box = (style?: string) => {

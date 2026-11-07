@@ -1,5 +1,6 @@
-import { normalizeSuggestion } from '@marklayer/types';
+import { normalizeSuggestion } from '@marklayer/types/ops';
 import { tinykeys } from 'tinykeys';
+import { toDoc } from './scroller';
 
 // Cross-realm safe: an element from a proxied iframe fails `instanceof Element` here.
 const isText = (n: Node): n is Text => n.nodeType === Node.TEXT_NODE;
@@ -90,13 +91,13 @@ export function diffEdit({
   return suggestion ? { text, suggestion } : null;
 }
 
-export interface Snapshot {
+interface Snapshot {
   kids: Map<Element, Node[]>;
   data: Map<Text, string>;
 }
 
 /** Every child list and text value under `root`, so a browser-mangled edit can be undone exactly. */
-export function snapshot(root: Element): Snapshot {
+function snapshot(root: Element): Snapshot {
   const kids = new Map<Element, Node[]>();
   const data = new Map<Text, string>();
   const walk = (el: Element) => {
@@ -110,7 +111,7 @@ export function snapshot(root: Element): Snapshot {
   return { kids, data };
 }
 
-export function restore({ kids, data }: Snapshot): void {
+function restore({ kids, data }: Snapshot): void {
   for (const [el, nodes] of kids) {
     const same = el.childNodes.length === nodes.length && nodes.every((n, i) => el.childNodes[i] === n);
     if (!same) el.replaceChildren(...nodes);
@@ -170,7 +171,7 @@ export function startTextEdit({
   else measure.selectNode(plan.node);
   const rects = Array.from(measure.getClientRects())
     .filter((r) => r.width > 0 && r.height > 0)
-    .map((r) => ({ x: r.x + win.scrollX, y: r.y + win.scrollY, width: r.width, height: r.height }));
+    .map((r) => ({ ...toDoc({ x: r.x, y: r.y, win }), width: r.width, height: r.height }));
   if (rects.length === 0) return false;
 
   const anchorEl = plan.kind === 'block' ? plan.root : plan.node.parentElement;

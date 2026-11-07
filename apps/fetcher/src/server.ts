@@ -14,7 +14,15 @@
 
 import { timingSafeEqual } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
+import { ORIGIN } from '@marklayer/brand';
 import { isPrivateAddress, parseFetchableUrl } from '@marklayer/types/net';
+import {
+  RELAY_FETCH_PATH,
+  RELAY_HEADERS,
+  RELAY_STATUS_ERROR,
+  RELAY_STATUS_OK,
+  RELAY_URL_PARAM,
+} from '@marklayer/types/relay';
 
 const PORT = Number(process.env.PORT || 8080);
 const TOKEN = process.env.FETCHER_TOKEN;
@@ -29,7 +37,7 @@ const TOKEN = process.env.FETCHER_TOKEN;
  * to be a browser we are not is what gets a fetcher blocked; saying what we are,
  * with a URL that explains it, is what gets it allowed.
  */
-const USER_AGENT = 'MarkLayer/1.0 (+https://marklayer.app/bot; page renderer for user-requested annotations)';
+const USER_AGENT = `MarkLayer/1.0 (+${ORIGIN}/bot; page renderer for user-requested annotations)`;
 
 const MAX_REDIRECTS = 5;
 const FETCH_TIMEOUT_MS = 20_000;
@@ -49,7 +57,7 @@ function authorized(req: Request): boolean {
 }
 
 function relayError(message: string, status = 502): Response {
-  return Response.json({ error: message }, { status, headers: { 'x-ml-relay': 'error' } });
+  return Response.json({ error: message }, { status, headers: { [RELAY_HEADERS.status]: RELAY_STATUS_ERROR } });
 }
 
 /**
@@ -126,9 +134,9 @@ async function fetchGuarded(start: URL): Promise<Response> {
     // The address a site owner would allowlist, carried on the response itself so
     // the Worker can name it without a hand-copied secret that silently goes stale.
     const headers = new Headers({
-      'x-ml-relay': 'ok',
-      'x-ml-final-url': current.href,
-      ...(settledAddress ? { 'x-ml-egress': settledAddress } : {}),
+      [RELAY_HEADERS.status]: RELAY_STATUS_OK,
+      [RELAY_HEADERS.finalUrl]: current.href,
+      ...(settledAddress ? { [RELAY_HEADERS.egress]: settledAddress } : {}),
     });
     const contentType = upstream.headers.get('content-type');
     if (contentType) headers.set('content-type', contentType);
@@ -169,10 +177,10 @@ export async function handle(req: Request): Promise<Response> {
     return Response.json({ ok: true, egress: await egressAddress(), userAgent: USER_AGENT });
   }
 
-  if (url.pathname !== '/fetch') return new Response('Not found', { status: 404 });
+  if (url.pathname !== RELAY_FETCH_PATH) return new Response('Not found', { status: 404 });
   if (!authorized(req)) return relayError('unauthorized', 401);
 
-  const target = url.searchParams.get('url');
+  const target = url.searchParams.get(RELAY_URL_PARAM);
   if (!target) return relayError('missing ?url=', 400);
 
   const parsed = parseFetchableUrl(target);

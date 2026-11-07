@@ -1,5 +1,5 @@
 import { Drawer } from '@base-ui/react/drawer';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import type { ComponentChildren, RefObject } from 'preact';
 import { useState } from 'preact/hooks';
 import { glass } from '../lib/glass';

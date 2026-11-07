@@ -1,4 +1,4 @@
-import { MAX_STYLE_EDITS, MAX_STYLE_PROPERTY, MAX_STYLE_VALUE, type StyleEdit } from '@marklayer/types';
+import { MAX_STYLE_EDITS, MAX_STYLE_PROPERTY, MAX_STYLE_VALUE, type StyleEdit } from '@marklayer/types/ops';
 
 /**
  * The properties the CSS editor offers, in reading order: box, flow, spacing,

@@ -1,7 +1,8 @@
+import { CHROME_STORE_URL } from '@marklayer/brand';
 import type { APIRoute } from 'astro';
 import dates from '../data/page-dates.json';
 import { getPublishedPrices } from '../lib/collections';
-import { CHROME_STORE_URL, formatLastUpdated } from '../lib/site';
+import { formatLastUpdated, MARKLAYER_PRICE, PRICES_CHECKED } from '../lib/site';
 
 /**
  * Machine-readable pricing for AI agents. Prerendered to `pricing.md`, which
@@ -60,9 +61,9 @@ An annotation is a small JSON payload and a share link is a row in D1 plus a Web
 - If you need guarantees, self-host under Apache-2.0 rather than buy a plan (none exists)
 
 ## What the rest of the category charges
-Published vendor prices, checked August 2026. Full side-by-side comparisons at https://marklayer.app/compare.
+Published vendor prices, checked ${PRICES_CHECKED}. Full side-by-side comparisons at https://marklayer.app/compare.
 
-- MarkLayer: free, no tiers, no seats, no trial
+- MarkLayer: ${MARKLAYER_PRICE}
 ${priced.map((c) => `- ${c.competitor}: ${c.price}`).join('\n')}
 
 ## Self-hosting

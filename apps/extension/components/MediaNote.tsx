@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { Square, X } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { geist } from '../lib/geist';

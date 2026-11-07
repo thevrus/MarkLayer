@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { commentMetaSchema, MAX_PAGE_ERROR_TEXT, MAX_PAGE_ERRORS } from '@marklayer/types';
+import { commentMetaSchema } from '@marklayer/types/ops';
+import { MAX_PAGE_ERROR_TEXT, MAX_PAGE_ERRORS } from '@marklayer/types/relay';
 import { ingestPageErrors, pageErrors } from './page-errors';
 
 describe('ingestPageErrors', () => {

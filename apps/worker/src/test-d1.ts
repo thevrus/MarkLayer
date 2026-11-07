@@ -1,11 +1,12 @@
-import type { Database } from 'bun:sqlite';
+import { Database } from 'bun:sqlite';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-/** A D1 stand-in that records SQL and replays queued rows. `changes` matters because the guards are conditional UPDATEs: a fake that always succeeds would pass while the guard did nothing. */
+/** A D1 stand-in that records SQL and replays queued rows. Every write reports one row changed, so a guard in SQL needs `migratedSqlite`. */
 export function fakeDb({
   first = null,
   firstQueue,
   all = [],
-  changes = 1,
 }: {
   first?: unknown;
   /**
@@ -15,9 +16,8 @@ export function fakeDb({
    */
   firstQueue?: unknown[];
   all?: unknown[];
-  changes?: number;
 } = {}) {
-  return new FakeD1({ first, queue: firstQueue ? [...firstQueue] : null, all, changes });
+  return new FakeD1({ first, queue: firstQueue ? [...firstQueue] : null, all });
 }
 
 export const unsupported = (): never => {
@@ -43,7 +43,6 @@ interface Replay {
   first: unknown;
   queue: unknown[] | null;
   all: unknown[];
-  changes: number;
 }
 
 class FakeStatement implements D1PreparedStatement {
@@ -67,7 +66,7 @@ class FakeStatement implements D1PreparedStatement {
   }
 
   async run<T = Record<string, unknown>>(): Promise<D1Result<T>> {
-    return { success: true, results: [], meta: d1Meta({ changes: this.script.changes }) };
+    return { success: true, results: [], meta: d1Meta({ changes: 1 }) };
   }
 
   raw = unsupported;
@@ -84,7 +83,12 @@ class FakeD1 implements D1Database {
     return new FakeStatement(call, this.script);
   };
 
-  batch = unsupported;
+  /** Each statement in turn; the fake has no transaction to speak of. */
+  async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
+    const out: D1Result<T>[] = [];
+    for (const s of statements) out.push(await s.run<T>());
+    return out;
+  }
   exec = unsupported;
   withSession = unsupported;
   dump = unsupported;
@@ -124,6 +128,30 @@ class SqliteStatement implements D1PreparedStatement {
   raw = unsupported;
 }
 
+/** An in-memory database at the real schema, every migration in order, for a guard that only SQL can run. */
+export function migratedSqlite(): Database {
+  const sqlite = new Database(':memory:');
+  const dir = join(import.meta.dir, '../migrations');
+  for (const file of readdirSync(dir).sort()) sqlite.exec(readFileSync(join(dir, file), 'utf8'));
+  return sqlite;
+}
+
+/** One row, naming only the columns the test cares about. */
+export function insertRow({
+  sqlite,
+  table,
+  row,
+}: {
+  sqlite: Database;
+  table: string;
+  row: Record<string, string | number | null>;
+}): void {
+  const columns = Object.keys(row);
+  sqlite
+    .query(`INSERT INTO ${table} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
+    .run(...Object.values(row));
+}
+
 /** D1's statement surface over bun:sqlite, for tests where the guard lives in SQL; only what the stores call is real. */
 export class SqliteD1 implements D1Database {
   constructor(private readonly sqlite: Database) {}
@@ -132,7 +160,11 @@ export class SqliteD1 implements D1Database {
     return new SqliteStatement(this.sqlite, sql);
   }
 
-  batch = unsupported;
+  async batch<T = unknown>(statements: D1PreparedStatement[]): Promise<D1Result<T>[]> {
+    const out: D1Result<T>[] = [];
+    for (const s of statements) out.push(await s.run<T>());
+    return out;
+  }
   exec = unsupported;
   withSession = unsupported;
   dump = unsupported;

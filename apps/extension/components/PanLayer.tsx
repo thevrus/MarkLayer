@@ -1,7 +1,7 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { useSignal } from '@preact/signals';
 import { useRef } from 'preact/hooks';
-import { panActive, panBy } from '../lib/state';
+import { panActive, panBy } from '../lib/tool-state';
 
 /**
  * Figma's hand tool. Covers the annotated surface while `H` is toggled on or Space

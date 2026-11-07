@@ -1,19 +1,29 @@
-import { toast } from '@ext/lib/state';
-import { MAX_UPLOAD_BYTES, PICKABLE_TYPES, uploadResponseSchema } from '@marklayer/types';
+import { uploadFile as storeFile } from '@ext/lib/share';
+import { toast } from '@ext/lib/toasts';
+import { uploadPath } from '@marklayer/brand/links';
+import { MAX_UPLOAD_BYTES, PICKABLE_TYPES } from '@marklayer/types/uploads';
 import { type Signal, useSignal } from '@preact/signals';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
-import { navigateTo, withScheme } from '../signals';
+import type { UploadKind } from '../projects';
+import { navigateTo, withScheme } from '../projects';
 
-export type UploadKind = 'pdf' | 'image';
 /** What a drag in flight will become on release: a stored file, or a page to open. */
 export type DragKind = UploadKind | 'link';
 
 const ACCEPTED = new Set(PICKABLE_TYPES);
 
+/** The refusals a person can act on: too big, or not a kind we render. */
+const REFUSALS: Record<number, string> = {
+  413: `That file is larger than ${MAX_UPLOAD_BYTES / 1024 / 1024}MB`,
+  415: 'That has to be a PDF or an image',
+};
+
 /** dragover repeats every ~350ms in Firefox, the slowest; a longer silence means the drag went elsewhere. */
 const DRAG_IDLE_MS = 800;
+/** What an address starts with: an optional scheme, then a dotted host. */
+export const ADDRESS_START = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}/i;
 /** One token, so prose that merely contains a domain is not taken for an address. */
-const ADDRESS = /^(https?:\/\/)?[\w.-]+\.[a-z]{2,}\S*$/i;
+const ADDRESS = new RegExp(`${ADDRESS_START.source}\\S*$`, 'i');
 
 /** A file with no type (some drags report none) is judged by its name; the server sniffs either way. */
 const kindOf = (file: File): UploadKind =>
@@ -64,8 +74,6 @@ export function useLandingUpload(): {
   const dragging = useSignal(false);
   const dragKind = useSignal<DragKind | null>(null);
 
-  // The two refusals a person can act on — too big, or not a kind we render —
-  // say which; the rest throw into the shared catch.
   const uploadFile = useCallback(async (file: File) => {
     if (uploading.value) return;
     // The field swaps to the file's kind while it uploads, hiding whatever had focus.
@@ -73,19 +81,14 @@ export function useLandingUpload(): {
     const kind = kindOf(file);
     uploading.value = kind;
     try {
-      const res = await fetch('/f', { method: 'POST', body: file });
-      if (res.status === 413) {
-        toast(`That file is larger than ${MAX_UPLOAD_BYTES / 1024 / 1024}MB`, { type: 'error' });
-        return;
-      }
-      if (res.status === 415) {
-        toast('That has to be a PDF or an image', { type: 'error' });
-        return;
-      }
-      if (!res.ok) throw new Error(String(res.status));
-      const stored = uploadResponseSchema.safeParse(await res.json());
-      if (!stored.success) throw new Error('no url');
-      navigateTo({ url: stored.data.url, source: 'hero_upload', kind });
+      let refused = 0;
+      const id = await storeFile(file, {
+        onRefused: (status) => {
+          refused = status;
+        },
+      });
+      if (id) navigateTo({ url: uploadPath(id), source: 'hero_upload', kind });
+      else toast(REFUSALS[refused] ?? 'Could not upload that file', { type: 'error' });
     } catch {
       toast('Could not upload that file', { type: 'error' });
     } finally {

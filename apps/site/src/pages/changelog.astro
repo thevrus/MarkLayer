@@ -3,7 +3,7 @@ import dates from '../data/page-dates.json';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
 import { getReleases } from '../lib/collections';
 import { articleSchema } from '../lib/schema';
-import { formatReleaseDate } from '../lib/site';
+import { formatReleaseDate, releasePath } from '../lib/site';
 
 const releases = await getReleases();
 const { published, modified } = dates['hub-changelog'];
@@ -51,7 +51,7 @@ const h1 = "What's new in MarkLayer";
         </div>
         <div class="ml-release-body">
           <h2 class="ml-release-title">
-            <a href={`/changelog/${r.slug}`}>{r.data.name}</a>
+            <a href={releasePath(r.slug)}>{r.data.name}</a>
           </h2>
           <p>{r.data.summary}</p>
           {r.features.length > 0 && (

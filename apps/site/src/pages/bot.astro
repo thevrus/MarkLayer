@@ -1,0 +1,65 @@
+---
+import BaseHead from '../components/BaseHead.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { ORIGIN } from '@marklayer/brand';
+import { AUTHOR_EMAIL, pageOgImage } from '../lib/site';
+
+// One string: the card is keyed by a hash of the heading, so an h1 edited
+// without its twin would serve the old wording forever.
+const h1 = 'MarkLayer fetcher';
+const title = 'MarkLayer fetcher (bot) · MarkLayer';
+const description =
+  'What the MarkLayer fetcher is, why it requests a page, and how to block it or ask us to allow it. Contact and opt-out.';
+---
+
+<html lang="en">
+  <head>
+    <BaseHead
+      title={title}
+      description={description}
+      canonical={`${ORIGIN}/bot`}
+      ogType="website"
+      ogImage={pageOgImage({ heading: h1, path: '/bot' })}
+    />
+  </head>
+  <body>
+    <SiteHeader path="/bot" />
+    <div class="ml-shell">
+      <Breadcrumbs crumbs={[{ name: 'MarkLayer', path: '/' }, { name: 'Fetcher' }]} />
+      <h1>{h1}</h1>
+
+      <p>
+        If your server logs show <code>MarkLayer/1.0 (+{ORIGIN}/bot; page renderer for user-requested annotations)</code>,
+        this is the page it points to.
+      </p>
+
+      <h2>What it is</h2>
+      <p>
+        MarkLayer lets someone annotate a webpage. When a person pastes a URL into MarkLayer, our server fetches that one
+        page so they can draw and comment on it. The relay is a small program on a fixed IP address that does that fetch
+        when a host refuses requests from our main servers. It identifies itself honestly in the user-agent above.
+      </p>
+
+      <h2>What it does not do</h2>
+      <ul>
+        <li>It does not crawl. It requests one URL, only because a person asked for it, and follows the redirects that URL gives.</li>
+        <li>It does not reach private or internal addresses.</li>
+      </ul>
+
+      <h2>Opt out</h2>
+      <p>
+        Block the user-agent <code>MarkLayer</code> in your server or firewall, or return a <code>403</code> to it. The
+        person who asked for the page will see that it could not be loaded.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        To report a problem or ask us to allow the relay's address, write to
+        <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a>. Include the host and, if you have it, the time of the request.
+      </p>
+    </div>
+    <SiteFooter />
+  </body>
+</html>

@@ -1,6 +1,7 @@
 import { secondaryBtn, submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
-import { cn } from '@marklayer/types';
+import { LOGIN_TOKEN_TTL_SECONDS } from '@marklayer/brand';
+import { cn } from '@marklayer/ui/cn';
 import { useSignal } from '@preact/signals';
 import type { ComponentChildren } from 'preact';
 import { Logo } from '../shared';
@@ -45,7 +46,7 @@ export function SignIn() {
         <div class={cn(CARD, 'text-center')}>
           <p class="text-ui leading-body text-balance text-(--ds-gray-900)">
             A sign-in link is on its way to <span class="font-medium text-(--ds-gray-1000)">{email.value.trim()}</span>.
-            It works once and expires in 15 minutes.
+            It works once and expires in {LOGIN_TOKEN_TTL_SECONDS / 60} minutes.
           </p>
           <button
             type="button"

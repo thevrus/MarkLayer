@@ -1,9 +1,12 @@
 ---
 import HomeContent from '../components/home/HomeContent.astro';
+import faq from '../data/home-faq.json';
 import schema from '../data/home-schema.json';
 import dates from '../data/page-dates.json';
 import { getCurrentVersion } from '../lib/collections';
-import { OG_IMAGE, OG_VIDEO, ORIGIN, WORKER_DEV } from '../lib/site';
+import { faqSchema } from '../lib/schema';
+import { ORIGIN } from '@marklayer/brand';
+import { OG_IMAGE, OG_VIDEO, WORKER_DEV } from '../lib/site';
 
 /**
  * The application shell for `/`.
@@ -40,11 +43,15 @@ const dateModified = dates.home.modified;
 
 const ld = {
   ...schema,
-  '@graph': schema['@graph'].map((node) => {
-    if (node['@type'] === 'WebSite') return { ...node, dateModified };
-    if (node['@type'] === 'WebApplication') return { ...node, dateModified, softwareVersion };
-    return node;
-  }),
+  '@graph': [
+    ...schema['@graph'].map((node) => {
+      if (node['@type'] === 'WebSite') return { ...node, dateModified };
+      if (node['@type'] === 'WebApplication') return { ...node, dateModified, softwareVersion };
+      return node;
+    }),
+    // The answers are HTML for the prerendered <dl>; JSON-LD carries the text.
+    faqSchema(faq.map(({ q, a }) => ({ q, a: a.replace(/<[^>]+>/g, '') }))),
+  ],
 };
 ---
 

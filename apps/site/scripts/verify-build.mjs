@@ -93,24 +93,17 @@ for (const file of htmlFiles) {
   }
 
   // 5. The retention window is a promise about deleting user data, and the cron
-  //    in apps/worker/src/index.ts is the source of truth (90 days from last
+  //    in apps/worker/src/cron.ts is the source of truth (90 days from last
   //    access). A stale "30 days" here contradicts the product.
   if (STALE_RETENTION.test(html)) {
     errors.push(`${page}: claims a 30-day retention window; the cleanup cron deletes 90 days after last access`);
   }
 }
 
-// 6. `/` is the app shell. apps/worker's build stages it as its Vite entry
-//    (sync-shell.mjs), so the mount point and the entry script must survive.
+// 6. `/` is the app shell. apps/worker's build stages it as its Vite entry, and
+//    sync-shell.mjs is what refuses a shell without its mount point or entry script.
 const shellHtml = distSet.has('index.html') ? await readFile(join(DIST, 'index.html'), 'utf8') : null;
-if (shellHtml === null) {
-  errors.push('dist/index.html is missing; apps/worker has no app shell to build from');
-} else {
-  if (!shellHtml.includes('id="app"')) errors.push('index.html has no #app mount point; main.tsx would throw on boot');
-  if (!shellHtml.includes('src="/web/main.tsx"')) {
-    errors.push('index.html has no /web/main.tsx entry script; Vite would emit a shell that never boots the SPA');
-  }
-}
+if (shellHtml === null) errors.push('dist/index.html is missing; apps/worker has no app shell to build from');
 
 // 7. The prerendered homepage must carry the same headline as the live one.
 //
@@ -159,7 +152,7 @@ if (shellHtml !== null) {
 }
 
 // 9. No unfilled `{{word}}` placeholder reaches an agent. The Worker inlines
-//    robots.txt and SKILL.md from source and llms*.txt from dist (apps/worker/src/index.ts),
+//    robots.txt and SKILL.md from source and llms*.txt from dist (apps/worker/src/agent-surface.ts),
 //    so a placeholder the site build fills only in dist must never be read from source.
 const SITE = resolve(DIST, '..');
 const AGENT_TEXT = [
@@ -214,6 +207,45 @@ for (const [rel, text] of agentText) {
     if (WORKER_EXACT.has(path) || WORKER_PREFIXES.some((p) => path.startsWith(p))) continue;
     if (!resolves(path)) errors.push(`${rel}: broken absolute link -> https://marklayer.app${path}`);
   }
+}
+
+// 12. The extension's version needs a release note: the site reports the newest note
+//     as `softwareVersion` and in llms.txt, so a bump without one leaves both behind.
+const extensionVersion = JSON.parse(await readFile(resolve(SITE, '../extension/package.json'), 'utf8')).version;
+const releaseVersions = await Promise.all(
+  (await readdir(resolve(SITE, 'src/content/releases'))).map(async (file) => {
+    const text = await readFile(resolve(SITE, 'src/content/releases', file), 'utf8');
+    return text.match(/^version:\s*'?([\d.]+)'?/m)?.[1] ?? '0.0.0';
+  }),
+);
+if (!releaseVersions.includes(extensionVersion)) {
+  errors.push(`extension is ${extensionVersion} but no src/content/releases file carries that version`);
+}
+
+// 13. Every built page carries Cache-Control, or says in routes.json why it does not.
+//     These pages skip the Worker, so nothing else sets it, and a page missing from
+//     routes.json also falls through :5173's dev proxy into the Worker's catch-all.
+const routes = JSON.parse(await readFile(resolve(SITE, 'src/data/routes.json'), 'utf8'));
+const cacheRules = (await readFile(join(DIST, '_headers'), 'utf8'))
+  .split(/\n(?=\S)/)
+  .filter((rule) => /^\s+Cache-Control:/m.test(rule))
+  .map((rule) => rule.split('\n')[0].trim());
+const uncached = new Set(routes.uncached);
+const served = [
+  ...htmlFiles.map(
+    (f) =>
+      `/${f
+        .split('\\')
+        .join('/')
+        .replace(/\.html$/, '')}`,
+  ),
+  ...files.filter((f) => /\.(md|xml)$/.test(f)).map((f) => `/${f}`),
+];
+for (const page of served) {
+  if (page === '/index' || uncached.has(page)) continue;
+  if (WORKER_EXACT.has(page) || WORKER_PREFIXES.some((p) => page.startsWith(p))) continue;
+  const covered = cacheRules.some((r) => (r.endsWith('/*') ? page.startsWith(r.slice(0, -1)) : r === page));
+  if (!covered) errors.push(`${page}: no Cache-Control rule; add it to src/data/routes.json`);
 }
 
 if (errors.length) {

@@ -15,23 +15,27 @@ import { build, type Plugin, type Rolldown } from 'vite';
 
 const extRoot = resolve(import.meta.dir, '..');
 const outDir = resolve(process.argv[2] ?? join(extRoot, '../worker/public/client'));
+// The bundler writes `//#region` paths relative to cwd into the output, so the chunk
+// hash would otherwise depend on which workspace launched the build.
+process.chdir(extRoot);
 /**
- * Shared modules the widget replaces, matched by resolved path so no shared file
- * needs a widget branch. The origin swap points the API at whatever served the
- * bundle; the rest drop Base UI (Menu, Popover, Drawer), which was most of its size.
- * Each stand-in is typed against the module it replaces, so a drifted signature fails tsc.
+ * Shared modules the widget replaces, purely for size: each drops Base UI (Menu,
+ * Popover, Drawer), which was most of its bundle. Correctness is not a swap: origin,
+ * storage, drafts and capture are `initHost` config in app.tsx. Matched by resolved
+ * path so no shared file needs a widget branch. Each stand-in is typed against the
+ * module it replaces, so a drifted signature fails tsc.
  */
 const SWAPS = new Map([
-  [join(extRoot, 'lib/origin.ts'), join(import.meta.dir, 'origin.ts')],
   [join(extRoot, 'components/CommentTriage.tsx'), join(import.meta.dir, 'lite/CommentTriage.tsx')],
   [join(extRoot, 'components/MentionTextarea.tsx'), join(import.meta.dir, 'lite/MentionTextarea.tsx')],
   [join(extRoot, 'components/Reactions.tsx'), join(import.meta.dir, 'lite/Reactions.tsx')],
   [join(extRoot, 'components/BottomSheet.tsx'), join(import.meta.dir, 'lite/BottomSheet.tsx')],
   [join(extRoot, 'lib/icons.tsx'), join(import.meta.dir, 'lite/icons.tsx')],
-  [join(extRoot, 'lib/drafts.ts'), join(import.meta.dir, 'lite/drafts.ts')],
+  [join(extRoot, 'lib/agents.tsx'), join(import.meta.dir, 'lite/agents.tsx')],
   [join(extRoot, 'components/VideoNote.tsx'), join(import.meta.dir, 'lite/VideoNote.tsx')],
   [join(extRoot, 'components/PriorityMenu.tsx'), join(import.meta.dir, 'lite/PriorityMenu.tsx')],
   [join(extRoot, 'components/Tooltip.tsx'), join(import.meta.dir, 'lite/Tooltip.tsx')],
+  [join(extRoot, 'components/BatchSwitch.tsx'), join(import.meta.dir, 'lite/BatchSwitch.tsx')],
 ]);
 
 const swapModules: Plugin = {
@@ -91,7 +95,7 @@ const probe = await buildApp({ write: false });
 const sources = Object.keys(probe.modules)
   .map((id) => id.split('?')[0] ?? id)
   .filter((file) => /\.(tsx?|jsx?|mjs)$/.test(file) && !file.includes('/node_modules/'));
-if (!sources.some((file) => file.endsWith('components/CommentPin.tsx'))) {
+if (!Object.values(probe.modules).some((m) => m.renderedExports.includes('CommentPin'))) {
   throw new Error('widget build: module graph looks wrong, refusing to scope Tailwind to it');
 }
 const entry = await buildApp({ sources, write: true });

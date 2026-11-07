@@ -100,12 +100,10 @@ interface GuideLike {
   position: number;
 }
 
-/** Pixel distance from a point to a guide line in the same axis. */
 function guideDistance(orientation: Orientation, position: number, point: { x: number; y: number }) {
   return orientation === 'vertical' ? Math.abs(point.x - position) : Math.abs(point.y - position);
 }
 
-/** Returns the closest guide within `snapPx` of the cursor, or null. */
 export function pickGuideAtPoint(point: { x: number; y: number }, guides: GuideLike[], snapPx = 6) {
   let best: GuideLike | null = null;
   let bestDist = snapPx + 1;
@@ -119,7 +117,6 @@ export function pickGuideAtPoint(point: { x: number; y: number }, guides: GuideL
   return best;
 }
 
-/** Direction for Tab / arrow traversal on the focused anchor. */
 export type TraverseDir = 'parent' | 'child' | 'next' | 'prev';
 
 /**

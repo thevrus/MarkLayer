@@ -3,6 +3,7 @@ import dates from '../data/page-dates.json';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
 import { getGuides } from '../lib/collections';
 import { articleSchema } from '../lib/schema';
+import { guidePath } from '../lib/site';
 
 const guides = await getGuides();
 const { published, modified } = dates['hub-guides'];
@@ -33,7 +34,7 @@ const h1 = 'Guides';
     guides.map((g) => (
       <div class="ml-entry">
         <h3>
-          <a href={`/guides/${g.id}`}>{g.data.h1}</a>
+          <a href={guidePath(g.id)}>{g.data.h1}</a>
         </h3>
         <p>{g.data.intro}</p>
       </div>

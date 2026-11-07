@@ -1,24 +1,7 @@
-import { CancelButton } from '@ext/components/CancelButton';
-import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
-import { PriorityPicker } from '@ext/components/PriorityPicker';
-import { SelectionEdit } from '@ext/components/SelectionEdit';
-import { track } from '@ext/lib/analytics';
-import { submitBtn, textareaCls } from '@ext/lib/buttons';
-import { geist } from '@ext/lib/geist';
-import { glass } from '@ext/lib/glass';
-import { useEdgeClamp, useSelectionDismiss } from '@ext/lib/popover';
-import { color, lineWidth, signedBy } from '@ext/lib/state';
-import type { SelectionOp, SelectionRect } from '@ext/lib/types';
-import {
-  type CaptureViewport,
-  type CommentPriority,
-  cn,
-  normalizeSuggestion,
-  type TargetElement,
-} from '@marklayer/types';
-import { nanoid } from 'nanoid';
-import { useRef, useState } from 'preact/hooks';
-import { pushDeviceOp } from './signals';
+import { SelectionComposer } from '@ext/components/SelectionComposer';
+import type { SelectionRect } from '@ext/lib/types';
+import type { CaptureViewport, TargetElement } from '@marklayer/types/ops';
+import { pushDeviceOp } from './viewer-state';
 
 interface Props {
   text: string;
@@ -45,104 +28,19 @@ export function WebSelectionPopover({
   frameDoc,
   onClose,
 }: Props) {
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const [priority, setPriority] = useState<CommentPriority | undefined>(undefined);
-  const [suggestion, setSuggestion] = useState<string | null>(null);
-  const { mentionProps, mentions } = useMentions();
-
-  const commit = (save: boolean) => {
-    const comment = taRef.current?.value.trim();
-    if (save && rects.length > 0) {
-      const op: SelectionOp = {
-        id: nanoid(),
-        tool: 'selection',
-        text,
-        rects,
-        comment: comment || undefined,
-        suggestion: normalizeSuggestion({ text, suggestion }),
-        priority,
-        mentions: mentions(),
-        color: color.value,
-        lineWidth: lineWidth.value,
-        ts: Date.now(),
-        ...signedBy(),
-        target,
-        captureViewport,
-      };
-      pushDeviceOp(op);
-      track('selection_committed', {
-        auto,
-        has_note: Boolean(comment),
-        has_suggestion: Boolean(op.suggestion),
-        has_priority: Boolean(priority),
-        mentions: op.mentions?.length ?? 0,
-        chars: text.length,
-      });
-    } else {
-      track('selection_cancelled', { auto, has_suggestion: suggestion !== null });
-    }
-    window.getSelection()?.removeAllRanges();
-    onClose();
-  };
-
-  const { panelProps } = useSelectionDismiss({
-    auto,
-    doc: frameDoc,
-    focusRef: taRef,
-    onDismiss: () => commit(false),
-  });
-
-  const left = Math.min(screenX + 16, innerWidth - 300);
-  const { ref: panelRef, top } = useEdgeClamp({ top: screenY + 16 });
-
   return (
-    <div
-      class={cn(
-        'fixed z-2147483647',
-        'animate-[fadeInDown_180ms_cubic-bezier(0.16,1,0.3,1)]',
-        geist.surface,
-        glass.font,
-        'overflow-hidden w-[290px]',
-      )}
-      ref={panelRef}
-      style={{ left: Math.max(4, left), top }}
-      onClick={(e) => e.stopPropagation()}
-      {...panelProps}
-    >
-      <SelectionEdit text={text} suggestion={suggestion} onChange={setSuggestion} onSubmit={() => commit(true)} />
-
-      <div class={cn(geist.divider, 'mx-3.5')} />
-
-      <div class="p-3.5">
-        <MentionTextarea
-          name="comment"
-          taRef={taRef}
-          {...mentionProps}
-          placeholder="Add a comment (optional)…"
-          rows={1}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              commit(true);
-            } else if (e.key === 'Escape') {
-              e.preventDefault();
-              commit(false);
-            }
-          }}
-          class={cn(textareaCls, 'w-full min-h-10 max-h-100', glass.font)}
-          style={{ fieldSizing: 'content', boxSizing: 'border-box' }}
-        />
-        <PriorityPicker value={priority} onChange={setPriority} class="mt-1.5 -ml-1.5" />
-      </div>
-
-      <div class={cn(geist.divider, 'mx-3.5')} />
-
-      <div class="flex items-center justify-between px-4 py-2.5">
-        <CancelButton onClick={() => commit(false)} />
-        <button type="button" onClick={() => commit(true)} class={submitBtn}>
-          Save ↵
-        </button>
-      </div>
-    </div>
+    <SelectionComposer
+      text={text}
+      rects={rects}
+      target={target}
+      auto={auto}
+      doc={frameDoc}
+      anchor={() => ({ x: screenX, y: screenY })}
+      captureViewport={() => captureViewport}
+      push={pushDeviceOp}
+      onClose={onClose}
+      fieldClass="max-h-100"
+      fieldName="comment"
+    />
   );
 }

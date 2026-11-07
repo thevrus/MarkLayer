@@ -1,5 +1,5 @@
-import { HTML_HEADERS, page } from '../auth/verify-page';
-import { escapeXml } from '../og-svg';
+import { escapeHtml, HTML_HEADERS, page } from '../html';
+import { type LockRefusal, REFUSALS, type RoomRefusal } from './refusals';
 
 /** Where a successful unlock may send the browser: a room or a project on this origin, nothing else. */
 const RETURN_PATH = /^\/(s|p)\/[A-Za-z0-9_-]+$/;
@@ -7,14 +7,6 @@ const RETURN_PATH = /^\/(s|p)\/[A-Za-z0-9_-]+$/;
 export function safeReturnPath({ value, roomId }: { value: unknown; roomId: string }): string {
   return typeof value === 'string' && RETURN_PATH.test(value) ? value : `/s/${roomId}`;
 }
-
-const MESSAGES = {
-  locked: null,
-  wrong: 'That password is not right. Check it with whoever sent you the link.',
-  throttled: 'Too many wrong passwords. Wait 15 minutes, then try again.',
-} as const;
-
-const STATUS = { locked: 401, wrong: 401, throttled: 429 } as const;
 
 /**
  * Served in place of the viewer for a protected room. Plain HTML, no app shell:
@@ -27,20 +19,26 @@ export function unlockPage({
 }: {
   roomId: string;
   returnTo: string;
-  reason: keyof typeof MESSAGES;
+  reason: LockRefusal;
 }): Response {
-  const message = MESSAGES[reason];
-  const body = `<h1>This link is password protected</h1>
+  const { status, title, prompt } = REFUSALS[reason];
+  const body = `<h1>${title}</h1>
 <p>Enter the password the owner shared with you.</p>
-${message ? `<p class="alert" role="alert">${message}</p>` : ''}
+${prompt ? `<p class="alert" role="alert">${prompt}</p>` : ''}
 <form class="stack" method="post" action="/s/${encodeURIComponent(roomId)}/unlock">
-<input type="hidden" name="return" value="${escapeXml(returnTo)}">
+<input type="hidden" name="return" value="${escapeHtml(returnTo)}">
 <input type="password" name="password" aria-label="Password" placeholder="Password" autocomplete="current-password" required autofocus>
 <button type="submit">Open</button>
 </form>
 <small>If you own this link, sign in to open it without a password.</small>`;
-  return new Response(page({ title: 'Password required · MarkLayer', body }), {
-    status: STATUS[reason],
-    headers: HTML_HEADERS,
-  });
+  return new Response(page({ title: 'Password required · MarkLayer', body }), { status, headers: HTML_HEADERS });
+}
+
+/** A dead end: the room is gone or past its deadline. Says nothing about what was in it. */
+export function gonePage(reason: Exclude<RoomRefusal, LockRefusal>): Response {
+  const { status, title } = REFUSALS[reason];
+  const body = `<h1>${title}</h1>
+<p>Whoever sent it can share a new one from MarkLayer.</p>
+<p><a class="btn" href="/">Open MarkLayer</a></p>`;
+  return new Response(page({ title: `${title} · MarkLayer`, body }), { status, headers: HTML_HEADERS });
 }

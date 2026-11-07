@@ -1,24 +1,23 @@
 import {
   type AreaDraft,
   AreaPopover,
+  areaOpFrom,
   type DraftAreaState,
   type DraftRect,
   rectFromDraft,
 } from '@ext/components/AreaLayer';
-import { track } from '@ext/lib/analytics';
 import { injectCrosshairCursor } from '@ext/lib/dom';
+import { color } from '@ext/lib/prefs';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 import { scrollOffset } from '@ext/lib/scroller';
-
-import { activeTool, color, lineWidth, signedBy } from '@ext/lib/state';
-import type { AreaOp } from '@ext/lib/types';
+import { activeTool } from '@ext/lib/tool-state';
 import { useSignal, useSignalEffect } from '@preact/signals';
-import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
 import { useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
+import { capture } from './analytics';
 import { captureAnchors, frameViewport, isElementNode, sameOriginWindow, useIframeOverlay } from './iframeOverlay';
-import { cssScale, iframeScrollY, pushDeviceOp } from './signals';
+import { cssScale, iframeScrollY, pushDeviceOp } from './viewer-state';
 
 /** Pointer position in the framed page's document space. */
 const docPoint = (win: Window, e: PointerEvent) => {
@@ -83,23 +82,20 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       pending.value = r;
     };
 
-    // Suppress page click handlers (links, etc.) while drawing an area.
     const onClick = (e: MouseEvent) => {
       if (activeTool.value !== 'area') return;
       e.preventDefault();
       e.stopPropagation();
     };
 
-    // Bind on both windows so focus on either side of the iframe boundary toggles the constraint.
+    // Keys in the frame reach the host window as `ml-key`, so this hears Shift from either side.
     const setShift = (next: boolean) => {
       if (shiftHeld.current === next) return;
       shiftHeld.current = next;
       if (draft.value) applyConstraint();
     };
-    const unbindShiftFrameDown = tinykeys(win, { Shift: () => setShift(true) });
-    const unbindShiftFrameUp = tinykeys(win, { Shift: () => setShift(false) }, { event: 'keyup' });
-    const unbindShiftHostDown = tinykeys(window, { Shift: () => setShift(true) });
-    const unbindShiftHostUp = tinykeys(window, { Shift: () => setShift(false) }, { event: 'keyup' });
+    const unbindShiftDown = tinykeys(window, { Shift: () => setShift(true) });
+    const unbindShiftUp = tinykeys(window, { Shift: () => setShift(false) }, { event: 'keyup' });
 
     win.addEventListener('pointerdown', onPointerDown, true);
     win.addEventListener('pointermove', onPointerMove, true);
@@ -113,17 +109,14 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
         win.removeEventListener('pointerup', onPointerUp, true);
         win.removeEventListener('pointercancel', onPointerUp, true);
         win.removeEventListener('click', onClick, true);
-        unbindShiftFrameDown();
-        unbindShiftFrameUp();
       } catch {
         /* iframe may have navigated cross-origin */
       }
-      unbindShiftHostDown();
-      unbindShiftHostUp();
+      unbindShiftDown();
+      unbindShiftUp();
     };
   });
 
-  // Reset transient state when leaving the tool.
   useSignalEffect(() => {
     if (activeTool.value !== 'area') {
       draft.value = null;
@@ -156,7 +149,8 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
 
   const hostRect = toHostViewport(draftRect);
 
-  const commit = ({ comment, priority, mentions }: AreaDraft) => {
+  const commit = (draft: AreaDraft) => {
+    const { comment, priority, mentions } = draft;
     const r = pending.value;
     if (!r) return;
     // Hit-test the rect's centre, but anchor to its top-left.
@@ -166,25 +160,9 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
       y: r.y + r.h / 2,
       anchor: { x: r.x, y: r.y },
     });
-    const op: AreaOp = {
-      id: nanoid(),
-      tool: 'area',
-      color: color.value,
-      lineWidth: lineWidth.value,
-      startX: r.x,
-      startY: r.y,
-      endX: r.x + r.w,
-      endY: r.y + r.h,
-      comment: comment || undefined,
-      priority,
-      mentions: mentions?.length ? mentions : undefined,
-      ts: Date.now(),
-      ...signedBy(),
-      ...anchors,
-      captureViewport: frameViewport(frameRef.current),
-    };
+    const op = areaOpFrom({ rect: r, draft, anchors, captureViewport: frameViewport(frameRef.current) });
     pushDeviceOp(op);
-    track('area_committed', {
+    capture('area_committed', {
       has_note: Boolean(comment),
       has_priority: Boolean(priority),
       mentions: mentions?.length ?? 0,
@@ -196,7 +174,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
   };
 
   const cancel = () => {
-    track('area_cancelled', { markup_strokes: 0 });
+    capture('area_cancelled', { markup_strokes: 0 });
     pending.value = null;
   };
 

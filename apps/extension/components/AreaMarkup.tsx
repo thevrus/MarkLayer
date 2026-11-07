@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { type Signal, useSignal, useSignalEffect } from '@preact/signals';
 import type { TargetedEvent } from 'preact';
 import { useMemo, useRef } from 'preact/hooks';
@@ -6,10 +6,12 @@ import { track } from '../lib/analytics';
 import { clampToRect, MARKUP_TOOLS, type MarkupTool, markupOp } from '../lib/area-markup';
 import type { AreaRect } from '../lib/area-rect';
 import { geist } from '../lib/geist';
+import { scrollTick } from '../lib/host-mutations';
 import { Icon } from '../lib/icons';
 import { capturePointer } from '../lib/pointer';
+import { color, lineWidth } from '../lib/prefs';
 import { renderOp } from '../lib/renderer';
-import { color, lineWidth, scrollTick } from '../lib/state';
+import { toClient, toDoc } from '../lib/scroller';
 import type { DrawOp, Point } from '../lib/types';
 import { Tooltip } from './Tooltip';
 
@@ -116,18 +118,16 @@ export function AreaMarkupSurface({ rect, markup }: { rect: AreaRect; markup: Ar
     if (live) renderOp(ctx, live, rect.x, rect.y);
   });
 
-  const at = (e: TargetedEvent<HTMLCanvasElement, PointerEvent>): Point => ({
-    x: e.clientX + scrollX,
-    y: e.clientY + scrollY,
-  });
+  const at = (e: TargetedEvent<HTMLCanvasElement, PointerEvent>): Point => toDoc({ x: e.clientX, y: e.clientY });
+  const { x: left, y: top } = toClient(rect);
 
   return (
     <canvas
       ref={canvasRef}
       class="absolute rounded-[3px]"
       style={{
-        left: rect.x - scrollX,
-        top: rect.y - scrollY,
+        left,
+        top,
         width: rect.w,
         height: rect.h,
         pointerEvents: armed ? 'auto' : 'none',

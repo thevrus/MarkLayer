@@ -4,15 +4,8 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 import Related from '../components/Related.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
-import {
-  AUTHOR_EMAIL,
-  CHROME_STORE_URL,
-  formatLastUpdated,
-  ORIGIN,
-  pageOgImage,
-  POLAR_CHECKOUT_URL,
-  REPO_URL,
-} from '../lib/site';
+import { CHROME_STORE_URL, ORIGIN, POLAR_CHECKOUT_URL } from '@marklayer/brand';
+import { AUTHOR_EMAIL, formatLastUpdated, pageOgImage, REPO_URL } from '../lib/site';
 import dates from '../data/page-dates.json';
 
 const { modified } = dates.support;
@@ -26,10 +19,6 @@ const [operative, ...restOfH1] = h1.split(' ');
 const title = 'Support MarkLayer · Optional, One-Off, Buys Nothing';
 const description =
   'MarkLayer is free and stays free. If it saved you time you can pay what you like, once. It buys no tier, no perks and no priority: it pays the server bill.';
-
-// Empty means the product was retired. The page then makes its case and offers
-// only the free ways to help, rather than a button that goes nowhere.
-const canCheckout = POLAR_CHECKOUT_URL.length > 0;
 
 /**
  * The bill, itemised. Every line is checkable against the repo rather than
@@ -92,35 +81,24 @@ const REFUSALS = [
         That is the point, and it is what makes it fair to ask.
       </p>
 
-      {
-        canCheckout ? (
-          <>
-            <p class="mb-3">
-              {/* The one new tab on this page, matching the app's own support
-                  card: over there the tab being left behind holds unsaved
-                  annotations, and a checkout that behaves differently depending
-                  on where it was opened from is a worse thing than a new tab. */}
-              <a class="ml-cta" href={POLAR_CHECKOUT_URL} target="_blank" rel="noopener noreferrer">
-                Support MarkLayer
-              </a>
-            </p>
-            {/* The escape route is a text link, never a second button. Most
-                people will not pay, a Web Store review is worth real money
-                here, and a filled-plus-outlined pair would put the two at the
-                same weight while pretending otherwise. */}
-            <p class="ml-meta">
-              Or help for free: a{' '}
-              <a href={CHROME_STORE_URL}>Web Store review</a>{' '}
-              helps just as much.
-            </p>
-          </>
-        ) : (
-          <p>
-            There is nothing to pay right now: the checkout is closed. The free ways to help below are the ones that
-            were always worth the most anyway.
-          </p>
-        )
-      }
+      <p class="mb-3">
+        {/* The one new tab on this page, matching the app's own support
+            card: over there the tab being left behind holds unsaved
+            annotations, and a checkout that behaves differently depending
+            on where it was opened from is a worse thing than a new tab. */}
+        <a class="ml-cta" href={POLAR_CHECKOUT_URL} target="_blank" rel="noopener noreferrer">
+          Support MarkLayer
+        </a>
+      </p>
+      {/* The escape route is a text link, never a second button. Most
+          people will not pay, a Web Store review is worth real money
+          here, and a filled-plus-outlined pair would put the two at the
+          same weight while pretending otherwise. */}
+      <p class="ml-meta">
+        Or help for free: a{' '}
+        <a href={CHROME_STORE_URL}>Web Store review</a>{' '}
+        helps just as much.
+      </p>
 
       <h2>What the money actually pays for</h2>
       <p>
@@ -191,28 +169,22 @@ const REFUSALS = [
         </li>
       </ul>
 
-      {
-        canCheckout ? (
-          <>
-            <h2>How the payment works</h2>
-            <p>
-              The checkout is pay-what-you-want with a $3 floor, and $5 filled in. It is one payment, not a
-              subscription, so there is nothing recurring and nothing to cancel.
-            </p>
-            <p>
-              <a href="https://polar.sh">Polar</a>{' '}
-              is the merchant of record and handles the payment, the tax and the receipt. None of it touches
-              MarkLayer's servers, and I never see a card number. Polar adds VAT on top where it applies, so the total
-              at $5 is $6.15 in the EU. That is why no button on this page names a price: quoting one the checkout then
-              contradicts would be a small lie.
-            </p>
-            <p>
-              The receipt arrives by email from Polar. If something is wrong with a payment, write to{' '}
-              <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a> and I will sort it out.
-            </p>
-          </>
-        ) : null
-      }
+      <h2>How the payment works</h2>
+      <p>
+        The checkout is pay-what-you-want with a $3 floor, and $5 filled in. It is one payment, not a
+        subscription, so there is nothing recurring and nothing to cancel.
+      </p>
+      <p>
+        <a href="https://polar.sh">Polar</a>{' '}
+        is the merchant of record and handles the payment, the tax and the receipt. None of it touches
+        MarkLayer's servers, and I never see a card number. Polar adds VAT on top where it applies, so the total
+        at $5 is $6.15 in the EU. That is why no button on this page names a price: quoting one the checkout then
+        contradicts would be a small lie.
+      </p>
+      <p>
+        The receipt arrives by email from Polar. If something is wrong with a payment, write to{' '}
+        <a href={`mailto:${AUTHOR_EMAIL}`}>{AUTHOR_EMAIL}</a> and I will sort it out.
+      </p>
 
       {/* Internal only: LinkGrid renders a plain `<a>` with no `target`, and the
           off-origin links on this page (the store, the repo, Polar) are each

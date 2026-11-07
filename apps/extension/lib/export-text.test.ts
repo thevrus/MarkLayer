@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { CommentOp, DrawOp, SelectionOp, TextOp } from '@marklayer/types';
+import type { CommentOp, DrawOp, SelectionOp, TextOp } from '@marklayer/types/ops';
 import { buildMarkdownExport, defaultExportFilename, downloadMarkdown } from './export-text';
 
 const base = { id: 'op', color: '#000', lineWidth: 2 };

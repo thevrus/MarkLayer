@@ -10,18 +10,18 @@ published: 2026-01-20
 modified: 2026-10-21
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source, no install: paste a URL and annotate the live page directly in your browser. Draw arrows, circle a broken layout, and drop threaded comments anywhere on the page, then watch collaborators' cursors move in real time. Built for live web pages and interactive products, not article text."
     bestFor: "Visual feedback on UI, design, and live web product. Not scholarly text."
   - name: "Diigo"
     pitch: "Freemium browser bookmarking and annotation tool that layers text highlights and sticky notes onto pages you save. Closer to Hypothesis in spirit than to MarkLayer: it's a research and reading tool first, not a visual review tool for a live product. The free tier caps highlights and groups; paid plans add offline access and more storage."
     bestFor: "Personal research and bookmarking with light annotation."
   - name: "Markup.io"
-    url: "/vs/markup-io"
+    compare: markup-io
     pitch: "Project-based visual feedback platform from Ceros for reviewing live websites and design files inside a persistent team workspace. It dropped its free plan in 2025, and Pro now starts at $79/month, but it adds version tracking and approval workflows that neither Hypothesis nor MarkLayer offer."
     bestFor: "Agency project review on live websites."
   - name: "AnnotateWeb"
-    url: "/vs/annotateweb"
+    compare: annotateweb
     pitch: "Free bookmarklet-based annotation tool with a multi-language interface and PNG export, no browser extension required. Annotations auto-delete after two minutes of inactivity, so it suits a quick one-off markup more than an ongoing review thread."
     bestFor: "Quick one-off annotations in your native language with no extension."
 faq:

@@ -1,3 +1,4 @@
+import type { Env, WaitUntil } from './env';
 /**
  * Server-side telemetry, deliberately blunt.
  *
@@ -23,7 +24,7 @@
  * that one is worth its own carve-out.
  */
 
-import { parseFetchableUrl } from '@marklayer/types';
+import { parseFetchableUrl } from '@marklayer/types/net';
 import { DEFAULT_POSTHOG_HOST } from './posthog-relay';
 
 /**
@@ -106,11 +107,11 @@ let warnedMissingKey = false;
  * real request context can keep ignoring the return value.
  */
 export function captureServer(
-  env: { POSTHOG_KEY?: string; POSTHOG_HOST?: string },
+  env: Pick<Env['Bindings'], 'POSTHOG_KEY' | 'POSTHOG_HOST'>,
   // Only waitUntil is used — narrowing to it keeps this off the workers-types
   // ExecutionContext shape (v5 added a required `tracing` field Hono's
   // c.executionCtx doesn't carry), and lets a Durable Object pass its own ctx.
-  ctx: { waitUntil(promise: Promise<unknown>): void },
+  ctx: WaitUntil,
   event: string,
   props: CaptureProps,
 ): Promise<void> {
@@ -220,8 +221,8 @@ interface BlockReport {
  * would be a hole straight through every rule this file exists to enforce.
  */
 export function captureBlockedSite(
-  env: { POSTHOG_KEY?: string; POSTHOG_HOST?: string },
-  ctx: { waitUntil(promise: Promise<unknown>): void },
+  env: Pick<Env['Bindings'], 'POSTHOG_KEY' | 'POSTHOG_HOST'>,
+  ctx: WaitUntil,
   report: BlockReport,
 ) {
   if (report.kind === 'http-error' && ABSENT.has(report.status ?? 0)) return;
@@ -245,7 +246,7 @@ export function captureBlockedSite(
     // today and a 403 tomorrow is still the same site to fix and the same people
     // to write to.
     ...blockedIssue(domain),
-    blocked_domain: domain,
+    [DOMAIN_KEY]: domain,
     reason: report.kind,
     status: report.status,
     via: report.via,

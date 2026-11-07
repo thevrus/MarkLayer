@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { isBlockedHost, isPrivateAddress, parseFetchableUrl, type UnfetchableReason, unwrapSafeLink } from './net';
+import { isBlockedHost, isPrivateAddress, parseFetchableUrl, type UnfetchableReason } from './net';
 
 describe('isPrivateAddress', () => {
   test.each([
@@ -29,12 +29,17 @@ describe('isPrivateAddress', () => {
 });
 
 describe('isBlockedHost', () => {
-  test.each(['localhost', 'metadata.google.internal', 'foo.internal', 'printer.local', '127.0.0.1', '[::1]'])(
-    '%s is blocked',
-    (host) => {
-      expect(isBlockedHost(host)).toBe(true);
-    },
-  );
+  test.each([
+    'localhost',
+    'metadata.google.internal',
+    'foo.internal',
+    'printer.local',
+    'app.localhost',
+    '127.0.0.1',
+    '[::1]',
+  ])('%s is blocked', (host) => {
+    expect(isBlockedHost(host)).toBe(true);
+  });
 
   test.each(['iot450.com', 'example.com', 'localhost.example.com'])('%s is allowed', (host) => {
     expect(isBlockedHost(host)).toBe(false);
@@ -80,29 +85,14 @@ describe('parseFetchableUrl', () => {
   ])('allows public IPv6 %s', (raw) => {
     expect(parseFetchableUrl(raw).ok).toBe(true);
   });
-});
 
-describe('unwrapSafeLink', () => {
-  const target = 'https://staging.example.com/pricing?tab=2&ref=a b';
-  const wrapped = (host: string) =>
-    `https://${host}/?url=${encodeURIComponent(target)}&data=05%7C02%7Cx&sdata=abc%3D&reserved=0`;
-
-  test.each([
-    'gcc02.safelinks.protection.outlook.com',
-    'nam12.safelinks.protection.outlook.com',
-    'safelinks.protection.outlook.com',
-  ])('unwraps %s to the real target, decoded', (host) => {
-    expect(unwrapSafeLink(wrapped(host))).toBe(target);
-  });
-
-  test.each([
-    'https://example.com/?url=https%3A%2F%2Fother.com',
-    'https://evilsafelinks.protection.outlook.com/?url=https%3A%2F%2Fother.com',
-    'https://safelinks.protection.outlook.com.evil.test/?url=https%3A%2F%2Fother.com',
-    'https://gcc02.safelinks.protection.outlook.com/?data=x',
-    'https://gcc02.safelinks.protection.outlook.com/?url=javascript%3Aalert(1)',
-    'not a url',
-  ])('leaves %s alone', (input) => {
-    expect(unwrapSafeLink(input)).toBe(input);
+  // Every path that fetches on a stranger's behalf names itself, so none can be pointed back at this origin.
+  test('refuses our own origin only when the caller names it', () => {
+    expect(parseFetchableUrl('https://marklayer.app/s/abc', { self: 'https://MarkLayer.app' })).toEqual({
+      ok: false,
+      reason: 'self',
+    });
+    expect(parseFetchableUrl('https://marklayer.app/s/abc').ok).toBe(true);
+    expect(parseFetchableUrl('https://example.com/', { self: 'https://marklayer.app' }).ok).toBe(true);
   });
 });

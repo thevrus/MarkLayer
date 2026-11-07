@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { CommentOp, InspectOp } from '@marklayer/types';
+import type { CommentOp, InspectOp } from '@marklayer/types/ops';
 import { buildAnnotationsPrompt } from './prompt';
 
 const comment = (over: Partial<CommentOp>): CommentOp => ({

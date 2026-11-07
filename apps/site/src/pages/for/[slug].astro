@@ -5,6 +5,7 @@ import Related from '../../components/Related.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getUseCases, relatedLinks } from '../../lib/collections';
 import { articleSchema, type Crumb, faqSchema, howToSchema } from '../../lib/schema';
+import { forPath } from '../../lib/site';
 
 export async function getStaticPaths() {
   const useCases = await getUseCases();
@@ -16,7 +17,7 @@ export async function getStaticPaths() {
       related: relatedLinks({
         entry,
         siblings: useCases,
-        siblingLink: (u) => ({ href: `/for/${u.id}`, label: u.data.h1 }),
+        siblingLink: (u) => ({ href: forPath(u.id), label: u.data.h1 }),
       }),
     },
   }));
@@ -26,7 +27,7 @@ const { entry, related } = Astro.props;
 const u = entry.data;
 const { Content } = await render(entry);
 
-const path = `/for/${entry.id}`;
+const path = forPath(entry.id);
 const breadcrumbs: Crumb[] = [
   { name: 'MarkLayer', path: '/' },
   { name: 'Use cases', path: '/use-cases' },

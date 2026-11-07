@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { diffEdit, pickTextEdit, readText, restore, snapshot, startTextEdit, type TextEditResult } from './text-edit';
+import { diffEdit, pickTextEdit, readText, startTextEdit, type TextEditResult } from './text-edit';
 
 function mount(html: string) {
   document.body.innerHTML = html;
@@ -62,18 +62,6 @@ test('readText reads a <br> as a newline', () => {
   expect(readText(get('p'))).toBe('one\ntwo three');
 });
 
-test('restore puts back text and removed inline nodes exactly', () => {
-  const get = mount('<p id="p">Hello <strong id="s">big</strong> world</p>');
-  const p = get('p');
-  const before = p.innerHTML;
-  const snap = snapshot(p);
-  textOf(p).data = 'Changed ';
-  get('s').remove();
-  p.append('tail');
-  restore(snap);
-  expect(p.innerHTML).toBe(before);
-});
-
 function edit(html: string) {
   const get = mount(html);
   const rect = { x: 1, y: 1, width: 10, height: 10, top: 1, left: 1, right: 11, bottom: 11, toJSON: () => ({}) };
@@ -92,7 +80,10 @@ const press = (target: Element, key: string) =>
 test('Escape on the edit host cancels and restores the page exactly', () => {
   const { el, results } = edit('<p id="p">Hello <strong>big</strong> world</p>');
   const before = el.innerHTML;
-  el.textContent = 'Changed';
+  // What typing does: a text node edited in place, an inline node dropped, text added after.
+  textOf(el).data = 'Changed ';
+  el.querySelector('strong')?.remove();
+  el.append('tail');
   press(el, 'Escape');
   expect(results).toEqual([null]);
   expect(el.innerHTML).toBe(before);

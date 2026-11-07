@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-11
 options:
   - name: "MarkLayer"
-    url: "/vs/atarim"
+    compare: atarim
     pitch: "Free and open source, with nothing to install for a public page: paste any URL at marklayer.app, annotate the live page with drawings, comments, arrows and highlights, then share a link. There is no project or seat count and no credits. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. A page behind a login needs the free browser extension, in each reviewer's own signed-in tab. An unclaimed link is deleted 90 days after its last activity; claiming it with the free account stops that clock."
     bestFor: "Anyone who came to Atarim for the comments, on WordPress or anything else, and teams reviewing together in real time."
   - name: "SureFeedback"
-    url: "/vs/surefeedback"
+    compare: surefeedback
     pitch: "The WordPress-native feedback tool Atarim used to compete with directly, formerly ProjectHuddle. Private team-only comments, page approvals, a kanban board and mockup review are on every plan, and guests comment without logging in. Cloud is $199 for the first year and renews at $299 for five sites; the self-hosted plugin keeps every comment in your own WordPress database for $99 then $119 a year for one dashboard site. There is no free plan, only a 7-day Cloud trial and a 7-day refund."
     bestFor: "WordPress agencies that want client sign-off and feedback on their own server, without the AI agents."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A visual bug tracker rather than a review tool: every pinned comment becomes a task on a built-in kanban board, with browser, OS and resolution captured automatically and Jira, Asana, Linear, ClickUp and Monday sync on the top tier. There is no free plan. Standard is $50 a month, or $42 billed yearly, for five members and unlimited client users. Private team commenting, a client project board and custom branding sit on Premium at $150 a month."
     bestFor: "Teams whose Atarim tasks should live in a tracker and stay in sync, and have the budget."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "Bug reporting with environment details on every report and console logs, session replay and developer tools on Team, none of which Atarim or MarkLayer capture. Starter is $59 a month, or $39 billed yearly, for three users and ten projects with basic integrations. Two-way Jira sync, custom branding and session replay need Team at $199 a month, or $149 yearly, for 15 users. Every plan has a 15-day trial, and there is an Agency plan at $129 a month, or $99 yearly, for eligible small agencies."
     bestFor: "Engineering teams whose reports need a stack trace more than a drawing."
 faq:

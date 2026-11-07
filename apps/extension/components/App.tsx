@@ -1,27 +1,16 @@
-import { cn } from '@marklayer/types';
+import { antHash } from '@marklayer/brand/links';
+import { cn } from '@marklayer/ui/cn';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useState } from 'preact/hooks';
-import { tinykeys } from 'tinykeys';
-import { batchAvailable, heldOps } from '../lib/batch';
+import { heldOps } from '../lib/batch';
 import { editableTarget } from '../lib/dom';
+import { bindFigmaKeys, bindKeymap, dismissTop, HISTORY_KEYS } from '../lib/keymap';
 import { useWindowMarkPointer } from '../lib/mark-hover';
+import { operations, redo, undo } from '../lib/ops';
+import { blockInteractions, markersVisible } from '../lib/prefs';
 import { joinRoom } from '../lib/room';
-import { parseUrlHash } from '../lib/share';
-import {
-  activeTool,
-  bindFigmaKeys,
-  blockInteractions,
-  handTool,
-  markersVisible,
-  operations,
-  redo,
-  showSettings,
-  showShareDialog,
-  toggleUiHidden,
-  uiHidden,
-  undo,
-  visible,
-} from '../lib/state';
+import { activeTool, handTool } from '../lib/tool-state';
+import { toggleUiHidden, uiHidden, visible } from '../lib/ui-state';
 import { AreaLayer } from './AreaLayer';
 import { BatchSend, HeldPins } from './BatchSend';
 import { Canvas } from './Canvas';
@@ -42,8 +31,8 @@ import { Toasts } from './Toasts';
 import { Toolbar } from './Toolbar';
 import { useOverlayHost } from './useOverlayHost';
 
-// Set at load: App is the extension's root, and the web viewer, which never mounts it, keeps batch off.
-batchAvailable.value = true;
+// Matches the `duration-200` fade below; the unmount waits for it.
+const FADE_MS = 200;
 
 export function App() {
   useWindowMarkPointer();
@@ -53,57 +42,44 @@ export function App() {
       fn(e);
     };
 
-    const bindings: Record<string, (e: KeyboardEvent) => void> = {
-      'Alt+KeyA': (e) => {
+    const history = (fn: () => void) =>
+      guard((e) => {
         e.preventDefault();
-        visible.value = !visible.value;
-      },
-      '$mod+KeyZ': guard((e) => {
-        e.preventDefault();
-        undo();
-      }),
-      '$mod+Shift+KeyZ': guard((e) => {
-        e.preventDefault();
-        redo();
-      }),
-      '$mod+KeyY': guard((e) => {
-        e.preventDefault();
-        redo();
-      }),
-      Escape: (e) => {
-        if (!visible.value) return;
-        const t = editableTarget(e);
-        if (t) {
-          t.blur();
-          return;
-        }
-        // Nothing else is on screen to escape from, and it is the state a lost
-        // user hits Escape to get out of — so it unwinds first.
-        if (uiHidden.value) {
-          toggleUiHidden();
-          e.preventDefault();
-          return;
-        }
-        if (showSettings.value) {
-          showSettings.value = false;
-          e.preventDefault();
-          return;
-        }
-        if (showShareDialog.value) {
-          showShareDialog.value = false;
-          e.preventDefault();
-          return;
-        }
-        if (handTool.value) {
-          handTool.value = false;
-          e.preventDefault();
-          return;
-        }
-        activeTool.value = 'navigate';
-        e.preventDefault();
-      },
-    };
-    const unbind = tinykeys(window, bindings);
+        fn();
+      });
+
+    const unbind = bindKeymap({
+      scope: window,
+      bindings: [
+        {
+          keys: 'Alt+KeyA',
+          on: (e) => {
+            e.preventDefault();
+            visible.value = !visible.value;
+          },
+        },
+        ...HISTORY_KEYS.undo.keys.map((keys) => ({ keys, on: history(undo) })),
+        ...HISTORY_KEYS.redo.keys.map((keys) => ({ keys, on: history(redo) })),
+        {
+          keys: 'Escape',
+          on: (e) => {
+            if (!visible.value) return;
+            const t = editableTarget(e);
+            if (t) {
+              t.blur();
+              return;
+            }
+            e.preventDefault();
+            // Nothing else is on screen to escape from, and it is the state a lost
+            // user hits Escape to get out of — so it unwinds first.
+            if (uiHidden.value) toggleUiHidden();
+            else if (dismissTop()) return;
+            else if (handTool.value) handTool.value = false;
+            else activeTool.value = 'navigate';
+          },
+        },
+      ],
+    });
     const unbindFigma = bindFigmaKeys({ target: window, guard });
     return () => {
       unbind();
@@ -111,7 +87,6 @@ export function App() {
     };
   }, []);
 
-  // Warn before leaving page with unsaved drawings
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
       if (operations.value.length > 0 || heldOps.value.length > 0) e.preventDefault();
@@ -123,7 +98,7 @@ export function App() {
   // `joinRoom` merges rather than replaces, so arriving on a hashed link keeps
   // whatever was already drawn.
   useEffect(() => {
-    const params = parseUrlHash();
+    const params = antHash.parse(location.hash);
     if (params) joinRoom({ id: params.id });
   }, []);
 
@@ -143,7 +118,7 @@ export function App() {
       setMounted(true);
       return;
     }
-    const id = setTimeout(() => setMounted(false), 200);
+    const id = setTimeout(() => setMounted(false), FADE_MS);
     return () => clearTimeout(id);
   });
 

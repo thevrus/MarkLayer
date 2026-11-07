@@ -1,0 +1,55 @@
+---
+import type { AstroComponentFactory } from 'astro/runtime/server/index.js';
+import Faq from '../components/Faq.astro';
+import Related from '../components/Related.astro';
+import { articleSchema, type Crumb, faqSchema, type QA } from '../lib/schema';
+import ArticleLayout from './ArticleLayout.astro';
+
+/**
+ * A page arguing one competitor, `/vs/<slug>` and `/alternatives/<slug>`. The body
+ * goes in the default slot; the Markdown follows it, as the intro when the entry has
+ * no `intro`, and after the slot when it does. `after` is anything below the Markdown.
+ */
+interface Props {
+  data: {
+    title: string;
+    description: string;
+    bottomLine?: string;
+    published: string;
+    modified: string;
+    intro?: string;
+    faq: QA[];
+  };
+  h1: string;
+  path: string;
+  hub: { name: string; path: string };
+  Content: AstroComponentFactory;
+  related: { href: string; label: string }[];
+}
+
+const { data, h1, path, hub, Content, related } = Astro.props;
+const { title, description, bottomLine, published, modified, intro, faq } = data;
+const breadcrumbs: Crumb[] = [{ name: 'MarkLayer', path: '/' }, hub, { name: h1 }];
+---
+
+<ArticleLayout
+  title={title}
+  description={description}
+  path={path}
+  h1={h1}
+  bottomLine={bottomLine}
+  breadcrumbs={breadcrumbs}
+  modified={modified}
+  schema={[articleSchema({ h1, description, path, published, modified, aboutApp: true }), faqSchema(faq)]}
+>
+  <Fragment slot="intro">{intro ?? <Content />}</Fragment>
+
+  <slot />
+
+  {intro && <Content />}
+
+  <slot name="after" />
+
+  <Faq qa={faq} />
+  <Related title="Related comparisons" links={related} />
+</ArticleLayout>

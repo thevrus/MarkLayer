@@ -1,5 +1,6 @@
 import { Popover } from '@base-ui/react/popover';
-import { cn, type Mention, mentionSegments } from '@marklayer/types';
+import { type Mention, mentionSegments } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import type { ComponentChildren, ComponentProps, Ref } from 'preact';
 import { useRef, useState } from 'preact/hooks';
 import { matchEmoji } from '../lib/emoji';
@@ -33,10 +34,8 @@ const MAX_EMOJI_ROWS = 8;
  * The mention state a composer ships with its op.
  *
  * Spread `mentionProps` onto the textarea and call `mentions()` when building the
- * op. Every composer used to hold its own ref, wire its own `onMentionsChange`
- * and restate "empty means undefined" at the op literal — three lines that had
- * already drifted apart. Holding them here means a new composer cannot ship
- * `mentions: []` on the wire by forgetting one.
+ * op. The ref, `onMentionsChange` and "empty means undefined" live here so a new
+ * composer cannot ship `mentions: []` on the wire by forgetting one.
  */
 export function useMentions() {
   const tagged = useRef<Mention[]>([]);

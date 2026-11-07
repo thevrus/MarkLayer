@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import type * as Real from '../../components/PriorityMenu';
 import { PRIORITY_LEVELS, PRIORITY_META } from '../../lib/priority';
 

@@ -69,9 +69,13 @@ describe('target guards', () => {
     'http://10.0.0.1/',
     'gopher://example.com/',
   ])('refuses %s', async (target) => {
+    // DNS and the upstream both say yes, so only the spelling guard can refuse this.
+    mockLookup.mockResolvedValue([publicAddress('93.184.216.34')]);
+    mockFetch.mockResolvedValue(new Response('ok', { status: 200 }));
     const res = await authed(`/fetch?url=${encodeURIComponent(target)}`);
     expect(res.status).toBe(400);
     expect(res.headers.get('x-ml-relay')).toBe('error');
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   test('refuses a dual-homed name where only one resolved address is private', async () => {

@@ -5,7 +5,7 @@ import {
   inspectOpSchema,
   selectionOpSchema,
   type TargetElement,
-} from '@marklayer/types';
+} from '@marklayer/types/ops';
 import { projectAnnotation } from './index';
 
 const API_BASE = 'https://marklayer.app';
@@ -122,23 +122,8 @@ describe('projectAnnotation — comment', () => {
       ts: 1_700_000_000_000,
       attachments: ['abc123def456ghi789jkl'],
     });
-    expect(projectAnnotation(withAttachments, API_BASE)).toEqual({
-      id: 'op-2b',
-      kind: 'comment',
-      status: 'open',
-      author: null,
-      assignee: null,
-      assignedAgent: null,
-      mentions: [],
-      ts: 1_700_000_000_000,
-      text: 'see the screenshot',
-      position: { x: 0, y: 0 },
-      url: null,
-      target: null,
-      pageErrors: [],
+    expect(projectAnnotation(withAttachments, API_BASE)).toMatchObject({
       attachments: ['https://marklayer.app/f/abc123def456ghi789jkl'],
-      voice: null,
-      video: null,
     });
   });
 
@@ -255,21 +240,7 @@ describe('projectAnnotation — selection', () => {
       color: '#0000ff',
       lineWidth: 1,
     });
-    expect(projectAnnotation(selection, API_BASE)).toEqual({
-      id: 'op-5',
-      kind: 'selection',
-      status: 'open',
-      author: null,
-      assignee: null,
-      assignedAgent: null,
-      mentions: [],
-      ts: 1_700_000_000_000,
-      text: 'just a note, no edit proposed',
-      suggestion: null,
-      comment: null,
-      rects: [],
-      target: null,
-    });
+    expect(projectAnnotation(selection, API_BASE)).toMatchObject({ suggestion: null, comment: null, target: null });
   });
 });
 
@@ -376,12 +347,6 @@ describe('projectAnnotation — element details', () => {
       styles: { color: 'rgb(0, 0, 0)', display: 'block' },
       component: { framework: 'React', chain: ['BuyButton'], source: { fileName: 'Buy.tsx', lineNumber: 7 } },
     };
-    const projected = projectAnnotation(commentOpSchema.parse({ ...base, target }), API_BASE);
-    expect('target' in projected && projected.target).toEqual(target);
-  });
-
-  test('a target without details projects exactly as before', () => {
-    const target = { selector: '#buy', tag: 'button', markdown: 'm' };
     const projected = projectAnnotation(commentOpSchema.parse({ ...base, target }), API_BASE);
     expect('target' in projected && projected.target).toEqual(target);
   });

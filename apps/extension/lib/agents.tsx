@@ -1,4 +1,4 @@
-import { canonicalAgent } from '@marklayer/types';
+import { canonicalAgent } from '@marklayer/types/agents';
 import { Bot } from 'lucide-preact';
 import {
   siClaude,

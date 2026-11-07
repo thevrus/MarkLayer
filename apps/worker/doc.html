@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- The host reads these the instant the iframe fires `load` (ViewerStage.tsx),
+<!-- The host reads these the instant the iframe fires `load` (useRenderOutcome.ts),
      which is long before the file has been fetched and painted. They mark who
      served the page, not that rendering finished, so they have to be in the
      markup — set from script they always lose the race and every document reads

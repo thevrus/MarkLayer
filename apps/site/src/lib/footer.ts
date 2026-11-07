@@ -3,7 +3,9 @@ import geminiSvg from '@lobehub/icons-static-svg/icons/gemini.svg?raw';
 import grokSvg from '@lobehub/icons-static-svg/icons/grok.svg?raw';
 import openaiSvg from '@lobehub/icons-static-svg/icons/openai.svg?raw';
 import perplexitySvg from '@lobehub/icons-static-svg/icons/perplexity.svg?raw';
-import { AUTHOR_EMAIL, CHROME_STORE_URL, REPO_URL } from './site';
+import { CHROME_STORE_URL } from '@marklayer/brand';
+import { HOW_IT_WORKS_PATH } from '@marklayer/brand/mark';
+import { AUTHOR_EMAIL, REPO_URL } from './site';
 
 /**
  * The site's floor, as data.
@@ -31,9 +33,6 @@ export interface FooterColumn {
   links: FooterLink[];
 }
 
-/** Mirrors `HOW_IT_WORKS_PATH` in apps/extension/lib/share.ts, which apps/site cannot import. */
-const HOW_IT_WORKS = '/guides/how-marklayer-works';
-
 /**
  * Four columns, hub-level. The landing's footer used to list eleven individual
  * comparison and use-case pages; picking four of sixteen competitors to name
@@ -47,7 +46,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { href: '/', label: 'Home' },
       { href: '/features', label: 'Features' },
-      { href: HOW_IT_WORKS, label: 'How it works' },
+      { href: HOW_IT_WORKS_PATH, label: 'How it works' },
       { href: '/pricing', label: 'Pricing' },
       { href: CHROME_STORE_URL, label: 'Chrome extension', external: true },
     ],

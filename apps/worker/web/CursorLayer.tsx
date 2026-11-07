@@ -1,8 +1,9 @@
-import { peers } from '@ext/lib/state';
+import { peers } from '@ext/lib/presence';
+import { activeRipples } from '@ext/lib/presence-fx';
+import { peerCursorSamples } from '@ext/lib/realtime';
 import { useEffect, useRef } from 'preact/hooks';
 import { CursorArrow } from './CursorArrow';
-import { followingPeer } from './signals';
-import { activeRipples, peerCursorSamples } from './useRealtimeSync';
+import { followingPeer } from './ui-state';
 import { expandedPeers, peerConnQuality, peerVideoStreams, qualityRing, voiceSpeaking } from './voiceSignals';
 
 /**
@@ -14,7 +15,6 @@ import { expandedPeers, peerConnQuality, peerVideoStreams, qualityRing, voiceSpe
 const CURSOR_RENDER_DELAY_MS = 90;
 
 interface Props {
-  scale: number;
   scrollY: number;
 }
 
@@ -45,7 +45,7 @@ function PeerVideo({ stream, onClick, ringColor }: { stream: MediaStream; onClic
   );
 }
 
-export function CursorLayer({ scale: s, scrollY }: Props) {
+export function CursorLayer({ scrollY }: Props) {
   const peerMap = peers.value;
   const ripples = activeRipples.value;
 
@@ -54,24 +54,20 @@ export function CursorLayer({ scale: s, scrollY }: Props) {
   const videoStreams = peerVideoStreams.value;
   const quality = peerConnQuality.value;
   const expanded = expandedPeers.value;
-  // Map peer → latest ripple id so the CursorArrow wrapper can be keyed on it
-  // and re-mount (= replay the click pulse) on each fresh click.
+  // Keying the arrow on this re-mounts it, replaying the click pulse on each fresh click.
   const latestRippleByPeer = new Map<string, string>();
   for (const r of ripples) latestRippleByPeer.set(r.peerId, r.id);
 
   // Refs read by the rAF loop. Updated each render so the loop sees the
-  // latest scroll/scale without restarting.
+  // latest scroll without restarting.
   const nodesRef = useRef(new Map<string, HTMLDivElement>());
   const scrollYRef = useRef(scrollY);
-  const scaleRef = useRef(s);
   scrollYRef.current = scrollY;
-  scaleRef.current = s;
 
   useEffect(() => {
     let raf = 0;
     const tick = () => {
       const renderTime = performance.now() - CURSOR_RENDER_DELAY_MS;
-      const scale = scaleRef.current;
       const scrollOffset = scrollYRef.current;
       for (const [peerId, node] of nodesRef.current) {
         const buf = peerCursorSamples.get(peerId);
@@ -88,7 +84,6 @@ export function CursorLayer({ scale: s, scrollY }: Props) {
           x = last.x;
           y = last.y;
         } else {
-          // Find the segment [a, b] surrounding renderTime, lerp between them.
           let i = 0;
           while (i < buf.length - 1 && buf[i + 1].t <= renderTime) i++;
           const a = buf[i];
@@ -98,9 +93,7 @@ export function CursorLayer({ scale: s, scrollY }: Props) {
           x = a.x + (b.x - a.x) * u;
           y = a.y + (b.y - a.y) * u;
         }
-        const vx = x * scale;
-        const vy = y * scale - scrollOffset;
-        node.style.transform = `translate3d(${vx}px, ${vy}px, 0)`;
+        node.style.transform = `translate3d(${x}px, ${y - scrollOffset}px, 0)`;
       }
       raf = requestAnimationFrame(tick);
     };
@@ -113,8 +106,8 @@ export function CursorLayer({ scale: s, scrollY }: Props) {
   return (
     <div class="absolute inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 999 }}>
       {ripples.map((r) => {
-        const left = r.x * s;
-        const top = r.y * s - scrollY;
+        const left = r.x;
+        const top = r.y - scrollY;
         return (
           <div key={r.id} class="absolute" style={{ left, top, width: 0, height: 0 }}>
             {[0, 140].map((delay) => (
@@ -134,19 +127,16 @@ export function CursorLayer({ scale: s, scrollY }: Props) {
       })}
       {Array.from(peerMap.values()).map((peer) => {
         if (!peer.cursor) return null;
-        const vx = peer.cursor.x * s;
-        const vy = peer.cursor.y * s - scrollY;
+        const vx = peer.cursor.x;
+        const vy = peer.cursor.y - scrollY;
         const isSpeaking = speaking.has(peer.id);
         const isFollowing = following === peer.id;
         const videoStream = expanded.has(peer.id) ? undefined : videoStreams.get(peer.id);
 
         const rippleId = latestRippleByPeer.get(peer.id);
         return (
-          // The rAF loop above drives `transform: translate3d` at 60 fps using
-          // a 90 ms render delay and lerping between buffered samples — that
-          // gives true continuous motion instead of the CSS-transition stepping
-          // we get for free between 20 Hz packets. Initial transform comes from
-          // peer.cursor so the first frame paints before rAF takes over.
+          // The rAF loop above moves this, interpolating buffered samples, because a CSS transition
+          // would step between 20 Hz packets. Initial transform comes from peer.cursor so the first frame paints.
           <div
             key={peer.id}
             ref={(el) => {

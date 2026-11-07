@@ -1,336 +1,129 @@
-import { batch, useSignalEffect } from '@preact/signals';
-import { nanoid } from 'nanoid';
-import { useCallback, useEffect, useRef } from 'preact/hooks';
+import { useSignalEffect } from '@preact/signals';
+import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { applyAnchorDelta } from '../lib/anchor';
-import {
-  circleHitsRect,
-  constrainEnd,
-  eraserDiameter,
-  hexToRgba,
-  redrawCanvas,
-  renderOp,
-  shapeOp,
-  simplify,
-  strokeArrowHead,
-} from '../lib/renderer';
-import {
-  activeTool,
-  areas,
-  color,
-  comments,
-  deleteOp,
-  FREEHAND,
-  inspects,
-  isDrawingActive,
-  lineWidth,
-  operations,
-  pushOp,
-  SHAPES,
-  scrollTick,
-  selections,
-  toolPaintsCanvas,
-  undoRedoFlash,
-} from '../lib/state';
-import type { FreehandOp, Point } from '../lib/types';
+import { scrollTick } from '../lib/host-mutations';
+import { areas, comments, deleteOp, inspects, operations, pushOp, selections, undoRedoFlash } from '../lib/ops';
+import { color, lineWidth } from '../lib/prefs';
+import { circleHitsRect, eraserDiameter, redrawCanvas } from '../lib/renderer';
+import { scrollOffset, toDoc } from '../lib/scroller';
+import { createStrokeEngine, type EraserHooks } from '../lib/stroke-engine';
+import { activeTool, isDrawingActive } from '../lib/tool-state';
+import { toolPaintsCanvas } from '../lib/tools';
+import type { Point } from '../lib/types';
+
+/**
+ * Every DOM op's hit-test geometry, taken once at eraser press: resolving anchors per
+ * move forces layout, 5-10ms a move on a 500-annotation page. Ops added mid-stroke
+ * wait for the next stroke.
+ */
+function eraserTargets() {
+  const out: Array<{ id: string; rects: Array<{ x: number; y: number; w: number; h: number }> }> = [];
+  for (const op of comments.value) {
+    const { x, y } = applyAnchorDelta(op.target, { docX: op.x, docY: op.y });
+    out.push({ id: op.id, rects: [{ x, y, w: 0, h: 0 }] });
+  }
+  for (const op of areas.value) {
+    const sx = Math.min(op.startX, op.endX);
+    const sy = Math.min(op.startY, op.endY);
+    const { dx, dy } = applyAnchorDelta(op.target, { docX: sx, docY: sy });
+    out.push({
+      id: op.id,
+      rects: [{ x: sx + dx, y: sy + dy, w: Math.abs(op.endX - op.startX), h: Math.abs(op.endY - op.startY) }],
+    });
+  }
+  for (const op of selections.value) {
+    const first = op.rects[0];
+    if (!first) continue;
+    const { dx, dy } = applyAnchorDelta(op.target, { docX: first.x, docY: first.y });
+    out.push({
+      id: op.id,
+      rects: op.rects.map((r) => ({ x: r.x + dx, y: r.y + dy, w: r.width, h: r.height })),
+    });
+  }
+  for (const op of inspects.value) {
+    const r = op.rect;
+    out.push({ id: op.id, rects: [{ x: r.x, y: r.y, w: r.width, h: r.height }] });
+  }
+  return out;
+}
+
+/** Erasing DOM ops: each goes once per stroke, however long the drag lingers over it. */
+function domEraser(): EraserHooks {
+  let targets: ReturnType<typeof eraserTargets> = [];
+  const erased = new Set<string>();
+  return {
+    begin: () => {
+      erased.clear();
+      targets = eraserTargets();
+    },
+    at: ({ at, radius }) => {
+      for (const t of targets) {
+        if (erased.has(t.id)) continue;
+        if (t.rects.some((r) => circleHitsRect(at.x, at.y, radius, r.x, r.y, r.w, r.h))) {
+          erased.add(t.id);
+          deleteOp(t.id);
+        }
+      }
+    },
+    end: () => {
+      targets = [];
+      erased.clear();
+    },
+  };
+}
+
+const clientXY = (e: MouseEvent | TouchEvent): Point => {
+  const s = 'touches' in e ? (e.touches[0] ?? e.changedTouches[0]) : e;
+  // A touch event with neither list populated shouldn't reach here; fall back to
+  // the origin rather than throwing mid-gesture.
+  return s ? { x: s.clientX, y: s.clientY } : { x: 0, y: 0 };
+};
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const eraserRef = useRef<HTMLDivElement>(null);
-  const drawing = useRef(false);
-  const startPt = useRef<Point>({ x: 0, y: 0 });
-  const snapshot = useRef<ImageData | null>(null);
-  const currentPath = useRef<FreehandOp | null>(null);
-  // Captured at onDown so shapes record the viewport the user *started*
-  // drawing on — matches freehand timing and stays stable if the window
-  // resizes mid-stroke.
-  const captureSize = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
-  // Tracks DOM-op IDs already deleted by this eraser stroke so a single
-  // pass over the same op doesn't double-fire deleteOp during a long drag.
-  const erasedIds = useRef<Set<string>>(new Set());
-  // Snapshot of every DOM op's hit-test geometry, computed once at eraser
-  // onDown. Avoids per-move `resolveAnchorPoint` (which forces layout via
-  // `getBoundingClientRect`) — on a 500-annotation page that's a 5-10ms
-  // layout thrash per move event.
-  const eraserTargets = useRef<Array<{ id: string; rects: Array<{ x: number; y: number; w: number; h: number }> }>>([]);
-  const shiftHeld = useRef(false);
-  const lastClient = useRef<Point | null>(null);
 
-  const getCtx = () => canvasRef.current?.getContext('2d', { willReadFrequently: true }) ?? null;
-
-  const clientXY = (e: MouseEvent | TouchEvent): Point => {
-    const s = 'touches' in e ? (e.touches[0] ?? e.changedTouches[0]) : e;
-    // A touch event with neither list populated shouldn't reach here; fall back to
-    // the origin rather than throwing mid-gesture.
-    return s ? { x: s.clientX, y: s.clientY } : { x: 0, y: 0 };
-  };
-
-  const docXY = (e: MouseEvent | TouchEvent): Point => {
-    const { x, y } = clientXY(e);
-    return { x: x + scrollX, y: y + scrollY };
-  };
-
-  const applyTool = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.lineCap = ctx.lineJoin = 'round';
-    const tool = activeTool.value;
-    const c = color.value;
-    const lw = lineWidth.value;
-    switch (tool) {
-      case 'eraser':
-        ctx.globalCompositeOperation = 'destination-out';
-        ctx.lineWidth = Math.max(5, lw * 1.5);
-        ctx.strokeStyle = 'black';
-        break;
-      case 'highlight':
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = Math.max(8, lw * 2);
-        ctx.strokeStyle = ctx.fillStyle = hexToRgba(c, 0.4);
-        break;
-      default:
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.lineWidth = lw;
-        ctx.strokeStyle = ctx.fillStyle = c;
-    }
-  }, []);
+  const engine = useMemo(
+    () =>
+      createStrokeEngine({
+        context: () => canvasRef.current?.getContext('2d', { willReadFrequently: true }) ?? null,
+        toDoc,
+        offset: () => scrollOffset(window),
+        tool: () => activeTool.value,
+        color: () => color.value,
+        lineWidth: () => lineWidth.value,
+        commit: pushOp,
+        // The viewport the stroke *started* on, stable if the window resizes mid-stroke.
+        captureViewport: () => ({ width: innerWidth, height: innerHeight }),
+        eraser: domEraser(),
+      }),
+    [],
+  );
 
   const onDown = useCallback(
     (e: MouseEvent | TouchEvent) => {
-      const tool = activeTool.value;
       if ('button' in e && e.button !== 0) return;
-      if (tool === 'navigate' || tool === 'comment') return;
-      if ('touches' in e) e.preventDefault();
-
-      drawing.current = true;
-      isDrawingActive.value = true;
-      const c = clientXY(e);
-      const d = { x: c.x + scrollX, y: c.y + scrollY };
-      startPt.current = d;
-      lastClient.current = c;
-      shiftHeld.current = e.shiftKey;
-      captureSize.current = { width: innerWidth, height: innerHeight };
-      if (tool === 'eraser') {
-        erasedIds.current.clear();
-        eraserTargets.current = snapshotEraserTargets();
-      }
-
-      const ctx = getCtx();
-      if (!ctx) return;
-      applyTool(ctx);
-
-      if (FREEHAND.has(tool) || SHAPES.has(tool)) {
-        const canvas = canvasRef.current!;
-        snapshot.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      }
-      if (FREEHAND.has(tool)) {
-        currentPath.current = {
-          id: nanoid(),
-          tool,
-          points: [{ x: d.x, y: d.y }],
-          color: tool === 'highlight' ? hexToRgba(color.value, 0.4) : color.value,
-          lineWidth: ctx.lineWidth,
-          compositeOperation: ctx.globalCompositeOperation,
-          captureViewport: captureSize.current,
-        };
-      }
-      ctx.beginPath();
-      ctx.moveTo(c.x, c.y);
+      if (engine.down({ client: clientXY(e), shift: e.shiftKey }) && 'touches' in e) e.preventDefault();
     },
-    [applyTool],
+    [engine],
   );
-
-  // Snapshot anchored op geometry on onDown so per-move hit-tests don't pay
-  // the layout cost of resolving anchors. Ops added mid-stroke fall out of
-  // scope until the next stroke.
-  const snapshotEraserTargets = useCallback(() => {
-    const out: typeof eraserTargets.current = [];
-    for (const op of comments.value) {
-      const { x, y } = applyAnchorDelta(op.target, { docX: op.x, docY: op.y });
-      out.push({ id: op.id, rects: [{ x, y, w: 0, h: 0 }] });
-    }
-    for (const op of areas.value) {
-      const sx = Math.min(op.startX, op.endX);
-      const sy = Math.min(op.startY, op.endY);
-      const { dx, dy } = applyAnchorDelta(op.target, { docX: sx, docY: sy });
-      out.push({
-        id: op.id,
-        rects: [{ x: sx + dx, y: sy + dy, w: Math.abs(op.endX - op.startX), h: Math.abs(op.endY - op.startY) }],
-      });
-    }
-    for (const op of selections.value) {
-      const first = op.rects[0];
-      if (!first) continue;
-      const { dx, dy } = applyAnchorDelta(op.target, { docX: first.x, docY: first.y });
-      out.push({
-        id: op.id,
-        rects: op.rects.map((r) => ({ x: r.x + dx, y: r.y + dy, w: r.width, h: r.height })),
-      });
-    }
-    for (const op of inspects.value) {
-      const r = op.rect;
-      out.push({ id: op.id, rects: [{ x: r.x, y: r.y, w: r.width, h: r.height }] });
-    }
-    return out;
-  }, []);
-
-  const eraseTouchingDomOps = useCallback((docX: number, docY: number, radius: number) => {
-    const seen = erasedIds.current;
-    for (const t of eraserTargets.current) {
-      if (seen.has(t.id)) continue;
-      for (const r of t.rects) {
-        if (circleHitsRect(docX, docY, radius, r.x, r.y, r.w, r.h)) {
-          seen.add(t.id);
-          deleteOp(t.id);
-          break;
-        }
-      }
-    }
-  }, []);
-
-  // Leave `currentPath.points` alone while Shift is held — toggling Shift off
-  // resumes accumulation from the current cursor rather than from the start.
-  const renderFreehandPreview = useCallback(() => {
-    const tool = activeTool.value;
-    if (!FREEHAND.has(tool)) return;
-    if (!snapshot.current) return;
-    const ctx = getCtx();
-    const path = currentPath.current;
-    if (!ctx || !path) return;
-    ctx.putImageData(snapshot.current, 0, 0);
-    const start = path.points[0];
-    if (shiftHeld.current && lastClient.current && start) {
-      const c = lastClient.current;
-      const end = constrainEnd(tool, start.x, start.y, c.x + scrollX, c.y + scrollY);
-      renderOp(ctx, { ...path, points: [start, end] }, scrollX, scrollY);
-    } else if (path.points.length > 1) {
-      renderOp(ctx, path, scrollX, scrollY);
-    }
-  }, []);
-
-  const renderShapePreview = useCallback(() => {
-    const tool = activeTool.value;
-    if (!SHAPES.has(tool)) return;
-    if (!snapshot.current) return;
-    const ctx = getCtx();
-    const c = lastClient.current;
-    if (!ctx || !c) return;
-    const vsx = startPt.current.x - scrollX;
-    const vsy = startPt.current.y - scrollY;
-    const { x: ex, y: ey } = shiftHeld.current ? constrainEnd(tool, vsx, vsy, c.x, c.y) : { x: c.x, y: c.y };
-
-    ctx.putImageData(snapshot.current, 0, 0);
-    ctx.beginPath();
-    switch (tool) {
-      case 'rectangle':
-        ctx.strokeRect(vsx, vsy, ex - vsx, ey - vsy);
-        break;
-      case 'circle': {
-        const r = Math.hypot(ex - vsx, ey - vsy);
-        ctx.arc(vsx, vsy, r, 0, Math.PI * 2);
-        ctx.stroke();
-        break;
-      }
-      case 'line':
-      case 'arrow': {
-        ctx.moveTo(vsx, vsy);
-        ctx.lineTo(ex, ey);
-        ctx.stroke();
-        if (tool === 'arrow') {
-          strokeArrowHead(ctx, { start: { x: vsx, y: vsy }, end: { x: ex, y: ey }, lineWidth: ctx.lineWidth });
-        }
-        break;
-      }
-    }
-  }, []);
 
   const onMove = useCallback(
     (e: MouseEvent | TouchEvent) => {
-      if (!drawing.current) return;
+      if (!engine.drawing) return;
       if ('cancelable' in e && e.cancelable) e.preventDefault();
-      const tool = activeTool.value;
-      const c = clientXY(e);
-      const d = { x: c.x + scrollX, y: c.y + scrollY };
-      const ctx = getCtx();
-      if (!ctx) return;
-
-      lastClient.current = c;
-      shiftHeld.current = e.shiftKey;
-
-      if (tool === 'eraser') {
-        eraseTouchingDomOps(d.x, d.y, eraserDiameter(lineWidth.value) / 2);
-      }
-
-      if (FREEHAND.has(tool)) {
-        if (!shiftHeld.current) currentPath.current?.points.push(d);
-        renderFreehandPreview();
-      } else if (SHAPES.has(tool)) {
-        renderShapePreview();
-      }
+      engine.move({ client: clientXY(e), shift: e.shiftKey });
     },
-    [eraseTouchingDomOps, renderFreehandPreview, renderShapePreview],
+    [engine],
   );
 
   const onUp = useCallback(
     (e: MouseEvent | TouchEvent) => {
       if ('button' in e && e.button !== 0) return;
-      if (!drawing.current) return;
-      drawing.current = false;
-      const tool = activeTool.value;
-      const dRaw = docXY(e);
-      const s = startPt.current;
-      const d = shiftHeld.current ? constrainEnd(tool, s.x, s.y, dRaw.x, dRaw.y) : dRaw;
-      const ctx = getCtx();
-      if (tool === 'eraser') {
-        eraserTargets.current = [];
-        erasedIds.current.clear();
-      }
-
-      // Batch the active-flip with the commit so the redraw effect fires once
-      // (with the new op present) instead of twice — once before the commit with
-      // a now-stale ops array, once after.
-      batch(() => {
-        isDrawingActive.value = false;
-
-        if (FREEHAND.has(tool) && currentPath.current) {
-          snapshot.current = null;
-          const origin = currentPath.current.points[0];
-          if (shiftHeld.current && origin) {
-            currentPath.current.points = [origin, { x: d.x, y: d.y }];
-          } else {
-            currentPath.current.points.push({ x: d.x, y: d.y });
-          }
-          if (currentPath.current.points.length > 1) {
-            // Eraser uses a tighter tolerance so the destination-out mask
-            // doesn't lose pinpoint accuracy near edges, but still gets
-            // most of the wire/storage savings of simplification.
-            const tol = tool === 'eraser' ? 0.5 : 1.5;
-            currentPath.current.points = simplify(currentPath.current.points, tol);
-            pushOp(currentPath.current);
-          }
-          currentPath.current = null;
-        } else if (SHAPES.has(tool)) {
-          if (snapshot.current && ctx) {
-            ctx.putImageData(snapshot.current, 0, 0);
-            snapshot.current = null;
-          }
-          const base = {
-            id: nanoid(),
-            color: color.value,
-            lineWidth: lineWidth.value,
-            captureViewport: captureSize.current,
-          };
-          if (tool === 'circle' || tool === 'rectangle' || tool === 'line' || tool === 'arrow') {
-            const op = shapeOp({ tool, start: s, end: d, base });
-            if (op) pushOp(op);
-          }
-        }
-      });
-
-      if (ctx) {
-        ctx.beginPath();
-        applyTool(ctx);
-      }
+      engine.up({ client: clientXY(e), shift: e.shiftKey });
     },
-    [applyTool],
+    [engine],
   );
 
   useEffect(() => {
@@ -369,16 +162,8 @@ export function Canvas() {
       el.style.height = `${size}px`;
     };
     window.addEventListener('mousemove', onEraserMove);
-    const setShift = (next: boolean) => {
-      if (shiftHeld.current === next) return;
-      shiftHeld.current = next;
-      if (!drawing.current) return;
-      const tool = activeTool.value;
-      if (SHAPES.has(tool)) renderShapePreview();
-      else if (FREEHAND.has(tool)) renderFreehandPreview();
-    };
-    const unbindShiftDown = tinykeys(window, { Shift: () => setShift(true) });
-    const unbindShiftUp = tinykeys(window, { Shift: () => setShift(false) }, { event: 'keyup' });
+    const unbindShiftDown = tinykeys(window, { Shift: () => engine.setShift(true) });
+    const unbindShiftUp = tinykeys(window, { Shift: () => engine.setShift(false) }, { event: 'keyup' });
     return () => {
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', onMove);
@@ -389,12 +174,12 @@ export function Canvas() {
       unbindShiftDown();
       unbindShiftUp();
     };
-  }, [onMove, onUp, renderShapePreview, renderFreehandPreview]);
+  }, [engine, onMove, onUp]);
 
   useSignalEffect(() => {
     const ops = operations.value;
     // scrollTick is the sole scroll-driven redraw path, and it is already
-    // rAF-coalesced by the shared listener in state.ts. hostMutationTick is
+    // rAF-coalesced by the shared listener in host-mutations.ts. hostMutationTick is
     // deliberately not subscribed: only comment, selection and area ops anchor
     // to an element (`isAnchorableOp`), and all three render as DOM, so a host
     // mutation can never move a canvas pixel. Subscribing would make any page
@@ -410,13 +195,9 @@ export function Canvas() {
     }
     // A scroll mid-stroke leaves the snapshot at the old offset: re-take it so the
     // committed marks move with the page under the pen.
-    const ctx = getCtx();
-    if (!ctx || !snapshot.current) return;
+    if (!engine.drawing) return;
     redrawCanvas(canvas, ops);
-    snapshot.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    applyTool(ctx);
-    renderFreehandPreview();
-    renderShapePreview();
+    engine.resnapshot();
   });
 
   useSignalEffect(() => {

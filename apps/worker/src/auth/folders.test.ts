@@ -1,23 +1,14 @@
-import { Database } from 'bun:sqlite';
+import type { Database } from 'bun:sqlite';
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { readdirSync, readFileSync } from 'node:fs';
-import { fakeDb, SqliteD1 } from '../test-d1';
+import { fakeDb, migratedSqlite, SqliteD1 } from '../test-d1';
 import { auth } from './routes';
 import { folderStore, ownedStore } from './store';
-
-// The real schema, every migration in order, so a later migration touching these tables is exercised too.
-const migrationsDir = new URL('../../migrations/', import.meta.url);
-const schema = readdirSync(migrationsDir)
-  .filter((f) => f.endsWith('.sql'))
-  .sort()
-  .map((f) => readFileSync(new URL(f, migrationsDir), 'utf8'));
 
 describe('folders are owner-scoped', () => {
   let sqlite: Database;
   let db: D1Database;
   beforeEach(() => {
-    sqlite = new Database(':memory:');
-    for (const sql of schema) sqlite.exec(sql);
+    sqlite = migratedSqlite();
     sqlite.exec(
       "INSERT INTO annotations (id, ops, owner_id, access) VALUES ('mine', '[]', 'alice', 'edit'), ('theirs', '[]', 'bob', 'edit')",
     );

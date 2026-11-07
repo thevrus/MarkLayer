@@ -1,21 +1,23 @@
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import { annotationPanelOpen, peers, uiHidden } from '@ext/lib/state';
-import { cn } from '@marklayer/types';
+import { peers } from '@ext/lib/presence';
+import { uiHidden } from '@ext/lib/ui-state';
+import { cn } from '@marklayer/ui/cn';
 import { Lock, Mic, MicOff, MonitorPlay, X } from 'lucide-preact';
 import { lazy, Suspense } from 'preact/compat';
-import { capture } from './analytics';
-import { followingPeer, presenting, setPresenting } from './signals';
+import { DOCK_GUTTER, DOCKED_ANNOTATION_WIDTH } from './DockedPanel';
+import { annotationPanelOpen, followingPeer, presenting, setPresenting } from './ui-state';
 import {
   audioBlocked,
   expandedPeers,
+  leaveVoice,
   localVideoStream,
   peerConnQuality,
   peerVideoStreams,
   qualityRing,
   resumeBlockedAudio,
+  toggleMute,
   videoActive,
-  voiceActive,
   voiceLevel,
   voiceMuted,
   voiceSpeaking,
@@ -39,6 +41,9 @@ export function ViewOnlyBadge() {
   );
 }
 
+/** The pill's distance from the window edge with no panel beside it. */
+const HUD_INSET = 16;
+
 /** Raycast-style mic indicator. */
 export function VoicePill() {
   const muted = voiceMuted.value;
@@ -50,18 +55,15 @@ export function VoicePill() {
         'fixed z-2147483646 flex items-center gap-2 px-3 py-2 rounded-xl transition-[right] duration-200',
         // Clears the top bar, and takes its place when ⌘/ has hidden it.
         uiHidden.value ? 'top-4' : 'top-[60px]',
-        annotationPanelOpen.value ? 'right-[364px]' : 'right-4',
         'bg-(--ds-background-100) border border-(--ds-gray-alpha-400) [box-shadow:var(--ds-shadow-tooltip)]',
         'animate-[fadeInDown_0.2s_ease-out]',
         'select-none',
       )}
+      style={{ right: annotationPanelOpen.value ? DOCKED_ANNOTATION_WIDTH + DOCK_GUTTER : HUD_INSET }}
     >
       <button
         type="button"
-        onClick={() => {
-          voiceMuted.value = !voiceMuted.value;
-          capture('voice_mute_toggled', { muted: voiceMuted.value });
-        }}
+        onClick={toggleMute}
         class={cn(
           'w-7 h-7 rounded-lg grid place-items-center border-none cursor-pointer transition-[color,background-color] duration-150',
           muted ? 'bg-(--ds-gray-alpha-100) text-(--ds-gray-900)' : 'bg-green-500/20 text-green-400',
@@ -71,7 +73,6 @@ export function VoicePill() {
         {muted ? <MicOff size={14} aria-hidden="true" /> : <Mic size={14} aria-hidden="true" />}
       </button>
 
-      {/* Level bars */}
       <div class="flex items-end gap-[2px] h-3.5">
         {Array.from({ length: 4 }, (_, i) => {
           const threshold = i / 4;
@@ -93,7 +94,7 @@ export function VoicePill() {
 
       <button
         type="button"
-        onClick={() => (voiceActive.value = false)}
+        onClick={leaveVoice}
         class="w-6 h-6 rounded-md grid place-items-center border-none cursor-pointer bg-transparent text-(--ds-gray-900) hover:text-(--ds-gray-1000) hover:bg-(--ds-gray-alpha-100) transition-[color,background-color] duration-150"
         title="Leave voice"
       >

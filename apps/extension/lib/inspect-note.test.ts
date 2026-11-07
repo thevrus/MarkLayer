@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { inspectOpSchema } from '@marklayer/types';
+import { inspectOpSchema } from '@marklayer/types/ops';
 import { buildInspectPrompt, inspectFields, stackMarkdown } from './inspect-note';
 
 const edit = { property: 'padding', from: '8px', to: '16px' };

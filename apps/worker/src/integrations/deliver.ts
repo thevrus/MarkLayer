@@ -1,4 +1,5 @@
-import { type Integration, parseFetchableUrl, roomIntegrationsSchema } from '@marklayer/types';
+import { parseFetchableUrl } from '@marklayer/types/net';
+import { type Integration, roomIntegrationsSchema } from '../../shared/integrations';
 import { providerById } from './providers';
 import { type OutboundRequest, type Provider, ROOM_EVENT_TYPES, type RoomEvent } from './types';
 

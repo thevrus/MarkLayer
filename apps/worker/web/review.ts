@@ -1,10 +1,12 @@
-import { localUser, operations, patchOp, pushOp, showAnnotationPanel, signedBy } from '@ext/lib/state';
-import { type Ballot, type DrawOp, orderedSteps, type QuestionOp, type StepOp } from '@marklayer/types';
+import { localUser, signedBy } from '@ext/lib/identity';
+import { operations, patchOp, pushOp } from '@ext/lib/ops';
+import { type Ballot, type DrawOp, orderedSteps, type QuestionOp, type StepOp } from '@marklayer/types/ops';
 import { computed, effect, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { z } from 'zod/mini';
-import { annotationId } from './projects';
-import { compactChrome } from './signals';
+import { API_BASE, annotationId } from './projects';
+import { showAnnotationPanel } from './ui-state';
+import { compactChrome } from './viewer-state';
 
 /** The room's review state: the agent's checklist and the polls, derived from the op stream like guides are. */
 export const reviewSteps = computed(() => orderedSteps(operations.value));
@@ -34,7 +36,7 @@ effect(() => {
   const id = annotationId.value;
   previewInfo.value = null;
   if (!id) return;
-  fetch(`/api/${id}/versions`)
+  fetch(`${API_BASE}${id}/versions`)
     .then((res) => (res.ok ? res.json() : null))
     .then((body: unknown) => {
       const parsed = previewInfoSchema.safeParse(body);

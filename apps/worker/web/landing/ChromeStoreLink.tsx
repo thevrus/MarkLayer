@@ -1,5 +1,5 @@
-import { cn } from '@marklayer/types';
-import { CHROME_STORE_URL } from '@site/lib/site';
+import { CHROME_STORE_URL } from '@marklayer/brand';
+import { cn } from '@marklayer/ui/cn';
 import { siGooglechrome } from 'simple-icons';
 import { capture } from '../analytics';
 import { CTA_CLS } from './content';

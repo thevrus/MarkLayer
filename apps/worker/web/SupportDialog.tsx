@@ -3,19 +3,12 @@ import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { portalContainer } from '@ext/lib/portal';
-import { cn } from '@marklayer/types';
-import { CHROME_STORE_URL } from '@site/lib/site';
+import { CHROME_STORE_URL, POLAR_CHECKOUT_URL } from '@marklayer/brand';
+import { cn } from '@marklayer/ui/cn';
 import { CircleCheck, X } from 'lucide-preact';
 import { capture } from './analytics';
-import { isUnprompted, showSupportDialog } from './signals';
-import {
-  isLastAsk,
-  MONTHLY_COST_USD,
-  NOTES_BEFORE_ASKING,
-  noteSupportSignal,
-  POLAR_CHECKOUT_URL,
-  readSupportRecord,
-} from './support';
+import { isLastAsk, MONTHLY_COST_USD, NOTES_BEFORE_ASKING, noteSupportSignal, readSupportRecord } from './support';
+import { isUnprompted, showSupportDialog } from './ui-state';
 
 /**
  * Web-app only, deliberately. In the extension this renders inside a content
@@ -38,7 +31,6 @@ import {
 const cost = MONTHLY_COST_USD === null ? '' : ` It runs about $${MONTHLY_COST_USD} a month.`;
 
 export function SupportDialog() {
-  const canCheckout = POLAR_CHECKOUT_URL.length > 0;
   const trigger = showSupportDialog.value;
   // Read as it opens, before this showing's answer lands in it.
   const record = trigger === null ? null : readSupportRecord();
@@ -124,34 +116,32 @@ export function SupportDialog() {
 
             <PromiseList />
 
-            {canCheckout ? (
-              <a
-                href={POLAR_CHECKOUT_URL}
-                // A new tab, not an in-place navigation: the annotations on screen
-                // are unsaved work, and Polar's own checkout already does the
-                // one-tap wallet path. The alternative, Polar's embed script,
-                // would put a third-party script on an app whose whole promise is
-                // that it collects nothing.
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => {
-                  noteSupportSignal('supported');
-                  // Where the funnel ends client-side: whether they actually paid
-                  // is only knowable from Polar's webhook, server-side.
-                  capture('support_checkout_opened', { trigger });
-                }}
-                // The shared primary, not a second copy of it: same inverted fill,
-                // same focus ring, one place to change.
-                class={cn(submitBtn, 'mt-5 h-10 w-full rounded-lg text-ui-lg no-underline')}
-              >
-                Support MarkLayer
-              </a>
-            ) : null}
+            <a
+              href={POLAR_CHECKOUT_URL}
+              // A new tab, not an in-place navigation: the annotations on screen
+              // are unsaved work, and Polar's own checkout already does the
+              // one-tap wallet path. The alternative, Polar's embed script,
+              // would put a third-party script on an app whose whole promise is
+              // that it collects nothing.
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                noteSupportSignal('supported');
+                // Where the funnel ends client-side: whether they actually paid
+                // is only knowable from Polar's webhook, server-side.
+                capture('support_checkout_opened', { trigger });
+              }}
+              // The shared primary, not a second copy of it: same inverted fill,
+              // same focus ring, one place to change.
+              class={cn(submitBtn, 'mt-5 h-10 w-full rounded-lg text-ui-lg no-underline')}
+            >
+              Support MarkLayer
+            </a>
 
             {/* The escape route is a text link, never a second button: most
                 people will not pay, and a review is worth real money here. */}
             <p class="mt-3 mb-0 text-meta leading-snug text-(--ds-gray-900)">
-              {canCheckout ? 'Or help for free: a ' : 'Free way to help: a '}
+              Or help for free: a{' '}
               <a
                 href={CHROME_STORE_URL}
                 target="_blank"

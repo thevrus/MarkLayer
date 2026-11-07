@@ -1,4 +1,5 @@
 ---
+import { shortcutLabel, TOOL_CATALOG, type Tool } from '@marklayer/types/tools';
 import Faq from '../components/Faq.astro';
 import LinkGrid from '../components/LinkGrid.astro';
 import dates from '../data/page-dates.json';
@@ -7,37 +8,46 @@ import { AGENT_TOOLS as agentTools } from '../lib/agent-tools';
 import { articleSchema, faqSchema, type QA } from '../lib/schema';
 
 const toolCount = agentTools.length;
+const annotationToolCount = Object.keys(TOOL_CATALOG).length;
 
 const { published, modified } = dates.features;
 
 const path = '/features';
 const title = 'MarkLayer Features: Every Tool, Integration and AI Hook';
-const description = `16 annotation tools, threaded comments with status, priority and video notes, live cursors, voice and video, Slack, Jira, Linear, a ${toolCount}-tool MCP server. Free.`;
+const description = `${annotationToolCount} annotation tools, threaded comments with status, priority and video notes, live cursors, voice and video, Slack, Jira, Linear, a ${toolCount}-tool MCP server. Free.`;
 const h1 = 'MarkLayer features';
 
 /**
- * Tool rows carry the shortcut the product actually binds, read off
- * `TOOL_SHORTCUTS` in apps/extension/lib/state.ts. Two tools answer to two keys
- * each, which is deliberate Figma parity and is stated rather than hidden.
+ * Names, keys and order come from `TOOL_CATALOG`, what the toolbar itself renders;
+ * only the sentence lives here. Two tools answer to two keys each, which is
+ * deliberate Figma parity and is stated rather than hidden.
  */
-const tools: { name: string; key: string; does: string }[] = [
-  { name: 'Move', key: 'V', does: 'Scroll and click the page underneath without drawing on it.' },
-  { name: 'Pen', key: 'P', does: 'Freehand stroke, the fastest way to circle something.' },
-  { name: 'Highlight', key: '⇧H', does: 'A translucent marker pass over anything on the page.' },
-  { name: 'Line', key: 'L', does: 'A straight segment between two points.' },
-  { name: 'Arrow', key: 'A or ⇧L', does: 'The same line with a head on it, for pointing at a thing.' },
-  { name: 'Rectangle', key: 'R', does: 'A box around a region.' },
-  { name: 'Circle', key: 'O', does: 'An ellipse from its centre out.' },
-  { name: 'Text', key: 'T', does: 'A typed label placed directly on the page.' },
-  { name: 'Comment', key: 'C', does: 'A pinned thread with replies, status, priority and an owner.' },
-  { name: 'Selection', key: 'S', does: 'Select real text and comment on it, or propose an exact rewrite.' },
-  { name: 'Area', key: 'G or F', does: 'Draw a region and attach a note to the whole of it.' },
-  { name: 'Eraser', key: 'E', does: 'Remove strokes without clearing the page.' },
-  { name: 'Inspector', key: 'I', does: "Capture one element's CSS selector, styles and a prompt for a coding agent." },
-  { name: 'Multi-select', key: 'X', does: 'Marquee several elements and copy them as one agent task.' },
-  { name: 'Measure', key: 'M', does: 'Pixel distances and gaps between two elements, the way Figma shows them.' },
-  { name: 'Guide', key: 'U', does: 'Drag a ruler guide out to check alignment. Everyone on the link sees it.' },
-];
+const TOOL_ROWS: Record<Tool, string> = {
+  navigate: 'Scroll and click the page underneath without drawing on it.',
+  pen: 'Freehand stroke, the fastest way to circle something.',
+  highlight: 'A translucent marker pass over anything on the page.',
+  line: 'A straight segment between two points.',
+  arrow: 'The same line with a head on it, for pointing at a thing.',
+  rectangle: 'A box around a region.',
+  circle: 'An ellipse from its centre out.',
+  text: 'A typed label placed directly on the page.',
+  comment: 'A pinned thread with replies, status, priority and an owner.',
+  selection: 'Select real text and comment on it, or propose an exact rewrite.',
+  area: 'Draw a region and attach a note to the whole of it.',
+  eraser: 'Remove strokes without clearing the page.',
+  inspect: "Capture one element's CSS selector, styles and a prompt for a coding agent.",
+  multiInspect: 'Marquee several elements and copy them as one agent task.',
+  measure: 'Pixel distances and gaps between two elements, the way Figma shows them.',
+  guide: 'Drag a ruler guide out to check alignment. Everyone on the link sees it.',
+};
+const toolRows = new Map(Object.entries(TOOL_ROWS));
+const tools = Object.entries(TOOL_CATALOG).map(([id, { label, shortcuts }]) => ({
+  name: label,
+  key: shortcuts.map(shortcutLabel).join(' or '),
+  does: toolRows.get(id),
+}));
+const toolNames = tools.map((t, i) => (i === 0 ? t.name : t.name.toLowerCase()));
+const toolList = `${toolNames.slice(0, -1).join(', ')} and ${toolNames.at(-1)}`;
 
 const integrations: { name: string; when: string; sends: string }[] = [
   { name: 'Slack', when: 'Automatic', sends: 'Posts each new batch of annotations to an incoming webhook.' },
@@ -57,7 +67,7 @@ const integrations: { name: string; when: string; sends: string }[] = [
 const qa: QA[] = [
   {
     q: 'How many annotation tools does MarkLayer have?',
-    a: 'Sixteen, and every one of them is free. Move, pen, highlight, line, arrow, rectangle, circle, text, comment, selection, area, eraser, inspector, multi-select, measure and guide. Each has a single-key shortcut, and the toolbar can be dragged anywhere on screen and reordered to suit how you work.',
+    a: `${annotationToolCount}, and every one of them is free. ${toolList}. Each has a single-key shortcut, and the toolbar can be dragged anywhere on screen and reordered to suit how you work.`,
   },
   {
     q: 'Can MarkLayer send annotations to Jira, Linear, GitHub or Trello?',
@@ -101,11 +111,11 @@ const qa: QA[] = [
 >
   <Fragment slot="intro">
     MarkLayer is a free web app and Chrome extension for drawing and commenting on any live webpage, PDF or image, then
-    sharing it as a link. It has 16 annotation tools, threaded comments with status and priority, live cursors, voice
+    sharing it as a link. It has {annotationToolCount} annotation tools, threaded comments with status and priority, live cursors, voice
     and video, eleven places to send feedback, and a {toolCount}-tool MCP server for AI coding agents. No account, no paid tier.
   </Fragment>
 
-  <h2>The 16 annotation tools</h2>
+  <h2>The {annotationToolCount} annotation tools</h2>
   <p>
     Every tool below is available on the web app and in the extension, on any page, with no account. Each answers to a
     single key, chosen to match Figma where Figma has an equivalent, so the muscle memory carries over. The toolbar

@@ -1,12 +1,8 @@
 ---
 import { render } from 'astro:content';
-import Faq from '../../components/Faq.astro';
-import Related from '../../components/Related.astro';
-import VideoEmbed from '../../components/VideoEmbed.astro';
-import ArticleLayout from '../../layouts/ArticleLayout.astro';
-import { getAlternatives, getComparisons, getCompetitorPrices, relatedLinks } from '../../lib/collections';
-import { alternativesH1 } from '../../lib/docs-nav';
-import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+import CompetitorLayout from '../../layouts/CompetitorLayout.astro';
+import { alternativesH1, getAlternatives, getComparisons, getCompetitorPrices, relatedLinks } from '../../lib/collections';
+import { alternativesPath, MARKLAYER_PRICE, PRICES_CHECKED, vsPath } from '../../lib/site';
 
 export async function getStaticPaths() {
   const [alternatives, comparisons] = await Promise.all([getAlternatives(), getComparisons()]);
@@ -22,8 +18,8 @@ export async function getStaticPaths() {
         entry,
         siblings: alternatives,
         others: comparisons,
-        siblingLink: (a) => ({ href: `/alternatives/${a.id}`, label: `Free ${a.data.target} alternatives` }),
-        crossLink: (c) => ({ href: `/vs/${c.id}`, label: `Compare MarkLayer vs ${c.data.competitor} head to head` }),
+        siblingLink: (a) => ({ href: alternativesPath(a.id), label: `Free ${a.data.target} alternatives` }),
+        crossLink: (c) => ({ href: vsPath(c.id), label: `Compare MarkLayer vs ${c.data.competitor} head to head` }),
       }),
     },
   }));
@@ -33,7 +29,7 @@ const { entry, related, prices } = Astro.props;
 const a = entry.data;
 const { Content } = await render(entry);
 
-const path = `/alternatives/${entry.id}`;
+const path = alternativesPath(entry.id);
 const h1 = alternativesH1(entry);
 
 /**
@@ -48,35 +44,26 @@ const h1 = alternativesH1(entry);
  * needs a value — "Paid (subscription per user)" is worth more than a blank.
  */
 const priceRows = new Map(prices);
-const priceFor = (url?: string): string => {
-  if (url === '/') return 'Free. No tiers, no seats';
-  const slug = url?.startsWith('/vs/') ? url.slice('/vs/'.length) : undefined;
-  return (slug && priceRows.get(slug)) || 'Not tracked';
+type Option = (typeof a.options)[number];
+const hrefFor = (o: Option): string | undefined => (o.self ? '/' : o.compare ? vsPath(o.compare) : o.url);
+const priceFor = (o: Option): string => {
+  if (o.self) return MARKLAYER_PRICE;
+  if (!o.compare) return 'Not tracked';
+  const price = priceRows.get(o.compare);
+  // Fails the build: a typo here would otherwise read "Not tracked" on a live page.
+  if (!price) throw new Error(`${entry.id}: no comparison price for "${o.compare}"`);
+  return price;
 };
-const breadcrumbs: Crumb[] = [
-  { name: 'MarkLayer', path: '/' },
-  { name: 'Alternatives', path: '/alternatives' },
-  { name: h1 },
-];
 ---
 
-<ArticleLayout
-  title={a.title}
-  description={a.description}
-  path={path}
+<CompetitorLayout
+  data={a}
   h1={h1}
-  bottomLine={a.bottomLine}
-  breadcrumbs={breadcrumbs}
-  modified={a.modified}
-  schema={[
-    articleSchema({ h1, description: a.description, path, published: a.published, modified: a.modified, aboutApp: true }),
-    faqSchema(a.faq),
-  ]}
+  path={path}
+  hub={{ name: 'Alternatives', path: '/alternatives' }}
+  Content={Content}
+  related={related}
 >
-  <Fragment slot="intro">{a.intro ?? <Content />}</Fragment>
-
-  <VideoEmbed video={a.video} title={`Free ${a.target} alternatives demo`} />
-
   {/* The summary table carries `bestFor` and the price; the entries below carry
       the prose. Splitting them that way keeps the same fact from appearing
       twice on one page, which is what a "Best for" line under every pitch did. */}
@@ -94,8 +81,8 @@ const breadcrumbs: Crumb[] = [
         {
           a.options.map((o) => (
             <tr>
-              <th scope="row">{o.url ? <a href={o.url}>{o.name}</a> : o.name}</th>
-              <td>{priceFor(o.url)}</td>
+              <th scope="row">{hrefFor(o) ? <a href={hrefFor(o)}>{o.name}</a> : o.name}</th>
+              <td>{priceFor(o)}</td>
               <td>{o.bestFor}</td>
             </tr>
           ))
@@ -104,7 +91,7 @@ const breadcrumbs: Crumb[] = [
     </table>
   </div>
   <p class="ml-meta">
-    Prices as published by each vendor, checked August 2026, and read from each tool's own
+    Prices as published by each vendor, checked {PRICES_CHECKED}, and read from each tool's own
     <a href="/compare">comparison page</a>. "Not tracked" means there is no comparison page for that option yet, so
     no price is quoted for it here.
   </p>
@@ -114,15 +101,11 @@ const breadcrumbs: Crumb[] = [
     a.options.map((o, i) => (
       <div class="ml-entry">
         <h3>
-          {i + 1}. {o.url ? <a href={o.url}>{o.name}</a> : o.name}
+          {i + 1}. {hrefFor(o) ? <a href={hrefFor(o)}>{o.name}</a> : o.name}
         </h3>
         <p>{o.pitch}</p>
       </div>
     ))
   }
 
-  {a.intro && <Content />}
-
-  <Faq qa={a.faq} />
-  <Related title="Related comparisons" links={related} />
-</ArticleLayout>
+</CompetitorLayout>

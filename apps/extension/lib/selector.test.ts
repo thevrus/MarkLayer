@@ -1,11 +1,10 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import {
   captureTarget,
   detectTailwind,
   ELEMENT_INSPECTOR_HEADING,
   FINGERPRINT_LEN,
   formatForAI,
-  getBoxModel,
   getKeyStyles,
   getParentLayout,
   getSelector,
@@ -162,13 +161,17 @@ describe('getSelector', () => {
     expect(document.querySelector(sel)).toBe(pick('div'));
   });
 
-  test('memoises per element, so repeated anchoring does not re-walk the tree', () => {
+  test('asks the document nothing the second time, so repeated anchoring stays cheap', () => {
     mount('<main><div class="Card">x</div></main>');
     const el = pick('div');
     const first = getSelector(el);
-    // Rename the class: a fresh computation would change, a cached one will not.
-    el.className = 'Renamed';
-    expect(getSelector(el)).toBe(first);
+    const queries = spyOn(document, 'querySelectorAll');
+    try {
+      expect(getSelector(el)).toBe(first);
+      expect(queries).not.toHaveBeenCalled();
+    } finally {
+      queries.mockRestore();
+    }
   });
 });
 
@@ -549,44 +552,6 @@ describe('getParentLayout', () => {
   });
 });
 
-describe('getBoxModel', () => {
-  test('nests the four boxes inward from margin to content', () => {
-    mount('<div id="b" style="margin:10px;border:2px solid;padding:5px">x</div>');
-    const el = pick('#b');
-    layout(el, { x: 100, y: 200, width: 300, height: 100 });
-
-    const box = getBoxModel(el);
-    // getBoundingClientRect is the border box; margin grows outward from it.
-    expect(box.borderBox).toEqual({ x: 100, y: 200, w: 300, h: 100 });
-    expect(box.marginBox).toEqual({ x: 90, y: 190, w: 320, h: 120 });
-    expect(box.paddingBox).toEqual({ x: 102, y: 202, w: 296, h: 96 });
-    expect(box.contentBox).toEqual({ x: 107, y: 207, w: 286, h: 86 });
-  });
-
-  test('collapses to the border box when the element has no box properties', () => {
-    mount('<div id="b">x</div>');
-    const el = pick('#b');
-    layout(el, { x: 0, y: 0, width: 50, height: 20 });
-
-    const box = getBoxModel(el);
-    expect(box.marginBox).toEqual(box.borderBox);
-    expect(box.paddingBox).toEqual(box.borderBox);
-    expect(box.contentBox).toEqual(box.borderBox);
-  });
-
-  test('handles asymmetric box properties per side', () => {
-    mount(
-      '<div id="b" style="margin-left:20px;padding-top:8px;border-right-width:4px;border-right-style:solid">x</div>',
-    );
-    const el = pick('#b');
-    layout(el, { x: 100, y: 100, width: 200, height: 60 });
-
-    const box = getBoxModel(el);
-    expect(box.marginBox).toMatchObject({ x: 80, w: 220 });
-    expect(box.contentBox).toMatchObject({ y: 108, w: 196 });
-  });
-});
-
 describe('getKeyStyles', () => {
   test('returns the picked properties with kebab-case keys', () => {
     mount('<p id="t" style="color:rgb(1,2,3);font-weight:700;border-radius:4px">x</p>');
@@ -674,11 +639,6 @@ describe('snapshotElement', () => {
     const rect = new DOMRect(0, 0, 100, 50);
     expect(snapshotElement(el, 'h1#hero', rect, 'compact').markdown).not.toContain('**Markup:**');
     expect(snapshotElement(el, 'h1#hero', rect, 'forensic').markdown).toContain('**Computed Styles:**');
-  });
-
-  test('reports no component for a plain element', () => {
-    mount('<h1 id="hero">Pricing</h1>');
-    expect(snapshotElement(pick('#hero'), 'h1#hero', new DOMRect()).component).toBeNull();
   });
 });
 

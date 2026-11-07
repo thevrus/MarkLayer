@@ -9,8 +9,11 @@ mock.module('idb-keyval', () => ({
   del: async () => {},
 }));
 
-const { activeTool, altHeld, bindFigmaKeys, handTool, operations, spaceHeld, toolbarMinimized, uiHidden } =
-  await import('./state');
+const { bindFigmaKeys } = await import('./keymap');
+const { operations } = await import('./ops');
+const { toolbarMinimized } = await import('./prefs');
+const { activeTool, altHeld, handTool, spaceHeld } = await import('./tool-state');
+const { uiHidden } = await import('./ui-state');
 
 /**
  * tinykeys resolves modifiers through `getModifierState`, not through the
@@ -27,10 +30,12 @@ const press = (
     repeat = false,
     mod = false,
     shift = false,
-  }: Partial<{ type: 'keydown' | 'keyup'; repeat: boolean; mod: boolean; shift: boolean }> = {},
+    modifier,
+  }: Partial<{ type: 'keydown' | 'keyup'; repeat: boolean; mod: boolean; shift: boolean; modifier: string }> = {},
 ) => {
   const held = new Set<string>();
   if (mod) held.add(MOD);
+  if (modifier) held.add(modifier);
   if (shift) held.add('Shift');
   if (code === 'Alt') held.add('Alt');
 
@@ -77,12 +82,22 @@ afterEach(() => {
 });
 
 describe('tool letters', () => {
-  test('arm the tool they are bound to', () => {
+  test('arm the tool Figma binds them to, so the muscle memory transfers', () => {
     bind();
-    press('KeyR');
-    expect(activeTool.value).toBe('rectangle');
-    press('KeyC');
-    expect(activeTool.value).toBe('comment');
+    const figma = [
+      ['KeyR', 'rectangle'],
+      ['KeyO', 'circle'],
+      ['KeyT', 'text'],
+      ['KeyC', 'comment'],
+      ['KeyP', 'pen'],
+      ['KeyL', 'line'],
+      ['KeyE', 'eraser'],
+      ['KeyV', 'navigate'],
+    ] as const;
+    for (const [code, tool] of figma) {
+      press(code);
+      expect(activeTool.value).toBe(tool);
+    }
   });
 
   test('distinguish a shifted binding', () => {
@@ -91,6 +106,22 @@ describe('tool letters', () => {
     expect(activeTool.value).toBe('highlight');
     // Bare H is the hand tool, not the highlighter.
     expect(handTool.value).toBe(false);
+    press('KeyL', { shift: true });
+    expect(activeTool.value).toBe('arrow');
+  });
+
+  test('yield to a command, control or option chord, which belongs to the browser', () => {
+    bind();
+    for (const modifier of ['Meta', 'Control', 'Alt']) {
+      expect(press('KeyR', { modifier }).defaultPrevented).toBe(false);
+      expect(activeTool.value).toBe('navigate');
+    }
+  });
+
+  test('leave an unbound key to the host page', () => {
+    bind();
+    expect(press('KeyQ').defaultPrevented).toBe(false);
+    expect(activeTool.value).toBe('navigate');
   });
 
   test('prevent the host page default, so the letter is not typed through', () => {

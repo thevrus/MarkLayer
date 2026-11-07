@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
-import { inspectOpSchema } from '@marklayer/types';
+import { inspectOpSchema } from '@marklayer/types/ops';
 import { h, render } from 'preact';
 import * as compat from 'preact/compat';
 import * as jsxRuntime from 'preact/jsx-runtime';
@@ -14,7 +14,9 @@ mock.module(fromBaseUi('react-dom'), () => compat);
 mock.module(fromBaseUi('react/jsx-runtime'), () => jsxRuntime);
 const { SelectedPanel } = await import('../components/InspectorLayer');
 const { getSelector, snapshotElement } = await import('./selector');
-const { connectionStatus, inspectorStack, operations } = await import('./state');
+const { inspectorStack } = await import('./inspector-stack');
+const { operations } = await import('./ops');
+const { connectionStatus } = await import('./presence');
 
 const host = document.createElement('div');
 document.body.appendChild(host);

@@ -1,4 +1,6 @@
-import { copyText, toast } from './state';
+import { CAPTURE_ELEMENT } from './messages';
+import { overlayHost } from './overlay-mount';
+import { copyText, toast } from './toasts';
 
 // The worker type-checks this directory through its `@ext/*` alias but has no WXT
 // types, so the extension-only global is declared narrowly here rather than pulled
@@ -44,7 +46,7 @@ function visibleCrop(rect: DOMRect): Omit<Crop, 'viewportWidth'> | null {
  * page's heap, and decode every pixel to keep a fraction of them.
  */
 async function requestElementCapture(crop: Crop): Promise<string> {
-  const res: unknown = await browser.runtime.sendMessage({ type: 'capture-element', crop });
+  const res: unknown = await browser.runtime.sendMessage({ type: CAPTURE_ELEMENT, crop });
   if (res !== null && typeof res === 'object') {
     if ('dataUrl' in res && typeof res.dataUrl === 'string') return res.dataUrl;
     if ('error' in res && typeof res.error === 'string') throw new Error(res.error);
@@ -61,7 +63,7 @@ let hiding = 0;
  * still take focus; the host is the one element every layer of ours renders inside.
  */
 export async function shootViewport(crop: Omit<Crop, 'viewportWidth'>): Promise<ImageBitmap> {
-  const host = document.querySelector('mark-layer');
+  const host = overlayHost();
   const overlay = host instanceof HTMLElement ? host : null;
   hiding++;
   overlay?.style.setProperty('opacity', '0');

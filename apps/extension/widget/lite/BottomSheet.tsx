@@ -1,12 +1,12 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { createPortal } from 'preact/compat';
 import { useEffect } from 'preact/hooks';
 import type * as Real from '../../components/BottomSheet';
 import { glass } from '../../lib/glass';
 import { portalContainer } from '../../lib/portal';
 
-// Widget stand-in for the touch composer: a static sheet in place of Base UI's
-// Drawer, which was most of the bundle. No swipe-to-dismiss; the backdrop and Cancel close it.
+// Widget stand-in for the modal sheet: a static sheet in place of Base UI's Drawer,
+// which was most of the bundle. No swipe-to-dismiss; the backdrop closes it.
 
 export const ModalSheet: typeof Real.ModalSheet = ({ open, onOpenChange, label, initialFocus, children }) => {
   useEffect(() => {

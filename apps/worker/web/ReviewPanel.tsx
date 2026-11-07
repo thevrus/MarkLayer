@@ -1,15 +1,17 @@
 import { Checkbox } from '@base-ui/react/checkbox';
 import { geist } from '@ext/lib/geist';
-import { comments, focusedAnnotationId, localUser, operations, showAnnotationPanel } from '@ext/lib/state';
+import { localUser } from '@ext/lib/identity';
+import { comments, operations } from '@ext/lib/ops';
 import {
-  cn,
+  canReply,
   MAX_QUESTION_OPTIONS,
   MAX_QUESTION_TEXT,
   MIN_QUESTION_OPTIONS,
   type QuestionOp,
   type StepOp,
   tallyQuestion,
-} from '@marklayer/types';
+} from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { useSignal } from '@preact/signals';
 import { Check } from 'lucide-preact';
 import { capture } from './analytics';
@@ -22,11 +24,12 @@ import {
   reviewSteps,
   toggleStep,
 } from './review';
-import { isReadonly } from './signals';
+import { openAnnotation } from './viewer-actions';
+import { isReadonly } from './viewer-state';
 
 /** `#3` for a comment pin, so a step points at the thread a reviewer already knows by number. */
 function annotationLabel(id: string): string {
-  const pin = comments.value.find((c) => c.id === id && !c.parentId);
+  const pin = comments.value.find((c) => c.id === id && canReply(c));
   return pin ? `#${pin.num}` : 'note';
 }
 
@@ -65,10 +68,7 @@ function StepRow({ step }: { step: StepOp }) {
                 key={id}
                 type="button"
                 class={cn(geist.bareBtn, geist.bareBtnQuiet)}
-                onClick={() => {
-                  showAnnotationPanel.value = true;
-                  focusedAnnotationId.value = id;
-                }}
+                onClick={() => openAnnotation(id)}
               >
                 {annotationLabel(id)}
               </button>

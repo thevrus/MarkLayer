@@ -1,5 +1,6 @@
 import { Menu } from '@base-ui/react/menu';
-import { type CommentPriority, cn } from '@marklayer/types';
+import type { CommentPriority } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { Check, Minus } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { geist } from '../lib/geist';

@@ -1,9 +1,5 @@
-/**
- * First-party path for posthog-js. Ad blockers match on PostHog's hostnames, so
- * a direct `us.i.posthog.com` drops a share of pageviews and every replay chunk.
- * Deliberately not `/ingest` or `/analytics`: filter lists name those too.
- */
-export const RELAY_PREFIX = '/_r';
+import { RELAY_PREFIX } from '../shared/posthog-relay-path';
+import type { WaitUntil } from './env';
 
 export const DEFAULT_POSTHOG_HOST = 'https://us.i.posthog.com';
 
@@ -28,7 +24,7 @@ export async function relayToPosthog({
 }: {
   req: Request;
   host?: string;
-  ctx: { waitUntil(promise: Promise<unknown>): void };
+  ctx: WaitUntil;
 }): Promise<Response> {
   const target = relayTarget({ url: new URL(req.url), host });
 

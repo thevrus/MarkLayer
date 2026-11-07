@@ -1,7 +1,7 @@
 import { Menu } from '@base-ui/react/menu';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { ChevronDown } from 'lucide-preact';
 import { Logo } from '../shared';
 import { signOut, user } from './session';

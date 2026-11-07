@@ -1,13 +1,15 @@
 import { Popover } from '@base-ui/react/popover';
-import { cn, groupReactions, type Reaction } from '@marklayer/types';
+import { groupReactions, type Reaction } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { SmilePlus } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
 import { useCardHold } from '../lib/card-hold';
 import { EMOJI, matchEmoji } from '../lib/emoji';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { localUser } from '../lib/identity';
+import { toggleOpReaction } from '../lib/ops';
 import { portalContainer } from '../lib/portal';
-import { localUser, toggleOpReaction } from '../lib/state';
 
 const pill = `
   inline-flex items-center gap-1 h-6 px-2 rounded-full cursor-pointer

@@ -1,12 +1,8 @@
 ---
 import { render } from 'astro:content';
-import Faq from '../../components/Faq.astro';
-import Related from '../../components/Related.astro';
-import VideoEmbed from '../../components/VideoEmbed.astro';
-import ArticleLayout from '../../layouts/ArticleLayout.astro';
-import { getAlternatives, getComparisons, relatedLinks } from '../../lib/collections';
-import { compareH1 } from '../../lib/docs-nav';
-import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+import CompetitorLayout from '../../layouts/CompetitorLayout.astro';
+import { compareH1, getAlternatives, getComparisons, relatedLinks } from '../../lib/collections';
+import { alternativesPath, vsPath } from '../../lib/site';
 
 export async function getStaticPaths() {
   const [comparisons, alternatives] = await Promise.all([getComparisons(), getAlternatives()]);
@@ -20,8 +16,8 @@ export async function getStaticPaths() {
         entry,
         siblings: comparisons,
         others: alternatives,
-        siblingLink: (c) => ({ href: `/vs/${c.id}`, label: `MarkLayer vs ${c.data.competitor}` }),
-        crossLink: (a) => ({ href: `/alternatives/${a.id}`, label: `See more ${a.data.target} alternatives` }),
+        siblingLink: (c) => ({ href: vsPath(c.id), label: `MarkLayer vs ${c.data.competitor}` }),
+        crossLink: (a) => ({ href: alternativesPath(a.id), label: `See more ${a.data.target} alternatives` }),
       }),
     },
   }));
@@ -31,32 +27,18 @@ const { entry, related } = Astro.props;
 const c = entry.data;
 const { Content } = await render(entry);
 
-const path = `/vs/${entry.id}`;
+const path = vsPath(entry.id);
 const h1 = compareH1(entry);
-const breadcrumbs: Crumb[] = [
-  { name: 'MarkLayer', path: '/' },
-  { name: 'Comparisons', path: '/compare' },
-  { name: h1 },
-];
 ---
 
-<ArticleLayout
-  title={c.title}
-  description={c.description}
-  path={path}
+<CompetitorLayout
+  data={c}
   h1={h1}
-  bottomLine={c.bottomLine}
-  breadcrumbs={breadcrumbs}
-  modified={c.modified}
-  schema={[
-    articleSchema({ h1, description: c.description, path, published: c.published, modified: c.modified, aboutApp: true }),
-    faqSchema(c.faq),
-  ]}
+  path={path}
+  hub={{ name: 'Comparisons', path: '/compare' }}
+  Content={Content}
+  related={related}
 >
-  <Fragment slot="intro">{c.intro ?? <Content />}</Fragment>
-
-  <VideoEmbed video={c.video} title={`MarkLayer vs ${c.competitor} demo`} />
-
   {/* Both value columns are ink. The competitor's used to be set in the grey
       metadata step, which dimmed half the data in a table whose entire job is
       side-by-side comparison — and on a page arguing our own case, greying out
@@ -113,25 +95,22 @@ const breadcrumbs: Crumb[] = [
     optional and never required to view a share link. There is no paywall and no trial period.
   </p>
 
-  {c.intro && <Content />}
+  <Fragment slot="after">
+    {
+      c.quote && (
+        <blockquote class="my-10 border-t border-rule pt-5">
+          <p class="text-lede m-0 text-pretty text-ink">{c.quote}</p>
+          <footer class="ml-meta mt-3">
+            <a href="/about">Dean Rusin</a>, MarkLayer developer
+          </footer>
+        </blockquote>
+      )
+    }
 
-  {
-    c.quote && (
-      <blockquote class="my-10 border-t border-rule pt-5">
-        <p class="text-lede m-0 text-pretty text-ink">{c.quote}</p>
-        <footer class="ml-meta mt-3">
-          <a href="/about">Dean Rusin</a>, MarkLayer developer
-        </footer>
-      </blockquote>
-    )
-  }
+    <h2>When to choose MarkLayer</h2>
+    <ul>{c.chooseMl.map((x) => <li>{x}</li>)}</ul>
 
-  <h2>When to choose MarkLayer</h2>
-  <ul>{c.chooseMl.map((x) => <li>{x}</li>)}</ul>
-
-  <h2>When to choose {c.competitor}</h2>
-  <ul>{c.chooseThem.map((x) => <li>{x}</li>)}</ul>
-
-  <Faq qa={c.faq} />
-  <Related title="Related comparisons" links={related} />
-</ArticleLayout>
+    <h2>When to choose {c.competitor}</h2>
+    <ul>{c.chooseThem.map((x) => <li>{x}</li>)}</ul>
+  </Fragment>
+</CompetitorLayout>

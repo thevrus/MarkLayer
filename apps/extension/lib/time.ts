@@ -1,4 +1,3 @@
-/** Relative time using Intl.RelativeTimeFormat */
 const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'narrow' });
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [

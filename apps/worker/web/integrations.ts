@@ -1,4 +1,5 @@
-import { lsGet, lsSet } from '@ext/lib/state';
+import { lsGet, lsSet } from '@ext/lib/storage';
+import { computed, signal } from '@preact/signals';
 import {
   type ConfigFieldInfo,
   type DestinationSummary,
@@ -7,9 +8,8 @@ import {
   providerCatalogueSchema,
   type SlackAppStatus,
   slackAppStatusSchema,
-} from '@marklayer/types';
-import { computed, signal } from '@preact/signals';
-import { API_BASE } from './signals';
+} from '../shared/integrations';
+import { API_BASE } from './projects';
 
 /**
  * The room's destinations, in one place.
@@ -23,7 +23,7 @@ import { API_BASE } from './signals';
  * The shapes are parsed, not guessed at: both responses are wire data, and
  * `ConfigFieldInfo.type` in particular decides whether a token may be stored.
  */
-export type { ConfigFieldInfo, DestinationSummary, ProviderInfo } from '@marklayer/types';
+export type { ConfigFieldInfo, DestinationSummary, ProviderInfo } from '../shared/integrations';
 export { destinationListSchema };
 
 export const providerCatalogue = signal<ProviderInfo[]>([]);

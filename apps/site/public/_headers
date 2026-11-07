@@ -1,6 +1,7 @@
 # Marketing pages are served straight from the asset layer, so they never run
-# the Worker's HSTS middleware (apps/worker/src/index.ts). Reapply it here, and
-# restate the Cache-Control values the Hono routes used to send.
+# the Worker's HSTS middleware (apps/worker/src/index.ts). Reapply it here.
+# Per-route Cache-Control is appended at build from src/data/routes.json
+# (scripts/emit-headers.mjs).
 #
 # Scoped deliberately: `/*` carries HSTS only. The SPA shell at `/` must not
 # inherit a one-hour max-age, or an app deploy would take an hour to reach
@@ -17,47 +18,3 @@
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
   Access-Control-Allow-Origin: *
-
-/compare
-  Cache-Control: public, max-age=3600
-
-/alternatives
-  Cache-Control: public, max-age=3600
-
-/alternatives/*
-  Cache-Control: public, max-age=3600
-
-/use-cases
-  Cache-Control: public, max-age=3600
-
-/guides
-  Cache-Control: public, max-age=3600
-
-/guides/*
-  Cache-Control: public, max-age=3600
-
-/vs/*
-  Cache-Control: public, max-age=3600
-
-/for/*
-  Cache-Control: public, max-age=3600
-
-/pricing
-  Cache-Control: public, max-age=3600
-
-/about
-  Cache-Control: public, max-age=3600
-
-/support
-  Cache-Control: public, max-age=3600
-
-/privacy
-  Cache-Control: public, max-age=3600
-
-/pricing.md
-  Cache-Control: public, max-age=86400
-  Content-Type: text/markdown; charset=utf-8
-
-/sitemap.xml
-  Cache-Control: public, max-age=86400
-  Content-Type: application/xml

@@ -1,49 +1,46 @@
 import { Menu } from '@base-ui/react/menu';
 import { Toggle } from '@base-ui/react/toggle';
 import { Toolbar as BaseToolbar } from '@base-ui/react/toolbar';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { signal, useSignalEffect } from '@preact/signals';
 import type { ComponentChildren, RefObject } from 'preact';
 import { useCallback, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { GLYPH, geist } from '../lib/geist';
 import { glass } from '../lib/glass';
-import { Icon } from '../lib/icons';
+import { host } from '../lib/host-config';
+import { ensureScrollTickListener, scrollTick } from '../lib/host-mutations';
+import { Icon, type IconName } from '../lib/icons';
+import { inspectorStack } from '../lib/inspector-stack';
+import { HISTORY_KEYS } from '../lib/keymap';
 import { prefersReducedMotion } from '../lib/media';
+import { clearAll, copyOpenAnnotations, openAnnotationTotal, operations, redo, undo } from '../lib/ops';
 import { capturePointer, pointerSampler } from '../lib/pointer';
 import { portalContainer } from '../lib/portal';
+import { color, colorName, toggleToolbarMinimized, toolbarMinimized } from '../lib/prefs';
+import { connectionStatus } from '../lib/presence';
 import {
   activeTool,
-  clearAll,
-  color,
-  colorName,
-  connectionStatus,
-  copyOpenAnnotations,
-  ensureScrollTickListener,
   groupFaces,
-  inspectorStack,
   isDrawingActive,
-  isToolGroup,
   moveSlot,
-  openAnnotationTotal,
-  operations,
-  redo,
-  SHORTCUTS,
-  scrollTick,
   selectTool,
-  showSettings,
-  showShareDialog,
-  slotOf,
   slotTool,
+  visibleSlots,
+} from '../lib/tool-state';
+import {
+  isTool,
+  isToolGroup,
+  SHORTCUTS,
+  slotOf,
+  TOOL_DEFS,
   TOOL_GROUPS,
   type ToolGroup,
   type ToolSlot,
-  toggleToolbarMinimized,
-  toolbarMinimized,
-  undo,
-  visibleSlots,
-} from '../lib/state';
+  toolLabel,
+} from '../lib/tools';
 import type { Tool } from '../lib/types';
+import { requestShare, showSettings } from '../lib/ui-state';
 import { SettingsPanel } from './SettingsPanel';
 import { ToolFan, useToolFan } from './ToolFan';
 import { Tooltip } from './Tooltip';
@@ -65,7 +62,7 @@ function Ctl({
   anchor,
   action,
 }: {
-  icon?: string;
+  icon?: IconName;
   /** A glyph other than an icon — the colour swatch is the only one so far. */
   children?: ComponentChildren;
   tip: string;
@@ -80,7 +77,7 @@ function Ctl({
   anchor?: string;
   /**
    * What this control is, for the toolbar usage count. Omitted where the action
-   * reports itself from `lib/state` — undo, redo, clear and the settings panel
+   * reports itself from `lib/ops` — undo, redo, clear and the settings panel
    * all have keyboard and off-toolbar paths that a button here cannot see.
    */
   action?: string;
@@ -408,28 +405,15 @@ function DragGrip({ drag }: { drag: DragApi }) {
   );
 }
 
-const TOOL_LABELS: Partial<Record<Tool, string>> = {
-  navigate: 'Move',
-  multiInspect: 'Multi-select',
-};
-const lbl = (t: Tool) => TOOL_LABELS[t] ?? t.charAt(0).toUpperCase() + t.slice(1);
+const lbl = toolLabel;
 
-// Undo/redo/clear report themselves from `lib/state` so the keyboard path is
+// Undo/redo/clear report themselves from `lib/ops` so the keyboard path is
 // counted too — a wrapper here would have counted only the button.
-const HISTORY_ACTIONS = [
-  { id: 'undo', icon: 'undo', tip: 'Undo', shortcut: '⌘Z', fn: undo },
-  { id: 'redo', icon: 'redo', tip: 'Redo', shortcut: '⌘⇧Z', fn: redo },
+const HISTORY_ACTIONS: { id: string; icon: IconName; tip: string; shortcut?: string; fn: () => void }[] = [
+  { id: 'undo', icon: 'undo', tip: 'Undo', shortcut: HISTORY_KEYS.undo.label, fn: undo },
+  { id: 'redo', icon: 'redo', tip: 'Redo', shortcut: HISTORY_KEYS.redo.label, fn: redo },
   { id: 'clear', icon: 'clear', tip: 'Clear all', fn: clearAll },
 ];
-
-const SHARE_ACTION = {
-  id: 'share',
-  icon: 'share',
-  tip: 'Share',
-  fn: () => {
-    showShareDialog.value = true;
-  },
-};
 
 function ConnectionDot() {
   const status = connectionStatus.value;
@@ -509,11 +493,10 @@ function ColorChip() {
 }
 
 /**
- * Collapsed, the bar used to be a dead end: the one thing it could do was stop
- * being collapsed, so minimising to see the page cost you every tool. Pressing
- * the button and dragging now fans the first few tools out around it and
- * commits the one you release on, and the button previews that tool the whole
- * way — so the bar stays out of the way and still works.
+ * Collapsed, the bar's only action is to expand, so minimising to see the page
+ * costs you every tool. Pressing the button and dragging fans the first few
+ * tools out around it and commits the one you release on, and the button previews
+ * that tool the whole way — so the bar stays out of the way and still works.
  */
 function MinimizedToolbar({ onExpand, drag }: { onExpand: () => void; drag: DragApi }) {
   const fan = useToolFan({
@@ -583,8 +566,6 @@ function useFlipReorder(deps: unknown[]) {
         const visual = visualPrev.get(tool);
         const cur = btn.getBoundingClientRect();
         if (!prev || !visual || !cur) continue;
-        // Use the visual mid-animation position if it differs from the last
-        // committed layout (i.e., a previous FLIP was still in flight).
         const fromLeft = Math.abs(visual.left - prev.left) > 0.5 ? visual.left : prev.left;
         const fromTop = Math.abs(visual.top - prev.top) > 0.5 ? visual.top : prev.top;
         const dx = fromLeft - cur.left;
@@ -596,7 +577,6 @@ function useFlipReorder(deps: unknown[]) {
         });
       }
     }
-    // Record final layout rects (post-cancel) as the reference for next render.
     const next = new Map<string, DOMRect>();
     for (const btn of buttons) {
       const tool = btn.dataset.tool;
@@ -622,7 +602,6 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
       let activated = false;
       let to = fromIndex;
 
-      // Cursor-follow state, captured at activation.
       let draggedBtn: HTMLElement | null = null;
       /** Where the dragged slot's left edge lands at each index, the rest closing up around it. */
       let lefts: number[] = [];
@@ -671,8 +650,7 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
       const sampler = pointerSampler({
         event: e,
         onFrame: (px, py) => {
-          // Nearest landing spot to where the slot is being held, from the
-          // snapshotted layout — no DOM reads, so moves never invalidate layout.
+          // From the snapshotted layout: no DOM reads, so moves never invalidate layout.
           const held = originLeft + (px - startX);
           let next = to;
           let nearest = Number.POSITIVE_INFINITY;
@@ -684,9 +662,7 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
           }
           const target = visibleSlots.value[next];
           if (next !== to && target) {
-            // Optimistically reorder so the user sees a live preview; FLIP
-            // smooths each cross for the OTHER buttons (the dragged button is
-            // excluded via [data-dragging] and its position is set manually).
+            // FLIP animates the other buttons; the dragged one is excluded via [data-dragging].
             moveSlot({ slot, to: target });
             to = next;
           }
@@ -719,10 +695,8 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
         sampler.flush();
         if (!activated) return;
         dragShieldActive.value = false;
-        // Spring-back: animate translate from cursor offset to 0 with a slight
-        // overshoot. We clear inline `translate` first so once the WAAPI ends
-        // (no fill) the element settles to CSS default (0) — no jump back to
-        // lastDx as inline reasserts.
+        // Inline `translate` is cleared first so that once the animation ends (no fill)
+        // the slot settles at the CSS default instead of jumping back to lastDx.
         if (draggedBtn) {
           const btn = draggedBtn;
           btn.style.translate = '';
@@ -802,7 +776,7 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
                 draggingSlot={reorder.draggingSlot}
               />
               {isToolGroup(t) && <GroupMenu group={t} />}
-              {t === 'inspect' && <CountBadge value={inspectorStack.value.length} />}
+              {isTool(t) && TOOL_DEFS[t].badge && <CountBadge value={inspectorStack.value.length} />}
             </SlotFrame>
           );
         })}
@@ -829,7 +803,7 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
               action="copy_all_for_ai"
             />
           )}
-          <Ctl icon={SHARE_ACTION.icon} onClick={SHARE_ACTION.fn} tip={SHARE_ACTION.tip} action="share" />
+          {host.capabilities.share && <Ctl icon="share" onClick={() => requestShare()} tip="Share" action="share" />}
         </>
       )}
 
@@ -923,7 +897,6 @@ export function Toolbar() {
 
   useSignalEffect(() => {
     const active = isDrawingActive.value;
-    // Cancel previous fade so animations don't accumulate on the element
     fadeAnimRef.current?.cancel();
     const reduce = prefersReducedMotion();
     fadeAnimRef.current =

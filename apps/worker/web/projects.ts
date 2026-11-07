@@ -1,18 +1,20 @@
-import { operations, toast as showToast } from '@ext/lib/state';
+import { operations } from '@ext/lib/ops';
+import { pageErrors } from '@ext/lib/page-errors';
+import { peers } from '@ext/lib/presence';
+import { uploadFile } from '@ext/lib/share';
+import { toast as showToast } from '@ext/lib/toasts';
 import type { DrawOp } from '@ext/lib/types';
-import {
-  postBody,
-  postJson,
-  transcribeResponseSchema,
-  unwrapSafeLink,
-  uploadPath,
-  uploadResponseSchema,
-} from '@marklayer/types';
-import { signal } from '@preact/signals';
+import { uploadPath } from '@marklayer/brand/links';
+import { postBody, postJson } from '@marklayer/types/http';
+import { transcribeResponseSchema } from '@marklayer/types/uploads';
+import { batch, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
+import { unwrapSafeLink } from '../shared/safe-link';
 import { capture } from './analytics';
-import type { UploadKind } from './landing/useLandingUpload';
 import { findPageIndex, normalizePageUrl } from './pageMatch';
+import { iframeScrollY } from './viewer-state';
+
+export type UploadKind = 'pdf' | 'image';
 
 export interface ProjectPage {
   id: string;
@@ -37,7 +39,7 @@ export const pageUrl = signal('');
 export const originalWidth = signal(0);
 
 /** Fetch a project's page list + ops. Returns null on failure. */
-export async function loadProject(
+async function loadProject(
   id: string,
 ): Promise<{ pages: ProjectPage[]; createdAt: number | null; expiresAt: number | null } | null> {
   try {
@@ -58,43 +60,13 @@ export async function loadProject(
   }
 }
 
-/** Persist a project's page-id list. */
-export async function saveProject(id: string, pageIds: string[]): Promise<boolean> {
+async function saveProject(id: string, pageIds: string[]): Promise<boolean> {
   const res = await postJson(`${API_BASE}p/${id}`, { pageIds });
   return res?.ok ?? false;
 }
 
-/** Uploads a screenshot (or other supported file) for a comment attachment. Returns its upload id, or null on failure. */
-export function uploadFile(file: File | Blob): Promise<string | null> {
-  return uploadTo({ path: '/f', file });
-}
-
-/** Uploads a recorded camera or screen clip; `kind=video` keeps the server from storing it as audio. */
-export function uploadVideo(file: File | Blob): Promise<string | null> {
-  return uploadTo({ path: '/f?kind=video', file });
-}
-
-async function uploadTo({ path, file }: { path: string; file: File | Blob }): Promise<string | null> {
-  const res = await postBody(path, file, file.type || 'application/octet-stream');
-  if (!res?.ok) {
-    capture('attachment_upload_failed', { reason: res ? `http_${res.status}` : 'network' });
-    return null;
-  }
-  const parsed = uploadResponseSchema.safeParse(await res.json());
-  if (!parsed.success) {
-    capture('attachment_upload_failed', { reason: 'malformed_response' });
-    return null;
-  }
-  return parsed.data.id;
-}
-
-/** The transcript of a stored voice note, or null when it could not be had (the note still posts). */
-export async function transcribeFile(id: string): Promise<string | null> {
-  const res = await postJson(`${uploadPath(id)}/transcribe`, {});
-  if (!res?.ok) return null;
-  const parsed = transcribeResponseSchema.safeParse(await res.json());
-  return parsed.success ? parsed.data.text : null;
-}
+/** Recorded camera and screen clips; `kind=video` keeps the server from storing them as audio. */
+export const uploadVideo = (file: File | Blob): Promise<string | null> => uploadFile(file, { kind: 'video' });
 
 /** A video note's transcript, cut from the audio track recorded beside it, which goes up in the call itself. */
 export async function transcribeVideo({ id, audio }: { id: string; audio: Blob }): Promise<string | null> {
@@ -104,31 +76,95 @@ export async function transcribeVideo({ id, audio }: { id: string; audio: Blob }
   return parsed.success ? parsed.data.text : null;
 }
 
-/** Where `uploadFile`'s id serves back from — relative, since the web app already runs on that origin. */
-export function fileUrl(id: string): string {
-  return uploadPath(id);
+/** Writes a room's row. The one place that names what a row is made of. */
+export async function saveRoom({
+  id,
+  ops,
+  url,
+  width,
+}: {
+  id: string;
+  ops: DrawOp[];
+  url: string;
+  width: number;
+}): Promise<boolean> {
+  const res = await postJson(`${API_BASE}${id}`, { ops, url, width });
+  return res?.ok ?? false;
 }
 
-/** Create an empty annotation row for a URL and return its id. */
-export async function createAnnotationFor(url: string): Promise<string | null> {
+async function createAnnotationFor(url: string): Promise<string | null> {
   const id = nanoid();
-  const res = await postJson(`${API_BASE}${id}`, { ops: [], url, width: window.innerWidth });
-  return res?.ok ? id : null;
+  return (await saveRoom({ id, ops: [], url, width: window.innerWidth })) ? id : null;
 }
 
 /** A typed address as a fetchable URL: `example.com` means https, and an Outlook Safe Link means its target. */
 export const withScheme = (url: string): string => unwrapSafeLink(/^https?:\/\//i.test(url) ? url : `https://${url}`);
 
-/** Show another page of the open project, keeping the live ops of the one being left. */
-export function switchPage(i: number) {
-  const idx = currentPageIdx.value;
-  if (i === idx) return;
-  projectPages.value = projectPages.value.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
-  currentPageIdx.value = i;
+/** The page list with the open page's cached ops brought up to date, before leaving it or rewriting the list. */
+const pagesWithLiveOps = () =>
+  projectPages.value.map((p, j) => (j === currentPageIdx.value ? { ...p, ops: [...operations.value] } : p));
+
+/**
+ * The one transition onto a project page: everything that belongs to the page on
+ * screen moves here together. Cached ops are copied so later mutations on either
+ * page can't bleed across. Render state follows `pageUrl` in `useRenderOutcome`.
+ */
+function activatePage(i: number) {
+  const page = projectPages.value[i];
+  if (!page) return;
+  batch(() => {
+    currentPageIdx.value = i;
+    if (annotationId.value === page.id) return;
+    annotationId.value = page.id;
+    pageUrl.value = page.url ?? '';
+    originalWidth.value = page.width ?? 0;
+    operations.value = [...page.ops];
+    iframeScrollY.value = 0;
+    peers.value = new Map();
+    // Only a proxied HTML page ever reports again, so an upload would keep the last page's errors.
+    pageErrors.value = [];
+  });
   const url = new URL(location.href);
   if (i === 0) url.searchParams.delete('page');
   else url.searchParams.set('page', String(i));
   history.replaceState(null, '', url);
+}
+
+/** Show another page of the open project, keeping the live ops of the one being left. */
+export function switchPage(i: number) {
+  if (i === currentPageIdx.value) return;
+  projectPages.value = pagesWithLiveOps();
+  activatePage(i);
+}
+
+/** Load `/p/:id` and show the page its URL selected. */
+export async function openProject(pid: string) {
+  projectLoading.value = true;
+  const data = await loadProject(pid);
+  projectLoading.value = false;
+  if (!data) {
+    showToast('Project not found or expired', { type: 'error', duration: 4000 });
+    return;
+  }
+  projectPages.value = data.pages;
+  activatePage(Math.max(0, Math.min(currentPageIdx.value, data.pages.length - 1)));
+}
+
+/** Drop a page from the open project, staying on the same page or shifting left when it was the active one. */
+export async function removeProjectPage(i: number): Promise<boolean> {
+  const pid = projectId.value;
+  if (!pid) return false;
+  const idx = currentPageIdx.value;
+  projectLoading.value = true;
+  const next = pagesWithLiveOps().filter((_, j) => j !== i);
+  projectPages.value = next;
+  activatePage(i < idx ? idx - 1 : i === idx ? Math.min(idx, next.length - 1) : idx);
+  const ok = await saveProject(
+    pid,
+    next.map((p) => p.id),
+  );
+  projectLoading.value = false;
+  return ok;
 }
 
 /** Append `url` to the open project and show it, or show the page that already has it. Null on failure. */
@@ -149,10 +185,7 @@ export async function addProjectPage(url: string): Promise<'added' | 'existing' 
     showToast('Failed to add page', { type: 'error' });
     return null;
   }
-  const idx = currentPageIdx.value;
-  // Snapshot current page's live ops back into the cached list before switching
-  const snapshot = projectPages.value.map((p, j) => (j === idx ? { ...p, ops: [...operations.value] } : p));
-  const next: ProjectPage[] = [...snapshot, { id: newPageId, url, width: window.innerWidth, ops: [] }];
+  const next: ProjectPage[] = [...pagesWithLiveOps(), { id: newPageId, url, width: window.innerWidth, ops: [] }];
   projectPages.value = next;
   const ok = await saveProject(
     pid,
@@ -203,7 +236,8 @@ export async function navigateTo({
   if (currentId && currentUrl) {
     projectLoading.value = true;
     // Best-effort flush of current ops so the project's first page has them on first read
-    await postJson(`${API_BASE}${currentId}`, {
+    await saveRoom({
+      id: currentId,
       ops: operations.value,
       url: currentUrl,
       width: originalWidth.value || window.innerWidth,
@@ -228,10 +262,8 @@ export async function navigateTo({
   }
 
   // Landing fallback: fresh single-page share
-  const w = window.innerWidth;
   const id = nanoid();
-  const res = await postJson(`${API_BASE}${id}`, { ops: [], url, width: w });
-  if (!res?.ok) {
+  if (!(await saveRoom({ id, ops: [], url, width: window.innerWidth }))) {
     // Instrumented like the other two modes, so a drop at the top of the funnel
     // is a number rather than a mystery. The redirect still runs: the viewer
     // re-creates the row on save, and stranding someone on the landing page is worse.

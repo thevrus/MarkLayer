@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-11
 options:
   - name: "MarkLayer"
-    url: "/vs/superflow"
+    compare: superflow
     pitch: "Free and open source (Apache-2.0), with nothing to install for a public page: paste any URL at marklayer.app, draw, pin comments, highlight, then share a link. There are no seats and no credits. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. There is no built-in AI reviewer; the agent is yours. Pages behind a login need the free browser extension on each reviewer's side. An unclaimed link is deleted 90 days after its last activity; claiming it with a free account stops that clock."
     bestFor: "Anyone who wants Superflow's on-page comments without seats or credits, and teams that want their coding agent to clear the queue instead of adding to it."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "A client-review workspace with persistent canvases, version history, comment approvals and deadlines, all on the free plan, which is capped at one user and one active canvas. Pro is $35 a month, or $29 billed yearly, for two users and three canvases. Team is $119, or $99 yearly, for five users, unlimited canvases and the project-management integrations (checked October 2026)."
     bestFor: "Agencies running structured client rounds who want approvals and a free plan to start on."
   - name: "ruttl"
-    url: "/vs/ruttl"
+    compare: ruttl
     pitch: "Website feedback with a free Basic plan of one project and five pages, including Trello, Slack, Asana and Jira. Pro is $18 per user a month for unlimited projects and pages, so a five-person team pays $90, close to Superflow's Growth at $29 a seat but with no AI meter on top (checked October 2026)."
     bestFor: "Small teams that want unlimited projects on a flat per-user price."
   - name: "Userback"
-    url: "/vs/userback"
+    compare: userback
     pitch: "A feedback widget your own users click, with a free plan of two seats and two projects where feedback stays viewable for seven days. Team is $39 a month, or $29 billed yearly, for five seats and five projects. Business is $99, or $79 yearly, for unlimited seats and 25 projects (checked October 2026)."
     bestFor: "Product teams collecting feedback from end users as well as from reviewers you invite."
 faq:

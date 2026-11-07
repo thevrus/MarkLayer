@@ -1,7 +1,13 @@
+import { pageErrors } from '@ext/lib/page-errors';
+import { elementToolsUnavailable } from '@ext/lib/tool-state';
 import { type Signal, useSignalEffect } from '@preact/signals';
 import { useCallback, useRef } from 'preact/hooks';
+import { hasFrameMarker, isDocumentFrame } from '../../shared/frame-protocol';
+import { classifyProxyError } from '../../shared/proxy-errors';
 import { capture } from '../analytics';
-import { pageUrl } from '../signals';
+import { stillFrame } from '../docSource';
+import { pageUrl } from '../projects';
+import { isStillFrame } from '../viewer-state';
 import type { RenderFailure } from '../viewerFrame';
 
 /**
@@ -38,10 +44,9 @@ function hostOf(url: string): string {
 /**
  * Decide, and report, whether the proxied page actually rendered.
  *
- * Extracted from the viewer body, where this sat among six other concerns. It is
- * the one piece worth keeping together: the reveal signal, the two timers and the
- * telemetry are a single argument about what "rendered" means, and they were
- * previously three unrelated-looking blocks 100 lines apart.
+ * The one owner of the frame's render state: the reveal, the failure screen, the two
+ * timers and the telemetry are a single argument about what "rendered" means, so
+ * nothing outside this hook writes `iframeLoaded` or `renderFailed`.
  */
 export function useRenderOutcome({
   frameRef,
@@ -53,10 +58,15 @@ export function useRenderOutcome({
   iframeLoaded: Signal<boolean>;
   renderFailed: Signal<RenderFailure | null>;
   pageSlow: Signal<boolean>;
-}): {
-  reportRenderFailure: (reason: RenderFailure, extra?: Record<string, unknown>) => void;
-  reportRenderSuccess: () => void;
-} {
+}) {
+  const renderStartRef = useRef(0);
+  /** One outcome per page, first report wins — see `reportSuccess`. */
+  const renderReportedRef = useRef(false);
+  /** `ml-ready` has arrived, so any refusal from this page has too. */
+  const readyRef = useRef(false);
+  /** When the page came on screen, held until `ml-ready` can vouch for it. */
+  const revealedAtRef = useRef<number | null>(null);
+
   // Reset loading state when the proxied URL changes
   useSignalEffect(() => {
     pageUrl.value;
@@ -64,12 +74,13 @@ export function useRenderOutcome({
     renderFailed.value = null;
     pageSlow.value = false;
     renderReportedRef.current = false;
+    readyRef.current = false;
+    revealedAtRef.current = null;
   });
 
-  const renderStartRef = useRef(0);
-  /** One outcome per page, first report wins — see `reportRenderSuccess`. */
-  const renderReportedRef = useRef(false);
-  const reportRenderFailure = useCallback((reason: RenderFailure, extra?: Record<string, unknown>) => {
+  /** Sets the failure and reports it together, so neither a silent screen nor an unseen event can happen. */
+  const failRender = useCallback((reason: RenderFailure, extra?: Record<string, unknown>) => {
+    renderFailed.value = reason;
     if (renderReportedRef.current) return;
     renderReportedRef.current = true;
     capture('page_render_failed', {
@@ -82,20 +93,64 @@ export function useRenderOutcome({
       ...extra,
     });
   }, []);
+
+  const settleSuccess = useCallback(() => {
+    const at = revealedAtRef.current;
+    if (at === null || !readyRef.current || renderReportedRef.current || renderFailed.peek()) return;
+    renderReportedRef.current = true;
+    capture('page_rendered', { host: hostOf(pageUrl.peek()), duration_ms: Math.round(at - renderStartRef.current) });
+  }, []);
+
   /**
-   * The success half, and the reason it waits: a firewall challenge is served
-   * with the proxy's marker on it, so `load` fires and looks like a clean render
-   * until the page's own `ml-blocked` message arrives a task later. Reporting
-   * immediately would have counted every blocked page as a success too, which is
-   * exactly the number this event exists to be the denominator of.
+   * The success half, and why it waits: a firewall challenge is served with the
+   * proxy's marker on it, so the page looks like a clean render until its own
+   * `ml-blocked` arrives. The proxy posts `ml-ready` after that notice, so hearing
+   * it means there was none. Without the wait every blocked page would also count
+   * as a success, which is the number this event exists to be the denominator of.
    */
-  const reportRenderSuccess = useCallback(() => {
-    const at = performance.now();
-    window.setTimeout(() => {
-      if (renderReportedRef.current || renderFailed.peek()) return;
-      renderReportedRef.current = true;
-      capture('page_rendered', { host: hostOf(pageUrl.peek()), duration_ms: Math.round(at - renderStartRef.current) });
-    }, 500);
+  const frameReady = useCallback(() => {
+    readyRef.current = true;
+    settleSuccess();
+  }, []);
+
+  /** Show the frame. Only `timeout` is recoverable: a firewall notice can land before `load` and has to survive it. */
+  const reveal = useCallback((event?: string) => {
+    if (renderFailed.peek() === 'timeout') renderFailed.value = null;
+    iframeLoaded.value = true;
+    if (event) capture(event, { host: hostOf(pageUrl.peek()) });
+    revealedAtRef.current ??= performance.now();
+    settleSuccess();
+  }, []);
+
+  /** The frame's `load`: the proxy stamps its marker on success, so a missing one means an error response was served. */
+  const frameLoaded = useCallback(() => {
+    if (!pageUrl.peek()) {
+      iframeLoaded.value = true;
+      return;
+    }
+    const doc = frameRef.current?.contentDocument;
+    // The tools and device sizes that act on an element tree come off for a document.
+    elementToolsUnavailable.value = isDocumentFrame(doc);
+    if (elementToolsUnavailable.value) pageErrors.value = [];
+    if (isStillFrame.value && doc) stillFrame(doc);
+    if (hasFrameMarker(doc)) {
+      reveal();
+      return;
+    }
+    iframeLoaded.value = true;
+    failRender('no-marker', {
+      proxy_error: classifyProxyError(doc?.body?.textContent),
+      // Tells a blank proxy body from a frame that navigated cross-origin and left the proxy;
+      // only the second is a page escaping it, which decides whether there is anything to fix.
+      doc_reachable: Boolean(doc),
+    });
+  }, []);
+
+  const frameErrored = useCallback(() => failRender('iframe-error'), []);
+
+  /** Back to the loader while the frame refetches the same page. */
+  const markLoading = useCallback(() => {
+    iframeLoaded.value = false;
   }, []);
 
   useSignalEffect(() => {
@@ -111,24 +166,9 @@ export function useRenderOutcome({
     // the page was on screen, but the last request never settled. The marker the
     // proxy injects lands during parse, so watching for it reports what the user
     // can already see.
-    const host = () => hostOf(pageUrl.peek());
-    /**
-     * Show the frame. Only `timeout` is recoverable: a firewall notice arrives on
-     * its own message and must outlive a marker that was served alongside the
-     * challenge. Both reveal paths go through here so neither can drift.
-     */
-    let poll = 0;
-    const reveal = (event?: string) => {
-      window.clearInterval(poll);
-      if (renderFailed.peek() === 'timeout') renderFailed.value = null;
-      iframeLoaded.value = true;
-      if (event) capture(event, { host: host() });
-      reportRenderSuccess();
-    };
-
-    poll = window.setInterval(() => {
+    const poll = window.setInterval(() => {
       const doc = frameRef.current?.contentDocument;
-      if (doc?.documentElement?.dataset?.marklayer !== '1') return;
+      if (!hasFrameMarker(doc) || !doc) return;
       // The marker is injected at the very top of <head>, so on its own it only
       // proves the response arrived — revealing the frame there shows a blank
       // white box. `readyState` leaving 'loading' is DOMContentLoaded: the DOM is
@@ -145,21 +185,17 @@ export function useRenderOutcome({
       // tab, so the DOMContentLoaded gate above never opens on a page the user
       // could have been annotating for twelve seconds.
       const doc = frameRef.current?.contentDocument;
-      const painted = doc?.documentElement?.dataset?.marklayer === '1' && (doc.body?.childElementCount ?? 0) > 0;
-      if (painted) {
+      if (hasFrameMarker(doc) && (doc?.body?.childElementCount ?? 0) > 0) {
         reveal('page_render_revealed_while_loading');
         return;
       }
       pageSlow.value = true;
-      capture('page_render_slow', { host: host() });
+      capture('page_render_slow', { host: hostOf(pageUrl.peek()) });
     }, SLOW_AFTER_MS);
-    // Deliberately left running past this point: if the marker shows up at 32s the
+    // Deliberately left running past this point: if the marker shows up at 30s the
     // poll above still recovers the page rather than stranding the failure screen
     // over it, which is what the old single timer did.
-    const giveUp = window.setTimeout(() => {
-      reportRenderFailure('timeout');
-      if (!iframeLoaded.peek()) renderFailed.value = 'timeout';
-    }, GIVE_UP_AFTER_MS);
+    const giveUp = window.setTimeout(() => failRender('timeout'), GIVE_UP_AFTER_MS);
 
     return () => {
       window.clearInterval(poll);
@@ -168,5 +204,5 @@ export function useRenderOutcome({
     };
   });
 
-  return { reportRenderFailure, reportRenderSuccess };
+  return { failRender, frameLoaded, frameErrored, frameReady, markLoading };
 }

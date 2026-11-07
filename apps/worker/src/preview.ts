@@ -61,5 +61,5 @@ export async function createPreviewRoom({
       ? { error: 'that share id is already a room', taken: true }
       : { error: 'share id too short to create a room at' };
   }
-  return { id, link: `${origin}/s/${id}`, version: result.version, previousId: result.previousId };
+  return { id, url: `${origin}/s/${id}`, version: result.version, previous: result.previousId };
 }

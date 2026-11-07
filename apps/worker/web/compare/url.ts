@@ -1,4 +1,4 @@
-import { parseFetchableUrl } from '@marklayer/types';
+import { parseFetchableUrl } from '@marklayer/types/net';
 
 /**
  * A pasted address as a fetchable http(s) href, or null. A bare host gets

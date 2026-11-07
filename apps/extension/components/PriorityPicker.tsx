@@ -1,4 +1,5 @@
-import { type CommentPriority, cn } from '@marklayer/types';
+import type { CommentPriority } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { ChevronDown, SignalHigh } from 'lucide-preact';
 import { geist } from '../lib/geist';
 import { PRIORITY_META } from '../lib/priority';

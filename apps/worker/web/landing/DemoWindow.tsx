@@ -1,24 +1,17 @@
 import { pointerSampler } from '@ext/lib/pointer';
-import { activeTool, isDrawingTool } from '@ext/lib/state';
-import { cn, DEMO_ROOM } from '@marklayer/types';
-import { useSignal } from '@preact/signals';
+import { activeTool, isDrawingTool } from '@ext/lib/tool-state';
+import { cn } from '@marklayer/ui/cn';
+import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { embedInView, isMobileDevice } from '../signals';
+import { DEMO_ROOM } from '../../shared/demo-room';
+import { FRAME_MESSAGE, onFrameMessage } from '../../shared/frame-protocol';
+import { embedInView, isMobileDevice } from './landing-state';
 
 const POSTER_ALT =
   'MarkLayer open on the Wikipedia article for Web annotation. The opening sentence is highlighted in pink, an arrow is drawn from the text toward the language switcher, and a numbered comment pin sits on the title. The MarkLayer toolbar floats over the page and the share bar shows one other person online.';
 
-/** True once the room in the frame has finished loading its page, not just the app shell. */
-function pageRendered(frame: HTMLIFrameElement): boolean {
-  try {
-    const doc = frame.contentDocument?.getElementsByTagName('iframe')[0]?.contentDocument;
-    // The proxy stamps the marker into the HTML, so it is present before the
-    // page has painted; `complete` is what the viewer's own spinner waits for.
-    return doc?.documentElement?.dataset.marklayer === '1' && doc.readyState === 'complete';
-  } catch {
-    return false;
-  }
-}
+/** The poster stays this long at most, so a page that never answers cannot hide the board. */
+const REVEAL_CAP_MS = 10_000;
 
 /**
  * The shared public board, embedded where the screenshot used to be: the real
@@ -29,14 +22,14 @@ function pageRendered(frame: HTMLIFrameElement): boolean {
 export function DemoWindow() {
   const box = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLIFrameElement>(null);
-  const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+  const revealCap = useRef<ReturnType<typeof setTimeout> | null>(null);
   const live = useSignal(false);
   const ready = useSignal(false);
 
   // Mount the room as it approaches; a visitor who never scrolls here pays nothing.
   useEffect(() => {
     const el = box.current;
-    if (isMobileDevice || !el) return;
+    if (isMobileDevice() || !el) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (!entries.some((e) => e.isIntersecting)) return;
@@ -80,21 +73,28 @@ export function DemoWindow() {
     return () => {
       window.removeEventListener('pointermove', onMove);
       sampler?.cancel();
-      if (poll.current) clearInterval(poll.current);
     };
   }, [live]);
 
   // `load` fires for the app shell, long before the page under review is on
-  // screen; revealing then would swap the poster for the viewer's empty stage.
+  // screen; the room says when it has revealed one.
+  useSignalEffect(() => {
+    const stop = onFrameMessage({
+      frames: () => [frame.current],
+      handler: ({ message }) => {
+        if (message.type === FRAME_MESSAGE.ready) ready.value = true;
+      },
+    });
+    return () => {
+      stop();
+      if (revealCap.current) clearTimeout(revealCap.current);
+    };
+  });
+
   const onLoad = () => {
-    const el = frame.current;
-    if (!el) return;
-    const started = Date.now();
-    poll.current = setInterval(() => {
-      if (!pageRendered(el) && Date.now() - started < 10_000) return;
+    revealCap.current = setTimeout(() => {
       ready.value = true;
-      if (poll.current) clearInterval(poll.current);
-    }, 200);
+    }, REVEAL_CAP_MS);
   };
 
   return (

@@ -13,19 +13,20 @@
     "check": "tsc --noEmit",
     "sync:shell": "node scripts/sync-shell.mjs",
     "migrations:bootstrap": "node scripts/bootstrap-migrations.mjs",
-    "test": "bun test src web"
+    "test": "bun test src web shared"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@cloudflare/vite-plugin": "^1.54.2",
     "@hono/zod-openapi": "^1.6.1",
     "@marklayer/agent-tools": "workspace:*",
+    "@marklayer/brand": "workspace:*",
     "@marklayer/emails": "workspace:*",
     "@marklayer/site": "workspace:*",
+    "@marklayer/tokens": "workspace:*",
     "@marklayer/types": "workspace:*",
-    "@modelcontextprotocol/hono": "^2.0.0",
+    "@marklayer/ui": "workspace:*",
     "@modelcontextprotocol/server": "^2.0.0",
-    "@posthog/react": "^1.10.5",
     "@preact/signals": "^2.11.1",
     "@resvg/resvg-wasm": "^2.6.2",
     "hono": "^4.13.5",
@@ -42,6 +43,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260829.1",
+    "@happy-dom/global-registrator": "^20.12.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/bun": "^1.4.0",
     "tailwindcss": "^4.3.3",

@@ -1,22 +1,27 @@
 import { PanelSection } from '@ext/components/PanelSection';
 import { geist } from '@ext/lib/geist';
-import { claudeMcpCommand, HOW_IT_WORKS_URL, mcpEndpoint, npxMcpCommand } from '@ext/lib/share';
-import { annotationPanelOpen, copyText, operations, peerCount } from '@ext/lib/state';
+import { operations } from '@ext/lib/ops';
+import { peerCount } from '@ext/lib/presence';
+import { connected, createdAt, expiresAt, isOwned } from '@ext/lib/realtime';
+import { HOW_IT_WORKS_URL, npxMcpCommand } from '@ext/lib/share';
+import { copyText } from '@ext/lib/toasts';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
-import { cn, type DrawOp, deletionDeadline } from '@marklayer/types';
+import { mcpAddCommand as claudeMcpCommand, displayHost, isUploadPath, mcpEndpoint } from '@marklayer/brand/links';
+import type { DrawOp } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { ArrowUpRight, BookOpen, Bot, Check, Columns2, Copy, Heart, X } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
-import { DOCK_GUTTER, DOCKED_ANNOTATION_WIDTH, DockedPanel, PANEL_SIDEBAR, PANEL_TRANSITION } from './AnnotationPanel';
+import { deletionDeadline } from '../shared/accounts';
 import { capture } from './analytics';
 import { compareHref } from './compare/url';
-import { isUploadPath } from './docSource';
+import { DockedPanel, INFO_PANEL_WIDTH, PANEL_SIDEBAR, PANEL_TRANSITION } from './DockedPanel';
 import { IntegrationsSection } from './IntegrationsSection';
+import { annotationId, pageUrl } from './projects';
 import { PresenceDot } from './shared';
-import { annotationId, infoPanelOpen, isReadonly, pageUrl, panelsDocked, showInfoPanel, timeAgo } from './signals';
 import { openSupportCard } from './support-ui';
-import { connected, createdAt, expiresAt, isOwned } from './useRealtimeSync';
-
-export const INFO_PANEL_WIDTH = 300;
+import { timeAgo } from './timeAgo';
+import { infoPanelOpen, showInfoPanel } from './ui-state';
+import { isReadonly } from './viewer-state';
 
 /**
  * Tally nouns, singular so a count of one reads right; every one pluralises
@@ -133,12 +138,10 @@ function PeopleRow() {
 
 /** Host and path only: the scheme is noise here, and the full URL is one hover away. */
 function displayUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.host}${u.pathname === '/' ? '' : u.pathname}${u.search}`;
-  } catch {
-    return url;
-  }
+  const host = displayHost(url);
+  if (host === null) return url;
+  const { pathname, search } = new URL(url);
+  return `${host}${pathname === '/' ? '' : pathname}${search}`;
 }
 
 function PageRow({ url }: { url: string }) {
@@ -280,7 +283,7 @@ function InfoPanelBody() {
           {created != null && (
             <InfoRow label="Created">
               <time dateTime={new Date(created * 1000).toISOString()} title={formatStamp(created)}>
-                {timeAgo(created)}
+                {timeAgo(created * 1000)}
               </time>
             </InfoRow>
           )}
@@ -354,14 +357,5 @@ export function DockedInfoPanel() {
     <DockedPanel visible={infoPanelOpen.value} width={INFO_PANEL_WIDTH}>
       <InfoPanelBody />
     </DockedPanel>
-  );
-}
-
-/** Horizontal space the open docked panels take from a device frame. */
-export function dockedPanelsWidth(): number {
-  if (!panelsDocked.value) return 0;
-  return (
-    (infoPanelOpen.value ? INFO_PANEL_WIDTH + DOCK_GUTTER : 0) +
-    (annotationPanelOpen.value ? DOCKED_ANNOTATION_WIDTH + DOCK_GUTTER : 0)
   );
 }

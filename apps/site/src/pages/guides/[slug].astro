@@ -5,6 +5,7 @@ import LinkGrid from '../../components/LinkGrid.astro';
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import { getGuides, relatedLinks } from '../../lib/collections';
 import { articleSchema, type Crumb, faqSchema } from '../../lib/schema';
+import { guidePath } from '../../lib/site';
 
 export async function getStaticPaths() {
   const guides = await getGuides();
@@ -16,7 +17,7 @@ export async function getStaticPaths() {
       siblings: relatedLinks({
         entry,
         siblings: guides,
-        siblingLink: (g) => ({ href: `/guides/${g.id}`, label: g.data.h1 }),
+        siblingLink: (g) => ({ href: guidePath(g.id), label: g.data.h1 }),
       }),
     },
   }));
@@ -26,7 +27,7 @@ const { entry, siblings } = Astro.props;
 const g = entry.data;
 const { Content } = await render(entry);
 
-const path = `/guides/${entry.id}`;
+const path = guidePath(entry.id);
 const breadcrumbs: Crumb[] = [
   { name: 'MarkLayer', path: '/' },
   { name: 'Guides', path: '/guides' },

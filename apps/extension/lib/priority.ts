@@ -1,4 +1,4 @@
-import type { CommentPriority } from '@marklayer/types';
+import type { CommentPriority } from '@marklayer/types/ops';
 import { CircleAlert, type LucideIcon, SignalHigh, SignalLow, SignalMedium } from 'lucide-preact';
 
 interface PriorityMeta {

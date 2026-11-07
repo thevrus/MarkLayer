@@ -1,4 +1,4 @@
-import type { ElementDetails } from '@marklayer/types';
+import type { ElementDetails } from '@marklayer/types/ops';
 import { detectFrameworkComponent, type FrameworkComponent } from './fiber-bridge';
 
 export const TEXT_MAX = 200;

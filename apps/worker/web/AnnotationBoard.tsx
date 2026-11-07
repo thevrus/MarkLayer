@@ -4,43 +4,35 @@ import { CheckMark } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
 import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { StatusDot } from '@ext/components/StatusDot';
-import { track } from '@ext/lib/analytics';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
-import {
-  areas,
-  focusedAnnotationId,
-  getCommentStatus,
-  getReplies,
-  inspects,
-  localUser,
-  peers,
-  rootComments,
-  STATUS_LABELS,
-  selections,
-  setOpAssignee,
-  setOpStatus,
-} from '@ext/lib/state';
+import { localUser } from '@ext/lib/identity';
+import { useDismissible } from '@ext/lib/keymap';
+import { areas, getReplies, inspects, rootComments, selections, setOpAssignee, setOpStatus } from '@ext/lib/ops';
+import { peers } from '@ext/lib/presence';
+import { getCommentStatus, STATUS_LABELS } from '@ext/lib/status-ui';
 import { timeAgo } from '@ext/lib/time';
 import type { AnnotationOp } from '@ext/lib/types';
+import { displayHost } from '@marklayer/brand/links';
 import {
   COMMENT_PRIORITIES,
   type CommentStatus,
-  cn,
   commentStatusSchema,
   type DeviceMode,
   deviceModeSchema,
-} from '@marklayer/types';
+} from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { signal } from '@preact/signals';
 import { ArrowDownUp, Ellipsis, ListFilter, LocateFixed, MessageSquare, Mic, Paperclip, Video, X } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { tinykeys } from 'tinykeys';
 import { capture } from './analytics';
 import { opAnchor, opBody, opLabel } from './annotationItems';
 import { pageUrl } from './projects';
 import { DEVICE_ICONS, DEVICE_LABELS } from './shared';
-import { isReadonly, showBoard } from './signals';
+import { showBoard } from './ui-state';
+import { openAnnotation, setBoardOpen } from './viewer-actions';
+import { isReadonly } from './viewer-state';
 import { useViewerFrame } from './viewerFrame';
 
 /** Columns are the status enum itself, so a status added later gets a column for free. */
@@ -285,7 +277,7 @@ function Card({
     const next = COLUMNS[columnIndex(card.status) + dir];
     if (!next) return;
     setOpStatus(op.id, next);
-    track('board_card_moved', { status: next, via: 'keyboard' });
+    capture('board_card_moved', { status: next, via: 'keyboard' });
     // The card remounts in its new column, which drops focus to the body. Follow
     // it there, so a second arrow keeps moving the same card.
     requestAnimationFrame(() => {
@@ -542,7 +534,7 @@ function FilterMenu({ cards }: { cards: BoardCard[] }) {
             value={assigneeFilter.value}
             onValueChange={(value: string) => {
               assigneeFilter.value = value;
-              track('board_filter_changed', {
+              capture('board_filter_changed', {
                 filter: 'assignee',
                 value: ASSIGNEE_BUCKET[value] ?? 'person',
               });
@@ -569,7 +561,7 @@ function FilterMenu({ cards }: { cards: BoardCard[] }) {
               onValueChange={(value: string) => {
                 const parsed = deviceModeSchema.safeParse(value);
                 deviceFilter.value = parsed.success ? parsed.data : ANY_DEVICE;
-                track('board_filter_changed', { filter: 'device', value: deviceFilter.value });
+                capture('board_filter_changed', { filter: 'device', value: deviceFilter.value });
               }}
             >
               <Menu.RadioItem value={ANY_DEVICE} closeOnClick className={itemCls}>
@@ -593,7 +585,7 @@ function FilterMenu({ cards }: { cards: BoardCard[] }) {
           onClick={() => {
             assigneeFilter.value = ANYONE;
             deviceFilter.value = ANY_DEVICE;
-            track('board_filter_cleared');
+            capture('board_filter_cleared');
           }}
           class={cn(geist.ctlSm, geist.ctlIdle)}
         >
@@ -621,7 +613,7 @@ function SortMenu() {
         onValueChange={(value: string) => {
           if (!isSort(value)) return;
           sortBy.value = value;
-          track('board_sort_changed', { sort: value });
+          capture('board_sort_changed', { sort: value });
         }}
       >
         {Object.entries(SORTS).map(([value, text]) => (
@@ -633,14 +625,6 @@ function SortMenu() {
       </Menu.RadioGroup>
     </BoardMenu>
   );
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return '';
-  }
 }
 
 /**
@@ -655,19 +639,13 @@ export function AnnotationBoard() {
     actions: { scrollToAnnotation },
   } = useViewerFrame();
   const closeRef = useRef<HTMLButtonElement>(null);
+  useDismissible({ open: showBoard, close: () => setBoardOpen({ open: false, via: 'escape' }) });
 
   useEffect(() => {
     if (!showBoard.value) return;
     // A drag whose source card unmounted mid-flight never fires `dragend` to clear this.
     draggingId.value = null;
     closeRef.current?.focus();
-    return tinykeys(window, {
-      Escape: (e) => {
-        // An open menu takes its own Escape; the board closes on the next one.
-        if (e.target instanceof Element && e.target.closest('[role="menu"]')) return;
-        showBoard.value = false;
-      },
-    });
   }, [showBoard.value]);
 
   if (!showBoard.value) return null;
@@ -676,13 +654,13 @@ export function AnnotationBoard() {
   const all = [...rootComments.value, ...areas.value, ...selections.value, ...inspects.value].map(cardFor);
   const roster = rosterFor(all);
   const shown = all.filter(matchesFilter).sort(compareCards(sortBy.value));
-  const host = hostOf(pageUrl.value);
+  const host = displayHost(pageUrl.value) ?? '';
 
   const open = (card: BoardCard) => {
-    focusedAnnotationId.value = card.op.id;
-    track('board_card_opened', { tool: card.op.tool });
-    scrollToAnnotation(card.anchor.x, card.anchor.y);
-    showBoard.value = false;
+    capture('board_card_opened', { tool: card.op.tool });
+    scrollToAnnotation(card.anchor.y);
+    setBoardOpen({ open: false, via: 'card' });
+    openAnnotation(card.op.id);
   };
 
   return (
@@ -726,9 +704,7 @@ export function AnnotationBoard() {
         <button
           ref={closeRef}
           type="button"
-          onClick={() => {
-            showBoard.value = false;
-          }}
+          onClick={() => setBoardOpen({ open: false, via: 'button' })}
           aria-label="Close board"
           class={cn(geist.ctl, geist.ctlIdle)}
         >

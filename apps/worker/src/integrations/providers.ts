@@ -1,6 +1,6 @@
-import type { IntegrationProvider } from '@marklayer/types';
 import { z } from 'zod/mini';
-import { base64Utf8 } from '../http';
+import type { IntegrationProvider } from '../../shared/integrations';
+import { base64Utf8 } from '../encoding';
 import {
   attachmentLinks,
   type ConfigField,

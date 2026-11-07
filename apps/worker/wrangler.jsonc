@@ -147,7 +147,10 @@
   // verified destination addresses on the account can receive anything.
   "send_email": [{ "name": "EMAIL" }],
   "vars": {
-    "MAIL_FROM": "login@marklayer.app"
+    "MAIL_FROM": "login@marklayer.app",
+    // Where outbound links and the OG base point. Production's; a local run sets
+    // APP_ORIGIN=http://localhost:5173 in .dev.vars, which overrides this.
+    "APP_ORIGIN": "https://marklayer.app"
     // MAIL_PROVIDER ("cloudflare" | "resend" | "console") pins the mailer and is
     // deliberately unset: with no pin, `mailerFor` takes the EMAIL binding above,
     // and a dev run with no binding falls to the console so the link prints in

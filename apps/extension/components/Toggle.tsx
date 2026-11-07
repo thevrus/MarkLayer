@@ -1,5 +1,5 @@
 import { Switch } from '@base-ui/react/switch';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 
 const SIZE = {
   md: { root: 'w-8 h-5', thumb: 'w-4 h-4' },

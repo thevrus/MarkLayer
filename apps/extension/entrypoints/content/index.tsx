@@ -1,8 +1,14 @@
-import { render } from 'preact';
 import { App } from '../../components/App';
+import { shootViewport } from '../../lib/capture';
+import { createDraftStore } from '../../lib/drafts';
+import { initHost } from '../../lib/host';
+import { localIdentity } from '../../lib/identity-store';
+import { isToggleMessage } from '../../lib/messages';
+import { restoreDraft } from '../../lib/ops';
+import { mountOverlay, OVERLAY_TAG, overlayHost, pageHasMarkLayer } from '../../lib/overlay-mount';
 import { listenForPageErrors } from '../../lib/page-errors';
-import { portalContainer } from '../../lib/portal';
-import { restoreDraft, visible } from '../../lib/state';
+import { presenceFx } from '../../lib/presence-fx';
+import { visible } from '../../lib/ui-state';
 import './style.css';
 
 export default defineContentScript({
@@ -11,26 +17,34 @@ export default defineContentScript({
   cssInjectionMode: 'ui',
 
   async main(ctx) {
-    // Skip injection when inside the MarkLayer web app (it has its own toolbar)
-    if (document.documentElement.dataset.marklayer) return;
+    // Skip injection where MarkLayer is already on the page, the web app or the widget.
+    if (pageHasMarkLayer() || overlayHost()) return;
 
-    // Injected on-demand via icon click — show immediately
+    initHost({
+      capabilities: {
+        batch: true,
+        capture: shootViewport,
+        drafts: createDraftStore,
+        fx: presenceFx,
+        identity: localIdentity,
+      },
+    });
+
     visible.value = true;
     restoreDraft();
     listenForPageErrors();
 
-    // Listen for toggle message from background script (subsequent icon clicks)
-    browser.runtime.onMessage.addListener((msg) => {
-      if (msg?.type === 'toggle-annotate') {
-        visible.value = !visible.value;
-      }
+    browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (!isToggleMessage(msg)) return;
+      visible.value = !visible.value;
+      // The background injects when its message fails, so answer: silence is not a promised success.
+      sendResponse(true);
     });
 
-    let zoomWatch: MutationObserver | undefined;
-    let zoomFrame = 0;
+    let unmount: (() => void) | undefined;
 
     const ui = await createShadowRootUi(ctx, {
-      name: 'mark-layer',
+      name: OVERLAY_TAG,
       // Both of WXT's styling conveniences are declined: `applyPosition` sets
       // `position: relative` inline on the host, and an unset `inheritStyles`
       // prepends `:host{all:initial !important}`. Each silently outranked the
@@ -48,55 +62,11 @@ export default defineContentScript({
       anchor: 'html',
       append: 'last',
       onMount(container) {
-        // The top layer, via a manual popover: it is laid out against the
-        // viewport no matter what ancestors do (a transform on <html> defeats
-        // even `position: fixed`), and it paints above any page z-index — a page
-        // with its own `z-index: 2147483647` bar used to cover the toolbar.
-        // `manual` so nothing light-dismisses it; Esc is ours to handle.
-        const root = container.getRootNode();
-        const host = root instanceof ShadowRoot ? root.host : null;
-        if (host instanceof HTMLElement && 'popover' in host) {
-          host.popover = 'manual';
-          try {
-            host.showPopover();
-          } catch {
-            // Already showing, or the element is not connected yet — the CSS
-            // below still positions the overlay correctly either way.
-          }
-        }
-        if (host instanceof HTMLElement) {
-          // A page `zoom` on <html> compounds into the host, drawing every layer
-          // at that multiple of its viewport-sized buffer. `zoom: 1` can't undo
-          // it (nested zooms multiply); the inverse does.
-          const unzoom = () => {
-            const z = Number.parseFloat(getComputedStyle(document.documentElement).zoom);
-            host.style.zoom = z > 0 ? String(1 / z) : '';
-          };
-          unzoom();
-          // One style read per frame: pages that churn <html> classes would force a recalc per batch.
-          zoomWatch = new MutationObserver(() => {
-            if (zoomFrame) return;
-            zoomFrame = requestAnimationFrame(() => {
-              zoomFrame = 0;
-              unzoom();
-            });
-          });
-          zoomWatch.observe(document.documentElement, { attributeFilter: ['style', 'class'] });
-        }
-        // Named rather than matched by shape: style.css styles `.ml-root`, and
-        // the container is the only element the app owns directly under the
-        // shadow root. A `:host > :not(style)` rule would key the overlay's
-        // geometry and type on WXT's private structure instead.
-        container.classList.add('ml-root');
-        portalContainer.value = container;
-        render(<App />, container);
+        unmount = mountOverlay({ container, app: <App /> });
         return container;
       },
-      onRemove(container) {
-        zoomWatch?.disconnect();
-        cancelAnimationFrame(zoomFrame);
-        portalContainer.value = null;
-        if (container) render(null, container);
+      onRemove() {
+        unmount?.();
       },
     });
     ui.mount();

@@ -1,29 +1,23 @@
-import { type AnnotationOp, applyOpPatch, isAgentPeer, isAnnotationOp, ROOM_LOCKED_CLOSE_CODE } from '@marklayer/types';
-import { type ReadonlySignal, type Signal, signal } from '@preact/signals';
-import { nanoid } from 'nanoid';
-import type { AnalyticsProps } from './analytics';
-import { mergeOps } from './mergeOps';
+import { parseOps } from '@marklayer/types/ops';
 import {
-  clearDeparture,
-  connectionStatus,
-  localUser,
-  lsGet,
-  lsSet,
-  noteDeparture,
-  onCleared,
-  onCursorMove,
-  onOpPushed,
-  onOpUpdated,
-  onProfileChange,
-  onUndone,
-  operations,
-  peers,
-  toast,
-} from './state';
-import type { DrawOp, Peer } from './types';
-
-/** Mirrors `capture` in apps/worker/web/analytics.ts — kept local since shared code has no transport of its own. */
-type CaptureFn = (event: string, props?: AnalyticsProps) => void;
+  ROOM_ERROR_READ_ONLY,
+  ROOM_LOCKED_CLOSE_CODE,
+  type ServerMsg,
+  SOCKET_BURST,
+  SOCKET_REFILL_PER_S,
+  serverMsgSchema,
+} from '@marklayer/types/wire';
+import { type ReadonlySignal, signal } from '@preact/signals';
+import { nanoid } from 'nanoid';
+import { track } from './analytics';
+import { host } from './host-config';
+import { FALLBACK_PEER_COLOR, localUser, onProfileChange } from './identity';
+import { mergeOps } from './mergeOps';
+import { applyChange, onChange, operations } from './ops';
+import { clearDeparture, connectionStatus, noteDeparture, onCursorMove, peers } from './presence';
+import { isJoinedRoom } from './room-id';
+import { toast } from './toasts';
+import type { Peer } from './types';
 
 export const connected = signal(false);
 /** Unix timestamp (seconds) when the annotation was first created */
@@ -33,13 +27,16 @@ export const expiresAt = signal<number | null>(null);
 /** Whether someone has claimed this link, which exempts it from the idle window. */
 export const isOwned = signal(false);
 
+/** What the room says about our write access. Undefined until it says. */
+export const canEditFromRoom = signal<boolean | undefined>(undefined);
+
 /** Annotation metadata received from server init */
 export const serverUrl = signal<string | null>(null);
 export const serverWidth = signal<number | null>(null);
 
-/** Offline-queue flush pacing, kept under the room's per-socket cap (annotation-room.ts). */
-const DRAIN_BURST = 800;
-const DRAIN_SLICE = 150;
+/** Offline-queue flush pacing, derived from the room's per-socket budget with a margin for live traffic. */
+const DRAIN_BURST = SOCKET_BURST * 0.8;
+const DRAIN_SLICE = SOCKET_REFILL_PER_S * 0.75;
 
 /** Exposed so voice room can send signaling messages through the same WS */
 export const wsSend = signal<((msg: unknown) => void) | null>(null);
@@ -73,50 +70,31 @@ function iceServersEqual(a: RTCIceServer[] | null, b: RTCIceServer[]): boolean {
   return true;
 }
 
-/**
- * Highest `ts` of a mention this browser has already been told about, per room.
- * Without it, everything written while you were away is either announced every
- * time you open the room or never announced at all.
- */
-const seenKey = (room: string) => `ml-mentions-seen-${room}`;
-
-/** A type guard, so the callers that read `author`/`tool` need no second narrowing. */
-function tagsMe(op: DrawOp): op is AnnotationOp {
-  return isAnnotationOp(op) && !!op.mentions?.some((m) => m.id === localUser.id);
-}
-
-/**
- * Everything written while you were away that names you, said once on arrival.
- * A mention has no address to be delivered to — no accounts, no email — so this
- * and the live toast below are the whole of it.
- */
-function announceMissedMentions({ ops, room, capture }: { ops: DrawOp[]; room: string; capture?: CaptureFn }) {
-  const seen = Number(lsGet(seenKey(room))) || 0;
-  // Guard first as its own filter, so the result is typed as annotation ops.
-  const missed = ops.filter(tagsMe).filter((op) => op.ts > seen);
-  if (!missed.length) return;
-  lsSet(seenKey(room), String(missed.reduce((latest, op) => Math.max(latest, op.ts), 0)));
-  toast(`${missed.length} annotation${missed.length === 1 ? '' : 's'} mention${missed.length === 1 ? 's' : ''} you`);
-  capture?.('mention_missed_seen', { count: missed.length });
-}
-
-/**
- * Say it out loud when an incoming annotation tags you. This is the whole of
- * "notifications": the room has no accounts and no address to reach, so a
- * mention can only be delivered to someone who is here to see it — which is why
- * it is matched on the stable client id rather than on the display name.
- */
-function announceMention({ op, room, capture }: { op: DrawOp; room: string; capture?: CaptureFn }) {
-  if (!tagsMe(op)) return;
-  lsSet(seenKey(room), String(op.ts));
-  toast(`${op.author || 'Someone'} mentioned you`);
-  capture?.('mention_received', { tool: op.tool });
-}
-
 export const localPeerId = nanoid();
 
 /** Stale cursor threshold — hide cursors older than 5s */
 const STALE_MS = 5000;
+
+const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+
+/**
+ * One socket frame, or null for one we cannot read. A bad TURN list is not such a
+ * frame: `init` carries the room, so it costs this session voice relays, never the ops.
+ */
+function parseServerMsg(data: string): ServerMsg | null {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(data);
+  } catch {
+    return null;
+  }
+  const parsed = serverMsgSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  if (!isRecord(raw) || raw.type !== 'init') return null;
+  const { iceServers: _dropped, ...room } = raw;
+  const retried = serverMsgSchema.safeParse(room);
+  return retried.success ? retried.data : null;
+}
 
 /**
  * Timestamped cursor samples used for client-side interpolation. Lives outside
@@ -138,76 +116,15 @@ function pushCursorSample(peerId: string, x: number, y: number) {
   peerCursorSamples.set(peerId, buf);
 }
 
-/** Active click ripples. Each entry auto-clears after the CSS animation completes. */
-export interface Ripple {
-  id: string;
-  peerId: string;
-  color: string;
-  x: number;
-  y: number;
-}
-export const activeRipples = signal<Ripple[]>([]);
-/** ms — animation is 700ms and the last ring is delayed 140ms; pad slightly so
- * the trailing ring doesn't pop out mid-fade if the browser is busy. */
-const RIPPLE_LIFETIME_MS = 900;
-
-function pushRipple(r: Ripple) {
-  activeRipples.value = [...activeRipples.value, r];
-  setTimeout(() => {
-    activeRipples.value = activeRipples.value.filter((x) => x.id !== r.id);
-  }, RIPPLE_LIFETIME_MS);
-}
-
-/** Local emitter — called from the click handler. Sends to peers and renders own ripple. */
+/** Sends the click to peers; the clicker's own ripple is not drawn. */
 export const emitRipple = signal<((x: number, y: number) => void) | null>(null);
 
-/** Lazily-created AudioContext for peer join/leave chimes. Browser autoplay
- * policy keeps it suspended until a user gesture; since the user is already
- * interacting with the viewer by the time peers join, resume() usually works. */
-let peerChimeCtx: AudioContext | null = null;
-function playPeerChime(joining: boolean) {
-  try {
-    if (typeof AudioContext === 'undefined') return;
-    if (!peerChimeCtx) peerChimeCtx = new AudioContext();
-    if (peerChimeCtx.state === 'suspended') peerChimeCtx.resume().catch(() => {});
-    const t0 = peerChimeCtx.currentTime;
-    const osc = peerChimeCtx.createOscillator();
-    const gain = peerChimeCtx.createGain();
-    osc.type = 'sine';
-    // Join: rising C5 → G5. Leave: falling G5 → C5.
-    const [f1, f2] = joining ? [523.25, 783.99] : [783.99, 523.25];
-    osc.frequency.setValueAtTime(f1, t0);
-    osc.frequency.exponentialRampToValueAtTime(f2, t0 + 0.14);
-    gain.gain.setValueAtTime(0, t0);
-    gain.gain.linearRampToValueAtTime(0.05, t0 + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.22);
-    osc.connect(gain).connect(peerChimeCtx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.25);
-  } catch {
-    /* audio unavailable — ignore */
-  }
-}
-
-/** What the caller owns and the transport does not. Required fields exist on every
- * surface; optional ones are web-viewer concepts, read through `?.`. */
+/** What the caller adds to the transport. A host with nothing to add passes none. */
 export interface ConnectRoomHooks {
-  /** Whether the room says this session may edit. */
-  canEditFromRoom: Signal<boolean | undefined>;
-  /** `canEditFromRoom` ORed with any URL-forced read-only flag. */
-  isReadonly: ReadonlySignal<boolean>;
-  /** Peer being auto-followed (scroll-to-cursor) — web viewer only. */
-  followingPeer?: Signal<string | null>;
-  /** Follow-mode scroll callback, owned by the viewer's iframe ref — web viewer only. */
-  onFollowScroll?: Signal<((y: number) => void) | null>;
-  /** Whether this session is presenting (pulling peers onto its scroll position) — web viewer only. */
-  presenting?: Signal<boolean>;
-  /** Sends this session's presenting toggle to the room — web viewer only. */
-  onPresentChange?: Signal<((on: boolean) => void) | null>;
-  /** Analytics sink — omitted where nothing reports (see `@ext/lib/analytics`). */
-  capture?: CaptureFn;
-  /** Folds an agent's presence into the local ask-for-support record (apps/worker/web/support.ts) — web viewer only. */
-  noteSupportSignal?: (signal: 'mcp') => void;
+  /** Every frame, after the transport has applied it: how a host reacts to room facts only it understands. */
+  onMessage?: (msg: ServerMsg) => void;
+  /** The host holds this session read-only whatever the room says, so the room's access flips change nothing it can see. */
+  forcedReadonly?: ReadonlySignal<boolean>;
   /** The room refused this session for want of its password, or a password change ended it. */
   onLocked?: () => void;
 }
@@ -216,26 +133,37 @@ export interface ConnectRoomOptions {
   roomId: string;
   /** Absolute http(s) origin the WebSocket and REST fallback are built against, e.g. `https://marklayer.app`. */
   origin: string;
-  hooks: ConnectRoomHooks;
+  hooks?: ConnectRoomHooks;
 }
 
 /** Opens the realtime WebSocket for one room and wires every signal that drives it.
  * Returns a teardown that undoes all of it; call it exactly once. */
-export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () => void {
+export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions): () => void {
   if (!roomId) return () => {};
 
   let destroyed = false;
   let initReceived = false;
-  let followScrollTimer: ReturnType<typeof setTimeout> | null = null;
 
   let ws: WebSocket | null = null;
   let retries = 0;
   const pending: string[] = [];
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   let drainTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let pingTimer: ReturnType<typeof setInterval> | null = null;
+  let pongTimeout: ReturnType<typeof setTimeout> | null = null;
 
-  // The room closes a socket past 1000 messages at once (refilling 200/s), and an
-  // offline guide drag alone can queue more, so a long queue goes out in paced slices.
+  /** Everything tied to one socket's life. A closed socket and a teardown both end here. */
+  function stopSocketTimers() {
+    if (pingTimer) clearInterval(pingTimer);
+    if (pongTimeout) clearTimeout(pongTimeout);
+    if (drainTimer) clearTimeout(drainTimer);
+    pingTimer = pongTimeout = drainTimer = null;
+    connected.value = false;
+  }
+
+  // The room closes a socket past its burst budget, and an offline guide drag alone
+  // can queue more, so a long queue goes out in paced slices.
   function drain({ socket, budget }: { socket: WebSocket; budget: number }) {
     drainTimer = null;
     if (socket.readyState !== WebSocket.OPEN) return;
@@ -243,16 +171,20 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     if (pending.length > 0) drainTimer = setTimeout(() => drain({ socket, budget: DRAIN_SLICE }), 1000);
   }
 
-  // Debounced REST API save as fallback persistence
+  // Debounced REST API save as fallback persistence. Never for a joined room: the room
+  // merges this bare array, so a stale list would bring back what the others deleted.
+  // Not `canPushSnapshot`, which is false for every socket and would end the fallback
+  // for the owner it exists for. Refused, the ops stay queued for the reconnect.
   function scheduleSave() {
+    if (isJoinedRoom()) return;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      const ops = operations.value;
-      fetch(`${origin}/api/${roomId}`, {
+    saveTimer = setTimeout(async () => {
+      const res = await fetch(`${origin}/api/${roomId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(ops),
-      }).catch(() => {});
+        body: JSON.stringify(operations.value),
+      }).catch(() => null);
+      if (!res?.ok && !destroyed && !connected.peek()) connectionStatus.value = 'disconnected';
     }, 3000);
   }
 
@@ -287,6 +219,165 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
   };
   document.addEventListener('visibilitychange', onVisible);
 
+  function handleMessage(msg: ServerMsg) {
+    switch (msg.type) {
+      case 'init': {
+        // Only the first init is an arrival. A silent reconnect replays the
+        // same room, and announcing it again would re-toast every mention.
+        const arriving = !initReceived;
+        initReceived = true;
+        // Merged on arrival too, not just on reconnect: the extension always
+        // carries local marks, and replacing would bin them.
+        // Unread ops are dropped here, not merged: one from a newer client must not reach the renderer.
+        const remote = parseOps(msg.ops);
+        operations.value = mergeOps({ local: operations.value, remote });
+        if (arriving) host.capabilities.fx?.arrived({ ops: remote, room: roomId });
+        if (msg.createdAt != null) createdAt.value = msg.createdAt;
+        if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
+        if (typeof msg.owned === 'boolean') isOwned.value = msg.owned;
+        if (typeof msg.canEdit === 'boolean') canEditFromRoom.value = msg.canEdit;
+        if (msg.url) serverUrl.value = msg.url;
+        if (msg.width) serverWidth.value = msg.width;
+        if (isIceServerArray(msg.iceServers)) turnIceServers.value = msg.iceServers;
+        if (msg.peers) {
+          const map = new Map<string, Peer>();
+          for (const p of msg.peers) {
+            if (p.id !== localPeerId) {
+              map.set(p.id, { ...p, cursor: null, lastSeen: Date.now() });
+            }
+          }
+          peers.value = map;
+          for (const id of map.keys()) clearDeparture(id);
+        }
+        break;
+      }
+      case 'op':
+        if (applyChange({ type: 'op', op: msg.op }, { origin: 'remote' })) {
+          host.capabilities.fx?.opReceived({ op: msg.op, room: roomId });
+        }
+        break;
+      case 'update_op':
+        applyChange({ type: 'update_op', opId: msg.opId, patch: msg.patch }, { origin: 'remote' });
+        break;
+      case 'undo':
+        applyChange({ type: 'undo', opId: msg.opId }, { origin: 'remote' });
+        break;
+      case 'clear':
+        applyChange({ type: 'clear' }, { origin: 'remote' });
+        break;
+      case 'error':
+        // The room rejected an edit rather than trusting the toolbar to stay
+        // hidden — a stale client, or a race with the owner flipping access.
+        if (msg.code === ROOM_ERROR_READ_ONLY) {
+          canEditFromRoom.value = false;
+          toast('This link is view-only', { type: 'info' });
+        }
+        break;
+      case 'access': {
+        // The owner flipped the link while this tab was open.
+        const wasReadonly = canEditFromRoom.value === false;
+        canEditFromRoom.value = msg.canEdit;
+        if (msg.canEdit === wasReadonly && !hooks.forcedReadonly?.peek()) {
+          toast(msg.canEdit ? 'You can edit this link again' : 'This link is now view-only', { type: 'info' });
+        }
+        break;
+      }
+      case 'pong':
+        if (pongTimeout) {
+          clearTimeout(pongTimeout);
+          pongTimeout = null;
+        }
+        break;
+      case 'ripple':
+        host.capabilities.fx?.ripple({
+          peerId: msg.peerId,
+          color: msg.color || FALLBACK_PEER_COLOR,
+          x: msg.x,
+          y: msg.y,
+        });
+        break;
+      case 'cursor': {
+        const prev = peers.value;
+        const existing = prev.get(msg.peerId);
+        const updated = existing
+          ? { ...existing, cursor: { x: msg.x, y: msg.y }, tool: msg.tool, lastSeen: Date.now() }
+          : {
+              id: msg.peerId,
+              name: msg.name || 'Anonymous',
+              color: msg.color || FALLBACK_PEER_COLOR,
+              cursor: { x: msg.x, y: msg.y },
+              tool: msg.tool,
+              lastSeen: Date.now(),
+            };
+        const next = new Map(prev);
+        next.set(msg.peerId, updated);
+        peers.value = next;
+        pushCursorSample(msg.peerId, msg.x, msg.y);
+        break;
+      }
+      case 'peer_join': {
+        const map = new Map(peers.value);
+        const p = msg.peer;
+        if (p.id !== localPeerId) {
+          const isNew = !map.has(p.id);
+          map.set(p.id, {
+            id: p.id,
+            uid: p.uid,
+            name: p.name,
+            color: p.color,
+            cursor: null,
+            lastSeen: Date.now(),
+          });
+          peers.value = map;
+          clearDeparture(p.id);
+          if (isNew) {
+            host.capabilities.fx?.peerJoined(p.name);
+          }
+        }
+        break;
+      }
+      case 'peer_leave': {
+        const leaving = peers.value.get(msg.peerId);
+        const map = new Map(peers.value);
+        map.delete(msg.peerId);
+        peers.value = map;
+        peerCursorSamples.delete(msg.peerId);
+        if (leaving) {
+          noteDeparture({ id: leaving.id, name: leaving.name, color: leaving.color, leftAt: Date.now() });
+          host.capabilities.fx?.peerLeft(leaving.name);
+        }
+        break;
+      }
+      case 'profile': {
+        const existing = peers.value.get(msg.peerId);
+        if (existing) {
+          const next = new Map(peers.value);
+          next.set(msg.peerId, {
+            ...existing,
+            name: msg.name || existing.name,
+            color: msg.color || existing.color,
+          });
+          peers.value = next;
+        }
+        break;
+      }
+      case 'rtc_offer':
+      case 'rtc_answer':
+      case 'rtc_ice':
+        if (typeof msg.from === 'string') onRtcMessage.value?.({ ...msg, from: msg.from });
+        break;
+      case 'ice_refresh':
+        // Server-pushed TURN credential rotation. The voice engine's effect
+        // on `turnIceServers` calls setConfiguration() on every active PC;
+        // skip the write when the URL set is identical to avoid thrashing
+        // during ICE flapping (one peer's restart triggers refresh-for-all).
+        if (isIceServerArray(msg.iceServers) && !iceServersEqual(turnIceServers.peek(), msg.iceServers)) {
+          turnIceServers.value = msg.iceServers;
+        }
+        break;
+    }
+  }
+
   function connect() {
     if (destroyed) return;
     const originUrl = new URL(origin);
@@ -303,242 +394,33 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     const socket = new WebSocket(`${protocol}//${originUrl.host}/ws/${roomId}?${params}`);
     ws = socket;
 
-    let pingTimer: ReturnType<typeof setInterval> | null = null;
-    let pongTimeout: ReturnType<typeof setTimeout> | null = null;
-
     socket.onopen = () => {
       connected.value = true;
       connectionStatus.value = 'connected';
       // Silent reconnects are invisible from the room's own logs — the DO sees
       // only a peer leaving and a peer joining.
-      hooks.capture?.('realtime_connected', { attempt: retries });
+      track('realtime_connected', { attempt: retries });
       retries = 0;
       drain({ socket, budget: DRAIN_BURST });
-      // Heartbeat: ping every 15s, expect pong within 5s
       pingTimer = setInterval(() => {
         if (socket.readyState === WebSocket.OPEN) {
           socket.send('{"type":"ping"}');
           pongTimeout = setTimeout(() => {
-            socket.close(); // force reconnect
+            socket.close();
           }, 5000);
         }
       }, 15000);
     };
 
     socket.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        switch (msg.type) {
-          case 'init': {
-            // Only the first init is an arrival. A silent reconnect replays the
-            // same room, and announcing it again would re-toast every mention.
-            const arriving = !initReceived;
-            initReceived = true;
-            // Merged on arrival too, not just on reconnect: the extension always
-            // carries local marks, and replacing would bin them.
-            operations.value = mergeOps({ local: operations.value, remote: msg.ops });
-            if (arriving) announceMissedMentions({ ops: msg.ops, room: roomId, capture: hooks.capture });
-            if (msg.createdAt != null) createdAt.value = msg.createdAt;
-            if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
-            if (typeof msg.owned === 'boolean') isOwned.value = msg.owned;
-            // `isReadonly` ORs this with `?readonly=1` in signals.ts, so the
-            // room's own view of canEdit can't clear a URL-forced one.
-            if (typeof msg.canEdit === 'boolean') hooks.canEditFromRoom.value = msg.canEdit;
-            if (msg.url) serverUrl.value = msg.url;
-            if (msg.width) serverWidth.value = msg.width;
-            if (isIceServerArray(msg.iceServers)) turnIceServers.value = msg.iceServers;
-            // Initialize peer list from server
-            if (msg.peers) {
-              const map = new Map<string, Peer>();
-              for (const p of msg.peers) {
-                if (p.id !== localPeerId) {
-                  map.set(p.id, { ...p, cursor: null, lastSeen: Date.now() });
-                }
-              }
-              peers.value = map;
-              for (const id of map.keys()) clearDeparture(id);
-              // An agent in the room means someone wired the MCP server into real work.
-              // Read off the built map, whose keys are typed, rather than the loose wire payload.
-              if ([...map.keys()].some(isAgentPeer)) hooks.noteSupportSignal?.('mcp');
-            }
-            break;
-          }
-          case 'op':
-            if (!operations.value.some((o) => o.id === msg.op.id)) {
-              operations.value = [...operations.value, msg.op];
-              announceMention({ op: msg.op, room: roomId, capture: hooks.capture });
-            }
-            break;
-          case 'update_op': {
-            const opId: string | undefined = msg.opId;
-            const patch = msg.patch;
-            if (!opId || !patch || typeof patch !== 'object') break;
-            const ops = operations.value;
-            const idx = ops.findIndex((o) => o.id === opId);
-            if (idx === -1) break;
-            const merged = applyOpPatch({ op: ops[idx], patch });
-            if (!merged) break;
-            const next = ops.slice();
-            next[idx] = merged;
-            operations.value = next;
-            break;
-          }
-          case 'undo':
-            operations.value = operations.value.filter((o) => o.id !== msg.opId);
-            break;
-          case 'clear':
-            operations.value = [];
-            break;
-          case 'error':
-            // The room rejected an edit rather than trusting the toolbar to stay
-            // hidden — a stale client, or a race with the owner flipping access.
-            if (msg.code === 'read_only') {
-              hooks.canEditFromRoom.value = false;
-              toast('This link is view-only', { type: 'info' });
-            }
-            break;
-          case 'access': {
-            // The owner flipped the link while this tab was open. `isReadonly`
-            // still ORs in `?readonly=1`, so a URL-forced session stays read-only.
-            const wasReadonly = hooks.isReadonly.value;
-            hooks.canEditFromRoom.value = msg.canEdit;
-            if (hooks.isReadonly.value !== wasReadonly) {
-              toast(hooks.isReadonly.value ? 'This link is now view-only' : 'You can edit this link again', {
-                type: 'info',
-              });
-            }
-            break;
-          }
-          case 'pong':
-            if (pongTimeout) {
-              clearTimeout(pongTimeout);
-              pongTimeout = null;
-            }
-            break;
-          case 'ripple': {
-            pushRipple({
-              id: nanoid(),
-              peerId: msg.peerId,
-              color: msg.color || '#8b5cf6',
-              x: msg.x,
-              y: msg.y,
-            });
-            break;
-          }
-          case 'cursor': {
-            const prev = peers.value;
-            const existing = prev.get(msg.peerId);
-            const updated = existing
-              ? { ...existing, cursor: { x: msg.x, y: msg.y }, tool: msg.tool, lastSeen: Date.now() }
-              : {
-                  id: msg.peerId,
-                  name: msg.name || 'Anonymous',
-                  color: msg.color || '#8b5cf6',
-                  cursor: { x: msg.x, y: msg.y },
-                  tool: msg.tool,
-                  lastSeen: Date.now(),
-                };
-            const next = new Map(prev);
-            next.set(msg.peerId, updated);
-            peers.value = next;
-            pushCursorSample(msg.peerId, msg.x, msg.y);
-            // Follow mode: throttled scroll to followed peer's Y position
-            if (hooks.followingPeer?.value === msg.peerId && !followScrollTimer) {
-              followScrollTimer = setTimeout(() => {
-                followScrollTimer = null;
-              }, 200);
-              hooks.onFollowScroll?.value?.(msg.y);
-            }
-            break;
-          }
-          case 'peer_join': {
-            const map = new Map(peers.value);
-            const p = msg.peer;
-            if (p.id !== localPeerId) {
-              const isNew = !map.has(p.id);
-              map.set(p.id, {
-                id: p.id,
-                uid: p.uid,
-                name: p.name,
-                color: p.color,
-                cursor: null,
-                lastSeen: Date.now(),
-              });
-              peers.value = map;
-              clearDeparture(p.id);
-              if (isNew) {
-                toast(`${p.name || 'Someone'} joined`, { type: 'info', duration: 2500 });
-                playPeerChime(true);
-              }
-              if (isNew && isAgentPeer(p.id)) hooks.noteSupportSignal?.('mcp');
-            }
-            break;
-          }
-          case 'flock': {
-            const peer = peers.value.get(msg.peerId);
-            const who = peer?.name || msg.name || 'Someone';
-            if (msg.on) {
-              if (hooks.followingPeer) hooks.followingPeer.value = msg.peerId;
-              // Say why the page just moved, or being pulled reads as a bug.
-              toast(`${who} is presenting — scroll to break away`, { type: 'info', duration: 4000 });
-            } else if (hooks.followingPeer && hooks.followingPeer.value === msg.peerId) {
-              hooks.followingPeer.value = null;
-              toast(`${who} stopped presenting`, { type: 'info', duration: 2500 });
-            }
-            break;
-          }
-          case 'peer_leave': {
-            const leaving = peers.value.get(msg.peerId);
-            if (hooks.followingPeer && hooks.followingPeer.value === msg.peerId) hooks.followingPeer.value = null;
-            const map = new Map(peers.value);
-            map.delete(msg.peerId);
-            peers.value = map;
-            peerCursorSamples.delete(msg.peerId);
-            if (leaving) {
-              noteDeparture({ id: leaving.id, name: leaving.name, color: leaving.color, leftAt: Date.now() });
-              toast(`${leaving.name} left`, { type: 'info', duration: 2500 });
-              playPeerChime(false);
-            }
-            break;
-          }
-          case 'profile': {
-            const existing = peers.value.get(msg.peerId);
-            if (existing) {
-              const next = new Map(peers.value);
-              next.set(msg.peerId, {
-                ...existing,
-                name: msg.name || existing.name,
-                color: msg.color || existing.color,
-              });
-              peers.value = next;
-            }
-            break;
-          }
-          case 'rtc_offer':
-          case 'rtc_answer':
-          case 'rtc_ice':
-            onRtcMessage.value?.(msg);
-            break;
-          case 'ice_refresh':
-            // Server-pushed TURN credential rotation. The voice engine's effect
-            // on `turnIceServers` calls setConfiguration() on every active PC;
-            // skip the write when the URL set is identical to avoid thrashing
-            // during ICE flapping (one peer's restart triggers refresh-for-all).
-            if (isIceServerArray(msg.iceServers) && !iceServersEqual(turnIceServers.peek(), msg.iceServers)) {
-              turnIceServers.value = msg.iceServers;
-            }
-            break;
-        }
-      } catch {
-        /* ignore malformed */
-      }
+      const msg = parseServerMsg(e.data);
+      if (!msg) return;
+      handleMessage(msg);
+      hooks.onMessage?.(msg);
     };
 
     socket.onclose = (event) => {
-      if (pingTimer) clearInterval(pingTimer);
-      if (pongTimeout) clearTimeout(pongTimeout);
-      if (drainTimer) clearTimeout(drainTimer);
-      connected.value = false;
+      stopSocketTimers();
       ws = null;
       // Password-protected and this session is not (or no longer) unlocked: retrying cannot help.
       if (event.code === ROOM_LOCKED_CLOSE_CODE) {
@@ -553,8 +435,8 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
         // Only the first attempt of an outage: the backoff caps at 10s and never
         // gives up, so an event per retry is unbounded — and `realtime_connected`
         // already carries the attempt count for outages that recover.
-        if (retries === 1) hooks.capture?.('realtime_reconnecting');
-        setTimeout(connect, delay);
+        if (retries === 1) track('realtime_reconnecting');
+        retryTimer = setTimeout(connect, delay);
       } else {
         connectionStatus.value = 'disconnected';
       }
@@ -567,7 +449,6 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
 
   connect();
 
-  // Wire up sync callbacks
   const sendMsg = (msg: unknown) => {
     const str = JSON.stringify(msg);
     // While a queue drains, new messages wait behind it so the room applies them in order.
@@ -579,12 +460,8 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     if (ws?.readyState !== WebSocket.OPEN) scheduleSave();
   };
 
-  onOpPushed.value = (op: DrawOp) => sendMsg({ type: 'op', op });
-  onOpUpdated.value = (opId: string, patch: Record<string, unknown>) => sendMsg({ type: 'update_op', opId, patch });
-  onUndone.value = (opId: string) => sendMsg({ type: 'undo', opId });
-  onCleared.value = () => sendMsg({ type: 'clear' });
+  onChange.value = sendMsg;
   onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });
-  if (hooks.onPresentChange) hooks.onPresentChange.value = (on: boolean) => sendMsg({ type: 'flock', on });
   wsSend.value = sendMsg;
 
   // Throttled cursor sending (50 ms = 20 Hz). Visual smoothness comes from
@@ -609,30 +486,25 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
     }
   };
 
-  return () => {
+  /** The one way out: every timer, listener and hook this connection set. Safe to call twice. */
+  function disconnect() {
+    if (destroyed) return;
     destroyed = true;
     connectionStatus.value = null;
-    onOpPushed.value = null;
-    onOpUpdated.value = null;
-    onUndone.value = null;
-    onCleared.value = null;
+    onChange.value = null;
     onCursorMove.value = null;
-    // Presenting cannot outlive the socket that carries it. Followers are
-    // released by the peer_leave this disconnect triggers on their side.
-    if (hooks.onPresentChange) hooks.onPresentChange.value = null;
-    if (hooks.presenting) hooks.presenting.value = false;
     onProfileChange.value = null;
     emitRipple.value = null;
-    activeRipples.value = [];
+    host.capabilities.fx?.reset();
     peerCursorSamples.clear();
     wsSend.value = null;
     turnIceServers.value = null;
     clearInterval(pruneInterval);
     document.removeEventListener('visibilitychange', onVisible);
-    if (cursorTimer) clearTimeout(cursorTimer);
-    if (followScrollTimer) clearTimeout(followScrollTimer);
-    if (saveTimer) clearTimeout(saveTimer);
-    if (drainTimer) clearTimeout(drainTimer);
+    stopSocketTimers();
+    for (const timer of [cursorTimer, saveTimer, retryTimer]) {
+      if (timer) clearTimeout(timer);
+    }
     // Drop stale handlers BEFORE close so any in-flight messages from the old
     // room don't leak into operations after the user has switched pages.
     if (ws) {
@@ -643,5 +515,7 @@ export function connectRoom({ roomId, origin, hooks }: ConnectRoomOptions): () =
       ws.close();
     }
     peers.value = new Map();
-  };
+  }
+
+  return disconnect;
 }

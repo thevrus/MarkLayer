@@ -12,7 +12,7 @@
     "zip:firefox": "wxt zip -b firefox",
     "zip:all": "bun run zip && bun run zip:firefox",
     "check": "tsc --noEmit",
-    "test": "bun test lib widget",
+    "test": "bun test lib widget components ./test",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {
@@ -29,7 +29,10 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@marklayer/agent-tools": "workspace:*",
+    "@marklayer/brand": "workspace:*",
+    "@marklayer/tokens": "workspace:*",
     "@marklayer/types": "workspace:*",
+    "@marklayer/ui": "workspace:*",
     "@preact/signals": "^2.11.1",
     "idb-keyval": "^6.3.0",
     "lucide-preact": "^1.37.0",

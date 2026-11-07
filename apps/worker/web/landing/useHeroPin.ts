@@ -1,8 +1,10 @@
 import { flashAnnotation } from '@ext/lib/checkFix';
-import { commentCounter, getCommentStatus, lineWidth, operations } from '@ext/lib/state';
+import { commentCounter, operations } from '@ext/lib/ops';
+import { lineWidth } from '@ext/lib/prefs';
+import { getCommentStatus } from '@ext/lib/status-ui';
 import { useEffect } from 'preact/hooks';
-import { seedDeviceOp } from '../signals';
-import { HERO_PIN_ID } from './content';
+import { seedDeviceOp } from '../viewer-state';
+import { HERO_AUTHOR, HERO_PIN_ID } from './content';
 
 /**
  * Put one real annotation on the board.
@@ -25,14 +27,8 @@ export function useHeroPin(heroFormRef: { current: HTMLElement | null }): void {
       // A zero-width rect means layout still has not settled; placing the pin
       // off that would park it against the left edge of the page.
       if (r.width === 0) return;
-      // Just off the field's right edge, level with its centre.
-      //
-      // It sat on the field's top-right corner until a click test showed it
-      // covering a 16x12px bite out of the submit button — the pin layer
-      // re-enables pointer events for the pin itself, so `elementFromPoint` on
-      // the button's own corner returned the pin and that corner was dead. It
-      // still reads as attached to the field at this distance, and it no longer
-      // sits on top of the page's primary action.
+      // Just off the field's right edge, level with its centre. On the top-right corner the pin
+      // (which re-enables pointer events) made a 16x12px bite of the submit button dead to clicks.
       // A narrow window leaves no room beside the field, so the pin moves up beside
       // the narrower source tabs; only past that does it rise over the field's end,
       // where it would sit on the Image tab.
@@ -59,12 +55,10 @@ export function useHeroPin(heroFormRef: { current: HTMLElement | null }): void {
         text: 'This pin is real. Open it, reply to it, resolve it, then drop your own anywhere on the page.',
         x,
         y,
-        // From the peer-cursor palette, so the mark belongs to the same
-        // vocabulary as the people already on the board.
-        color: '#8b5cf6',
+        color: HERO_AUTHOR.color,
         lineWidth: lineWidth.peek(),
         ts: Date.now(),
-        author: 'Yuki',
+        author: HERO_AUTHOR.name,
       });
     };
 

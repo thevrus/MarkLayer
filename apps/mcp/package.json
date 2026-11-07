@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@marklayer/agent-tools": "workspace:*",
+    "@marklayer/brand": "workspace:*",
     "@marklayer/types": "workspace:*",
     "@types/bun": "^1.4.0",
     "@types/node": "^26.4.0",

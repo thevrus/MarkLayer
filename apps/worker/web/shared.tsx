@@ -1,11 +1,12 @@
 import { geist } from '@ext/lib/geist';
-import { color, lineWidth } from '@ext/lib/state';
+import { color, lineWidth } from '@ext/lib/prefs';
+import { TEXT_FONT_STACK, TEXT_LINE_HEIGHT, textFontSize } from '@ext/lib/text-op';
 import type { DeviceMode } from '@ext/lib/types';
-import { cn } from '@marklayer/types';
+import { MARK_PATHS, MARK_TRANSFORM } from '@marklayer/brand/mark';
+import { cn } from '@marklayer/ui/cn';
 import { Check, Copy, Loader2, Monitor, Smartphone, Tablet } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { siGithub } from 'simple-icons';
-import { MARK_PATHS, MARK_TRANSFORM } from '../src/brand';
 
 /** Item of a panel's Base UI menu. */
 export const menuItem = cn(
@@ -136,25 +137,20 @@ export function GithubLink({ dark }: { dark?: boolean }) {
 export function TextInputOverlay({
   x,
   y,
-  scale: s,
   scrollY,
   onCommit,
 }: {
   x: number;
   y: number;
-  scale: number;
   scrollY: number;
   onCommit: (text: string) => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const fontSize = Math.max(14, lineWidth.value * 6);
+  const fontSize = textFontSize(lineWidth.value);
 
   useEffect(() => {
     ref.current?.focus();
   }, []);
-
-  const vx = x * s;
-  const vy = y * s - scrollY;
 
   return (
     <textarea
@@ -162,14 +158,14 @@ export function TextInputOverlay({
       ref={ref}
       class="absolute bg-transparent border-none outline-none resize-none p-0 m-0"
       style={{
-        left: vx,
-        top: vy,
-        fontSize: `${fontSize * s}px`,
-        lineHeight: 1.3,
+        left: x,
+        top: y - scrollY,
+        fontSize: `${fontSize}px`,
+        lineHeight: TEXT_LINE_HEIGHT,
         color: color.value,
-        fontFamily: '"Geist", -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif',
+        fontFamily: TEXT_FONT_STACK,
         minWidth: '40px',
-        minHeight: `${fontSize * s * 1.3}px`,
+        minHeight: `${fontSize * TEXT_LINE_HEIGHT}px`,
         caretColor: color.value,
         fieldSizing: 'content',
         zIndex: 2147483646,

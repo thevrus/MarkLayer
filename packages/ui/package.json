@@ -1,0 +1,25 @@
+{
+  "name": "@marklayer/ui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./cn": {
+      "types": "./src/cn.ts",
+      "default": "./src/cn.ts"
+    }
+  },
+  "scripts": {
+    "gen:type-scale": "bun scripts/type-scale.ts",
+    "check": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "cnfast": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.0",
+    "typescript": "^7.0.2"
+  }
+}

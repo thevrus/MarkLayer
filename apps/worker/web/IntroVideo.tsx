@@ -3,17 +3,22 @@ import { useVideoNote, VideoButton, VideoDraft, VideoLive } from '@ext/component
 import { VideoPlayer } from '@ext/components/VideoPlayer';
 import { secondaryBtn, submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
-import { color, deleteOp, lineWidth, operations, pushOp, signedBy } from '@ext/lib/state';
+import { signedBy } from '@ext/lib/identity';
+import { deleteOp, operations, pushOp } from '@ext/lib/ops';
+import { color, lineWidth } from '@ext/lib/prefs';
+import { fileUrl } from '@ext/lib/share';
 import { timeAgo } from '@ext/lib/time';
-import { cn, type IntroOp } from '@marklayer/types';
+import type { IntroOp } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { computed, signal, useSignal } from '@preact/signals';
 import { ChevronDown, Ellipsis } from 'lucide-preact';
 import { nanoid } from 'nanoid';
 import type { ComponentChildren } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { capture } from './analytics';
+import { uploadVideo } from './projects';
 import { menuItem } from './shared';
-import { fileUrl, isReadonly, uploadVideo } from './signals';
+import { isReadonly } from './viewer-state';
 
 /** In the room's append order, not by `ts`: a peer's skewed clock must not demote the take they just pinned. */
 export const intros = computed(() => operations.value.filter((op): op is IntroOp => op.tool === 'intro'));

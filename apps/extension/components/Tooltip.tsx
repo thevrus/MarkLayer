@@ -1,5 +1,5 @@
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { geist } from '../lib/geist';
 import { portalContainer } from '../lib/portal';

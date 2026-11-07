@@ -1,21 +1,12 @@
-import type { CaptureViewport, SelectionRect, TargetElement } from '@marklayer/types';
+import type { SelectionRect, TargetElement } from '@marklayer/types/ops';
+import { anchorGeneration } from './host-mutations';
 import { scrollOffset } from './scroller';
 import { textFingerprint } from './selector';
-import { anchorGeneration } from './state';
 
-// Re-anchor element-bound ops against the page's CURRENT layout using the
-// optional selector + offsetX/offsetY recorded at capture time; fall back to
-// stored doc coords when nothing resolves.
-//
-// The anchor point is reprojected FRACTIONALLY: `offsetX/offsetY` were
-// captured as an absolute doc-px offset from the target element's top-left,
-// but on a responsive reflow the element's box can resize between capture
-// and re-anchor. Scaling the stored offset by `currentSize / capturedSize`
-// keeps the point at the same relative position inside the element's box
-// (and lets area/selection sizes scale along with it) instead of drifting
-// off the element as it grows or shrinks. When no captured size is known —
-// or the element hasn't changed size — the scale is 1 and this degrades to
-// the previous absolute-offset behavior exactly.
+// The stored `offsetX/offsetY` are absolute doc px from the target's top-left, but a
+// responsive reflow can resize the box between capture and re-anchor. Scaling the offset by
+// `currentSize / capturedSize` keeps the point at the same relative spot instead of drifting
+// off the element; with no captured size the scale is 1 and the offset stays absolute.
 
 export interface AnchorContext {
   doc?: Document;
@@ -44,8 +35,9 @@ const TEXT_FALLBACK_SCAN_LIMIT = 1000;
 // full-document text-fingerprint scan (innerText over up to 1000 candidates)
 // on every redraw — at scroll frequency for one orphaned op. A selector can
 // only start matching after the DOM changes, so a failure stays cached until
-// the mutation observer bumps the generation.
-type ResolveMemo = { el: Element; strategy: AnchorStrategy } | { failedGen: number };
+// the mutation observer bumps the generation, or the lookup moves to another
+// document: the web viewer's frame swaps about:blank for the page unobserved.
+type ResolveMemo = { el: Element; strategy: AnchorStrategy } | { failedGen: number; doc: Document };
 const RESOLVE_MEMO = new WeakMap<TargetElement, ResolveMemo>();
 
 // Squared distance from `el`'s current center to the captured center —
@@ -91,7 +83,6 @@ function findByTextFingerprint(target: TargetElement, doc: Document, win: Window
   let best = verified[0];
   if (!best) return null;
   if (verified.length === 1) return best;
-  // Multiple matches: pick the closest to where the user drew.
   let bestD = distanceToCaptured(best, target, win);
   for (let i = 1; i < verified.length; i++) {
     const candidate = verified[i];
@@ -175,7 +166,7 @@ export function resolveAnchorPoint(
     const rect = memo.el.getBoundingClientRect();
     return projectAnchor({ rect, win, target, offsetX, offsetY, strategy: memo.strategy });
   }
-  if (memo && 'failedGen' in memo && memo.failedGen === anchorGeneration()) return null;
+  if (memo && 'failedGen' in memo && memo.failedGen === anchorGeneration() && memo.doc === doc) return null;
 
   let el: Element | null = null;
   let strategy: AnchorStrategy = 'primary';
@@ -189,7 +180,7 @@ export function resolveAnchorPoint(
     strategy = 'text';
   }
   if (!el?.isConnected) {
-    RESOLVE_MEMO.set(target, { failedGen: anchorGeneration() });
+    RESOLVE_MEMO.set(target, { failedGen: anchorGeneration(), doc });
     return null;
   }
   RESOLVE_MEMO.set(target, { el, strategy });
@@ -315,12 +306,4 @@ export function reprojectBox({
     height: Math.abs(endY - startY) * scaleY,
     strategy,
   };
-}
-
-// No-op for now — the previous `currentWidth/capturedWidth` heuristic drifted
-// badly on long pages (page height doesn't track viewport width). Canvas ops
-// stay at their captured doc coords; signature is kept so callers can adopt a
-// future per-op element anchor without churn.
-export function captureScale(_captureViewport: CaptureViewport | undefined): number {
-  return 1;
 }

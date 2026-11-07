@@ -10,23 +10,23 @@ published: 2026-08-15
 modified: 2026-09-14
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source, with nothing to install on either side: paste a URL, annotate the live page, share via link, no account. Live cursors show every reviewer moving in real time instead of Ruttl's async comment trail, and an MCP server hands the same feedback straight to an AI coding agent. There is no per-user pricing because there is no user table to bill against."
     bestFor: "Anyone leaving Ruttl over per-seat cost or billing friction."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "A polished agency review platform built around one canvas at a time. The free plan covers exactly 1 user and 1 canvas, then Pro runs $29-35/month and Team starts at $99/month for five seats plus $24 per additional seat. Closer to Ruttl's project-workspace shape than the other paid options here, minus the live CSS edit mode."
     bestFor: "Agencies that want branded client review canvases and tracker integrations."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A visual bug tracker built around a Kanban board rather than a review canvas: click an element, it becomes a ticket with browser, OS, and CSS-selector metadata attached automatically. Standard runs $50/month for 5 members, with no free plan, and native sync to Jira, GitHub, and Trello."
     bestFor: "QA-led teams that triage feedback as tasks, not just comments."
   - name: "Volley"
-    url: "/vs/volley"
+    compare: volley
     pitch: "The budget route: screenshot-based feedback with Jira/Trello export at $29/month after a 30-day trial. It captures a static image of the page rather than annotating it live, and works behind logins where a browser-based tool sometimes can't reach."
     bestFor: "Teams that want frozen review rounds at the lowest paid price."
   - name: "Markup.io"
-    url: "/vs/markup-io"
+    compare: markup-io
     pitch: "Ceros' project-based review platform, and the other flat-rate option here: no free plan, Pro is $79/month for unlimited users in a single workspace, no per-seat math at all. Comment-based rather than live-cursor collaborative."
     bestFor: "Larger teams where unlimited users on a flat price beats per-seat math."
 faq:

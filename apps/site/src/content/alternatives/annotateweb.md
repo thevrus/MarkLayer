@@ -9,23 +9,23 @@ published: 2026-01-22
 modified: 2026-10-21
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source, with nothing to install: paste a URL at marklayer.app and annotate the live page in your browser. Drawings, threaded comments with priority and status, arrows, highlights, and real-time live cursors, bundled into multi-page projects rather than one session per page. Share links last 90 days from last access instead of AnnotateWeb's 2-minute cleanup, and any comment or view resets that clock. An optional Chrome extension covers pages AnnotateWeb's proxy can't reach, like sites behind a login."
     bestFor: "Anyone who needs persistent visual feedback workflows. Design review, QA, client feedback, remote teams."
   - name: "Hypothesis"
-    url: "/vs/hypothesis"
+    compare: hypothesis
     pitch: "A free, open-source W3C-standard text annotation layer for highlighting and commenting on articles and PDFs, not for drawing on a live UI. Best for scholarly research, academic reading, and teaching, where the object being annotated is a document rather than a webpage's layout or a button."
     bestFor: "Researchers, students, and educators annotating articles or papers as text."
   - name: "Markup.io"
-    url: "/vs/markup-io"
+    compare: markup-io
     pitch: "Ceros' project-based feedback platform, run as a persistent team account rather than a one-off session. No free plan since 2025; Pro is $79/month for unlimited users in one workspace. Works as a web app with no extension required, closer to AnnotateWeb's install-free model than to MarkLayer's optional extension."
     bestFor: "Agencies that want managed project workspaces and version tracking."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "A paid, agency-grade visual feedback platform with branded review canvases, version tracking, and Slack, Trello, Asana, and Jira integrations. The free plan caps at 1 user and 1 canvas; Pro starts at $29/month."
     bestFor: "Agencies running structured client review cycles."
   - name: "Ruttl"
-    url: "/vs/ruttl"
+    compare: ruttl
     pitch: "A freemium visual feedback platform with project workspaces, version comparison, and a live CSS edit mode that lets a reviewer suggest an inline style or copy change directly on the page, a feature none of the free tools here replicate."
     bestFor: "Agencies needing version comparison and live edit mode alongside annotation."
 faq:

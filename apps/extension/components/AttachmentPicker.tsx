@@ -1,5 +1,7 @@
 import { Dialog } from '@base-ui/react/dialog';
-import { cn, MAX_ATTACHMENTS, UPLOAD_IMAGE_ACCEPT } from '@marklayer/types';
+import { MAX_ATTACHMENTS } from '@marklayer/types/ops';
+import { UPLOAD_IMAGE_ACCEPT } from '@marklayer/types/uploads';
+import { cn } from '@marklayer/ui/cn';
 import { ImagePlus, Loader2, X } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
 import { useCardHold } from '../lib/card-hold';

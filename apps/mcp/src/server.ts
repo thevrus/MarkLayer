@@ -1,24 +1,24 @@
-// Read, not restated: the literal here silently fell three releases behind package.json before.
 import {
   ConnectInput,
-  callCreateTool,
-  callRoomTool,
+  callTool,
   err,
   fail,
+  instructionsFor,
+  MCP_SERVER_VERSION,
   ok,
   type PreviewCreated,
   type PreviewRequest,
   parseRoomRef,
-  TOOLS,
+  previewCreatedSchema,
   type ToolContent,
+  toolsFor,
 } from '@marklayer/agent-tools';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { nanoid } from 'nanoid';
 import { z } from 'zod/mini';
-import { version } from '../package.json' with { type: 'json' };
-import { RoomClient } from './room.js';
+import { type ConnectedRoom, connectRoom } from './room.js';
 
 interface ServerOptions {
   apiBase: string;
@@ -28,52 +28,29 @@ interface ServerOptions {
   password: string | null;
 }
 
+const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
 export async function startServer(opts: ServerOptions): Promise<void> {
   const server = new Server(
-    { name: 'marklayer-mcp', version },
-    {
-      capabilities: { tools: {} },
-      instructions:
-        'Bridge between MarkLayer annotations on a webpage and an AI coding agent. ' +
-        'Call marklayer_connect_room first if no MARKLAYER_ROOM was provided at startup. ' +
-        'Each annotation carries a `kind` (comment | area | selection | inspect) and, where available, ' +
-        'a `target` block with the element selector + markdown — that is your handle for code changes; ' +
-        'do not ask the user to repeat what was clicked. ' +
-        'A selection annotation may also carry a `suggestion`: the exact text the reviewer wants in place of its ' +
-        '`text`. Apply it verbatim rather than paraphrasing it. ' +
-        'A comment (or a reply, from marklayer_get_annotation) may carry `attachments`: fetchable image URLs the ' +
-        'reviewer attached — fetch and look at one before acting on a comment that has any, they often show the ' +
-        'bug or the intended layout better than the text does. ' +
-        'Typical loop: marklayer_list_annotations to backfill anything pending, then marklayer_watch_annotations ' +
-        'in a loop. For each one: acknowledge, make the requested code changes, resolve with a summary. ' +
-        'Use dismiss when an annotation cannot be acted on, with a reason the human can read. ' +
-        'You can also work the other direction: if asked to review, audit, or give feedback on the page (bugs, UX ' +
-        'or accessibility issues, ideas), inspect it with your own tools and call marklayer_create_annotation once ' +
-        'per finding — do not bundle several into one comment. For an exact copy or grammar fix, use ' +
-        'marklayer_suggest_edit instead of a comment, so the human gets a diff to accept rather than prose ' +
-        'describing one.',
-    },
+    { name: 'marklayer-mcp', version: MCP_SERVER_VERSION },
+    { capabilities: { tools: {} }, instructions: instructionsFor('stdio') },
   );
 
-  let room: RoomClient | null = null;
+  let connected: ConnectedRoom | null = null;
 
   // The connected room's password; a new version of a protected room inherits it.
   let roomPassword = opts.password;
 
-  const ensureRoom = (): RoomClient => {
-    if (!room) {
-      throw new Error('no room connected — call marklayer_connect_room first or set MARKLAYER_ROOM in the environment');
-    }
-    return room;
-  };
+  const open = (roomId: string) =>
+    connectRoom({ apiBase: opts.apiBase, roomId, agentId: opts.agentId, password: roomPassword });
 
   /** Open a preview room through the share API, then connect to it so the next tool works the new room. */
   const createPreview = async (request: PreviewRequest): Promise<PreviewCreated | { error: string }> => {
     let previous: string | undefined;
     try {
-      previous = request.previous ? parseRoomRef(request.previous) : room?.roomId;
+      previous = request.previous ? parseRoomRef(request.previous) : connected?.room.roomId;
     } catch (e) {
-      return { error: e instanceof Error ? e.message : 'invalid previous room' };
+      return { error: messageOf(e) };
     }
     const created = await postPreview({
       apiBase: opts.apiBase,
@@ -82,62 +59,44 @@ export async function startServer(opts: ServerOptions): Promise<void> {
       password: roomPassword,
     });
     if ('error' in created) return created;
-    const next = new RoomClient({
-      apiBase: opts.apiBase,
-      roomId: created.id,
-      agentId: opts.agentId,
-      password: roomPassword,
-    });
-    await next.connect();
-    room?.close();
-    room = next;
+    const next = await open(created.id);
+    connected?.close();
+    connected = next;
     return created;
   };
 
   if (opts.initialRoom) {
     try {
-      room = new RoomClient({
-        apiBase: opts.apiBase,
-        roomId: parseRoomRef(opts.initialRoom),
-        agentId: opts.agentId,
-        password: opts.password,
-      });
-      await room.connect();
+      connected = await open(parseRoomRef(opts.initialRoom));
     } catch (e) {
-      console.error(`marklayer-mcp: failed to connect to initial room: ${(e as Error).message}`);
-      room = null;
+      console.error(`marklayer-mcp: failed to connect to initial room: ${messageOf(e)}`);
     }
   }
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: toolsFor('stdio') }));
 
   server.setRequestHandler(CallToolRequestSchema, async (req): Promise<ToolContent> => {
     const name = req.params.name;
     const rawArgs = req.params.arguments ?? {};
     try {
-      // connect_room is the one tool that is not about a room's contents, so it
-      // stays here: over HTTP the room is already named in the URL and there is
-      // nothing to connect.
+      // The one tool that exists only here: over HTTP the URL names the room.
       if (name === 'marklayer_connect_room') {
         const parsed = ConnectInput.safeParse(rawArgs);
         if (!parsed.success) return fail(parsed.error);
         const id = parseRoomRef(parsed.data.room);
-        if (room) room.close();
+        connected?.close();
+        connected = null;
         // An explicit password wins; otherwise the startup one, which another room simply refuses.
         roomPassword = parsed.data.password ?? opts.password;
-        room = new RoomClient({ apiBase: opts.apiBase, roomId: id, agentId: opts.agentId, password: roomPassword });
-        await room.connect();
-        return ok({ roomId: id, ...room.getMeta() });
+        connected = await open(id);
+        return ok({ roomId: id, ...connected.room.getMeta() });
       }
 
-      const made = await callCreateTool({ name, args: rawArgs, createPreview, apiBase: opts.apiBase });
-      if (made) return made;
-
-      const r = ensureRoom();
-      const handled = await callRoomTool({ name, args: rawArgs, room: r, apiBase: opts.apiBase });
+      const room = connected?.room ?? null;
+      const handled = await callTool({ name, args: rawArgs, room, apiBase: opts.apiBase, createPreview });
       return handled ?? err(`unknown tool: ${name}`);
     } catch (e) {
-      return err((e as Error).message);
+      return err(messageOf(e));
     }
   });
 
@@ -145,10 +104,8 @@ export async function startServer(opts: ServerOptions): Promise<void> {
   await server.connect(transport);
 
   const cleanup = () => {
-    if (room) {
-      room.close();
-      room = null;
-    }
+    connected?.close();
+    connected = null;
     process.exit(0);
   };
   process.on('SIGINT', cleanup);
@@ -176,23 +133,10 @@ async function postPreview({
   }).catch((e: unknown) => (e instanceof Error ? e : new Error(String(e))));
   if (res instanceof Error) return { error: `could not reach ${apiBase}: ${res.message}` };
   const body: unknown = await res.json().catch(() => null);
-  const parsed = PreviewResponse.safeParse(body);
-  if (res.ok && parsed.success) {
-    return {
-      id: parsed.data.id,
-      link: parsed.data.url,
-      version: parsed.data.version,
-      previousId: parsed.data.previous,
-    };
-  }
+  const parsed = previewCreatedSchema.safeParse(body);
+  if (res.ok && parsed.success) return parsed.data;
   const reason = ErrorBody.safeParse(body);
   return { error: reason.success ? reason.data.error : `share API answered ${res.status}` };
 }
 
-const PreviewResponse = z.object({
-  id: z.string(),
-  url: z.string(),
-  version: z.nullable(z.number()),
-  previous: z.nullable(z.string()),
-});
 const ErrorBody = z.object({ error: z.string() });

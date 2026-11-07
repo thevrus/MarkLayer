@@ -1,7 +1,8 @@
-import { arrowHeadBarbs, arrowHeadLength } from '@marklayer/types';
 import getStroke from 'perfect-freehand';
-import { captureScale } from './anchor';
-import { FREEHAND } from './state';
+import { arrowHeadBarbs, arrowHeadLength } from './arrow-head';
+import { scrollOffset } from './scroller';
+import { TEXT_FONT_STACK } from './text-op';
+import { FREEHAND } from './tools';
 import type { DrawOp, Point, Tool } from './types';
 
 const ANGLE_SNAP_TOOLS = new Set<Tool>(['line', 'arrow', 'pen', 'highlight', 'eraser']);
@@ -211,8 +212,7 @@ export function circleHitsRect(cx: number, cy: number, r: number, rx: number, ry
  *
  * `ox`, `oy` are the scroll offsets (subtracted from doc coords to get
  * viewport coords). `scale` applies a uniform multiplier to every coordinate
- * + stroke width, used when the op was drawn at a different viewport width
- * than the current one — see `captureScale` in anchor.ts.
+ * + stroke width (used by the area screenshot's pixel ratio).
  */
 export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy: number, scale = 1) {
   if (op.tool === 'comment' || op.tool === 'selection') return;
@@ -222,7 +222,7 @@ export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy
     c.save();
     // Text carries no composite op of its own; an eraser left on the context would erase it.
     c.globalCompositeOperation = 'source-over';
-    c.font = `${op.fontSize * scale}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif`;
+    c.font = `${op.fontSize * scale}px ${TEXT_FONT_STACK}`;
     c.fillStyle = op.color;
     c.textBaseline = 'top';
     c.fillText(op.text, sx(op.x), sy(op.y));
@@ -300,7 +300,8 @@ export function renderOp(c: CanvasRenderingContext2D, op: DrawOp, ox: number, oy
 }
 
 /** On-screen eraser size: the cursor ring, and twice the hit radius for comments, areas and selections. */
-export const eraserDiameter = (lineWidth: number) => Math.max(5, lineWidth * 1.5) * 2.5;
+export const eraserWidth = (lineWidth: number) => Math.max(5, lineWidth * 1.5);
+export const eraserDiameter = (lineWidth: number) => eraserWidth(lineWidth) * 2.5;
 
 export function redrawCanvas(canvas: HTMLCanvasElement, ops: DrawOp[]) {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -309,18 +310,12 @@ export function redrawCanvas(canvas: HTMLCanvasElement, ops: DrawOp[]) {
   // carries a DPR transform, so clear/cull math uses CSS px — `canvas.width`
   // would over-cull on Retina by clearing/culling against device-px extents.
   ctx.clearRect(0, 0, innerWidth, innerHeight);
-  const [vx, vy, vw, vh] = [scrollX, scrollY, innerWidth, innerHeight];
+  const { x: vx, y: vy } = scrollOffset(window);
+  const [vw, vh] = [innerWidth, innerHeight];
   for (const op of ops) {
-    const scale = captureScale(op.captureViewport);
     // No anchor reprojection here: `isAnchorableOp` is true only for comment,
     // selection and area, and all three render as DOM. Every op the canvas
     // actually paints sits in document coordinates.
-    const bounds = opBounds(op);
-    const culled =
-      bounds && scale !== 1
-        ? { x: bounds.x * scale, y: bounds.y * scale, w: bounds.w * scale, h: bounds.h * scale }
-        : bounds;
-
-    if (inView(culled, vx, vy, vw, vh)) renderOp(ctx, op, vx, vy, scale);
+    if (inView(opBounds(op), vx, vy, vw, vh)) renderOp(ctx, op, vx, vy);
   }
 }

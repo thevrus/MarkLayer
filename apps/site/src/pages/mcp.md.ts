@@ -1,5 +1,5 @@
+import { MCP_SERVER_VERSION } from '@marklayer/agent-tools';
 import type { APIRoute } from 'astro';
-import { MCP_VERSION } from '../lib/agent';
 import { AGENT_TOOL_GROUPS, AGENT_TOOLS } from '../lib/agent-tools';
 import { MCP_CLIENTS, MCP_HABIT, MCP_PROMPTS, ROOM_MCP_URL } from '../lib/mcp-setup';
 
@@ -29,7 +29,7 @@ Replace \`<id>\` with the id in the share link. No account, no API key: the
 link is the credential. Add \`?agent=<name>\` so reviewers see which agent
 picked up their comment; it defaults to "agent".
 
-The same ${AGENT_TOOLS.length} tools ship on npm as \`marklayer-mcp\` (v${MCP_VERSION}), a local
+The same ${AGENT_TOOLS.length} tools ship on npm as \`marklayer-mcp\` (v${MCP_SERVER_VERSION}), a local
 stdio server, for clients that cannot reach remote servers or want one install
 that covers every link. Set \`MARKLAYER_AGENT\` to the client's name, and
 \`MARKLAYER_PASSWORD\` for a password-protected link. Over HTTP a protected

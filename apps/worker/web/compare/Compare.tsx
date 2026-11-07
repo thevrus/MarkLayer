@@ -2,11 +2,18 @@ import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
-import { cn } from '@marklayer/types';
-import { signal, useSignal } from '@preact/signals';
+import { displayHost } from '@marklayer/brand/links';
+import { cn } from '@marklayer/ui/cn';
+import { signal, useSignal, useSignalEffect } from '@preact/signals';
 import type { JSX } from 'preact';
-import { useEffect } from 'preact/hooks';
 import { useLocation, useSearch } from 'wouter-preact';
+import {
+  FRAME_MESSAGE,
+  FRAME_SANDBOX,
+  onFrameMessage,
+  PARENT_MESSAGE,
+  type ParentMessage,
+} from '../../shared/frame-protocol';
 import { frameSrc } from '../docSource';
 import { Logo } from '../shared';
 import { parseCompareUrl } from './url';
@@ -29,13 +36,10 @@ const split = signal(50);
 /** Mounted iframes. Module-level because switching mode remounts them and the relay only needs the live ones. */
 const frames: Record<Side, HTMLIFrameElement | null> = { a: null, b: null };
 
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
-}
+const hostOf = (url: string): string => displayHost(url) ?? url;
+
+const tellFrame = (frame: HTMLIFrameElement | null, message: ParentMessage) =>
+  frame?.contentWindow?.postMessage(message, location.origin);
 
 /**
  * Relays each page's scroll position to the other. The proxy's bridge script only
@@ -43,20 +47,15 @@ function hostOf(url: string): string {
  * window can neither drive these frames nor be driven by them.
  */
 function useScrollRelay() {
-  useEffect(() => {
-    const onMessage = (e: MessageEvent) => {
-      if (!e.source || e.data?.type !== 'ml-scroll' || typeof e.data.ratio !== 'number') return;
-      const from: Side | null =
-        e.source === frames.a?.contentWindow ? 'a' : e.source === frames.b?.contentWindow ? 'b' : null;
-      if (!from) return;
-      frames[from === 'a' ? 'b' : 'a']?.contentWindow?.postMessage(
-        { type: 'ml-scroll-to', ratio: e.data.ratio },
-        location.origin,
-      );
-    };
-    window.addEventListener('message', onMessage);
-    return () => window.removeEventListener('message', onMessage);
-  }, []);
+  useSignalEffect(() =>
+    onFrameMessage({
+      frames: () => [frames.a, frames.b],
+      handler: ({ message, frame }) => {
+        if (message.type !== FRAME_MESSAGE.scroll) return;
+        tellFrame(frame === frames.a ? frames.b : frames.a, { type: PARENT_MESSAGE.scrollTo, ratio: message.ratio });
+      },
+    }),
+  );
 }
 
 function CompareFrame({ side, url }: { side: Side; url: string }) {
@@ -67,8 +66,8 @@ function CompareFrame({ side, url }: { side: Side; url: string }) {
       }}
       title={`${SIDE_LABEL[side]}: ${hostOf(url)}`}
       src={frameSrc({ url })}
-      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-      onLoad={(e) => e.currentTarget.contentWindow?.postMessage({ type: 'ml-scroll-sync', on: true }, location.origin)}
+      sandbox={FRAME_SANDBOX}
+      onLoad={(e) => tellFrame(e.currentTarget, { type: PARENT_MESSAGE.scrollSync, on: true })}
       class="block h-full w-full border-none bg-white"
     />
   );

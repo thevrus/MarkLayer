@@ -1,7 +1,8 @@
+import { ORIGIN } from '@marklayer/brand';
 import type { APIRoute } from 'astro';
 import dates from '../data/page-dates.json';
 import { getAlternatives, getComparisons, getGuides, getReleases, getUseCases } from '../lib/collections';
-import { ORIGIN } from '../lib/site';
+import { alternativesPath, forPath, guidePath, releasePath, vsPath } from '../lib/site';
 
 type Entry = { path: string; lastmod: string; changefreq: string; priority: string };
 
@@ -43,13 +44,13 @@ export const GET: APIRoute = async () => {
     // The changelog gains an entry on every release, so it is re-crawled on the
     // home page's cadence rather than a hub's monthly one.
     { path: '/changelog', lastmod: dates['hub-changelog'].modified, changefreq: 'weekly', priority: '0.8' },
-    ...comparisons.map((c) => article(`/vs/${c.id}`, c.data.modified)),
-    ...alternatives.map((a) => article(`/alternatives/${a.id}`, a.data.modified)),
-    ...useCases.map((u) => article(`/for/${u.id}`, u.data.modified)),
-    ...guides.map((g) => article(`/guides/${g.id}`, g.data.modified)),
+    ...comparisons.map((c) => article(vsPath(c.id), c.data.modified)),
+    ...alternatives.map((a) => article(alternativesPath(a.id), a.data.modified)),
+    ...useCases.map((u) => article(forPath(u.id), u.data.modified)),
+    ...guides.map((g) => article(guidePath(g.id), g.data.modified)),
     // A shipped release never changes again, so `yearly` is the honest signal.
     ...releases.map((r) => ({
-      path: `/changelog/${r.id}`,
+      path: releasePath(r.id),
       lastmod: r.data.date,
       changefreq: 'yearly',
       priority: '0.5',
@@ -60,6 +61,7 @@ export const GET: APIRoute = async () => {
     { path: '/support', lastmod: dates.support.modified, changefreq: 'monthly', priority: '0.4' },
     article('/about', dates.about.modified),
     { path: '/privacy', lastmod: dates.privacy.modified, changefreq: 'monthly', priority: '0.3' },
+    { path: '/bot', lastmod: dates.bot.modified, changefreq: 'yearly', priority: '0.2' },
   ];
 
   const body = `<?xml version="1.0" encoding="UTF-8"?>

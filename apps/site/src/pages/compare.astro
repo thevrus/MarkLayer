@@ -3,6 +3,7 @@ import ArticleLayout from '../layouts/ArticleLayout.astro';
 import { getComparisons } from '../lib/collections';
 import { articleSchema } from '../lib/schema';
 import dates from '../data/page-dates.json';
+import { vsPath } from '../lib/site';
 
 const comparisons = await getComparisons();
 const { published, modified } = dates['hub-compare'];
@@ -46,7 +47,7 @@ const h1 = 'MarkLayer comparisons';
     comparisons.map((c) => (
       <div class="ml-entry">
         <h3>
-          <a href={`/vs/${c.id}`}>
+          <a href={vsPath(c.id)}>
             <span class="font-normal text-meta">MarkLayer vs</span> {c.data.competitor}
           </a>
         </h3>

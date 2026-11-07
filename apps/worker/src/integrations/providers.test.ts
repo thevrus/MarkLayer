@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { DrawOp } from '@marklayer/types';
+import type { DrawOp } from '@marklayer/types/ops';
 import { validateIntegration } from './deliver';
 import { PROVIDERS, providerList } from './providers';
 import { type Notifiable, notifiableFrom, type RoomEvent } from './types';
@@ -40,7 +40,7 @@ describe('notifiableFrom', () => {
 });
 
 /** A config each provider will actually accept, so the shared tests can render. */
-const configs: Record<string, unknown> = {
+const configs: Record<string, Record<string, string>> = {
   slack: config,
   teams: config,
   discord: config,
@@ -84,9 +84,12 @@ describe('every provider', () => {
     }
   });
 
-  test('every provider declares at least one config field', () => {
+  // `fields` is all the settings form can ask for, so a shape field missing from it can never be filled in.
+  test('can be configured from nothing but the fields it declares', () => {
     for (const provider of providerList) {
-      expect(provider.fields.length).toBeGreaterThan(0);
+      const asked = provider.fields.map((field) => [field.name, configs[provider.id]?.[field.name]]);
+      const rendered = provider.render({ event: eventFor(provider), config: Object.fromEntries(asked), ...args });
+      expect(rendered).not.toBeNull();
     }
   });
 });
@@ -191,7 +194,7 @@ describe('jira', () => {
 
   test('refuses a site that is not a bare tenant name', () => {
     for (const site of ['acme.atlassian.net', 'evil.test/acme', 'acme/../other', '-acme', '']) {
-      expect(render({ ...(configs.jira as object), site })).toBeNull();
+      expect(render({ ...configs.jira, site })).toBeNull();
     }
   });
 
@@ -202,7 +205,7 @@ describe('jira', () => {
   // btoa throws over code point 255, and an accented name should not take the
   // integration down.
   test('survives a non-ASCII account name', () => {
-    const rendered = render({ ...(configs.jira as object), email: 'ada@açme.com' });
+    const rendered = render({ ...configs.jira, email: 'ada@açme.com' });
     expect(rendered?.headers.Authorization).toStartWith('Basic ');
   });
 

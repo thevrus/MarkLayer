@@ -1,125 +1,49 @@
 import { Tooltip } from '@ext/components/Tooltip';
+import { bumpAnchorGeneration } from '@ext/lib/host-mutations';
+import { useDismissible } from '@ext/lib/keymap';
+import { rootComments } from '@ext/lib/ops';
 import { findPageScroller, notePageScroller, scrollOffset, scrollPageBy } from '@ext/lib/scroller';
-import { bumpAnchorGeneration, focusedAnnotationId, rootComments, showAnnotationPanel } from '@ext/lib/state';
 import type { CommentOp, DeviceMode } from '@ext/lib/types';
-import { cn, isSettled, resolveOpStatus } from '@marklayer/types';
+import { isSettled, resolveOpStatus } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { computed, signal, useSignalEffect } from '@preact/signals';
 import { useLayoutEffect, useRef } from 'preact/hooks';
-import { tinykeys } from 'tinykeys';
+import { FRAME_SANDBOX_PREVIEW, hasFrameMarker } from '../shared/frame-protocol';
+import {
+  cam,
+  type Frame,
+  fitCanvas,
+  frames,
+  LABEL_H,
+  panBy,
+  stageCenter,
+  stageSize,
+  touched,
+  zoomAt,
+} from './deviceCamera';
 import { frameSrc, hideScrollbars } from './docSource';
-import { resolveAnchors } from './iframeOverlay';
+import { resolveAnchors, useIframeOverlay, wheelUnit } from './iframeOverlay';
+import { pageUrl } from './projects';
 import { DEVICE_ICONS, DEVICE_LABELS } from './shared';
-import { DEVICE_WIDTHS, deviceMode, deviceOverview, originalWidth, pageUrl } from './signals';
+import { openAnnotation } from './viewer-actions';
+import { deviceMode, deviceOverview } from './viewer-state';
 import { useViewerFrame } from './viewerFrame';
 
-const MODES: readonly DeviceMode[] = ['desktop', 'tablet', 'mobile'];
-/** How much of the page a frame shows: one screen of it. Desktop takes a 16:10 screen at its width. */
-const VIEWPORT_H = { tablet: 1024, mobile: 844 } as const;
-const DESKTOP_RATIO = 0.625;
-const FALLBACK_DESKTOP_W = 1280;
-/** World px between frames. */
-const GAP = 120;
-/** Screen px kept clear around the frames when fitting. */
-const PAD = 56;
-/** Screen px above a frame for its label. */
-const LABEL_H = 28;
-const MIN_Z = 0.05;
-const MAX_Z = 4;
-const STOPS = [0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
 /** Travel before a press becomes a pan, so a slightly shaky click still opens the frame. */
 const DRAG_SLOP = 4;
 
-interface Frame {
-  mode: DeviceMode;
-  x: number;
-  w: number;
-  h: number;
-}
 interface Pin {
   op: CommentOp;
   x: number;
   y: number;
 }
 
-const stageSize = signal({ w: 0, h: 0 });
-/** Screen offset of the world origin, and the world-to-screen scale. */
-const cam = signal({ x: 0, y: 0, z: 1 });
-/** Set once the visitor pans or zooms, so a resize stops refitting the view under them. */
-const touched = signal(false);
 const panning = signal(false);
 const frameDocs = signal<Partial<Record<DeviceMode, Document>>>({});
 /** Bumped when a frame's page reflows (late fonts, lazy images), so its pins re-resolve. */
 const layoutTick = signal(0);
 /** Each frame's page scroll, so its pins move with the page under them. */
 const frameScroll = signal<Partial<Record<DeviceMode, number>>>({});
-
-const frames = computed<Frame[]>(() => {
-  let x = 0;
-  return MODES.map((mode) => {
-    const w = mode === 'desktop' ? originalWidth.value || FALLBACK_DESKTOP_W : DEVICE_WIDTHS[mode];
-    const h = mode === 'desktop' ? Math.round(w * DESKTOP_RATIO) : VIEWPORT_H[mode];
-    const frame = { mode, x, w, h };
-    x += w + GAP;
-    return frame;
-  });
-});
-
-const extent = computed(() => ({
-  w: Math.max(...frames.value.map((f) => f.x + f.w)),
-  h: Math.max(...frames.value.map((f) => f.h)),
-}));
-
-const clampZ = (z: number) => Math.min(MAX_Z, Math.max(MIN_Z, z));
-
-const fitZoom = computed(() => {
-  const { w, h } = stageSize.value;
-  return clampZ(Math.min((w - PAD * 2) / extent.value.w, (h - PAD * 2 - LABEL_H) / extent.value.h, 1));
-});
-
-export const canvasZoom = computed(() => cam.value.z);
-export const canvasFitted = computed(() => !touched.value);
-
-function fitCanvas() {
-  const { w, h } = stageSize.value;
-  const z = fitZoom.value;
-  cam.value = { z, x: (w - extent.value.w * z) / 2, y: (h - extent.value.h * z + LABEL_H) / 2 };
-}
-
-/** An explicit fit hands the view back to auto-fit, so a resize after it refits again. */
-function refit() {
-  touched.value = false;
-  fitCanvas();
-}
-
-/** Zoom keeping the world point under `at` (stage px) where it is. */
-function zoomAt({ z, at }: { z: number; at: { x: number; y: number } }) {
-  const c = cam.value;
-  const next = clampZ(z);
-  touched.value = true;
-  cam.value = { z: next, x: at.x - ((at.x - c.x) * next) / c.z, y: at.y - ((at.y - c.y) * next) / c.z };
-}
-
-function panBy(dx: number, dy: number) {
-  touched.value = true;
-  cam.value = { ...cam.value, x: cam.value.x + dx, y: cam.value.y + dy };
-}
-
-const stageCenter = () => ({ x: stageSize.value.w / 2, y: stageSize.value.h / 2 });
-
-function zoomCanvasTo(z: number) {
-  zoomAt({ z, at: stageCenter() });
-}
-
-function stepCanvasZoom(dir: 1 | -1) {
-  const z = cam.value.z;
-  const next = dir > 0 ? STOPS.find((s) => s > z + 0.001) : [...STOPS].reverse().find((s) => s < z - 0.001);
-  if (next !== undefined) zoomCanvasTo(next);
-}
-
-export function toggleCanvasFit() {
-  if (canvasFitted.value) zoomCanvasTo(1);
-  else refit();
-}
 
 const openComments = computed(() => {
   const byMode: Partial<Record<DeviceMode, CommentOp[]>> = {};
@@ -165,28 +89,25 @@ function trackScroll({ mode, doc, win }: { mode: DeviceMode; doc: Document; win:
   // A reload starts the new page at its top; the last page's offset would misplace every pin.
   frameScroll.value = { ...frameScroll.value, [mode]: scrollOffset(win).y };
   let queued = false;
+  const onScroll = (e: Event) => {
+    notePageScroller(doc, e.target);
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      frameScroll.value = { ...frameScroll.value, [mode]: scrollOffset(win).y };
+    });
+  };
   // Capture phase: an app-shell page scrolls an element, whose scroll event never bubbles.
-  doc.addEventListener(
-    'scroll',
-    (e) => {
-      notePageScroller(doc, e.target);
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(() => {
-        queued = false;
-        frameScroll.value = { ...frameScroll.value, [mode]: scrollOffset(win).y };
-      });
-    },
-    true,
-  );
+  doc.addEventListener('scroll', onScroll, true);
+  return () => doc.removeEventListener('scroll', onScroll, true);
 }
 
 function trackLayout(doc: Document) {
   const Observer = doc.defaultView?.ResizeObserver;
-  if (!Observer) return;
+  if (!Observer) return () => {};
   let queued = false;
-  // Dies with the frame's document, so it needs no teardown of its own.
-  new Observer(() => {
+  const observer = new Observer(() => {
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => {
@@ -195,29 +116,37 @@ function trackLayout(doc: Document) {
       bumpAnchorGeneration();
       layoutTick.value++;
     });
-  }).observe(doc.documentElement);
+  });
+  observer.observe(doc.documentElement);
+  return () => observer.disconnect();
 }
 
 function FramePage({ frame }: { frame: Frame }) {
   const { mode, x, w, h } = frame;
+  const ref = useRef<HTMLIFrameElement>(null);
+  useIframeOverlay(ref, ({ win, doc }) => {
+    // The frame's first document is the blank one it was created with.
+    if (!hasFrameMarker(doc)) return () => {};
+    // A scrollbar in a frame is noise; the wheel scrolls it from here instead.
+    hideScrollbars(doc);
+    const stopLayout = trackLayout(doc);
+    const stopScroll = trackScroll({ mode, doc, win });
+    frameDocs.value = { ...frameDocs.value, [mode]: doc };
+    return () => {
+      stopLayout();
+      stopScroll();
+    };
+  });
   return (
     <iframe
+      ref={ref}
       title={`${DEVICE_LABELS[mode]} preview`}
       src={pageUrl.value ? frameSrc({ url: pageUrl.value }) : undefined}
-      sandbox="allow-scripts allow-same-origin"
+      sandbox={FRAME_SANDBOX_PREVIEW}
       tabIndex={-1}
       aria-hidden="true"
       class="ph-no-capture absolute top-0 border-none bg-white pointer-events-none"
       style={{ left: x, width: w, height: h }}
-      onLoad={(e) => {
-        const doc = e.currentTarget.contentDocument;
-        if (!doc) return;
-        // A scrollbar in a frame is noise; the wheel scrolls it from here instead.
-        hideScrollbars(doc);
-        trackLayout(doc);
-        if (doc.defaultView) trackScroll({ mode, doc, win: doc.defaultView });
-        frameDocs.value = { ...frameDocs.value, [mode]: doc };
-      }}
     />
   );
 }
@@ -301,13 +230,19 @@ export function DeviceOverview() {
     actions: { scrollToAnnotation },
   } = useViewerFrame();
   const open = deviceOverview.value;
+  useDismissible({
+    open: deviceOverview,
+    close: () => {
+      deviceOverview.value = false;
+    },
+  });
 
   // Until the visitor moves the view, it follows the stage size and the desktop width.
   useSignalEffect(() => {
     if (deviceOverview.value && stageSize.value.w > 0 && !touched.value) fitCanvas();
   });
 
-  // Wheel, Safari's gesture events, ResizeObserver and tinykeys are not signal-aware. A layout
+  // Wheel, Safari's gesture events and ResizeObserver are not signal-aware. A layout
   // effect, so a reopen measures and refits before the first paint instead of flashing the last camera.
   useLayoutEffect(() => {
     const el = stageRef.current;
@@ -328,12 +263,7 @@ export function DeviceOverview() {
     // frame scrolls its page, anywhere else it pans; drag pans everywhere.
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const unit =
-        e.deltaMode === WheelEvent.DOM_DELTA_LINE
-          ? 16
-          : e.deltaMode === WheelEvent.DOM_DELTA_PAGE
-            ? el.clientHeight
-            : 1;
+      const unit = wheelUnit({ e, pageHeight: el.clientHeight });
       const dx = e.deltaX * unit;
       const dy = e.deltaY * unit;
       if (e.ctrlKey || e.metaKey) {
@@ -379,27 +309,11 @@ export function DeviceOverview() {
     el.addEventListener('wheel', onWheel, { passive: false });
     el.addEventListener('gesturestart', onGestureStart);
     el.addEventListener('gesturechange', onGestureChange);
-
-    const pd = (fn: () => void) => (e: KeyboardEvent) => {
-      e.preventDefault();
-      fn();
-    };
-    const unbind = tinykeys(window, {
-      Escape: () => {
-        deviceOverview.value = false;
-      },
-      'Shift+Digit1': pd(refit),
-      'Shift+Digit0': pd(() => zoomCanvasTo(1)),
-      '$mod+Digit0': pd(refit),
-      '$mod+Equal': pd(() => stepCanvasZoom(1)),
-      '$mod+Minus': pd(() => stepCanvasZoom(-1)),
-    });
     return () => {
       ro.disconnect();
       el.removeEventListener('wheel', onWheel);
       el.removeEventListener('gesturestart', onGestureStart);
       el.removeEventListener('gesturechange', onGestureChange);
-      unbind();
       frameDocs.value = {};
       frameScroll.value = {};
       stageSize.value = { w: 0, h: 0 };
@@ -411,11 +325,10 @@ export function DeviceOverview() {
 
   const onPin = ({ pin, mode }: { pin: Pin; mode: DeviceMode }) => {
     if (panned.current) return;
-    focusedAnnotationId.value = pin.op.id;
-    showAnnotationPanel.value = true;
+    openAnnotation(pin.op.id);
     pick(mode);
     // The stage takes the new width on the next render; the pin's place in it is the one resolved here.
-    requestAnimationFrame(() => scrollToAnnotation(pin.x, pin.y));
+    requestAnimationFrame(() => scrollToAnnotation(pin.y));
   };
   const onPick = (mode: DeviceMode) => {
     if (!panned.current) pick(mode);

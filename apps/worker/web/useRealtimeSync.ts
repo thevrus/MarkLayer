@@ -1,42 +1,26 @@
 import { connectRoom } from '@ext/lib/realtime';
 import { useEffect } from 'preact/hooks';
-import { capture } from './analytics';
-import { canEditFromRoom, followingPeer, isReadonly, onFollowScroll, onPresentChange, presenting } from './signals';
-import { noteSupportSignal } from './support';
-
-export {
-  activeRipples,
-  connected,
-  createdAt,
-  emitRipple,
-  expiresAt,
-  isOwned,
-  localPeerId,
-  onRtcMessage,
-  peerCursorSamples,
-  serverUrl,
-  serverWidth,
-  turnIceServers,
-  wsSend,
-} from '@ext/lib/realtime';
+import { viewerRoomMessages } from './room-messages';
+import { presenting } from './ui-state';
+import { urlForcesReadonly } from './viewer-state';
 
 export function useRealtimeSync(annotationId: string) {
   useEffect(() => {
-    return connectRoom({
+    const disconnect = connectRoom({
       roomId: annotationId,
       origin: location.origin,
       hooks: {
-        canEditFromRoom,
-        isReadonly,
-        followingPeer,
-        onFollowScroll,
-        presenting,
-        onPresentChange,
-        capture,
-        noteSupportSignal,
+        forcedReadonly: urlForcesReadonly,
+        onMessage: viewerRoomMessages(),
         // The page route owns the password prompt; reloading hands the visitor to it.
         onLocked: () => location.reload(),
       },
     });
+    return () => {
+      disconnect();
+      // Presenting cannot outlive the socket that carries it. Followers are
+      // released by the peer_leave this disconnect triggers on their side.
+      presenting.value = false;
+    };
   }, [annotationId]);
 }

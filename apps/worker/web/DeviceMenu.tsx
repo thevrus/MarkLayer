@@ -2,7 +2,7 @@ import { Menu } from '@base-ui/react/menu';
 import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { geist } from '@ext/lib/geist';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { useComputed } from '@preact/signals';
 import { Check, ChevronDown, ChevronRight, Headphones, Mic, Video } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';

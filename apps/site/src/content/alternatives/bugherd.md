@@ -12,18 +12,18 @@ published: 2026-02-02
 modified: 2026-09-24
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open source. Paste a URL and annotate the live page in your browser; the web app needs no account and no extension unless the page sits behind a login. Drawing tools, pinned comments and live cursors cover the annotation itself. A board sorts every comment into status columns, and a one-way integration files a comment into Linear, GitHub, Jira or Trello. It tracks no due dates, and a ticket's later status never comes back. An MCP server lets an AI coding agent work the same room."
     bestFor: "Lightweight visual feedback without a paid bug-tracking platform."
   - name: "Markup.io"
-    url: "/vs/markup-io"
+    compare: markup-io
     pitch: "No longer free. Markup.io dropped its free tier, and Pro now starts at $79/month for 50 MarkUps, scaling to $129 for 100, with unlimited users on one workspace and a 14-day trial. What that buys is project-based review with version tracking, useful if you're managing a string of client deliverables. Feedback stays comment-based, with pin-style markup rather than freehand drawing or live cursors."
     bestFor: "Project-based feedback workflows with version tracking."
   - name: "GitHub Issues + screenshots"
     pitch: "Free if you're already paying for GitHub, but it's a manual loop, not a workflow. Take a screenshot, mark it up in a separate tool, then attach the image to a new issue and describe what's wrong in the body. It works fine for occasional bugs. Filing several a day gets old fast."
     bestFor: "Teams already deep in GitHub Issues who don't mind the manual loop."
   - name: "Hypothesis"
-    url: "/vs/hypothesis"
+    compare: hypothesis
     pitch: "Free and open source. It's built on the W3C annotation standard, and only marks up text: highlights, margin notes, and threaded replies pinned to a passage, not a freehand line, an arrow, or a mark on a broken layout. That solves a different problem than visual bug reporting."
     bestFor: "Scholarly text annotation, not bug reporting."
 faq:

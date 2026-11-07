@@ -1,4 +1,4 @@
-import { HOW_IT_WORKS_PATH } from '@ext/lib/share';
+import { HOW_IT_WORKS_PATH } from '@marklayer/brand/mark';
 
 /**
  * The nav's links. The page shipped with a logo, two icon links and no
@@ -26,6 +26,9 @@ export const NAV_LINKS: { label: string; href: string }[] = [
  * rather than asserted.
  */
 export const HERO_PIN_ID = 'ml-hero-pin';
+
+/** Who left the seeded pin; its purple is from the peer-cursor palette and tints every mark the page makes on itself. */
+export const HERO_AUTHOR = { name: 'Yuki', color: '#8b5cf6' };
 
 export const CTA_CLS =
   'lp-cta inline-flex items-center gap-2 h-11 px-5 rounded-lg text-white text-ui-lg font-medium no-underline whitespace-nowrap transition-colors';

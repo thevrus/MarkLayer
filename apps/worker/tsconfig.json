@@ -14,5 +14,5 @@
       "react/jsx-runtime": ["./node_modules/preact/jsx-runtime"]
     }
   },
-  "include": ["src", "web", "../extension/components", "../extension/lib"]
+  "include": ["src", "web", "shared", "../extension/components", "../extension/lib"]
 }

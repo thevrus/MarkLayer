@@ -37,8 +37,6 @@ const articleBase = {
   bottomLine: z.string(),
   published: isoDate,
   modified: isoDate,
-  /** YouTube video id or full watch/embed URL for an optional demo embed. */
-  video: z.string().optional(),
   faq,
 };
 
@@ -74,7 +72,18 @@ const alternatives = defineCollection({
     homepage: z.url().optional(),
     /** One-liner for the /alternatives hub, so the hub does not duplicate this page's intro. */
     hubBlurb: z.string().optional(),
-    options: z.array(z.object({ name: z.string(), url: href.optional(), pitch: z.string(), bestFor: z.string() })),
+    options: z.array(
+      z.object({
+        name: z.string(),
+        /** The option's `/vs/<slug>` page, which also supplies its price. */
+        compare: z.string().optional(),
+        /** MarkLayer's own row. */
+        self: z.literal(true).optional(),
+        url: href.optional(),
+        pitch: z.string(),
+        bestFor: z.string(),
+      }),
+    ),
   }),
 });
 

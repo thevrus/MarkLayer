@@ -1,31 +1,35 @@
 import { useSignal } from '@preact/signals';
-import { nanoid } from 'nanoid';
 import { useEffect, useRef } from 'preact/hooks';
 import { track } from '../lib/analytics';
-import { activeTool, color, lineWidth, pushOp } from '../lib/state';
-import type { TextOp } from '../lib/types';
+import { pushOp } from '../lib/ops';
+import { color, lineWidth } from '../lib/prefs';
+import { toClient, toDoc } from '../lib/scroller';
+import { makeTextOp, TEXT_FONT_STACK, TEXT_LINE_HEIGHT, textFontSize } from '../lib/text-op';
+import { activeTool } from '../lib/tool-state';
 
 function TextInputOverlay({ x, y, onCommit }: { x: number; y: number; onCommit: (text: string) => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const fontSize = Math.max(14, lineWidth.value * 6);
+  const fontSize = textFontSize(lineWidth.value);
 
   useEffect(() => {
     ref.current?.focus();
   }, []);
+
+  const { x: left, y: top } = toClient({ x, y });
 
   return (
     <textarea
       ref={ref}
       class="fixed bg-transparent border-none outline-none resize-none p-0 m-0 z-2147483647"
       style={{
-        left: x - scrollX,
-        top: y - scrollY,
+        left,
+        top,
         fontSize: `${fontSize}px`,
-        lineHeight: 1.3,
+        lineHeight: TEXT_LINE_HEIGHT,
         color: color.value,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Geist", system-ui, sans-serif',
+        fontFamily: TEXT_FONT_STACK,
         minWidth: '40px',
-        minHeight: `${fontSize * 1.3}px`,
+        minHeight: `${fontSize * TEXT_LINE_HEIGHT}px`,
         caretColor: color.value,
         fieldSizing: 'content',
       }}
@@ -61,7 +65,7 @@ export function TextLayer() {
         }}
         onClick={(e) => {
           if (!isText) return;
-          input.value = { x: e.clientX + scrollX, y: e.clientY + scrollY };
+          input.value = toDoc({ x: e.clientX, y: e.clientY });
         }}
       />
       {input.value && (
@@ -72,18 +76,16 @@ export function TextLayer() {
             if (!text && input.value) track('text_cancelled');
             else if (input.value) {
               const { x, y } = input.value;
-              const op: TextOp = {
-                id: nanoid(),
-                tool: 'text',
-                text,
-                x,
-                y,
-                fontSize: Math.max(14, lineWidth.value * 6),
-                color: color.value,
-                lineWidth: lineWidth.value,
-                captureViewport: { width: window.innerWidth, height: window.innerHeight },
-              };
-              pushOp(op);
+              pushOp(
+                makeTextOp({
+                  text,
+                  x,
+                  y,
+                  color: color.value,
+                  lineWidth: lineWidth.value,
+                  viewport: { width: window.innerWidth, height: window.innerHeight },
+                }),
+              );
             }
             input.value = null;
           }}

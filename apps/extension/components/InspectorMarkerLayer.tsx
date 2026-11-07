@@ -1,19 +1,16 @@
-import { cn } from '@marklayer/types';
+import { isClosed } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
+import { openContextMenu } from '../lib/context-menu';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { scrollTick } from '../lib/host-mutations';
 import { Icon } from '../lib/icons';
 import { useMarkHover } from '../lib/mark-hover';
+import { deleteOp, inspects, setOpStatus } from '../lib/ops';
 import { MARKER_LAYER } from '../lib/popover';
-import {
-  copyText,
-  deleteOp,
-  inspects,
-  openContextMenu,
-  STATUS_LABELS,
-  STATUS_STYLES,
-  scrollTick,
-  setOpStatus,
-} from '../lib/state';
+import { toClient } from '../lib/scroller';
+import { STATUS_LABELS, STATUS_STYLES } from '../lib/status-ui';
+import { copyText } from '../lib/toasts';
 import type { InspectOp } from '../lib/types';
 import { MentionText } from './MentionText';
 
@@ -21,14 +18,13 @@ function InspectorMarker({ op }: { op: InspectOp }) {
   scrollTick.value; // subscribe — repositions when window scrolls
   const status = op.status ?? 'open';
   const styles = STATUS_STYLES[status];
-  const resolved = status === 'resolved' || status === 'dismissed';
+  const resolved = isClosed(status);
 
   // Anchor at the top-left corner of the saved element rect, viewport-relative.
   // Marker shows a small pin even after the page reflows; the saved rect goes
   // stale by design (the inspect op is a snapshot), so we don't try to re-find
   // the live element.
-  const x = op.rect.x - scrollX;
-  const y = op.rect.y - scrollY;
+  const { x, y } = toClient(op.rect);
   const w = op.rect.width;
   const h = op.rect.height;
   // The stroke, not the whole box: an inspected container would otherwise open its
@@ -52,7 +48,7 @@ function InspectorMarker({ op }: { op: InspectOp }) {
       },
       { label: 'Copy markdown', icon: 'copy', onClick: () => copyText(op.markdown, 'Markdown copied') },
       ...(op.comment
-        ? [{ label: 'Copy task', icon: 'copy', onClick: () => copyText(op.comment ?? '', 'Task copied') }]
+        ? [{ label: 'Copy task', icon: 'copy' as const, onClick: () => copyText(op.comment ?? '', 'Task copied') }]
         : []),
       { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
     ]);
@@ -73,7 +69,6 @@ function InspectorMarker({ op }: { op: InspectOp }) {
           opacity: resolved ? 0.35 : 0.55,
         }}
       />
-      {/* The pin itself — small, anchored at top-left, captures the context menu */}
       <div
         class="absolute pointer-events-auto group/inspect"
         style={{ left: x - 6, top: y - 6, width: 16, height: 16 }}

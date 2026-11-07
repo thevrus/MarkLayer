@@ -67,6 +67,3 @@ export function readPeerInfo(value: unknown): PeerInfo | null {
   const parsed = peerInfoSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
 }
-
-// Moved to packages/types so client code can use it without importing server-side src/.
-export { isAgentPeer } from '@marklayer/types';

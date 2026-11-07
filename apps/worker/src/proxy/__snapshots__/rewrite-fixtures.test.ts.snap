@@ -1,0 +1,48 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`rewriting a saved page wikipedia 1`] = `"ccb4edcd505833dd1f5f54aa671723849371d3b491227eecb3d025134d644cbd"`;
+
+exports[`rewriting a saved page hackernews 1`] = `"18018696c51bc39f0d45625c2343d8a9db793fe6f5b8702c37dc54fa3a333202"`;
+
+exports[`rewriting a saved page gov-uk 1`] = `"50248871ccac7d13ed7788401182795624db4bd07ff0144fb5e96c35988b5d5e"`;
+
+exports[`rewriting a saved page wordpress-news 1`] = `"bf3b9f236a56eba620c879d69e02cd3034af33b936f292301a56c6ea90708d14"`;
+
+exports[`rewriting a saved page astro 1`] = `"f74fbd077e9ad3c4382f302e9872314c420fc16383765f5265922708f1a785ef"`;
+
+exports[`rewriting the edge page in a document with a head 1`] = `
+"<!doctype html>
+<html>
+<head>@@INJECTED@@
+
+<meta http-equiv="refresh" content="5;url=/later">
+
+<link rel="stylesheet" href="http://localhost/px/example.com/a.css" crossorigin>
+
+<script>var keep = 1;</script>
+<script></script>
+<style>body{background:url(http://localhost/px/example.com/bg.png)} a{background:url('http://localhost/px/example.com/q.png')} b{background:url("http://localhost/px/example.com/d.png" )} c{background:url(rel.png)} d{background:url(https://cdn.example/e.png)}</style>
+</head>
+<body style="background:url(http://localhost/px/example.com/inline.png)">
+<a href="/stays">anchor</a><map><area href="/stays-too"></map>
+<img src="http://localhost/px/example.com/root.png" srcset="http://localhost/px/example.com/one.png 1x, http://localhost/px/example.com/two.png 2x, https://cdn.example/three.png 3x">
+<img src="http://localhost/px/example.com/abs.png"><img src="http://localhost/px/example.com/proto.png"><img src="//cdn.example/other.png">
+<img src="http://localhost/px/example.com/dir/relative/path.png?a=1&amp;copy=2"><img src="data:image/png;base64,AAAA"><img src="http://localhost/px/example.com/twig.webp">
+<video poster="http://localhost/px/example.com/poster.png"></video><form action="http://localhost/px/example.com/submit"></form>
+<iframe src="mailto:a@b.c"></iframe><img src="http://localhost/px/example.com/already.png">
+</body>
+</html>"
+`;
+
+exports[`rewriting the edge page with no head the block lands in the body 1`] = `"<body>@@INJECTED@@<p>hi</p></body>"`;
+
+exports[`rewriting the edge page with neither it lands at the end of the document 1`] = `"<p>hi</p>@@INJECTED@@"`;
+
+exports[`rewriting a stylesheet served through /px 1`] = `
+"body{background:url(http://localhost/px/example.com/bg.png)}
+a{background:url('http://localhost/px/example.com/q.png')}
+b{background:url("http://localhost/px/example.com/d.png" )}
+c{background:url(rel.png)}
+d{background:url(https://cdn.example/e.png)}
+@import url(http://localhost/px/example.com/more.css);"
+`;

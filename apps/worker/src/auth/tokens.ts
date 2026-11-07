@@ -1,4 +1,4 @@
-import { sha256Hex, toBase64Url } from '../http';
+import { sha256Hex, toBase64Url } from '../encoding';
 
 /** Entropy behind every emailed link and session cookie. */
 const TOKEN_BYTES = 32;

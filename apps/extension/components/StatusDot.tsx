@@ -1,5 +1,5 @@
-import type { CommentStatus } from '@marklayer/types';
-import { STATUS_COLORS } from '../lib/state';
+import type { CommentStatus } from '@marklayer/types/ops';
+import { STATUS_COLORS } from '../lib/status-ui';
 
 /**
  * The status hue, at the one size every list in the app draws it.

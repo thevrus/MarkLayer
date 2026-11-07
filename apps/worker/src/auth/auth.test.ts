@@ -1,7 +1,8 @@
+import type { Database } from 'bun:sqlite';
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { MAX_EXPIRES_IN_SECONDS } from '@marklayer/types';
+import { MAX_EXPIRES_IN_SECONDS } from '../../shared/accounts';
 import { nowInSeconds } from '../store';
-import { fakeDb } from '../test-d1';
+import { insertRow, migratedSqlite, SqliteD1 } from '../test-d1';
 import { FakeExecutionContext, fakeEnv } from '../test-env';
 import { auth } from './routes';
 import { authStore, ownedStore } from './store';
@@ -44,79 +45,110 @@ describe('tokens', () => {
   });
 });
 
+let sqlite: Database;
+let db: D1Database;
+
+beforeEach(() => {
+  sqlite = migratedSqlite();
+  db = new SqliteD1(sqlite);
+});
+
+const room = (id: string, columns: Record<string, string | number | null>) =>
+  insertRow({ sqlite, table: 'annotations', row: { id, ops: '[]', ...columns } });
+
+/** A signed-in person, the way the sign-in path leaves them. */
+async function signIn({
+  userId = 'u1',
+  token = 'tok',
+  lastSeenAt = nowInSeconds(),
+  expiresAt = nowInSeconds() + 1000,
+}: {
+  userId?: string;
+  token?: string;
+  lastSeenAt?: number | null;
+  expiresAt?: number;
+} = {}) {
+  insertRow({ sqlite, table: 'users', row: { id: userId, email: 'a@b.com', last_seen_at: lastSeenAt } });
+  const id = await hashToken(token);
+  insertRow({ sqlite, table: 'sessions', row: { id, user_id: userId, expires_at: expiresAt } });
+}
+
+const lastSeen = () => sqlite.query<{ last_seen_at: number | null }, []>('SELECT last_seen_at FROM users').get();
+
+const link = (id: string) =>
+  sqlite
+    .query<{ owner_id: string | null; access: string; owner_expires_at: number | null }, [string]>(
+      'SELECT owner_id, access, owner_expires_at FROM annotations WHERE id = ?',
+    )
+    .get(id);
+
 describe('authStore.redeemLoginToken', () => {
-  test('returns null when the conditional update matched no row', async () => {
-    // Two tabs opening the same link: the loser's UPDATE returns nothing.
-    expect(await authStore(fakeDb({ first: null })).redeemLoginToken('tok')).toBeNull();
+  // Two tabs opening the same link: the loser must get nothing, so the guard is inside the write.
+  test('a link redeems once', async () => {
+    const store = authStore(db);
+    await store.createLoginToken({ email: 'someone@example.com', token: 'tok' });
+    expect(await store.redeemLoginToken('tok')).toBe('someone@example.com');
+    expect(await store.redeemLoginToken('tok')).toBeNull();
   });
 
-  test('guards single use and expiry inside the UPDATE, not in a prior read', async () => {
-    const db = fakeDb({ first: { email: 'someone@example.com' } });
-    expect(await authStore(db).redeemLoginToken('tok')).toBe('someone@example.com');
-    expect(db.calls).toHaveLength(1);
-    expect(db.calls[0].sql).toContain('used_at IS NULL');
-    expect(db.calls[0].sql).toContain('expires_at >');
-    expect(db.calls[0].sql).toContain('RETURNING email');
+  test('an expired link redeems to nothing', async () => {
+    const row = { id: await hashToken('tok'), email: 'a@b.com', expires_at: nowInSeconds() - 1 };
+    insertRow({ sqlite, table: 'login_tokens', row });
+    expect(await authStore(db).redeemLoginToken('tok')).toBeNull();
   });
 });
 
 describe('authStore.upsertUser', () => {
   test('signs up and signs in with one upsert, taking the id back from the row', async () => {
-    const db = fakeDb({ first: { id: 'existing', email: 'a@b.com' } });
-    expect(await authStore(db).upsertUser('a@b.com')).toEqual({ id: 'existing', email: 'a@b.com' });
-    expect(db.calls).toHaveLength(1);
-    expect(db.calls[0].sql).toContain('ON CONFLICT(email)');
+    const store = authStore(db);
+    const first = await store.upsertUser('a@b.com');
+    expect(first?.email).toBe('a@b.com');
+    expect(await store.upsertUser('a@b.com')).toEqual(first);
+    expect(sqlite.query('SELECT count(*) AS n FROM users').get()).toEqual({ n: 1 });
   });
 });
 
 describe('authStore.userForSession', () => {
-  const now = Math.floor(Date.now() / 1000);
-  const session = (lastSeen: number | null) => ({
-    id: 'u1',
-    email: 'a@b.com',
-    last_seen_at: lastSeen,
-    expires_at: now + 600,
-  });
+  const now = nowInSeconds();
 
   test('returns null for an expired session without writing anything', async () => {
-    const db = fakeDb({ first: { ...session(now), expires_at: now - 1 } });
+    await signIn({ lastSeenAt: 5, expiresAt: now - 1 });
     expect(await authStore(db).userForSession('tok')).toBeNull();
-    expect(db.calls).toHaveLength(1);
+    expect(lastSeen()?.last_seen_at).toBe(5);
   });
 
   // The column is the only record of a return visit: a 30-day cookie means a
   // person can use this for a month without the sign-in path ever running again.
   test('refreshes last_seen_at when it is older than the bump window', async () => {
-    const db = fakeDb({ first: session(now - SEEN_BUMP_SECONDS - 60) });
+    await signIn({ lastSeenAt: now - SEEN_BUMP_SECONDS - 60 });
     expect(await authStore(db).userForSession('tok')).toEqual({ id: 'u1', email: 'a@b.com' });
-    expect(db.calls).toHaveLength(2);
-    expect(db.calls[1].sql).toContain('UPDATE users SET last_seen_at');
-    expect(db.calls[1].bindings[1]).toBe('u1');
+    expect(lastSeen()?.last_seen_at).toBeGreaterThanOrEqual(now);
   });
 
-  test('leaves it alone within the window, so an active session is one read', async () => {
-    const db = fakeDb({ first: session(now - 60) });
+  test('leaves it alone within the window, so an active session costs no write', async () => {
+    await signIn({ lastSeenAt: now - 60 });
     expect(await authStore(db).userForSession('tok')).not.toBeNull();
-    expect(db.calls).toHaveLength(1);
+    expect(lastSeen()?.last_seen_at).toBe(now - 60);
   });
 
   // Rows predating the column's upkeep have it NULL; those are exactly the ones
   // that most need a first real timestamp, not a crash or a skipped write.
   test('treats a null last_seen_at as due for a refresh', async () => {
-    const db = fakeDb({ first: session(null) });
+    await signIn({ lastSeenAt: null });
     await authStore(db).userForSession('tok');
-    expect(db.calls).toHaveLength(2);
+    expect(lastSeen()?.last_seen_at).toBeGreaterThanOrEqual(now);
   });
 });
 
 describe('authStore.throttleSeconds', () => {
   test('allows the first request for an address', async () => {
-    expect(await authStore(fakeDb({ first: null })).throttleSeconds('a@b.com')).toBe(0);
+    expect(await authStore(db).throttleSeconds('a@b.com')).toBe(0);
   });
 
   test('reports the remaining wait while a fresh link is outstanding', async () => {
-    const createdAt = Math.floor(Date.now() / 1000) - 20;
-    const wait = await authStore(fakeDb({ first: { created_at: createdAt } })).throttleSeconds('a@b.com');
+    const row = { id: 'x', email: 'a@b.com', created_at: nowInSeconds() - 20, expires_at: nowInSeconds() + 600 };
+    insertRow({ sqlite, table: 'login_tokens', row });
+    const wait = await authStore(db).throttleSeconds('a@b.com');
     expect(wait).toBeGreaterThan(0);
     expect(wait).toBeLessThanOrEqual(40);
   });
@@ -124,29 +156,26 @@ describe('authStore.throttleSeconds', () => {
 
 describe('ownedStore.claimAnnotation', () => {
   test('only claims a link nobody owns', async () => {
-    const db = fakeDb({ changes: 1 });
+    room('abc', { owner_id: null });
     expect(await ownedStore(db).claimAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(true);
-    expect(db.calls[0].sql).toContain('owner_id IS NULL');
-  });
-
-  test('reports failure when the row is already owned', async () => {
-    expect(await ownedStore(fakeDb({ changes: 0 })).claimAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
+    expect(await ownedStore(db).claimAnnotation({ id: 'abc', ownerId: 'u2' })).toBe(false);
+    expect(link('abc')?.owner_id).toBe('u1');
   });
 });
 
-describe('ownedStore.releaseAnnotation', () => {
+describe('ownedStore.releaseAnnotationGen', () => {
   // The bug this guards: release used to clear only owner_id, so a link left
   // view-only had no owner left to ever flip it back — permanently locked.
   test('also resets access and the owner expiry, not just owner_id', async () => {
-    const db = fakeDb({ changes: 1 });
-    expect(await ownedStore(db).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(true);
-    expect(db.calls[0].sql).toContain("access = 'edit'");
-    expect(db.calls[0].sql).toContain('owner_expires_at = NULL');
-    expect(db.calls[0].sql).toContain('owner_id = NULL');
+    room('abc', { owner_id: 'u1', access: 'view', owner_expires_at: 999, password_gen: 1 });
+    expect(await ownedStore(db).releaseAnnotationGen({ id: 'abc', ownerId: 'u1' })).toEqual({ gen: 2 });
+    expect(link('abc')).toEqual({ owner_id: null, access: 'edit', owner_expires_at: null });
   });
 
   test('reports failure when the session does not own the link', async () => {
-    expect(await ownedStore(fakeDb({ changes: 0 })).releaseAnnotation({ id: 'abc', ownerId: 'u1' })).toBe(false);
+    room('abc', { owner_id: 'u2', access: 'view' });
+    expect(await ownedStore(db).releaseAnnotationGen({ id: 'abc', ownerId: 'u1' })).toBeNull();
+    expect(link('abc')).toEqual({ owner_id: 'u2', access: 'view', owner_expires_at: null });
   });
 });
 
@@ -156,11 +185,9 @@ function fakeRoom() {
   return {
     pings,
     idFromName: (name: string) => name,
-    get: () => ({
-      fetch: async (req: Request) => {
-        pings.push(new URL(req.url).searchParams.get('id') ?? '');
-        return new Response(null, { status: 204 });
-      },
+    get: (id: string) => ({
+      refreshAccess: async () => void pings.push(id),
+      revoke: async () => undefined,
     }),
   };
 }
@@ -169,128 +196,90 @@ function fakeRoom() {
 const testCtx = new FakeExecutionContext();
 
 describe('PATCH /links/:id', () => {
-  const room = fakeRoom();
-  beforeEach(() => {
-    room.pings.length = 0;
+  const namespace = fakeRoom();
+  const EXPIRES = nowInSeconds() + 5000;
+  const jsonHeaders = { Cookie: `${SESSION_COOKIE}=tok`, 'Content-Type': 'application/json' };
+  beforeEach(async () => {
+    namespace.pings.length = 0;
+    await signIn({ userId: 'owner1' });
   });
-  const cookie = `${SESSION_COOKIE}=tok`;
-  const jsonHeaders = { Cookie: cookie, 'Content-Type': 'application/json' };
-  // What `authStore.userForSession`'s join returns for a live session. `last_seen_at`
-  // is current so the daily refresh does not fire and add a write to these counts.
-  const sessionRow = {
-    id: 'owner1',
-    email: 'owner@example.com',
-    last_seen_at: nowInSeconds(),
-    expires_at: nowInSeconds() + 1000,
-  };
-
-  test('the owner flips access and the write carries the resolved values', async () => {
-    const db = fakeDb({ firstQueue: [sessionRow, { access: 'edit', owner_expires_at: null }] });
-    const res = await auth.request(
+  const patch = ({ body, headers = jsonHeaders }: { body: unknown; headers?: Record<string, string> }) =>
+    auth.request(
       '/links/abc',
-      { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ access: 'view' }) },
-      { DB: db, ANNOTATION_ROOM: room },
+      { method: 'PATCH', headers, body: JSON.stringify(body) },
+      { DB: db, ANNOTATION_ROOM: namespace },
       testCtx,
     );
+
+  test('the owner flips access, and what the body left out stays', async () => {
+    room('abc', { owner_id: 'owner1', access: 'edit', owner_expires_at: EXPIRES });
+    const res = await patch({ body: { access: 'view' } });
     expect(res.status).toBe(200);
     expect(await res.json<{ updated: boolean }>()).toEqual({ updated: true });
-    const update = db.calls.at(-1);
-    expect(update?.sql).toContain('UPDATE annotations SET access');
-    // access from the body, ownerExpiresAt untouched from the current row.
-    expect(update?.bindings).toEqual(['view', null, 'abc', 'owner1']);
+    expect(link('abc')).toEqual({ owner_id: 'owner1', access: 'view', owner_expires_at: EXPIRES });
     // The warm room hears about it, so the flip bites before the next eviction.
-    expect(room.pings).toEqual(['abc']);
+    expect(namespace.pings).toEqual(['abc']);
   });
 
-  test('a signed-in non-owner gets updated: false and no write is issued', async () => {
-    // getSettings' `AND owner_id = ?` matches nothing for someone else's link.
-    const db = fakeDb({ firstQueue: [sessionRow, null] });
-    const res = await auth.request(
-      '/links/abc',
-      { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ access: 'view' }) },
-      { DB: db, ANNOTATION_ROOM: room },
-      testCtx,
-    );
+  test('a signed-in non-owner gets updated: false and nothing changes', async () => {
+    room('abc', { owner_id: 'someone-else', access: 'edit' });
+    const res = await patch({ body: { access: 'view' } });
     expect(res.status).toBe(200);
     expect(await res.json<{ updated: boolean }>()).toEqual({ updated: false });
-    expect(db.calls).toHaveLength(2);
-    expect(room.pings).toEqual([]);
+    expect(link('abc')?.access).toBe('edit');
+    expect(namespace.pings).toEqual([]);
   });
 
-  test('an unauthenticated request is rejected before the store is touched', async () => {
-    const db = fakeDb();
-    const res = await auth.request(
-      '/links/abc',
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ access: 'view' }) },
-      { DB: db, ANNOTATION_ROOM: room },
-      testCtx,
-    );
+  test('an unauthenticated request is rejected and nothing changes', async () => {
+    room('abc', { owner_id: 'owner1', access: 'edit' });
+    const res = await patch({ body: { access: 'view' }, headers: { 'Content-Type': 'application/json' } });
     expect(res.status).toBe(401);
-    expect(db.calls).toHaveLength(0);
+    expect(link('abc')?.access).toBe('edit');
   });
 
-  test('an ownerExpiresIn past the ceiling is a 400 before any settings read', async () => {
-    const db = fakeDb({ firstQueue: [sessionRow] });
-    const res = await auth.request(
-      '/links/abc',
-      {
-        method: 'PATCH',
-        headers: jsonHeaders,
-        body: JSON.stringify({ ownerExpiresIn: MAX_EXPIRES_IN_SECONDS + 1 }),
-      },
-      { DB: db, ANNOTATION_ROOM: room },
-      testCtx,
-    );
+  test('an ownerExpiresIn past the ceiling is a 400 and nothing changes', async () => {
+    room('abc', { owner_id: 'owner1', owner_expires_at: EXPIRES });
+    const res = await patch({ body: { ownerExpiresIn: MAX_EXPIRES_IN_SECONDS + 1 } });
     expect(res.status).toBe(400);
-    // Only the session lookup ran — the invalid body never reached ownedStore.
-    expect(db.calls).toHaveLength(1);
+    expect(link('abc')?.owner_expires_at).toBe(EXPIRES);
   });
 
   test('ownerExpiresIn: null clears the owner expiry and leaves access alone', async () => {
-    const db = fakeDb({ firstQueue: [sessionRow, { access: 'view', owner_expires_at: 12345 }] });
-    const res = await auth.request(
-      '/links/abc',
-      { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ ownerExpiresIn: null }) },
-      { DB: db, ANNOTATION_ROOM: room },
-      testCtx,
-    );
+    room('abc', { owner_id: 'owner1', access: 'view', owner_expires_at: EXPIRES });
+    const res = await patch({ body: { ownerExpiresIn: null } });
     expect(res.status).toBe(200);
     expect(await res.json<{ updated: boolean }>()).toEqual({ updated: true });
-    expect(db.calls.at(-1)?.bindings).toEqual(['view', null, 'abc', 'owner1']);
+    expect(link('abc')).toEqual({ owner_id: 'owner1', access: 'view', owner_expires_at: null });
   });
 });
 
 describe('DELETE /links/:id', () => {
-  const room = fakeRoom();
-  beforeEach(() => {
-    room.pings.length = 0;
+  const namespace = fakeRoom();
+  beforeEach(async () => {
+    namespace.pings.length = 0;
+    await signIn({ userId: 'owner1' });
   });
-  const cookie = `${SESSION_COOKIE}=tok`;
-  const sessionRow = { id: 'owner1', email: 'owner@example.com', expires_at: nowInSeconds() + 1000 };
-
-  test('releasing pings the warm room, so a cached view-only lock lifts immediately', async () => {
-    const db = fakeDb({ firstQueue: [sessionRow], changes: 1 });
-    const res = await auth.request(
+  const release = () =>
+    auth.request(
       '/links/abc',
-      { method: 'DELETE', headers: { Cookie: cookie } },
-      { DB: db, ANNOTATION_ROOM: room },
+      { method: 'DELETE', headers: { Cookie: `${SESSION_COOKIE}=tok` } },
+      { DB: db, ANNOTATION_ROOM: namespace },
       testCtx,
     );
+
+  test('releasing pings the warm room, so a cached view-only lock lifts immediately', async () => {
+    room('abc', { owner_id: 'owner1', access: 'view' });
+    const res = await release();
     expect(res.status).toBe(200);
     expect(await res.json<{ released: boolean }>()).toEqual({ released: true });
-    expect(room.pings).toEqual(['abc']);
+    expect(namespace.pings).toEqual(['abc']);
   });
 
   test('a no-op release (not the owner) does not ping the room', async () => {
-    const db = fakeDb({ firstQueue: [sessionRow], changes: 0 });
-    const res = await auth.request(
-      '/links/abc',
-      { method: 'DELETE', headers: { Cookie: cookie } },
-      { DB: db, ANNOTATION_ROOM: room },
-      testCtx,
-    );
+    room('abc', { owner_id: 'someone-else', access: 'view' });
+    const res = await release();
     expect(await res.json<{ released: boolean }>()).toEqual({ released: false });
-    expect(room.pings).toEqual([]);
+    expect(namespace.pings).toEqual([]);
   });
 });
 
@@ -302,43 +291,40 @@ describe('/verify', () => {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Origin: origin, ...headers },
     body,
   });
+  const unspent = async () => (await authStore(db).throttleSeconds('someone@example.com')) > 0;
+
+  beforeEach(() => authStore(db).createLoginToken({ email: 'someone@example.com', token }));
 
   test('GET leaves the token unspent, so a mail scanner opening the link cannot burn it', async () => {
-    const db = fakeDb({ first: { email: 'someone@example.com' } });
     const res = await auth.request(`/verify?token=${token}`, {}, fakeEnv({ DB: db }), testCtx);
     expect(res.status).toBe(200);
     expect(res.headers.get('set-cookie')).toBeNull();
-    expect(db.calls).toHaveLength(0);
+    expect(await unspent()).toBe(true);
     expect(await res.text()).toContain(`value="${token}"`);
   });
 
   test('GET with a token that is not one of ours never echoes it into the page', async () => {
-    const res = await auth.request('/verify?token="><script>x</script>', {}, fakeEnv({ DB: fakeDb() }), testCtx);
+    const res = await auth.request('/verify?token="><script>x</script>', {}, fakeEnv({ DB: db }), testCtx);
     expect(res.status).toBe(400);
     expect(await res.text()).not.toContain('<script>x');
   });
 
   test('POST spends the token, sets the session and leaves for the app', async () => {
-    const db = fakeDb({ firstQueue: [{ email: 'someone@example.com' }, { id: 'u1', email: 'someone@example.com' }] });
     const res = await auth.request('/verify', post(`token=${token}`), fakeEnv({ DB: db }), testCtx);
     expect(res.status).toBe(303);
     expect(res.headers.get('location')).toBe('/app');
     expect(res.headers.get('set-cookie')).toContain(`${SESSION_COOKIE}=`);
+    expect(await unspent()).toBe(false);
   });
 
   test('POST with a spent token explains instead of landing signed out', async () => {
-    const res = await auth.request(
-      '/verify',
-      post(`token=${token}`),
-      fakeEnv({ DB: fakeDb({ first: null }) }),
-      testCtx,
-    );
+    await auth.request('/verify', post(`token=${token}`), fakeEnv({ DB: db }), testCtx);
+    const res = await auth.request('/verify', post(`token=${token}`), fakeEnv({ DB: db }), testCtx);
     expect(res.status).toBe(400);
     expect(res.headers.get('set-cookie')).toBeNull();
   });
 
   test('POST from another origin is refused before the token is touched', async () => {
-    const db = fakeDb({ first: { email: 'someone@example.com' } });
     const res = await auth.request(
       '/verify',
       post(`token=${token}`, { Origin: 'https://evil.example' }),
@@ -346,6 +332,6 @@ describe('/verify', () => {
       testCtx,
     );
     expect(res.status).toBe(403);
-    expect(db.calls).toHaveLength(0);
+    expect(await unspent()).toBe(true);
   });
 });

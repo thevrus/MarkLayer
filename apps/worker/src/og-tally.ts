@@ -1,4 +1,4 @@
-import { type DrawOp, drawOpSchema } from '@marklayer/types';
+import { type DrawOp, drawOpSchema } from '@marklayer/types/ops';
 
 /**
  * What a share amounts to, in three numbers.

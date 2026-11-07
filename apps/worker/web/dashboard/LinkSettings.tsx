@@ -2,17 +2,17 @@ import { Toggle } from '@base-ui/react/toggle';
 import { ToggleGroup } from '@base-ui/react/toggle-group';
 import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
+import { cn } from '@marklayer/ui/cn';
+import type { ComponentChildren } from 'preact';
+import { useState } from 'preact/hooks';
 import {
-  cn,
   DAY_SECONDS,
   LINK_PASSWORD_MAX,
   LINK_PASSWORD_MIN,
   type LinkAccess,
   MAX_EXPIRES_IN_SECONDS,
   type OwnedLink,
-} from '@marklayer/types';
-import type { ComponentChildren } from 'preact';
-import { useState } from 'preact/hooks';
+} from '../../shared/accounts';
 import { setLinkPassword, updateLinkSettings } from './session';
 
 /** The owner-expiry presets the settings panel offers. `seconds: null` is "Never". */

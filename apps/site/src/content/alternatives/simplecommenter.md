@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-11
 options:
   - name: "MarkLayer"
-    url: "/vs/simplecommenter"
+    compare: simplecommenter
     pitch: "Free and open source (Apache-2.0), with nothing to install for a public page: paste any URL at marklayer.app, draw, pin comments, highlight, then share a link. There is no project count, no member count and no storage tier. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. Pages behind a login need the free browser extension on each reviewer's side. An unclaimed link is deleted 90 days after its last activity; claiming it with a free account stops that clock."
     bestFor: "Anyone who wants SimpleCommenter's on-page comments without the plan, and teams that review together in real time."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "The closest paid match to SimpleCommenter's agency shape: persistent canvases per client, version history, comment approvals and deadlines. The free plan is one user and one active canvas, which SimpleCommenter does not offer. Pro is $35 a month, or $29 billed yearly, for two users and three canvases. Team is $119, or $99 yearly, for five users with unlimited canvases and the project-management integrations (checked October 2026)."
     bestFor: "Agencies running structured client rounds who want a free plan to start on."
   - name: "ruttl"
-    url: "/vs/ruttl"
+    compare: ruttl
     pitch: "Website feedback with a free Basic plan of one project and five pages, including Trello, Slack, Asana and Jira. Pro is $18 per user a month for unlimited projects and pages, so three members cost $54, a little more than SimpleCommenter's Pro, with no 10-project cap (checked October 2026)."
     bestFor: "Small teams that want unlimited projects on a flat per-user price."
   - name: "Feedbucket"
-    url: "/vs/feedbucket"
+    compare: feedbucket
     pitch: "A feedback widget for client sites with unlimited projects and unlimited client reporters on every plan. There is no free plan. Pro is $49 a month for two team members and Business is $89 for 25, with 20 percent off on yearly billing and a 14-day trial (checked October 2026)."
     bestFor: "Agencies with many client sites and few internal seats."
 faq:

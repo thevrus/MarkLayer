@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-11
 options:
   - name: "MarkLayer"
-    url: "/vs/ybug"
+    compare: ybug
     pitch: "Free and open source (Apache-2.0), with nothing to install for a public page: paste any URL at marklayer.app, draw, pin comments, highlight, then share a link. There is no project count, no member count and no screenshot quota. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. Pages behind a login need the free browser extension on each reviewer's side. An unclaimed link is deleted 90 days after its last activity; claiming it with a free account stops that clock."
     bestFor: "Anyone who wants Ybug's on-page feedback without the plan, and teams that review together in real time."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "The closest paid match to Ybug's shape: a widget on your site or a browser extension, console logs and network requests on every report, and a tracker list that includes GitHub, GitLab, Linear, Trello, Asana and ClickUp. There is no free plan. Starter is $59 a month, or $39 billed yearly, for three users. Team is $199, or $149 yearly, for 15 users and adds Jira issue sync. Reporters are free and unlimited (checked October 2026)."
     bestFor: "Engineering teams that want console capture on every report and are past Ybug's seat counts."
   - name: "Userback"
-    url: "/vs/userback"
+    compare: userback
     pitch: "A feedback widget with a free plan of two seats and two projects, broader than Ybug's one and one, though feedback on it is only viewable for seven days. Team is $39 a month, or $29 billed yearly, for five seats and five projects. Business is $99, or $79 yearly, for unlimited seats and 25 projects (checked October 2026)."
     bestFor: "Product teams collecting feedback from end users who want more than one free seat."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A visual bug tracker: a feedback tab on the site, each note becomes a task on a built-in kanban board, with browser, OS and resolution captured automatically. There is no free plan. Standard is $50 a month, or $42 billed yearly, for five members with extra seats at $8. Jira and Linear sit on Premium at $150, or $125 yearly, for 25 members (checked October 2026)."
     bestFor: "QA teams that want the board and the tracker sync in one tool and have the budget."
 faq:

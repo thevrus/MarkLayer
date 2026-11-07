@@ -1,22 +1,22 @@
-import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
+import { type Signal, useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { tinykeys } from 'tinykeys';
 import { track } from '../lib/analytics';
 import { injectCrosshairCursor } from '../lib/dom';
-import { pickGuideAtPoint, type RectLike } from '../lib/measure';
-import { isExtensionElement } from '../lib/selector';
 import {
-  activeTool,
   addGuide,
   clearGuides,
-  ensureScrollTickListener,
   flipGuide,
   guides,
   type Orientation,
   removeGuide,
-  scrollTick,
   selectedGuideId,
   updateGuide,
-} from '../lib/state';
+} from '../lib/guides';
+import { ensureScrollTickListener, scrollTick } from '../lib/host-mutations';
+import { pickGuideAtPoint, type RectLike } from '../lib/measure';
+import { scrollOffset, toDoc } from '../lib/scroller';
+import { isExtensionElement } from '../lib/selector';
+import { activeTool } from '../lib/tool-state';
 
 const HUE_GUIDE = 30;
 export const GUIDE_COLOR = `oklch(0.7 0.19 ${HUE_GUIDE} / 0.7)`;
@@ -50,6 +50,40 @@ export const guideReadout = ({
   const placing = at(orientation, orientation === 'vertical' ? preview.x : preview.y);
   return orientation === 'horizontal' ? `${placing} · Shift for vertical` : placing;
 };
+
+/** Pick up the guide under the point, or drop a new one there; either way it is now being dragged. */
+export function grabGuide({
+  point,
+  vertical,
+  dragId,
+}: {
+  /** In document coords. */
+  point: { x: number; y: number };
+  vertical: boolean;
+  dragId: Signal<string | null>;
+}) {
+  const hit = pickGuideAtPoint(point, guides.peek(), GUIDE_HIT_PX);
+  if (hit) {
+    selectedGuideId.value = hit.id;
+    dragId.value = hit.id;
+    return;
+  }
+  const orientation = vertical ? 'vertical' : 'horizontal';
+  const position = orientation === 'vertical' ? point.x : point.y;
+  const g = addGuide(orientation, position);
+  selectedGuideId.value = g.id;
+  dragId.value = g.id;
+}
+
+/** Backspace/Delete: the selected guide, else the newest. */
+export function deleteSelectedGuide(e: KeyboardEvent) {
+  const sel = selectedGuideId.peek() ?? guides.peek().at(-1)?.id;
+  if (!sel) return;
+  e.preventDefault();
+  e.stopPropagation();
+  removeGuide(sel);
+  track('guide_deleted', { via: 'key' });
+}
 
 /** Our own UI: the tool stands down over it, so a panel gets no preview and a click in it drops nothing. */
 const isOwnUi = (t: EventTarget | null) => t instanceof Element && isExtensionElement(t);
@@ -255,7 +289,10 @@ export function GuideLayer() {
       cursor.value = { x: e.clientX, y: e.clientY };
       if (id) {
         const g = guides.peek().find((p) => p.id === id);
-        if (g) updateGuide(id, g.orientation === 'vertical' ? e.clientX + window.scrollX : e.clientY + window.scrollY);
+        if (g) {
+          const doc = toDoc({ x: e.clientX, y: e.clientY });
+          updateGuide(id, g.orientation === 'vertical' ? doc.x : doc.y);
+        }
       }
     };
 
@@ -267,31 +304,15 @@ export function GuideLayer() {
       if (isOwnUi(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
-      const docPoint = { x: e.clientX + window.scrollX, y: e.clientY + window.scrollY };
-      const hit = pickGuideAtPoint(docPoint, guides.peek(), GUIDE_HIT_PX);
-      if (hit) {
-        selectedGuideId.value = hit.id;
-        dragId.value = hit.id;
-        return;
-      }
-      const orientation = e.shiftKey ? 'vertical' : 'horizontal';
-      const position = orientation === 'vertical' ? docPoint.x : docPoint.y;
-      const g = addGuide(orientation, position);
-      selectedGuideId.value = g.id;
-      dragId.value = g.id;
+      grabGuide({
+        point: toDoc({ x: e.clientX, y: e.clientY }),
+        vertical: e.shiftKey,
+        dragId,
+      });
     };
 
     const onUp = () => {
       dragId.value = null;
-    };
-
-    const deleteSelected = (e: KeyboardEvent) => {
-      const sel = selectedGuideId.peek() ?? guides.peek().at(-1)?.id;
-      if (!sel) return;
-      e.preventDefault();
-      e.stopPropagation();
-      removeGuide(sel);
-      track('guide_deleted', { via: 'key' });
     };
 
     const onBlur = () => {
@@ -310,8 +331,8 @@ export function GuideLayer() {
         track('guides_cleared', { count: guides.peek().length });
         clearGuides();
       },
-      Backspace: deleteSelected,
-      Delete: deleteSelected,
+      Backspace: deleteSelectedGuide,
+      Delete: deleteSelectedGuide,
     });
     const unbindKeysUp = tinykeys(
       window,
@@ -355,8 +376,7 @@ export function GuideLayer() {
   const dragging = !!dragId.value;
 
   void scrollTick.value;
-  const sx = typeof window === 'undefined' ? 0 : window.scrollX;
-  const sy = typeof window === 'undefined' ? 0 : window.scrollY;
+  const { x: sx, y: sy } = typeof window === 'undefined' ? { x: 0, y: 0 } : scrollOffset(window);
 
   const docCursor = cur ? { x: cur.x + sx, y: cur.y + sy } : null;
   const hoveredGuide = docCursor ? pickGuideAtPoint(docCursor, guides.value, GUIDE_HIT_PX) : null;
@@ -367,11 +387,7 @@ export function GuideLayer() {
     const id = dragId.value;
     const dragged = id ? guides.value.find((g) => g.id === id) : null;
     const cur2 = cursor.value;
-    const target =
-      dragged ??
-      (cur2
-        ? pickGuideAtPoint({ x: cur2.x + window.scrollX, y: cur2.y + window.scrollY }, guides.value, GUIDE_HIT_PX)
-        : null);
+    const target = dragged ?? (cur2 ? pickGuideAtPoint(toDoc(cur2), guides.value, GUIDE_HIT_PX) : null);
     if (!target) return null;
     return target.orientation === 'vertical' ? 'ew-resize' : 'ns-resize';
   });
@@ -412,7 +428,6 @@ export function GuideLayer() {
           orientation={selected.orientation}
           screenPosition={screenSelectedPos}
           onFlip={(e) => {
-            // After flip, place the new line where the user clicked: cursor X if becoming vertical, Y if horizontal.
             const newPos = selected.orientation === 'vertical' ? e.clientY + sy : e.clientX + sx;
             flipGuide(selected.id, newPos);
             track('guide_flipped');

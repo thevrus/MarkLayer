@@ -1,4 +1,5 @@
 import { signal } from '@preact/signals';
+import { isInsideMarkLayer } from './overlay-mount';
 
 /**
  * Pause-the-page utility for inspection workflows. While frozen:
@@ -29,9 +30,8 @@ function isExtensionAnimation(anim: Animation): boolean {
   const target = (anim.effect as KeyframeEffect | null)?.target;
   if (!(target instanceof Element)) return false;
   const root = target.getRootNode();
-  if (root instanceof ShadowRoot && root.host?.tagName === 'MARK-LAYER') return true;
-  if (target.tagName === 'MARK-LAYER') return true;
-  return !!target.closest?.('mark-layer');
+  if (root instanceof ShadowRoot && isInsideMarkLayer(root.host)) return true;
+  return isInsideMarkLayer(target);
 }
 
 export function freezeDocument(doc: Document) {

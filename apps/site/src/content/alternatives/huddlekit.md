@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-21
 options:
   - name: "MarkLayer"
-    url: "/vs/huddlekit"
+    compare: huddlekit
     pitch: "Free and open source, with nothing to install for a public page: paste any URL at marklayer.app, annotate the live page with drawings, comments, arrows and highlights, then share a link. There is no project or member count and no storage tier. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. Password-protected staging and apps behind a login need the free browser extension, on the reviewer's side as well as yours. An unclaimed link is deleted 90 days after its last activity; claiming it with the free account stops that clock."
     bestFor: "Anyone who wants Huddlekit's live-page review without the plan, and teams reviewing together in real time."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "The closest paid match to Huddlekit's agency shape: persistent canvases per client, version history and branded review pages, with Slack, Trello, Asana and Jira integrations. The free plan is one user and one canvas, tighter than Huddlekit's. Pro is $35 a month, or $29 billed annually, for two users and three active canvases; Team is $119 a month, or $99 billed annually, for five users plus $24 per extra seat."
     bestFor: "Agencies that want a client-facing review workspace and will pay for it."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A visual bug tracker rather than a review tool: every pinned comment becomes a task on a built-in kanban board, with browser, OS and resolution captured automatically and native Jira, GitHub and Trello sync. There is no free plan. Standard runs $50 a month for five members with extra seats at $8 each, and the Jira and Linear integrations sit on a $150 tier."
     bestFor: "QA teams that need feedback to land in a tracker and stay in sync, and have the budget."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "Bug reporting with automatic console logs and network requests on every report, which neither Huddlekit nor MarkLayer captures. Starter is $59 a month, or $39 annually, for three users with GitHub, GitLab, Linear, Trello, Asana and ClickUp included. Two-way Jira sync needs Team at $199 a month, or $149 annually, for 15 users. Reviewers can use a widget on the site or a browser extension, and an MCP server is open to every customer."
     bestFor: "Engineering teams whose reports need a stack trace more than a drawing."
 faq:

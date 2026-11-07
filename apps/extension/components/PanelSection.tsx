@@ -1,5 +1,5 @@
 import { Collapsible } from '@base-ui/react/collapsible';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { ChevronRight, type LucideIcon } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { geist } from '../lib/geist';

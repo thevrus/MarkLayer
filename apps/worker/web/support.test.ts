@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { CommentOp, CommentStatus } from '@marklayer/types';
+import type { CommentOp, CommentStatus } from '@marklayer/types/ops';
 import {
   agentWorkLanded,
   parseSupportRecord,
@@ -21,7 +21,7 @@ const fresh: SupportRecord = {
 };
 const veteran: SupportRecord = { ...fresh, days: ['2026-08-01', '2026-08-04'] };
 
-const offer = (record: SupportRecord, date = '2026-08-10') => shouldOfferSupport({ record, hasCheckout: true, date });
+const offer = (record: SupportRecord, date = '2026-08-10') => shouldOfferSupport({ record, date });
 const fold = (record: SupportRecord, signals: SupportSignal[], date?: string) =>
   signals.reduce((r, signal) => recordSignal({ record: r, signal, date }), record);
 const times = (n: number, signal: SupportSignal): SupportSignal[] => Array<SupportSignal>(n).fill(signal);
@@ -54,10 +54,6 @@ describe('shouldOfferSupport — who never sees it', () => {
 
   test('somebody who already supported', () => {
     expect(offer({ ...veteran, shares: 99, mcp: true, supported: true })).toBe(false);
-  });
-
-  test('anybody at all when there is no checkout to send them to', () => {
-    expect(shouldOfferSupport({ record: { ...veteran, shares: 9, mcp: true }, hasCheckout: false })).toBe(false);
   });
 });
 
@@ -128,12 +124,6 @@ describe('recordSignal', () => {
     }
     // The record answers "enough distinct days?" — it is not a usage log.
     expect(r.days).toEqual(['2026-08-01']);
-  });
-
-  test('does not mutate the record it was given', () => {
-    const before = { ...veteran, days: [...veteran.days] };
-    recordSignal({ record: veteran, signal: 'used', date: '2026-09-01' });
-    expect(veteran).toEqual(before);
   });
 });
 

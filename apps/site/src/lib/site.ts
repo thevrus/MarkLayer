@@ -1,65 +1,36 @@
-export const ORIGIN = 'https://marklayer.app';
-export const CHROME_STORE_URL = 'https://chromewebstore.google.com/detail/marklayer/fnfobegjifomgobgilaemihpcpidjamc';
+import { ORIGIN, WORKER_DEV_PORT } from '@marklayer/brand';
+import { pageOgImage as pageOgImageUrl } from '@marklayer/brand/links';
+
+/* Only for apps/worker/web, which has not moved to @marklayer/brand yet. */
+
+/** When the competitor prices on /pricing, /pricing.md and the alternatives tables were last re-verified. */
+export const PRICES_CHECKED = 'August 2026';
+
+export const vsPath = (slug: string): string => `/vs/${slug}`;
+export const forPath = (slug: string): string => `/for/${slug}`;
+export const alternativesPath = (slug: string): string => `/alternatives/${slug}`;
+export const guidePath = (slug: string): string => `/guides/${slug}`;
+export const releasePath = (slug: string): string => `/changelog/${slug}`;
+
+/** How MarkLayer's own row reads wherever prices sit side by side. */
+export const MARKLAYER_PRICE = 'Free. No tiers, no seats';
+
 /** The fallback card, for anything with no heading of its own to draw. */
 export const OG_IMAGE = `${ORIGIN}/og.jpg`;
 /** The home card's moving twin, 1200×630 like the still; Telegram plays it, everyone else shows `OG_IMAGE`. */
 export const OG_VIDEO = `${ORIGIN}/og.mp4`;
-/** YouTube id of the product demo, which `VideoEmbed` falls back to. Unset until a demo is published. */
-export const DEMO_VIDEO: string | undefined = undefined;
 
-/**
- * A card drawn for one page: its own heading, set large, with a stroke under the
- * operative word and a comment pinned to it.
- *
- * Rendered by the Worker (`/og/page.png`) rather than baked at build time, because
- * that is where the fonts and the rasterizer already live. The heading travels in
- * the URL for the same reason: these pages are static, so the Worker has no copy
- * of their content to look up. The result is cached in R2 by the hash of both
- * params, so a given page renders once.
- */
+/** A card the Worker draws for one page (`/og/page.png`): its heading, set large, with a stroke under the operative word. */
 export function pageOgImage({ heading, path }: { heading: string; path: string }): string {
-  const query = new URLSearchParams({ h: heading, p: path });
-  return `${ORIGIN}/og/page.png?${query}`;
+  return pageOgImageUrl.build({ heading, path });
 }
-/**
- * The cross-tab channel `/thanks` uses to tell an editor still open in another
- * tab that a payment landed.
- *
- * It lives here because both ends read it: the static thank-you page in this
- * workspace, and the app in apps/worker, which already depends on this module
- * for `CHROME_STORE_URL`. The checkout opens in a new tab so the tab holding
- * unsaved annotations is never navigated, which is exactly why the two need a
- * way to talk. Same-origin only, and it carries no order data — just the fact.
- */
-export const SUPPORT_CHANNEL = 'marklayer:support';
-export const SUPPORT_PAID = 'paid';
-
-/**
- * The Polar checkout every support surface opens — the "Support MarkLayer"
- * product, pay-what-you-want with a $3 floor and $5 prefilled.
- *
- * It lives here for the same reason `SUPPORT_CHANNEL` does: three renderers open
- * it now (the app's support card, `/support`, and the footer link that points at
- * it), and a URL duplicated across two workspaces is a URL that goes stale in
- * one of them. apps/worker re-exports it from `web/support.ts`.
- *
- * No surface names the $5 in a button label: Polar is merchant of record and
- * adds VAT on top, so an EU supporter is charged $6.15. A button promising a
- * price the checkout then contradicts is a small lie. `/support` states the
- * floor and the VAT in prose instead, where there is room to be exact.
- *
- * Left empty and every surface degrades to its no-payment form rather than
- * offering a button that goes nowhere, which is also what should happen if the
- * product is ever retired.
- */
-export const POLAR_CHECKOUT_URL = 'https://buy.polar.sh/polar_cl_DBsDl9Ufd2O0mOEodJrcrIDpuOu2iEc0UqG4w4cXdk2';
 
 export const REPO_URL = 'https://github.com/thevrus/MarkLayer';
 export const AUTHOR_NAME = 'Dean Rusin';
 export const AUTHOR_EMAIL = 'hello@marklayer.app';
 
 /** apps/worker's Vite dev server, started alongside this one by `turbo run dev`. */
-export const WORKER_DEV = 'http://localhost:5173';
+export const WORKER_DEV = `http://localhost:${WORKER_DEV_PORT}`;
 
 /**
  * The nav sections, in the order the header renders them. One entry per section:

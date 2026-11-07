@@ -1,6 +1,4 @@
-import { isUploadPath } from '@marklayer/types';
-
-export { isUploadPath };
+import { antHash, isUploadPath } from '@marklayer/brand/links';
 
 /**
  * What the viewer's iframe points at. An upload is already a file on this
@@ -20,7 +18,7 @@ export function frameSrc({ url }: { url: string }): string {
 export function liveRoomUrl({ url, width, id }: { url: string; width: number; id: string }): string {
   if (!id || !URL.canParse(url)) return url;
   const live = new URL(url);
-  live.hash = `ant=${width > 0 ? width : 1280}=${id}`;
+  live.hash = antHash.build({ width, id });
   return live.href;
 }
 

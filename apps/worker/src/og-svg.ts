@@ -1,4 +1,4 @@
-import { MARK_PATHS, MARK_TRANSFORM } from './brand';
+import { MARK_PATHS, MARK_TRANSFORM } from '@marklayer/brand/mark';
 
 export function escapeXml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

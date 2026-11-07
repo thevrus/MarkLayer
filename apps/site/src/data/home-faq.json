@@ -1,0 +1,54 @@
+[
+  {
+    "q": "Is MarkLayer really free?",
+    "a": "Yes. 100% free. No paid plan, no trial, no per-seat pricing, no usage cap."
+  },
+  {
+    "q": "Is MarkLayer a browser extension?",
+    "a": "No. MarkLayer is a browser-based web app first: paste a URL at <a href=\"https://marklayer.app\">marklayer.app</a> and annotate the live page in your browser with nothing installed. A free Chrome extension exists as an optional companion for pages the web app cannot embed, such as sites behind a login. Neither you nor the people you share a link with ever need it."
+  },
+  {
+    "q": "Do I need to install anything to use MarkLayer?",
+    "a": "No. The web app at <a href=\"https://marklayer.app\">marklayer.app</a> lets you paste any URL and start annotating in your browser. No install, no account. The Chrome extension is optional, for sites the web app cannot embed (sites behind a login or with strict embed policies)."
+  },
+  {
+    "q": "Is MarkLayer anonymous?",
+    "a": "Yes, by default. No sign-up, no email, no profile. MarkLayer generates a random local display name stored only in your browser. Signing in with an email link is optional, and only manages links you own."
+  },
+  {
+    "q": "Do I need to create an account?",
+    "a": "No. Open the web app or install the extension and start annotating. There is no registration step."
+  },
+  {
+    "q": "Does the other person need the extension installed?",
+    "a": "No. Anyone can view your annotations via the share link. No install and no account required."
+  },
+  {
+    "q": "Does it work on any website?",
+    "a": "Yes. Production, staging, internal tools, third-party sites. The web app works on any URL it can embed; the extension covers sites behind a login or with strict embed policies."
+  },
+  {
+    "q": "Can I annotate a PDF with MarkLayer?",
+    "a": "Yes. Paste a link to a PDF or upload one from your computer, up to 25MB, and the drawing, comment, area and highlight tools all work on it. Text inside the PDF stays selectable, so a highlight binds to the words rather than to a coordinate, and every mark records the page it was made on. The annotations live in the share link rather than inside the file, so nothing is written back into the PDF. See <a href=\"/guides/how-to-annotate-a-pdf\">how to annotate a PDF</a>."
+  },
+  {
+    "q": "Can I annotate an image or a screenshot?",
+    "a": "Yes. Paste the URL of an image, or upload a PNG, JPEG, GIF, WebP or AVIF up to 25MB. Drawing, arrows, shapes, area captures and pinned comments all work on it, and whoever opens the share link can reply without an account. Text highlighting is the one tool that does not, because an image has no text layer to attach a highlight to. See <a href=\"/guides/how-to-annotate-an-image\">how to annotate an image</a>."
+  },
+  {
+    "q": "Does it work on localhost?",
+    "a": "Yes, with the Chrome extension. It draws in your browser, so your dev server never has to be reachable from the internet and there is no proxy or tunnel involved. Share links do need a public URL, so point collaborators at staging or a tunnel when someone else has to open the page. See <a href=\"/for/localhost-ai-agents\">annotating localhost for AI agents</a>."
+  },
+  {
+    "q": "Can multiple people annotate at the same time?",
+    "a": "Yes. Real-time live cursors and voice chat let unlimited collaborators work together on any page."
+  },
+  {
+    "q": "Can I keep a link private?",
+    "a": "Links are unguessable and unlisted. If you sign in with an email link (optional), you can make one view-only or set when it expires."
+  },
+  {
+    "q": "Is MarkLayer open source?",
+    "a": "Yes. The full source is on <a href=\"https://github.com/thevrus/MarkLayer\">GitHub</a>. You can audit, contribute, or self-host on Cloudflare."
+  }
+]

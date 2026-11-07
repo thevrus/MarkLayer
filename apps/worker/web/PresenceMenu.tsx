@@ -3,17 +3,16 @@ import { Avatar } from '@ext/components/Avatar';
 import { AgentMark } from '@ext/lib/agents';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
+import { localUser } from '@ext/lib/identity';
 import { portalContainer } from '@ext/lib/portal';
-import { type DepartedPeer, departedPeers, localUser, peers } from '@ext/lib/state';
+import { type DepartedPeer, departedPeers, peers } from '@ext/lib/presence';
 import type { Peer } from '@ext/lib/types';
-import { agentLabel, cn, isAgentPeer } from '@marklayer/types';
+import { agentLabel, isAgentPeer } from '@marklayer/types/agents';
+import { cn } from '@marklayer/ui/cn';
 import type { ComponentChildren } from 'preact';
 import { useState } from 'preact/hooks';
 import { PresenceDot } from './shared';
-import { timeAgo } from './signals';
-
-/** `lastSeen` is milliseconds; `timeAgo` counts in seconds. */
-const since = (ms: number) => timeAgo(Math.floor(ms / 1000));
+import { timeAgo } from './timeAgo';
 
 /**
  * What one peer is doing, in the terms that peer's data can actually support.
@@ -25,7 +24,7 @@ const since = (ms: number) => timeAgo(Math.floor(ms / 1000));
  */
 function status(peer: Peer): string {
   if (isAgentPeer(peer.id)) return 'connected';
-  return peer.cursor ? 'active now' : since(peer.lastSeen);
+  return peer.cursor ? 'active now' : timeAgo(peer.lastSeen);
 }
 
 function Row({
@@ -145,7 +144,7 @@ export function PresenceMenu({ live, count }: { live: boolean; count: number }) 
                     name={peer.name}
                     color={peer.color}
                     agent={isAgentPeer(peer.id)}
-                    detail={`left ${since(peer.leftAt)}`}
+                    detail={`left ${timeAgo(peer.leftAt)}`}
                     dim
                   />
                 ))}

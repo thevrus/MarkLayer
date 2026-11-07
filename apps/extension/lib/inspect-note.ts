@@ -1,5 +1,5 @@
 import { formatStyleEdit } from '@marklayer/agent-tools/prompt';
-import type { ElementDetails, StyleEdit } from '@marklayer/types';
+import type { ElementDetails, StyleEdit } from '@marklayer/types/ops';
 
 /** Live CSS editing is a one-element affordance, as in Cursor: once other elements are stacked, the note is a batch. */
 export const canEditCss = (stackedCount: number) => stackedCount === 0;

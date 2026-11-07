@@ -1,30 +1,23 @@
 import { CommentPopover, CommentSheet } from '@ext/components/CommentPopover';
 import { PanLayer } from '@ext/components/PanLayer';
-import { pageErrors } from '@ext/lib/page-errors';
 import { snapshotPin } from '@ext/lib/pin-shot';
-import {
-  activeTool,
-  annotationPanelOpen,
-  color,
-  elementToolsUnavailable,
-  lineWidth,
-  panScrollBy,
-  showAnnotationPanel,
-  toolPaintsCanvas,
-} from '@ext/lib/state';
-import type { TextOp } from '@ext/lib/types';
+import { color, lineWidth } from '@ext/lib/prefs';
+import { fileUrl, transcribeFile, uploadFile } from '@ext/lib/share';
+import { makeTextOp } from '@ext/lib/text-op';
+import { activeTool, panScrollBy } from '@ext/lib/tool-state';
+import { toolPaintsCanvas } from '@ext/lib/tools';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
-import { cn } from '@marklayer/types';
-import { CHROME_STORE_URL } from '@site/lib/site';
+import { CHROME_STORE_URL } from '@marklayer/brand';
+import { displayHost, isUploadPath } from '@marklayer/brand/links';
+import { cn } from '@marklayer/ui/cn';
 import { Loader2 } from 'lucide-preact';
-import { nanoid } from 'nanoid';
-import { classifyProxyError } from '../src/proxy-errors';
+import { FRAME_SANDBOX } from '../shared/frame-protocol';
 import { AnnotationPanel, AnnotationSheet, DockedAnnotationPanel } from './AnnotationPanel';
 import { capture } from './analytics';
 import { CursorLayer } from './CursorLayer';
 import { DeviceOverview } from './DeviceOverview';
 import { audioConstraint } from './devicePrefs';
-import { frameSrc, isUploadPath, liveRoomUrl, stillFrame } from './docSource';
+import { frameSrc, liveRoomUrl } from './docSource';
 import { shootFrame } from './frameShot';
 import {
   captureAnchors,
@@ -32,11 +25,13 @@ import {
   sameOriginWindow,
   useFrameMarkPointer,
   useFrameRectTracker,
+  wheelUnit,
 } from './iframeOverlay';
+import { annotationId, originalWidth, pageUrl, transcribeVideo, uploadVideo } from './projects';
 import { HOME_LINK_PROPS, Logo, TextInputOverlay } from './shared';
+import { annotationPanelOpen, commentPopover, selectionPopover, showAnnotationPanel, textInput } from './ui-state';
+import { DockedInfoPanel, InfoPanel } from './ViewerInfoPanel';
 import {
-  annotationId,
-  commentPopover,
   compactChrome,
   cssScale,
   DEVICE_WIDTHS,
@@ -44,22 +39,12 @@ import {
   deviceComments,
   deviceMode,
   deviceSelections,
-  fileUrl,
   iframeScrollY,
   isReadonly,
-  originalWidth,
-  pageUrl,
+  isStillFrame,
   panelsDocked,
   pushDeviceOp,
-  STILL_FRAME,
-  selectionPopover,
-  textInput,
-  transcribeFile,
-  transcribeVideo,
-  uploadFile,
-  uploadVideo,
-} from './signals';
-import { DockedInfoPanel, InfoPanel } from './ViewerInfoPanel';
+} from './viewer-state';
 import { FIREWALL_ADVICE, useViewerFrame } from './viewerFrame';
 import { WebAreaLayer } from './WebAreaLayer';
 import { WebAreaShape } from './WebAreaShape';
@@ -116,10 +101,8 @@ function forwardWheel(e: WheelEvent) {
   const { currentTarget, target } = e;
   if (!(currentTarget instanceof Element) || !(target instanceof Element)) return;
   if (wheelHitsOwnScroller({ target, root: currentTarget })) return;
-  // Firefox reports lines, and a page gesture reports pages; both need real pixels.
-  const step = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? window.innerHeight : 1;
   e.preventDefault();
-  panScrollBy.value?.(0, e.deltaY * step);
+  panScrollBy.value?.(0, e.deltaY * wheelUnit({ e, pageHeight: window.innerHeight }));
 }
 
 /**
@@ -143,7 +126,7 @@ function OwnerFix({ ip }: { ip: string }) {
   const { copied, copy } = useCopyToClipboard({ resetMs: 1600 });
   const firewall = state.blockedFirewall.value;
   const advice = firewall ? FIREWALL_ADVICE[firewall] : null;
-  const host = URL.canParse(pageUrl.value) ? new URL(pageUrl.value).hostname : pageUrl.value;
+  const host = displayHost(pageUrl.value) ?? pageUrl.value;
   return (
     <div class="flex flex-col items-center gap-2 max-w-md">
       <p class="text-ui text-ml-fg/70 leading-snug m-0">
@@ -253,40 +236,9 @@ function ProxiedPage() {
       ref={meta.frameRef}
       title="Annotated page"
       src={pageUrl.value ? frameSrc({ url: pageUrl.value }) : undefined}
-      sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-      onLoad={() => {
-        state.iframeLoaded.value = true;
-        if (!pageUrl.value) return;
-        // Proxy injects data-marklayer="1" on success; missing marker means an error response was served.
-        const doc = meta.frameRef.current?.contentDocument;
-        // A PDF or an image has no element tree worth inspecting and no responsive
-        // layout to resize, so the tools and device sizes that act on those come off.
-        elementToolsUnavailable.value = doc?.documentElement?.dataset?.doc === '1';
-        if (elementToolsUnavailable.value) pageErrors.value = [];
-        if (STILL_FRAME && doc) stillFrame(doc);
-        if (doc?.documentElement?.dataset?.marklayer === '1') {
-          // A page that arrives after the give-up bound still rendered, so clear
-          // that failure instead of leaving its screen parked over a working page.
-          // Only `timeout` is cleared here: a firewall notice can land before
-          // `load` and has to survive it.
-          if (state.renderFailed.value === 'timeout') state.renderFailed.value = null;
-          actions.reportRenderSuccess();
-          return;
-        }
-        actions.reportRenderFailure('no-marker', {
-          proxy_error: classifyProxyError(doc?.body?.textContent),
-          // `empty` was collapsing two unrelated causes: the proxy served a blank
-          // body, and the frame navigated itself cross-origin so its document is
-          // unreachable. Only the second is a page escaping the proxy, and telling
-          // them apart is what decides whether there is anything here to fix.
-          doc_reachable: Boolean(doc),
-        });
-        state.renderFailed.value = 'no-marker';
-      }}
-      onError={() => {
-        actions.reportRenderFailure('iframe-error');
-        state.renderFailed.value = 'iframe-error';
-      }}
+      sandbox={FRAME_SANDBOX}
+      onLoad={actions.frameLoaded}
+      onError={actions.frameErrored}
       class={cn(
         // ph-no-capture: the proxied page is same-origin, so session replay
         // would record its contents — block it and replay only our chrome.
@@ -306,12 +258,12 @@ function AnchoredOps({ frameDoc }: { frameDoc: Document | null | undefined }) {
     <>
       <div class="absolute inset-0 pointer-events-none overflow-hidden">
         {deviceSelections.value.map((op) => (
-          <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={scrollY} frameDoc={frameDoc} />
+          <WebSelectionHighlight key={op.id} op={op} scrollY={scrollY} frameDoc={frameDoc} />
         ))}
       </div>
       <div class="absolute inset-0 pointer-events-none overflow-hidden">
         {deviceAreas.value.map((op) => (
-          <WebAreaShape key={op.id} op={op} scale={1} scrollY={scrollY} frameDoc={frameDoc} />
+          <WebAreaShape key={op.id} op={op} scrollY={scrollY} frameDoc={frameDoc} />
         ))}
       </div>
     </>
@@ -358,24 +310,21 @@ function TextPlacement() {
         <TextInputOverlay
           x={textInput.value.x}
           y={textInput.value.y}
-          scale={1}
           scrollY={iframeScrollY.value}
           onCommit={(text) => {
             if (text && textInput.value) {
               const { x, y } = textInput.value;
-              const op: TextOp = {
-                id: nanoid(),
-                tool: 'text',
-                text,
-                x,
-                y,
-                fontSize: Math.max(14, lineWidth.value * 6),
-                color: color.value,
-                lineWidth: lineWidth.value,
+              pushDeviceOp({
+                ...makeTextOp({
+                  text,
+                  x,
+                  y,
+                  color: color.value,
+                  lineWidth: lineWidth.value,
+                  viewport: frameViewport(frameRef.current),
+                }),
                 ...captureAnchors({ frame: frameRef.current, x, y }),
-                captureViewport: frameViewport(frameRef.current),
-              };
-              pushDeviceOp(op);
+              });
             }
             textInput.value = null;
           }}
@@ -400,7 +349,7 @@ function PageSurface() {
   return (
     <div
       ref={innerRef}
-      onWheel={STILL_FRAME ? undefined : forwardWheel}
+      onWheel={isStillFrame.value ? undefined : forwardWheel}
       class="absolute top-0 left-0 will-change-transform"
       style={{
         width: deviceMode.value === 'desktop' ? originalWidth.value || '100%' : DEVICE_WIDTHS[deviceMode.value],
@@ -435,7 +384,7 @@ function PageSurface() {
         }}
       >
         {deviceComments.value.map((c) => (
-          <WebCommentPin key={c.id} op={c} scale={1} scrollY={iframeScrollY.value} frameDoc={frameDoc} />
+          <WebCommentPin key={c.id} op={c} scrollY={iframeScrollY.value} frameDoc={frameDoc} />
         ))}
       </div>
 
@@ -443,7 +392,7 @@ function PageSurface() {
       <TextPlacement />
 
       {!isReadonly.value && <AuthoringLayers />}
-      <CursorLayer scale={1} scrollY={iframeScrollY.value} />
+      <CursorLayer scrollY={iframeScrollY.value} />
       <PanLayer class="absolute inset-0 z-20" />
     </div>
   );
@@ -545,11 +494,11 @@ function DeviceFrame() {
 
 export function ViewerStage() {
   const {
-    actions: { buildExportData, scrollToAnnotation },
+    actions: { scrollToAnnotation },
     meta: { frameRef, viewerRef },
   } = useViewerFrame();
   useFrameRectTracker({ frameRef, viewerRef });
-  const panels = { onScrollTo: scrollToAnnotation, getExportData: buildExportData };
+  const panels = { onScrollTo: scrollToAnnotation };
   const docked = panelsDocked.value;
   const Panel = compactChrome.value ? AnnotationSheet : AnnotationPanel;
 
@@ -562,7 +511,7 @@ export function ViewerStage() {
       <div
         class={cn(
           'absolute inset-0 overflow-y-hidden flex items-stretch',
-          STILL_FRAME ? 'overflow-x-hidden' : 'overflow-x-auto',
+          isStillFrame.value ? 'overflow-x-hidden' : 'overflow-x-auto',
         )}
       >
         {docked && <DockedInfoPanel />}

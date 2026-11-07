@@ -1,13 +1,16 @@
-import { MeasureOverlayContent, type MeasureState } from '@ext/components/MeasureLayer';
-import { track } from '@ext/lib/analytics';
+import { MeasureOverlayContent, type MeasureState, measureKeys } from '@ext/components/MeasureLayer';
 import { injectCrosshairCursor } from '@ext/lib/dom';
-import { nextAnchorElement, type TraverseDir } from '@ext/lib/measure';
-import { measureActive, measureToolActive } from '@ext/lib/state';
-import { useSignal, useSignalEffect } from '@preact/signals';
+import { useDismissible } from '@ext/lib/keymap';
+import { measureActive, measureToolActive } from '@ext/lib/tool-state';
+import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { createPortal } from 'preact/compat';
 import { tinykeys } from 'tinykeys';
+import { capture } from './analytics';
 import { isElementNode, rectsEqual, toViewportRect, useIframeOverlay, useIframeRectSync } from './iframeOverlay';
+
+/** The keys that walk the element tree, which scroll the page or move its focus if nothing stops them. */
+const WALK_KEYS = new Set(['Tab', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft']);
 
 export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameElement | null } }) {
   const anchors = useSignal<MeasureState[]>([]);
@@ -40,68 +43,50 @@ export function WebMeasureLayer({ frameRef }: { frameRef: { current: HTMLIFrameE
         anchors.value = cur.filter((_, i) => i !== existing);
       } else {
         anchors.value = [...cur, { id: nanoid(), el, rect: toViewportRect(frame, el) }];
-        track('measure_anchor_pinned', { anchors: cur.length + 1 });
+        capture('measure_anchor_pinned', { anchors: cur.length + 1 });
         hover.value = null;
       }
     };
 
-    const traverse = (dir: TraverseDir) => {
-      const cur = anchors.peek();
-      const primary = cur[cur.length - 1];
-      if (!primary) return false;
-      const next = nextAnchorElement(primary.el, dir, isHost);
-      if (!next) return false;
-      anchors.value = [...cur.slice(0, -1), { id: primary.id, el: next, rect: toViewportRect(frame, next) }];
-      hover.value = null;
-      return true;
+    // The walk runs on the host, where a replayed key cannot stop the frame's real one from scrolling.
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!WALK_KEYS.has(e.key) || !measureToolActive.value || !anchors.peek().length) return;
+      // By tag, not `editableTarget`: an element in the frame fails the host realm's instanceof.
+      const typing = isElementNode(e.target) && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+      if (!typing && !doc.activeElement?.closest('[contenteditable]')) e.preventDefault();
     };
 
-    const tryTraverse = (e: KeyboardEvent, dir: TraverseDir) => {
-      if (!measureToolActive.value) return;
-      if (!traverse(dir)) return;
-      track('measure_walked', { dir });
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    const popPrimary = (e: KeyboardEvent) => {
-      if (!measureToolActive.value || !anchors.peek().length) return;
-      e.preventDefault();
-      e.stopPropagation();
-      anchors.value = anchors.peek().slice(0, -1);
-    };
-    const keyBindings = {
-      Escape: (e: KeyboardEvent) => {
-        if (!measureToolActive.value || !anchors.peek().length) return;
-        e.preventDefault();
-        e.stopPropagation();
-        track('measure_cleared', { anchors: anchors.peek().length });
-        anchors.value = [];
-      },
-      Backspace: popPrimary,
-      Delete: popPrimary,
-      Tab: (e: KeyboardEvent) => tryTraverse(e, 'parent'),
-      'Shift+Tab': (e: KeyboardEvent) => tryTraverse(e, 'child'),
-      ArrowDown: (e: KeyboardEvent) => tryTraverse(e, 'next'),
-      ArrowRight: (e: KeyboardEvent) => tryTraverse(e, 'next'),
-      ArrowUp: (e: KeyboardEvent) => tryTraverse(e, 'prev'),
-      ArrowLeft: (e: KeyboardEvent) => tryTraverse(e, 'prev'),
-    };
+    // Escape goes through the dismisser stack below, so one press does one thing.
+    const { Escape: _, ...keyBindings } = measureKeys({
+      anchors,
+      hover,
+      skip: isHost,
+      rectOf: (el) => toViewportRect(frame, el),
+    });
 
     win.addEventListener('mousemove', onMove, true);
     win.addEventListener('click', onClick, true);
-    const unbindWinDown = tinykeys(win, keyBindings);
-    const unbindHostDown = tinykeys(window, keyBindings);
+    win.addEventListener('keydown', onKeyDown, true);
+    // Keys in the frame reach the host window as `ml-key`, so this hears both sides.
+    const unbindKeys = tinykeys(window, keyBindings);
     return () => {
       try {
         win.removeEventListener('mousemove', onMove, true);
         win.removeEventListener('click', onClick, true);
-        unbindWinDown();
+        win.removeEventListener('keydown', onKeyDown, true);
       } catch {
         /* iframe may have navigated cross-origin */
       }
-      unbindHostDown();
+      unbindKeys();
     };
+  });
+
+  useDismissible({
+    open: useComputed(() => measureToolActive.value && anchors.value.length > 0),
+    close: () => {
+      capture('measure_cleared', { anchors: anchors.peek().length });
+      anchors.value = [];
+    },
   });
 
   // Pinned anchors belong to the tool; the hover readout also runs on a held Alt.

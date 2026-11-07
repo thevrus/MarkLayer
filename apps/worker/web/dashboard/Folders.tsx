@@ -3,9 +3,10 @@ import { Menu } from '@base-ui/react/menu';
 import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { portalContainer } from '@ext/lib/portal';
-import { cn, type Folder, MAX_FOLDER_NAME_LENGTH, type OwnedLink } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { signal, useSignal } from '@preact/signals';
 import { Check, Ellipsis, FolderInput, Plus } from 'lucide-preact';
+import { type Folder, MAX_FOLDER_NAME_LENGTH, type OwnedLink } from '../../shared/accounts';
 import {
   createFolder,
   deleteFolder,

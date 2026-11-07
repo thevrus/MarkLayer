@@ -1,11 +1,11 @@
 import { Menu } from '@base-ui/react/menu';
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { track } from '../lib/analytics';
+import { closeContextMenu, contextMenu } from '../lib/context-menu';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { Icon } from '../lib/icons';
 import { portalContainer } from '../lib/portal';
-import { closeContextMenu, contextMenu } from '../lib/state';
 
 export function ContextMenu() {
   const state = contextMenu.value;
@@ -13,8 +13,8 @@ export function ContextMenu() {
 
   // Base UI positions popups against an anchor element (or a virtual stand-in for
   // one). This menu opens at a point, not from a trigger, so we hand the
-  // Positioner a virtual anchor: a zero-size rect at the click coordinates. Its
-  // collision handling then replaces the old manual flip-into-viewport logic.
+  // Positioner a virtual anchor: a zero-size rect at the click coordinates, so its
+  // collision handling keeps the menu in the viewport.
   const anchor = {
     getBoundingClientRect: () => DOMRect.fromRect({ x: state.x, y: state.y }),
   };

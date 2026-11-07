@@ -1,4 +1,5 @@
-import { type CommentPriority, cn } from '@marklayer/types';
+import type { CommentPriority } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { useSignalEffect } from '@preact/signals';
 import { Trash2 } from 'lucide-preact';
 import { useCallback, useRef, useState } from 'preact/hooks';
@@ -7,7 +8,7 @@ import { composerCls, textareaBareCls, trim } from '../lib/buttons';
 import { replyRequest } from '../lib/checkFix';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
-import { pushReply } from '../lib/state';
+import { pushReply } from '../lib/ops';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
 import { AttachmentGallery, AttachmentThumbs, ComposerActions, useAttachments } from './AttachmentPicker';

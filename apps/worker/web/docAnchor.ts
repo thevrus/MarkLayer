@@ -1,4 +1,4 @@
-import type { PageAnchor } from '@marklayer/types';
+import type { PageAnchor } from '@marklayer/types/ops';
 
 /**
  * A PDF or an image is framed by our own viewer page, which lays every page out

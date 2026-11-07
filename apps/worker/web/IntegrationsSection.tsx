@@ -1,10 +1,11 @@
 import { Menu } from '@base-ui/react/menu';
 import { PanelSection } from '@ext/components/PanelSection';
 import { geist } from '@ext/lib/geist';
-import { toast } from '@ext/lib/state';
-import { cn, MAX_INTEGRATIONS_PER_ROOM, slackAppStatusSchema } from '@marklayer/types';
+import { toast } from '@ext/lib/toasts';
+import { cn } from '@marklayer/ui/cn';
 import { Check, Ellipsis, Send } from 'lucide-preact';
 import { useEffect, useState } from 'preact/hooks';
+import { MAX_INTEGRATIONS_PER_ROOM, slackAppStatusSchema } from '../shared/integrations';
 import { capture } from './analytics';
 import { Help, helpFor, Input, LabelledField } from './IntegrationFields';
 import {
@@ -19,7 +20,7 @@ import {
   slackApp,
   stringField,
 } from './integrations';
-import { API_BASE } from './signals';
+import { API_BASE } from './projects';
 
 /**
  * The provider catalogue is fetched as data rather than compiled in.

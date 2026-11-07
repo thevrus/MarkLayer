@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
-import type { AreaOp, CommentOp, DrawOp } from '@marklayer/types';
+import type { AreaOp, CommentOp, DrawOp } from '@marklayer/types/ops';
 
 // No IndexedDB in the test DOM; pushOp schedules a draft save through idb-keyval.
 mock.module('idb-keyval', () => ({
@@ -9,7 +9,8 @@ mock.module('idb-keyval', () => ({
   del: async () => {},
 }));
 
-const { activeTool, operations, onOpPushed, patchOp, pushOp, sendHeld, undo } = await import('./state');
+const { onChange, operations, patchOp, pushOp, sendHeld, undo } = await import('./ops');
+const { activeTool } = await import('./tool-state');
 const {
   clearArmed,
   pressClear,
@@ -62,7 +63,9 @@ beforeEach(() => {
   clearHeld();
   if (!batchMode.value) toggleBatchMode();
   sent = [];
-  onOpPushed.value = (op) => sent.push(op);
+  onChange.value = (change) => {
+    if (change.type === 'op') sent.push(change.op);
+  };
 });
 
 describe('batch edits', () => {

@@ -1,14 +1,23 @@
-import { isNewShareId, type LinkAccess, linkAccessSchema } from '@marklayer/types';
-import { nanoid } from 'nanoid';
+import { isNewShareId } from '@marklayer/brand/links';
+import { type LinkAccess, linkAccessSchema, type OwnedLink } from '../shared/accounts';
+import { nowInSeconds } from './time';
 
 /**
- * Every read and write of the `annotations`, `projects` and `uploads` tables.
+ * Every read and write of the `annotations`, `projects` and `uploads` tables,
+ * one store per table.
  *
  * Routes, the Durable Object and the cron used to each carry their own SQL plus
  * their own copy of the JSON-parsing and expiry rules, which is how the four
  * call sites ended up disagreeing about what a corrupt `ops` column means. The
  * schema is known in one place now; callers ask for rows, not columns.
+ *
+ * The `ops` column has one writer: the room's Durable Object (`putOps`, `create`).
+ * Nothing else touches it, which is what makes a warm room's flush safe.
  */
+
+export { inviteStore, MAIL_THROTTLE_SECONDS, throttleRemaining } from './auth/mail-throttle';
+export { unlockFailureStore } from './lock/failures';
+export { isExpired, nowInSeconds } from './time';
 
 /** A stored annotation. `ops` is already parsed and never throws — see parseJsonArray. */
 export interface StoredAnnotation {
@@ -22,31 +31,10 @@ export interface StoredAnnotation {
   ownerExpiresAt: number | null;
 }
 
-/**
- * A weak id degrades the upsert below to a plain UPDATE, so zero rows changed
- * means the *create* was refused — the id is the room's only access token, and
- * one short enough to guess may not mint a room.
- */
-const wroteRow = (res: D1Response): boolean => (res.meta.changes ?? 0) > 0;
+/** What `putOps` found: the row it updated, or none, which means the room was deleted behind it. */
+export type OpsWrite = 'written' | 'gone';
 
-/**
- * Every write that can also create a row. A weak id may only ever update one
- * that already exists, so a squatter cannot mint a guessable room; the miss is
- * what `wroteRow` reports. One guard so the rule cannot drift between writers.
- */
-async function upsertGuarded({
-  id,
-  update,
-  insert,
-}: {
-  id: string;
-  update: () => Promise<D1Response>;
-  insert: () => Promise<D1Response>;
-}): Promise<boolean> {
-  if (!isNewShareId(id)) return wroteRow(await update());
-  await insert();
-  return true;
-}
+const wroteRow = (res: D1Response): boolean => (res.meta.changes ?? 0) > 0;
 
 /**
  * A row's `access` column, degraded to `'edit'` rather than thrown — a row from
@@ -92,6 +80,12 @@ export interface RoomLock {
   ownerId: string | null;
 }
 
+/** Everything the room's door reads in one row: the lock, and both deadlines. */
+export interface RoomDoor extends RoomLock {
+  expiresAt: number | null;
+  ownerExpiresAt: number | null;
+}
+
 interface LockRow {
   password_hash: string | null;
   password_gen: number | null;
@@ -133,25 +127,17 @@ function parseIds(raw: string): string[] {
   return parseJsonArray(raw).filter((x): x is string => typeof x === 'string');
 }
 
-/** Seconds since the epoch, the unit every timestamp column uses. */
-export function nowInSeconds(): number {
-  return Math.floor(Date.now() / 1000);
-}
-
-export function isExpired(expiresAt: number | null): boolean {
-  return expiresAt !== null && nowInSeconds() > expiresAt;
-}
-
 /**
- * Seconds before another mail may go to the same address, given when the last one did.
- * One window for sign-in links and invites alike, so the two cannot drift apart.
+ * The retention sweep's idle clause, for a table whose rows a claimed link may keep
+ * alive. A kept link is one someone asked to keep: only an expiry they chose may
+ * take it, and the same holds for the project and the uploads it points at.
+ * `deletionDeadline` in shared/accounts is the same rule as a countdown. Membership is
+ * `page_ids`: `annotations.project_id` is only the promotion pointer, unset for protected pages.
  */
-export const MAIL_THROTTLE_SECONDS = 60;
-export function throttleRemaining(lastSentAt: number | undefined): number {
-  if (lastSentAt === undefined) return 0;
-  const elapsed = nowInSeconds() - lastSentAt;
-  return elapsed >= MAIL_THROTTLE_SECONDS ? 0 : MAIL_THROTTLE_SECONDS - elapsed;
-}
+const NO_OWNED_PAGE = `NOT EXISTS (
+  SELECT 1 FROM json_each(projects.page_ids) page
+  JOIN annotations a ON a.id = page.value WHERE a.owner_id IS NOT NULL
+)`;
 
 export function annotationStore(db: D1Database) {
   return {
@@ -184,29 +170,53 @@ export function annotationStore(db: D1Database) {
       };
     },
 
-    /** Who may edit, who owns it, and their expiry — what a warm room re-reads after the owner's Settings PATCH. */
-    async getAccess(
-      id: string,
-    ): Promise<{ access: LinkAccess; ownerId: string | null; ownerExpiresAt: number | null } | null> {
+    /** Everything about a room but its ops: what a warm room re-reads when the row may have moved under it. */
+    async getMeta(id: string): Promise<Omit<StoredAnnotation, 'ops'> | null> {
       const row = await db
-        .prepare('SELECT access, owner_id, owner_expires_at FROM annotations WHERE id = ?')
+        .prepare(
+          'SELECT url, width, created_at, expires_at, access, owner_id, owner_expires_at FROM annotations WHERE id = ?',
+        )
         .bind(id)
-        .first<{ access: string; owner_id: string | null; owner_expires_at: number | null }>();
+        .first<{
+          url: string | null;
+          width: number | null;
+          created_at: number;
+          expires_at: number | null;
+          access: string;
+          owner_id: string | null;
+          owner_expires_at: number | null;
+        }>();
       return row
-        ? { access: parseLinkAccess(row.access), ownerId: row.owner_id, ownerExpiresAt: row.owner_expires_at }
+        ? {
+            url: row.url,
+            width: row.width,
+            createdAt: row.created_at,
+            expiresAt: row.expires_at,
+            access: parseLinkAccess(row.access),
+            ownerId: row.owner_id,
+            ownerExpiresAt: row.owner_expires_at,
+          }
         : null;
     },
 
-    /**
-     * What every content gate reads: the password record, its generation, and who
-     * owns the link (the owner skips the prompt). Null when there is no such room.
-     */
+    /** The password record, its generation, and who owns the link. Null when there is no such room. */
     async getLock(id: string): Promise<RoomLock | null> {
       const row = await db
         .prepare('SELECT password_hash, password_gen, owner_id FROM annotations WHERE id = ?')
         .bind(id)
         .first<LockRow>();
       return row ? lockFromRow(row) : null;
+    },
+
+    /** What `openRoom` reads: the lock plus both deadlines, so existence, expiry and password cost one query. */
+    async getDoor(id: string): Promise<RoomDoor | null> {
+      const row = await db
+        .prepare(
+          'SELECT password_hash, password_gen, owner_id, expires_at, owner_expires_at FROM annotations WHERE id = ?',
+        )
+        .bind(id)
+        .first<LockRow & { expires_at: number | null; owner_expires_at: number | null }>();
+      return row ? { ...lockFromRow(row), expiresAt: row.expires_at, ownerExpiresAt: row.owner_expires_at } : null;
     },
 
     /** Locks for a project's pages, protected ones only: an absent id is an open (or missing) page. */
@@ -244,22 +254,36 @@ export function annotationStore(db: D1Database) {
       return { projectId: row.project_id, pageIds: parseIds(row.page_ids ?? '[]'), expiresAt: row.expires_at };
     },
 
-    /** Points each open, unprotected page that has no project yet at `projectId`. */
-    linkProject({ projectId, pageIds }: { projectId: string; pageIds: string[] }): Promise<unknown> {
-      return db
-        .prepare(
-          `UPDATE annotations SET project_id = ?
-           WHERE id IN (SELECT value FROM json_each(?))
-             AND project_id IS NULL AND access = 'edit' AND password_hash IS NULL`,
-        )
-        .bind(projectId, JSON.stringify(pageIds))
-        .run();
+    /**
+     * Points each open, unprotected page that has no project yet at `projectId`,
+     * and frees the pages this write dropped from it — so a share link follows
+     * its project exactly as long as it is in it.
+     */
+    async linkProject({ projectId, pageIds }: { projectId: string; pageIds: string[] }): Promise<void> {
+      const ids = JSON.stringify(pageIds);
+      await db.batch([
+        db
+          .prepare(
+            `UPDATE annotations SET project_id = NULL
+             WHERE project_id = ? AND id NOT IN (SELECT value FROM json_each(?))`,
+          )
+          .bind(projectId, ids),
+        db
+          .prepare(
+            `UPDATE annotations SET project_id = ?
+             WHERE id IN (SELECT value FROM json_each(?))
+               AND project_id IS NULL AND access = 'edit' AND password_hash IS NULL`,
+          )
+          .bind(projectId, ids),
+      ]);
     },
 
-    unlinkProject({ id, projectId }: { id: string; projectId: string }): Promise<unknown> {
+    /** Frees every page of projects that no longer exist. */
+    unlinkProjects(projectIds: string[]): Promise<unknown> {
+      if (projectIds.length === 0) return Promise.resolve();
       return db
-        .prepare('UPDATE annotations SET project_id = NULL WHERE id = ? AND project_id = ?')
-        .bind(id, projectId)
+        .prepare('UPDATE annotations SET project_id = NULL WHERE project_id IN (SELECT value FROM json_each(?))')
+        .bind(JSON.stringify(projectIds))
         .run();
     },
 
@@ -288,8 +312,13 @@ export function annotationStore(db: D1Database) {
       return (await db.prepare('SELECT 1 FROM annotations WHERE id = ?').bind(id).first()) !== null;
     },
 
-    /** False when the id was too weak to mint a room at — see `wroteRow`. */
-    async put({
+    /**
+     * Mint the row. A weak id may not mint one — the id is the room's only access
+     * token, and one short enough to guess may not become a room — so this is
+     * false without writing. A row that appeared in the meantime (two first
+     * flushes racing) keeps its metadata and takes these ops.
+     */
+    async create({
       id,
       ops,
       url,
@@ -302,48 +331,61 @@ export function annotationStore(db: D1Database) {
       width: number | null;
       expiresAt: number | null;
     }): Promise<boolean> {
-      return upsertGuarded({
-        id,
-        update: () =>
-          db
-            .prepare(
-              `UPDATE annotations SET ops = ?, url = COALESCE(?, url), width = COALESCE(?, width), expires_at = ?
-             WHERE id = ?`,
-            )
-            .bind(JSON.stringify(ops), url, width, expiresAt, id)
-            .run(),
-        insert: () =>
-          db
-            .prepare(
-              `INSERT INTO annotations (id, ops, url, width, expires_at) VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, url = COALESCE(excluded.url, url), width = COALESCE(excluded.width, width), expires_at = excluded.expires_at`,
-            )
-            .bind(id, JSON.stringify(ops), url, width, expiresAt)
-            .run(),
-      });
+      if (!isNewShareId(id)) return false;
+      await db
+        .prepare(
+          `INSERT INTO annotations (id, ops, url, width, expires_at) VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, url = COALESCE(excluded.url, url), width = COALESCE(excluded.width, width), last_accessed_at = unixepoch()`,
+        )
+        .bind(id, JSON.stringify(ops), url, width, expiresAt)
+        .run();
+      return true;
     },
 
     /**
-     * Write ops alone, preserving url/width/expiry — the realtime room's flush.
-     * False when the id was too weak to mint a room at; see `wroteRow`.
+     * The REST save's metadata half. `url` and `width` only ever fill in; `expiresAt`
+     * is written only when the caller sent one (`null` clears it), so a save that
+     * says nothing about expiry keeps the one the link has. False for no such row.
      */
-    async putOps({ id, ops }: { id: string; ops: unknown[] }): Promise<boolean> {
-      return upsertGuarded({
-        id,
-        update: () =>
-          db
-            .prepare('UPDATE annotations SET ops = ?, last_accessed_at = unixepoch() WHERE id = ?')
-            .bind(JSON.stringify(ops), id)
-            .run(),
-        insert: () =>
-          db
-            .prepare(
-              `INSERT INTO annotations (id, ops, last_accessed_at) VALUES (?, ?, unixepoch())
-           ON CONFLICT(id) DO UPDATE SET ops = excluded.ops, last_accessed_at = unixepoch()`,
-            )
-            .bind(id, JSON.stringify(ops))
-            .run(),
-      });
+    async updateMeta({
+      id,
+      url,
+      width,
+      expiresAt,
+    }: {
+      id: string;
+      url: string | null;
+      width: number | null;
+      expiresAt?: number | null;
+    }): Promise<boolean> {
+      const res =
+        expiresAt === undefined
+          ? await db
+              .prepare(
+                'UPDATE annotations SET url = COALESCE(?, url), width = COALESCE(?, width), last_accessed_at = unixepoch() WHERE id = ?',
+              )
+              .bind(url, width, id)
+              .run()
+          : await db
+              .prepare(
+                'UPDATE annotations SET url = COALESCE(?, url), width = COALESCE(?, width), expires_at = ?, last_accessed_at = unixepoch() WHERE id = ?',
+              )
+              .bind(url, width, expiresAt, id)
+              .run();
+      return wroteRow(res);
+    },
+
+    /**
+     * The room's flush. An UPDATE and never an insert: a row that is not there
+     * was deleted behind the room, and a flush must not bring it back. `create`
+     * is the only insert, and the room calls it only for a row it never found.
+     */
+    async putOps({ id, ops }: { id: string; ops: unknown[] }): Promise<OpsWrite> {
+      const res = await db
+        .prepare('UPDATE annotations SET ops = ?, last_accessed_at = unixepoch() WHERE id = ?')
+        .bind(JSON.stringify(ops), id)
+        .run();
+      return wroteRow(res) ? 'written' : 'gone';
     },
 
     /**
@@ -508,6 +550,146 @@ export function annotationStore(db: D1Database) {
         .all<{ id: string }>();
       return deleted.results.map((r) => r.id);
     },
+
+    // The owner's columns. Every statement carries `owner_id`, so a guessed id alone reaches nothing.
+
+    /** Links a person has claimed, most recently touched first. */
+    async listOwned(ownerId: string): Promise<OwnedLink[]> {
+      const res = await db
+        .prepare(
+          'SELECT id, url, created_at, last_accessed_at, expires_at, access, owner_expires_at, folder_id, password_hash IS NOT NULL AS password_protected FROM annotations WHERE owner_id = ? ORDER BY last_accessed_at DESC LIMIT 200',
+        )
+        .bind(ownerId)
+        .all<{
+          id: string;
+          url: string | null;
+          created_at: number;
+          last_accessed_at: number;
+          expires_at: number | null;
+          access: string;
+          owner_expires_at: number | null;
+          folder_id: string | null;
+          password_protected: number | null;
+        }>();
+      return res.results.map((row) => ({
+        id: row.id,
+        url: row.url,
+        createdAt: row.created_at,
+        lastAccessedAt: row.last_accessed_at,
+        expiresAt: row.expires_at,
+        access: parseLinkAccess(row.access),
+        ownerExpiresAt: row.owner_expires_at,
+        folderId: row.folder_id,
+        // SQLite answers the IS NOT NULL as 0/1.
+        passwordProtected: row.password_protected === 1,
+      }));
+    },
+
+    /**
+     * Sets, replaces or (with `hash: null`) removes the password, bumping the
+     * generation every time so each unlock cookie issued before it stops working.
+     * Returns the new generation, or null when this session does not own the link.
+     */
+    async setPassword({
+      id,
+      ownerId,
+      hash,
+    }: {
+      id: string;
+      ownerId: string;
+      hash: string | null;
+    }): Promise<number | null> {
+      const row = await db
+        .prepare(
+          'UPDATE annotations SET password_hash = ?, password_gen = password_gen + 1 WHERE id = ? AND owner_id = ? RETURNING password_gen',
+        )
+        .bind(hash, id, ownerId)
+        .first<{ password_gen: number }>();
+      return row?.password_gen ?? null;
+    },
+
+    /** A claimed link's settings, or null when this session does not own it. */
+    async getSettings({
+      id,
+      ownerId,
+    }: {
+      id: string;
+      ownerId: string;
+    }): Promise<{ access: LinkAccess; ownerExpiresAt: number | null } | null> {
+      const row = await db
+        .prepare('SELECT access, owner_expires_at FROM annotations WHERE id = ? AND owner_id = ?')
+        .bind(id, ownerId)
+        .first<{ access: string; owner_expires_at: number | null }>();
+      if (!row) return null;
+      return { access: parseLinkAccess(row.access), ownerExpiresAt: row.owner_expires_at };
+    },
+
+    /** Takes resolved values — the route decides what a partial PATCH means. */
+    async updateSettings({
+      id,
+      ownerId,
+      access,
+      ownerExpiresAt,
+    }: {
+      id: string;
+      ownerId: string;
+      access: LinkAccess;
+      ownerExpiresAt: number | null;
+    }): Promise<boolean> {
+      const res = await db
+        .prepare('UPDATE annotations SET access = ?, owner_expires_at = ? WHERE id = ? AND owner_id = ?')
+        .bind(access, ownerExpiresAt, id, ownerId)
+        .run();
+      return wroteRow(res);
+    },
+
+    /**
+     * Claims an unowned link. The `owner_id IS NULL` guard is the whole
+     * authorization model: anyone holding the id may claim it once, and nobody
+     * can take one that is already claimed.
+     */
+    async claim({ id, ownerId }: { id: string; ownerId: string }): Promise<boolean> {
+      const res = await db
+        .prepare('UPDATE annotations SET owner_id = ? WHERE id = ? AND owner_id IS NULL')
+        .bind(ownerId, id)
+        .run();
+      return wroteRow(res);
+    },
+
+    /**
+     * Also resets `access`, `owner_expires_at` and the password: all are
+     * owner-managed settings, and with `owner_id` gone `getSettings`'s
+     * `AND owner_id = ?` guard would make either permanent. Returns the password
+     * generation the release moved to (the room revokes sessions by it), or null
+     * when this session does not own the link.
+     */
+    async release({ id, ownerId }: { id: string; ownerId: string }): Promise<{ gen: number } | null> {
+      const row = await db
+        .prepare(
+          `UPDATE annotations SET owner_id = NULL, access = 'edit', owner_expires_at = NULL, folder_id = NULL,
+             password_hash = NULL, password_gen = password_gen + 1
+           WHERE id = ? AND owner_id = ? RETURNING password_gen`,
+        )
+        .bind(id, ownerId)
+        .first<{ password_gen: number }>();
+      return row ? { gen: row.password_gen } : null;
+    },
+
+    /**
+     * Files a link, or unfiles it with `folderId: null`. Both halves are
+     * owner-guarded in one statement: a guessed folder id must not file a link
+     * into someone else's list.
+     */
+    async move({ id, ownerId, folderId }: { id: string; ownerId: string; folderId: string | null }): Promise<boolean> {
+      const res = await db
+        .prepare(
+          `UPDATE annotations SET folder_id = ? WHERE id = ? AND owner_id = ?
+           AND (? IS NULL OR EXISTS (SELECT 1 FROM folders WHERE id = ? AND owner_id = ?))`,
+        )
+        .bind(folderId, id, ownerId, folderId, folderId, ownerId)
+        .run();
+      return wroteRow(res);
+    },
   };
 }
 
@@ -522,7 +704,11 @@ export function projectStore(db: D1Database) {
       return { pageIds: parseIds(row.page_ids), createdAt: row.created_at, expiresAt: row.expires_at };
     },
 
-    /** False when the id was too weak to mint a project at — see `wroteRow`. */
+    /**
+     * Create or replace. A weak id may only update a project that already exists,
+     * the same floor `annotationStore.create` holds; false reports the refusal.
+     * `expiresAt` undefined keeps the current expiry.
+     */
     async put({
       id,
       pageIds,
@@ -530,27 +716,34 @@ export function projectStore(db: D1Database) {
     }: {
       id: string;
       pageIds: string[];
-      expiresAt: number | null;
+      expiresAt?: number | null;
     }): Promise<boolean> {
-      return upsertGuarded({
-        id,
-        update: () =>
-          db
-            .prepare(
-              `UPDATE projects SET page_ids = ?, expires_at = ?, last_accessed_at = unixepoch()
-             WHERE id = ?`,
-            )
-            .bind(JSON.stringify(pageIds), expiresAt, id)
-            .run(),
-        insert: () =>
-          db
-            .prepare(
-              `INSERT INTO projects (id, page_ids, expires_at) VALUES (?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET page_ids = excluded.page_ids, expires_at = excluded.expires_at, last_accessed_at = unixepoch()`,
-            )
-            .bind(id, JSON.stringify(pageIds), expiresAt)
-            .run(),
-      });
+      const ids = JSON.stringify(pageIds);
+      if (!isNewShareId(id)) {
+        const res =
+          expiresAt === undefined
+            ? await db
+                .prepare('UPDATE projects SET page_ids = ?, last_accessed_at = unixepoch() WHERE id = ?')
+                .bind(ids, id)
+                .run()
+            : await db
+                .prepare(
+                  'UPDATE projects SET page_ids = ?, expires_at = ?, last_accessed_at = unixepoch() WHERE id = ?',
+                )
+                .bind(ids, expiresAt, id)
+                .run();
+        return wroteRow(res);
+      }
+      await db
+        .prepare(
+          `INSERT INTO projects (id, page_ids, expires_at) VALUES (?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET page_ids = excluded.page_ids,
+             expires_at = CASE WHEN ? THEN excluded.expires_at ELSE expires_at END,
+             last_accessed_at = unixepoch()`,
+        )
+        .bind(id, ids, expiresAt ?? null, expiresAt === undefined ? 0 : 1)
+        .run();
+      return true;
     },
 
     touch(id: string): Promise<unknown> {
@@ -561,10 +754,12 @@ export function projectStore(db: D1Database) {
       return db.prepare('DELETE FROM projects WHERE id = ?').bind(id).run();
     },
 
+    /** Same deadline rule as annotations: a project holding a claimed page has no idle window. */
     async deleteExpired({ unusedSince }: { unusedSince: number }): Promise<string[]> {
       const deleted = await db
         .prepare(
-          'DELETE FROM projects WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
+          `DELETE FROM projects WHERE (last_accessed_at < ? AND ${NO_OWNED_PAGE})
+           OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id`,
         )
         .bind(unusedSince, nowInSeconds())
         .all<{ id: string }>();
@@ -597,73 +792,22 @@ export function uploadStore(db: D1Database) {
       return db.prepare('UPDATE uploads SET last_accessed_at = unixepoch() WHERE id = ?').bind(id).run();
     },
 
+    /**
+     * Idle uploads, except those a claimed link still points at (its page `url`,
+     * or an attachment inside its ops). Nothing sets `uploads.expires_at`, so the
+     * idle window is the only clock.
+     */
     async deleteExpired({ unusedSince }: { unusedSince: number }): Promise<string[]> {
       const deleted = await db
         .prepare(
-          'DELETE FROM uploads WHERE last_accessed_at < ? OR (expires_at IS NOT NULL AND expires_at < ?) RETURNING id',
+          `DELETE FROM uploads WHERE last_accessed_at < ?
+           AND NOT EXISTS (SELECT 1 FROM annotations a WHERE a.owner_id IS NOT NULL
+             AND (a.url LIKE '%/f/' || uploads.id OR instr(a.ops, uploads.id) > 0))
+           RETURNING id`,
         )
-        .bind(unusedSince, nowInSeconds())
+        .bind(unusedSince)
         .all<{ id: string }>();
       return deleted.results.map((r) => r.id);
-    },
-  };
-}
-
-/** Wrong-password counts per (room, client). See migration 0010 for why this is a table. */
-export function unlockFailureStore(db: D1Database) {
-  return {
-    /** Failures inside a window still open at `since`. */
-    async count({ roomId, client, since }: { roomId: string; client: string; since: number }): Promise<number> {
-      const row = await db
-        .prepare('SELECT failures FROM unlock_failures WHERE room_id = ? AND client = ? AND window_start >= ?')
-        .bind(roomId, client, since)
-        .first<{ failures: number }>();
-      return row?.failures ?? 0;
-    },
-
-    /** One upsert: a window older than `since` restarts at one rather than accumulating forever. */
-    async record({
-      roomId,
-      client,
-      now,
-      since,
-    }: {
-      roomId: string;
-      client: string;
-      now: number;
-      since: number;
-    }): Promise<void> {
-      await db
-        .prepare(
-          `INSERT INTO unlock_failures (room_id, client, window_start, failures) VALUES (?, ?, ?, 1)
-           ON CONFLICT(room_id, client) DO UPDATE SET
-             failures = CASE WHEN window_start < ? THEN 1 ELSE failures + 1 END,
-             window_start = CASE WHEN window_start < ? THEN excluded.window_start ELSE window_start END`,
-        )
-        .bind(roomId, client, now, since, since)
-        .run();
-    },
-
-    sweep(before: number): Promise<unknown> {
-      return db.prepare('DELETE FROM unlock_failures WHERE window_start < ?').bind(before).run();
-    },
-  };
-}
-
-/** Emails captured through the share popover's "Invite by email". */
-export function inviteStore(db: D1Database) {
-  return {
-    /** One invite per (link, address) per window, so a form left on repeat cannot bury someone's inbox. */
-    async throttleSeconds({ linkId, email }: { linkId: string; email: string }): Promise<number> {
-      const row = await db
-        .prepare('SELECT created_at FROM invites WHERE link_id = ? AND email = ? ORDER BY created_at DESC LIMIT 1')
-        .bind(linkId, email)
-        .first<{ created_at: number }>();
-      return throttleRemaining(row?.created_at);
-    },
-
-    async record({ linkId, email }: { linkId: string; email: string }): Promise<void> {
-      await db.prepare('INSERT INTO invites (id, link_id, email) VALUES (?, ?, ?)').bind(nanoid(), linkId, email).run();
     },
   };
 }

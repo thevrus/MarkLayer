@@ -10,7 +10,7 @@ published: 2026-08-15
 modified: 2026-09-13
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free and open-source under Apache-2.0, and built around a shared room rather than a single prompt. Paste any URL, staging, production, a client's site, and nothing to install, or use the Chrome extension for localhost; annotations, live cursors, and voice all sync into that same room. The MCP server gives the agent a two-way loop: watch for new comments, acknowledge one, resolve it with a summary, or dismiss it with a reason, and every status change shows up live for whoever else is in the room."
     bestFor: "Element-to-agent handoff when designers, PMs, or clients are part of the loop."
   - name: "Agentation"

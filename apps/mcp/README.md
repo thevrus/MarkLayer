@@ -78,7 +78,7 @@ The agent will call `marklayer_watch_annotations` in a loop and process incoming
 --agent <name>       Identifier shown to humans (default "claude-code").
 ```
 
-Equivalent env vars: `MARKLAYER_ROOM`, `MARKLAYER_API_BASE`, `MARKLAYER_AGENT`.
+Equivalent env vars: `MARKLAYER_ROOM`, `MARKLAYER_API_BASE`, `MARKLAYER_AGENT`. For a password-protected room set `MARKLAYER_PASSWORD` (environment only, never a flag).
 
 ## Troubleshooting
 

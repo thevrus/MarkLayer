@@ -1,13 +1,17 @@
 import { Menu } from '@base-ui/react/menu';
-import { type CommentStatus, cn, commentStatusSchema } from '@marklayer/types';
+import { type CommentStatus, commentStatusSchema } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { Check, ChevronDown, CircleUserRound } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useCardHold } from '../lib/card-hold';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { localUser } from '../lib/identity';
+import { setOpAssignee, setOpStatus } from '../lib/ops';
 import { portalContainer } from '../lib/portal';
+import { peers } from '../lib/presence';
 import { stableComputed } from '../lib/stable';
-import { localUser, peers, STATUS_COLORS, STATUS_LABELS, setOpAssignee, setOpStatus } from '../lib/state';
+import { STATUS_COLORS, STATUS_LABELS } from '../lib/status-ui';
 
 const STATUS_ORDER = commentStatusSchema.options;
 

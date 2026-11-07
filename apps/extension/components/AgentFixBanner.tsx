@@ -1,8 +1,9 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { agentFix, checkRequest, confirmFixed, reportNotFixed } from '../lib/checkFix';
-import { getReplies } from '../lib/state';
+import { host } from '../lib/host-config';
+import { getReplies } from '../lib/ops';
 import type { CommentOp } from '../lib/types';
 
 const actionCls = cn(
@@ -13,13 +14,14 @@ const actionCls = cn(
 
 /**
  * "Fixed by <agent>" with check / not fixed / sign off. Renders nothing on any
- * other thread, so a host mounts it unconditionally.
+ * other thread, or for a visitor who may not triage (its verdicts set the status),
+ * so a host mounts it unconditionally.
  */
 export function AgentFixBanner({ op }: { op: CommentOp }) {
   // Once checked the human is judging the result, so the prompt changes from "look" to "verdict".
   const [checked, setChecked] = useState(false);
   const fix = agentFix({ op, replies: getReplies(op.id) });
-  if (!fix) return null;
+  if (!fix || !host.capabilities.triage) return null;
 
   return (
     <div class="px-3.5 py-2.5 flex flex-col gap-2">

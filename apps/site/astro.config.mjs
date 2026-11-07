@@ -1,6 +1,7 @@
 // @ts-check
 
 import { unified } from '@astrojs/markdown-remark';
+import { ORIGIN } from '@marklayer/brand';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 import rehypeExternalLinks from 'rehype-external-links';
@@ -9,7 +10,7 @@ import { rehypeScrollTables } from './src/lib/rehype-scroll-tables.mjs';
 import { WORKER_DEV } from './src/lib/site';
 
 export default defineConfig({
-  site: 'https://marklayer.app',
+  site: ORIGIN,
   output: 'static',
 
   // The Worker serves these pages today at extensionless, trailing-slash-free

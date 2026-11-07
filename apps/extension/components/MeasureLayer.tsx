@@ -1,4 +1,4 @@
-import { useSignal, useSignalEffect } from '@preact/signals';
+import { type Signal, useSignal, useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { Fragment, type JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -15,7 +15,7 @@ import {
   type TraverseDir,
 } from '../lib/measure';
 import { isExtensionElement } from '../lib/selector';
-import { altHeld, measureActive, measureToolActive } from '../lib/state';
+import { altHeld, measureActive, measureToolActive } from '../lib/tool-state';
 
 const HUE = 200;
 const FG = `oklch(0.78 0.13 ${HUE})`;
@@ -351,6 +351,68 @@ export function MeasureOverlayContent({
   );
 }
 
+/** The tool's keys: walk the primary anchor through the DOM, drop it, or clear them all. */
+export function measureKeys({
+  anchors,
+  hover,
+  skip,
+  rectOf,
+  onWalked,
+}: {
+  anchors: Signal<MeasureState[]>;
+  hover: Signal<MeasureState | null>;
+  /** Elements a walk must not land on: our own UI, or the frame's root. */
+  skip: (el: Element) => boolean;
+  /** An element's rect in the overlay's viewport. */
+  rectOf: (el: Element) => DOMRect;
+  onWalked?: () => void;
+}) {
+  const traverse = (dir: TraverseDir) => {
+    const cur = anchors.peek();
+    const primary = cur[cur.length - 1];
+    if (!primary) return false;
+    const next = nextAnchorElement(primary.el, dir, skip);
+    if (!next) return false;
+    anchors.value = [...cur.slice(0, -1), { id: primary.id, el: next, rect: rectOf(next) }];
+    hover.value = null;
+    onWalked?.();
+    return true;
+  };
+
+  const tryTraverse = (e: KeyboardEvent, dir: TraverseDir) => {
+    if (!measureToolActive.value) return;
+    if (!traverse(dir)) return;
+    track('measure_walked', { dir });
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const popPrimary = (e: KeyboardEvent) => {
+    if (!measureToolActive.value || !anchors.peek().length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    anchors.value = anchors.peek().slice(0, -1);
+  };
+
+  return {
+    Escape: (e: KeyboardEvent) => {
+      if (!measureToolActive.value || !anchors.peek().length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      track('measure_cleared', { anchors: anchors.peek().length });
+      anchors.value = [];
+    },
+    Backspace: popPrimary,
+    Delete: popPrimary,
+    Tab: (e: KeyboardEvent) => tryTraverse(e, 'parent'),
+    'Shift+Tab': (e: KeyboardEvent) => tryTraverse(e, 'child'),
+    ArrowDown: (e: KeyboardEvent) => tryTraverse(e, 'next'),
+    ArrowRight: (e: KeyboardEvent) => tryTraverse(e, 'next'),
+    ArrowUp: (e: KeyboardEvent) => tryTraverse(e, 'prev'),
+    ArrowLeft: (e: KeyboardEvent) => tryTraverse(e, 'prev'),
+  };
+}
+
 export function MeasureLayer() {
   const anchors = useSignal<MeasureState[]>([]);
   const hover = useSignal<MeasureState | null>(null);
@@ -393,49 +455,18 @@ export function MeasureLayer() {
       }
     };
 
-    const traverse = (dir: TraverseDir) => {
-      const cur = anchors.peek();
-      const primary = cur[cur.length - 1];
-      if (!primary) return false;
-      const next = nextAnchorElement(primary.el, dir, isExtensionElement);
-      if (!next) return false;
-      anchors.value = [...cur.slice(0, -1), { id: primary.id, el: next, rect: next.getBoundingClientRect() }];
-      hover.value = null;
-      lastEl.current = null;
-      return true;
-    };
-
-    const tryTraverse = (e: KeyboardEvent, dir: TraverseDir) => {
-      if (!measureToolActive.value) return;
-      if (!traverse(dir)) return;
-      track('measure_walked', { dir });
-      e.preventDefault();
-      e.stopPropagation();
-    };
-
-    const popPrimary = (e: KeyboardEvent) => {
-      if (!measureToolActive.value || !anchors.peek().length) return;
-      e.preventDefault();
-      e.stopPropagation();
-      anchors.value = anchors.peek().slice(0, -1);
-    };
-    const unbindDown = tinykeys(window, {
-      Escape: (e) => {
-        if (!measureToolActive.value || !anchors.peek().length) return;
-        e.preventDefault();
-        e.stopPropagation();
-        track('measure_cleared', { anchors: anchors.peek().length });
-        anchors.value = [];
-      },
-      Backspace: popPrimary,
-      Delete: popPrimary,
-      Tab: (e) => tryTraverse(e, 'parent'),
-      'Shift+Tab': (e) => tryTraverse(e, 'child'),
-      ArrowDown: (e) => tryTraverse(e, 'next'),
-      ArrowRight: (e) => tryTraverse(e, 'next'),
-      ArrowUp: (e) => tryTraverse(e, 'prev'),
-      ArrowLeft: (e) => tryTraverse(e, 'prev'),
-    });
+    const unbindDown = tinykeys(
+      window,
+      measureKeys({
+        anchors,
+        hover,
+        skip: isExtensionElement,
+        rectOf: (el) => el.getBoundingClientRect(),
+        onWalked: () => {
+          lastEl.current = null;
+        },
+      }),
+    );
 
     window.addEventListener('mousemove', onMove, true);
     window.addEventListener('click', onClick, true);

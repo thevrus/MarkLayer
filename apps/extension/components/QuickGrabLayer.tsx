@@ -2,10 +2,12 @@ import { useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { copyElementShot } from '../lib/capture';
+import { editableTarget } from '../lib/dom';
 import { detectFrameworkComponent } from '../lib/fiber-bridge';
+import { outputDetail } from '../lib/prefs';
 import { getSelector, isExtensionElement, snapshotElement } from '../lib/selector';
-import { activeTool, altHeld, outputDetail } from '../lib/state';
-import { type HoverState, HoverTooltip } from './InspectorLayer';
+import { activeTool, altHeld } from '../lib/tool-state';
+import { type HoverState, HoverTooltip } from './HoverTooltip';
 
 // Suppressed when inspect tools are active so their overlays own the input.
 export function QuickGrabLayer() {
@@ -14,13 +16,6 @@ export function QuickGrabLayer() {
   const debounce = useRef(0);
 
   useEffect(() => {
-    const isTypingTarget = (e: Event): boolean => {
-      const t = e.composedPath()[0];
-      if (!(t instanceof HTMLElement)) return false;
-      const tag = t.tagName;
-      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
-    };
-
     const inspectorOwnsInput = () => activeTool.value === 'inspect' || activeTool.value === 'multiInspect';
 
     const grabHovered = () => {
@@ -35,13 +30,13 @@ export function QuickGrabLayer() {
       return true;
     };
 
-    // stopPropagation prevents App.tsx's tool shortcuts from also reading "C" as comment.
+    // stopPropagation keeps the tool shortcuts from also reading "C" as comment.
     // This is a capture-phase listener on `window`, so it sees every keystroke on the
-    // host page: the scalar modifier test comes first, because `isTypingTarget` walks
+    // host page: the scalar modifier test comes first, because `editableTarget` walks
     // the whole composed path and would do it for every key typed anywhere.
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.altKey || e.metaKey || e.ctrlKey || e.key.toLowerCase() !== 'c') return;
-      if (inspectorOwnsInput() || isTypingTarget(e)) return;
+      if (inspectorOwnsInput() || editableTarget(e)) return;
       if (!altHeld.value || !grabHovered()) return;
       e.preventDefault();
       e.stopPropagation();
@@ -80,7 +75,7 @@ export function QuickGrabLayer() {
     };
   }, []);
 
-  // Alt is tracked once, in App.tsx, and shared with the measure overlays. Clear
+  // Alt is tracked once, in lib/keymap.ts, and shared with the measure overlays. Clear
   // the hover on release so the next Alt starts from a fresh element.
   useSignalEffect(() => {
     if (altHeld.value) return;

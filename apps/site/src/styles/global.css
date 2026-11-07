@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@marklayer/tokens/theme.css";
 
 /* MarkLayer marketing site — design system.
 
@@ -76,6 +77,13 @@
 }
 
 @theme {
+  /* The shared scale (packages/tokens/theme.css) is imported above. Its `--text-meta`
+     is a 12px size; on this site `text-meta` has always been the secondary ink
+     colour (`--color-meta`), so the size is dropped here rather than let one class
+     name resolve to either. The larger body and UI steps below are `site-` named
+     for the same reason: `--text-ui` and `--text-body` mean 13px and 15px in the app. */
+  --text-meta: initial;
+
   /* Achromatic by construction: the page is white wall to wall and the only
      typographic colours are ink and two quieter steps. Depth comes from
      whitespace, never from a shadow or a tinted band. */
@@ -167,12 +175,12 @@
   --text-lede--line-height: 1.6;
   --text-lede--letter-spacing: -0.004em;
 
-  --text-body: 1rem;
-  --text-body--line-height: 1.65;
+  --text-site-body: 1rem;
+  --text-site-body--line-height: 1.65;
 
   /* Dense UI rows where 16px would not fit: table cells, link rows, buttons. */
-  --text-ui: 0.9375rem;
-  --text-ui--line-height: 1.5;
+  --text-site-ui: 0.9375rem;
+  --text-site-ui--line-height: 1.5;
 
   --text-label: 0.8125rem;
   --text-label--line-height: 1.54;
@@ -181,10 +189,6 @@
      label step so legal boilerplate stops being the heaviest text on the floor. */
   --text-fine: 0.75rem;
   --text-fine--line-height: 1.6;
-
-  /* The one tracking value the scale does not carry on a size step: the footer's
-     column headings, opened up a hair so 13px semibold reads as a label. */
-  --tracking-label: 0.011em;
 
   /* ── The page container ──
      One width for the whole product. `/` and every marketing page used to sit on
@@ -298,7 +302,7 @@
        A column, and the shell inside it grows: on a page short enough to leave
        room — the 404 — the floor still lands at the bottom of the viewport
        instead of stopping partway down with white underneath it. */
-    @apply m-0 flex min-h-screen flex-col bg-canvas p-0 text-body text-ink antialiased;
+    @apply m-0 flex min-h-screen flex-col bg-canvas p-0 text-site-body text-ink antialiased;
   }
 
   /* Measure. The 712px column inside the gutters ran ~94 characters per line
@@ -392,7 +396,7 @@
 
   /* Ruled rows, no card, no filled header band. Numerals line up. */
   table {
-    @apply my-7 w-full border-collapse text-ui tabular-nums;
+    @apply my-7 w-full border-collapse text-site-ui tabular-nums;
   }
   caption {
     @apply mb-3 text-start text-label text-meta;
@@ -431,7 +435,7 @@
      one-line install command ran off the right of a phone and took the page with
      it. The nested reset is what stops the pill from drawing inside the block. */
   pre {
-    @apply my-7 overflow-x-auto rounded-md bg-sunken p-4 text-ui;
+    @apply my-7 overflow-x-auto rounded-md bg-sunken p-4 text-site-ui;
   }
   pre code {
     @apply bg-transparent p-0;
@@ -458,7 +462,7 @@
      are capped at 560px by the prose rule in the base layer and are deliberately
      not repeated here — naming them again would override that cap and widen
      every line on the site. */
-  .ml-shell > :is(h1, h2, h3, h4, hr, .ml-bottom-line, .ml-video) {
+  .ml-shell > :is(h1, h2, h3, h4, hr, .ml-bottom-line) {
     max-width: var(--container-column);
   }
 
@@ -602,7 +606,7 @@
      same 15px medium label, same Chrome mark beside it. No gradient, no glow, no
      shadow and no lift; hover and press are value steps on the surface. */
   .ml-cta {
-    @apply inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-ui font-medium text-surface no-underline transition-colors duration-150;
+    @apply inline-flex h-12 items-center gap-2 rounded-full bg-ink px-7 text-site-ui font-medium text-surface no-underline transition-colors duration-150;
   }
   .ml-cta:hover {
     @apply bg-ink-hover text-surface no-underline;
@@ -681,7 +685,7 @@
     @apply my-7 border-t border-rule lg:grid lg:grid-cols-2 lg:gap-x-12;
   }
   .ml-row {
-    @apply flex items-baseline justify-between gap-4 border-b border-rule py-3.5 text-ui font-medium text-ink no-underline transition-colors duration-150;
+    @apply flex items-baseline justify-between gap-4 border-b border-rule py-3.5 text-site-ui font-medium text-ink no-underline transition-colors duration-150;
   }
   .ml-row:hover {
     @apply text-ink no-underline;
@@ -722,7 +726,7 @@
     @apply grid items-baseline gap-x-10 gap-y-2 border-t border-rule py-10 first:border-t-0 first:pt-0 sm:grid-cols-[8.5rem_1fr];
   }
   .ml-release-version {
-    @apply block text-ui font-medium tabular-nums text-ink;
+    @apply block text-site-ui font-medium tabular-nums text-ink;
   }
   /* 8.5rem holds the longest date this format can produce — "September 30,
      2026" measures 124.2px at 13px Geist. A wrapped date would push its own row
@@ -739,17 +743,6 @@
   }
   .ml-release-body > :last-child {
     @apply mb-0;
-  }
-
-  /* A lazy-loaded demo embed on a comparison or alternatives page. Native
-     `loading="lazy"` defers the iframe until it nears the viewport, so no
-     facade script is needed for the handful of pages that carry one. Its width
-     comes from the measure rule above, like every other block-level component. */
-  .ml-video {
-    @apply my-10 aspect-video w-full overflow-hidden rounded-xl border border-rule;
-  }
-  .ml-video iframe {
-    @apply size-full border-0;
   }
 
   /* A hub entry: a linked h3 and its blurb, ruled off from the next one. The
@@ -930,7 +923,7 @@
     @apply my-8 rounded-xl shadow-ring xl:hidden;
   }
   .ml-toc-inline > summary {
-    @apply flex h-11 cursor-pointer list-none items-center justify-between px-4 text-ui font-medium text-ink select-none;
+    @apply flex h-11 cursor-pointer list-none items-center justify-between px-4 text-site-ui font-medium text-ink select-none;
   }
   .ml-toc-inline > summary::-webkit-details-marker {
     display: none;
@@ -1095,7 +1088,7 @@
     translate: 2px 0;
   }
   .ml-pager-title {
-    @apply text-ui font-medium text-pretty text-ink;
+    @apply text-site-ui font-medium text-pretty text-ink;
   }
 
   /* ── Search ──
@@ -1127,7 +1120,7 @@
     box-shadow: inset 0 -1px 0 var(--color-seam);
   }
   .ml-search-input {
-    @apply h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-body text-ink outline-none placeholder:text-faint;
+    @apply h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-site-body text-ink outline-none placeholder:text-faint;
   }
   .ml-search-esc {
     @apply inline-flex h-7 cursor-pointer items-center rounded-md border-0 bg-transparent px-2 text-label text-meta shadow-ring transition-colors duration-150 hover:text-ink;
@@ -1159,7 +1152,7 @@
     @apply opacity-100;
   }
   .ml-search-empty {
-    @apply m-0 max-w-none px-3 py-10 text-center text-ui text-meta;
+    @apply m-0 max-w-none px-3 py-10 text-center text-site-ui text-meta;
   }
 
   /* ── The footer ──

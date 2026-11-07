@@ -1,6 +1,6 @@
 import { checkRequest, flashAnnotation } from '@ext/lib/checkFix';
-import { operations } from '@ext/lib/state';
-import { type Signal, useSignalEffect } from '@preact/signals';
+import { operations } from '@ext/lib/ops';
+import { useSignalEffect } from '@preact/signals';
 import type { RefObject } from 'preact';
 import { resolveAnchors } from './iframeOverlay';
 
@@ -12,12 +12,12 @@ import { resolveAnchors } from './iframeOverlay';
  */
 export function useCheckFix({
   frameRef,
-  iframeLoaded,
+  markLoading,
   scrollTo,
 }: {
   frameRef: RefObject<HTMLIFrameElement>;
-  iframeLoaded: Signal<boolean>;
-  scrollTo: (x: number, y: number) => void;
+  markLoading: () => void;
+  scrollTo: (y: number) => void;
 }) {
   useSignalEffect(() => {
     const id = checkRequest.value;
@@ -34,14 +34,14 @@ export function useCheckFix({
         if (op?.tool !== 'comment' || !doc) return;
         // A frame tick later, so the page has laid out before the anchor is measured.
         requestAnimationFrame(() => {
-          const { x, y } = resolveAnchors({ target: op.target, pdf: op.pdf, docX: op.x, docY: op.y, doc });
-          scrollTo(x, y);
+          const { y } = resolveAnchors({ target: op.target, pdf: op.pdf, docX: op.x, docY: op.y, doc });
+          scrollTo(y);
           flashAnnotation(id);
         });
       },
       { once: true },
     );
-    iframeLoaded.value = false;
+    markLoading();
     // `reload()` is blocked on a cross-origin document; reassigning `src` is not.
     try {
       frame.contentWindow?.location.reload();

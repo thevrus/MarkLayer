@@ -1,6 +1,6 @@
 import { initWasm, Resvg } from '@resvg/resvg-wasm';
 import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
-import { toBase64 } from './http';
+import { toBase64 } from './encoding';
 import { buildOgSvg } from './og-card';
 import { OG_FONTS_BASE64 } from './og-fonts';
 import { buildPageOgSvg } from './og-page-card';

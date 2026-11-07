@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { Replace } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
 import { track } from '../lib/analytics';

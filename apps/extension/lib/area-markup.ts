@@ -1,12 +1,13 @@
 import { nanoid } from 'nanoid';
 import type { AreaRect } from './area-rect';
+import type { IconName } from './icons';
 import { constrainEnd, shapeOp, simplify } from './renderer';
 import type { DrawOp, Point } from './types';
 
 export type MarkupTool = 'pen' | 'circle' | 'rectangle' | 'arrow';
 
 /** The marks an area note can carry; each is an ordinary canvas op, drawn by the same `renderOp`. */
-export const MARKUP_TOOLS: { tool: MarkupTool; label: string; icon: string }[] = [
+export const MARKUP_TOOLS: { tool: MarkupTool; label: string; icon: IconName }[] = [
   { tool: 'pen', label: 'Draw', icon: 'pen' },
   { tool: 'circle', label: 'Ellipse', icon: 'circle' },
   { tool: 'rectangle', label: 'Rectangle', icon: 'rectangle' },

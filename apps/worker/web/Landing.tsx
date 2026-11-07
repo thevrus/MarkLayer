@@ -2,32 +2,35 @@ import { CommentPopover } from '@ext/components/CommentPopover';
 import { InspectorLayer } from '@ext/components/InspectorLayer';
 import { Toasts } from '@ext/components/Toasts';
 import { Toolbar } from '@ext/components/Toolbar';
-import { activeTool, color, comments as commentsComputed, isDrawingTool, lineWidth, selections } from '@ext/lib/state';
-import type { TextOp } from '@ext/lib/types';
-import { cn } from '@marklayer/types';
+import { comments as commentsComputed, selections } from '@ext/lib/ops';
+import { color, lineWidth } from '@ext/lib/prefs';
+import { makeTextOp } from '@ext/lib/text-op';
+import { activeTool, isDrawingTool } from '@ext/lib/tool-state';
+import { CHROME_STORE_URL } from '@marklayer/brand';
+import { cn } from '@marklayer/ui/cn';
 import { useSignal } from '@preact/signals';
 import copy from '@site/data/home-copy.json';
 import { ASK_AI, ASK_AI_LABEL, COLOPHON, FOOTER_COLUMNS, TRADEMARK_NOTICE } from '@site/lib/footer';
-import { CHROME_STORE_URL } from '@site/lib/site';
-import { nanoid } from 'nanoid';
 import type { ComponentChildren } from 'preact';
 import { useEffect } from 'preact/hooks';
 import { siProducthunt } from 'simple-icons';
 import { capture } from './analytics';
-import { ChannelCycle } from './ChannelCycle';
-import { FakeCursors } from './FakeCursors';
 import { frameViewport } from './iframeOverlay';
+import { ChannelCycle } from './landing/ChannelCycle';
 import { ChromeIcon, ChromeStoreLink } from './landing/ChromeStoreLink';
 import { NAV_LINKS } from './landing/content';
 import { DemoStage } from './landing/DemoStage';
+import { FakeCursors } from './landing/FakeCursors';
 import { HeroSource } from './landing/HeroSource';
+import { embedInView, isMobileDevice } from './landing/landing-state';
 import { MarginNote } from './landing/Proof';
 import { useLandingCanvas } from './landing/useLandingCanvas';
-import { useLandingPresence } from './landing/useLandingPresence';
+import { useLandingSelection } from './landing/useLandingSelection';
 import { useLandingShortcuts } from './landing/useLandingShortcuts';
 import { GithubLink, ICON_LINK_CLS, Logo, TextInputOverlay } from './shared';
-import { commentPopover, embedInView, isMobileDevice, pushDeviceOp, selectionPopover, textInput } from './signals';
 import { STATUS_LABEL, systemStatus } from './status';
+import { commentPopover, selectionPopover, textInput } from './ui-state';
+import { pushDeviceOp } from './viewer-state';
 import { WebCommentPin } from './WebCommentPin';
 import { WebSelectionHighlight } from './WebSelectionHighlight';
 import { WebSelectionPopover } from './WebSelectionPopover';
@@ -83,13 +86,12 @@ function useOverSky() {
  *
  * The behaviour that makes that true lives in `./landing` — the drawing engine,
  * the keyboard layer, the seeded pin, uploads and presence each as one hook — so
- * what is left here is the composition. It was one 1,277-line component with all
- * six concerns interleaved above the JSX.
+ * what is left here is the composition.
  */
 export function Landing() {
   const { canvasRef, onDown } = useLandingCanvas();
   useLandingShortcuts();
-  useLandingPresence();
+  useLandingSelection();
   const overSky = useOverSky();
 
   const tool = activeTool.value;
@@ -139,7 +141,7 @@ export function Landing() {
                 </svg>
               </a>
               <GithubLink dark />
-              {!isMobileDevice && (
+              {!isMobileDevice() && (
                 <a
                   href={CHROME_STORE_URL}
                   target="_blank"
@@ -206,7 +208,7 @@ export function Landing() {
               >
                 {/* Below `lg` the nav has no room for its install button, so the fold keeps one. */}
                 {/* A phone browser can't install an extension, so it isn't offered one. */}
-                {!isMobileDevice && (
+                {!isMobileDevice() && (
                   <>
                     <a
                       href={CHROME_STORE_URL}
@@ -395,16 +397,9 @@ export function Landing() {
           </footer>
         </main>
 
-        {/* Comment overlay.
-
-            Absolute, spanning the document, with `scrollY` held at 0 — the same
-            way the canvas below positions its ops. These layers used to be
-            `fixed` and were handed `window.scrollY` read once during render;
-            nothing re-renders them on scroll, so the subtraction went stale the
-            moment the page moved and every pin sat frozen at a viewport offset,
-            drifting across the sections below it. Document coordinates on a
-            document-height layer need no scroll arithmetic at all, so there is
-            nothing left to go stale. */}
+        {/* Comment overlay: absolute, spanning the document, with `scrollY` held at 0 like the canvas
+            below. A `fixed` layer needed `window.scrollY` read at render, which goes stale on scroll
+            because nothing re-renders it, so pins froze at a viewport offset. */}
         <div
           class="absolute inset-0 z-2147483646 overflow-hidden"
           style={{
@@ -417,7 +412,7 @@ export function Landing() {
           }}
         >
           {comments.map((c) => (
-            <WebCommentPin key={c.id} op={c} scale={1} scrollY={0} />
+            <WebCommentPin key={c.id} op={c} scrollY={0} />
           ))}
           {commentPopover.value && (
             <CommentPopover
@@ -439,7 +434,7 @@ export function Landing() {
                  has-[[data-marker]:hover]:z-2147483646 has-[[data-held]]:z-2147483646"
         >
           {selections.value.map((op) => (
-            <WebSelectionHighlight key={op.id} op={op} scale={1} scrollY={0} />
+            <WebSelectionHighlight key={op.id} op={op} scrollY={0} />
           ))}
         </div>
         {selectionPopover.value && (
@@ -451,7 +446,6 @@ export function Landing() {
           />
         )}
 
-        {/* Text tool overlay */}
         <div
           class="absolute inset-0 z-2147483646"
           style={{ pointerEvents: showTextCursor ? 'auto' : 'none', cursor: showTextCursor ? 'text' : 'default' }}
@@ -464,22 +458,18 @@ export function Landing() {
           <TextInputOverlay
             x={textInput.value.x}
             y={textInput.value.y}
-            scale={1}
             scrollY={0}
             onCommit={(text) => {
               if (text && textInput.value) {
-                const op: TextOp = {
-                  id: nanoid(),
-                  tool: 'text',
-                  text,
-                  x: textInput.value.x,
-                  y: textInput.value.y,
-                  fontSize: Math.max(14, lineWidth.value * 6),
-                  color: color.value,
-                  lineWidth: lineWidth.value,
-                  captureViewport: { width: window.innerWidth, height: window.innerHeight },
-                };
-                pushDeviceOp(op);
+                pushDeviceOp(
+                  makeTextOp({
+                    text,
+                    ...textInput.value,
+                    color: color.value,
+                    lineWidth: lineWidth.value,
+                    viewport: { width: window.innerWidth, height: window.innerHeight },
+                  }),
+                );
               }
               textInput.value = null;
             }}

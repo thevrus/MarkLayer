@@ -1,58 +1,48 @@
-import { activeTool, redo, showAnnotationPanel, showShareDialog, toolForKeyEvent, undo } from '@ext/lib/state';
-import { useEffect } from 'preact/hooks';
+import { editableTarget } from '@ext/lib/dom';
+import { bindKeymap, dismissTop, HISTORY_KEYS } from '@ext/lib/keymap';
+import { redo, undo } from '@ext/lib/ops';
+import { activeTool, selectTool } from '@ext/lib/tool-state';
+import { TOOL_SHORTCUTS } from '@ext/lib/tools';
+import { useSignalEffect } from '@preact/signals';
+import { tinykeys } from 'tinykeys';
+import { showAnnotationPanel } from '../ui-state';
 
-/**
- * The page's keyboard layer: the product's own tool shortcuts, plus undo/redo.
- *
- * Raw `keydown` rather than tinykeys, deliberately and unlike the rest of the
- * app: this has to defer to whatever the visitor is typing into the URL field,
- * so it needs the event target before it decides anything, and `toolForKeyEvent`
- * already owns the tool mapping.
- */
+const pd = (fn: () => void) => (e: KeyboardEvent) => {
+  e.preventDefault();
+  fn();
+};
+
+function onEscape(e: KeyboardEvent) {
+  const field = editableTarget(e);
+  if (field) {
+    field.blur();
+    return;
+  }
+  e.preventDefault();
+  if (dismissTop()) return;
+  if (showAnnotationPanel.value) showAnnotationPanel.value = false;
+  else activeTool.value = 'navigate';
+}
+
+/** The page's keyboard layer: the product's own tool shortcuts, plus undo/redo. */
 export function useLandingShortcuts(): void {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target;
-      if (!(target instanceof HTMLElement)) return;
-      const tag = target.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
-        if (e.key === 'Escape') target.blur();
-        return;
-      }
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          undo();
-          return;
-        }
-        if (e.key === 'y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) {
-          e.preventDefault();
-          redo();
-          return;
-        }
-      }
-      const m = toolForKeyEvent(e);
-      if (m) {
-        activeTool.value = m;
-        e.preventDefault();
-        return;
-      }
-      if (e.key === 'Escape') {
-        if (showShareDialog.value) {
-          showShareDialog.value = false;
-          e.preventDefault();
-          return;
-        }
-        if (showAnnotationPanel.value) {
-          showAnnotationPanel.value = false;
-          e.preventDefault();
-          return;
-        }
-        activeTool.value = 'navigate';
-        e.preventDefault();
-      }
+  useSignalEffect(() => {
+    const unbind = bindKeymap({
+      scope: window,
+      bindings: [
+        ...TOOL_SHORTCUTS.map(({ tool, pattern }) => ({
+          keys: pattern,
+          on: pd(() => selectTool({ tool, via: 'shortcut' })),
+        })),
+        ...HISTORY_KEYS.undo.keys.map((keys) => ({ keys, on: pd(undo) })),
+        ...HISTORY_KEYS.redo.keys.map((keys) => ({ keys, on: pd(redo) })),
+      ],
+    });
+    // Unlike the rest, Escape has to reach a field: it is how the URL box lets go of the keyboard.
+    const unbindEscape = tinykeys(window, { Escape: onEscape }, { ignore: () => false });
+    return () => {
+      unbind();
+      unbindEscape();
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  });
 }

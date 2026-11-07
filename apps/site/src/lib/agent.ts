@@ -1,5 +1,4 @@
-import mcpPkg from '../../../mcp/package.json';
-import { ORIGIN } from './site';
+import { ORIGIN } from '@marklayer/brand';
 
 /**
  * The agent-facing well-known surface, in one place.
@@ -10,9 +9,6 @@ import { ORIGIN } from './site';
  * `content/agent/*` files, so the Worker copy can never advertise a different
  * spec, tool list or digest than the site does.
  */
-
-/** Read from apps/mcp/package.json at build time so a release can't leave the server card advertising a stale version. */
-export const MCP_VERSION: string = mcpPkg.version;
 
 export const SKILL_PATH = '/.well-known/agent-skills/marklayer-annotations/SKILL.md';
 
@@ -29,59 +25,6 @@ export const API_CATALOG = {
       status: [{ href: `${ORIGIN}/api/health` }],
     },
   ],
-};
-
-/** The stdio install, roomless: the agent is handed a room later by link. The landing shows it too. */
-export const MCP_INSTALL = 'claude mcp add marklayer -- npx -y marklayer-mcp';
-
-/**
- * MCP Server Card (SEP-1649). The stdio package is the one fixed address; the
- * Streamable-HTTP endpoint is per room, so it goes in the registry's `remotes`
- * shape with the room as a URL variable. server-card.test.ts pins `tools`.
- */
-export const MCP_SERVER_CARD = {
-  serverInfo: { name: 'marklayer-mcp', version: MCP_VERSION },
-  transport: {
-    type: 'stdio',
-    command: 'npx',
-    args: ['-y', 'marklayer-mcp'],
-    install: MCP_INSTALL,
-    package: 'https://www.npmjs.com/package/marklayer-mcp',
-  },
-  remotes: [
-    {
-      type: 'streamable-http',
-      url: `${ORIGIN}/s/{room}/mcp`,
-      install: `claude mcp add --transport http marklayer ${ORIGIN}/s/{room}/mcp`,
-      variables: {
-        room: {
-          description: `The id in a share link (${ORIGIN}/s/{room}). The endpoint serves that one room, so it has every tool but marklayer_connect_room.`,
-          isRequired: true,
-        },
-      },
-    },
-  ],
-  capabilities: { tools: true, resources: false, prompts: false },
-  tools: [
-    'marklayer_read_page',
-    'marklayer_connect_room',
-    'marklayer_room_info',
-    'marklayer_list_annotations',
-    'marklayer_get_annotation',
-    'marklayer_watch_annotations',
-    'marklayer_acknowledge',
-    'marklayer_resolve',
-    'marklayer_dismiss',
-    'marklayer_reply',
-    'marklayer_create_annotation',
-    'marklayer_suggest_edit',
-    'marklayer_share_preview',
-    'marklayer_set_next_steps',
-    'marklayer_complete_next_step',
-    'marklayer_ask',
-    'marklayer_get_feedback',
-  ],
-  documentation: 'https://github.com/thevrus/MarkLayer/tree/main/apps/mcp',
 };
 
 /**

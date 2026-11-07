@@ -1,5 +1,5 @@
-# The only image in this repo is apps/fetcher, and it needs exactly two source
-# trees. Without this the build context is 2.3 GB of node_modules and gets
+# The only image in this repo is apps/fetcher, and it needs exactly three source
+# trees (fetcher, types, brand). Without this the build context is 2.3 GB of node_modules and gets
 # re-uploaded to the remote builder on every deploy.
 node_modules
 **/node_modules

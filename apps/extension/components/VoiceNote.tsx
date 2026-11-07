@@ -1,9 +1,10 @@
-import { cn, MAX_VOICE_SECONDS } from '@marklayer/types';
+import { MAX_VOICE_SECONDS } from '@marklayer/types/uploads';
+import { cn } from '@marklayer/ui/cn';
 import { Loader2, Mic } from 'lucide-preact';
 import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { type OpenedStream, type RecorderSlot, useRecorder } from '../lib/recorder';
-import { toast } from '../lib/state';
+import { toast } from '../lib/toasts';
 import { MediaDraft, RecorderStop } from './MediaNote';
 import { Tooltip } from './Tooltip';
 

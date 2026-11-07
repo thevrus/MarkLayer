@@ -10,19 +10,19 @@ published: 2026-08-15
 modified: 2026-09-14
 options:
   - name: "MarkLayer"
-    url: "/"
+    self: true
     pitch: "Free, open-source annotation on any live webpage: yours, a staging URL, or a page you don't own at all. No widget to embed on your own site, no account, live cursors so reviewers see each other working the page in real time, and an MCP server so an AI coding agent can watch a room and resolve the feedback itself."
     bestFor: "Teams that need visual feedback without a platform subscription."
   - name: "Feedbucket"
-    url: "/vs/feedbucket"
+    compare: feedbucket
     pitch: "The closest like-for-like widget to Usersnap's own model: a one-line script install, screenshot and video capture, and unlimited client reporters, from $49/month after a 14-day trial. Embeds on your own site the same way Usersnap does, just at a lower price point."
     bestFor: "Widget-style feedback intake at a lower price than Usersnap."
   - name: "Marker.io"
-    url: "/vs/marker-io"
+    compare: marker-io
     pitch: "Bug reports that capture console and network logs automatically, with two-way Jira and GitHub sync and unlimited free reporters, from $59/month ($39/month billed annually). Built for a dev team that wants the report to arrive already triaged, not for surveys or NPS."
     bestFor: "Dev teams that live in Jira, Linear, or GitHub."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "Visual feedback pinned directly to the element it's about, with a built-in Kanban board so a report becomes a task instead of a message thread, from $50/month for 5 members. No free plan, and no surveys or NPS layer either."
     bestFor: "Agencies and QA teams triaging website feedback as tasks."
 faq:

@@ -1,9 +1,9 @@
 import { useEffect } from 'preact/hooks';
-import { tinykeys } from 'tinykeys';
 import { CommentLayer } from '../components/CommentLayer';
 import { Toasts } from '../components/Toasts';
 import { useOverlayHost } from '../components/useOverlayHost';
-import { activeTool } from '../lib/state';
+import { bindKeymap } from '../lib/keymap';
+import { activeTool } from '../lib/tool-state';
 
 /** The extension's overlay cut down to commenting: pins, the comment popover and toasts, nothing else. */
 export function WidgetApp() {
@@ -12,10 +12,16 @@ export function WidgetApp() {
   // tinykeys skips keys aimed at inputs, so an open comment keeps its own Escape.
   useEffect(
     () =>
-      tinykeys(window, {
-        Escape: () => {
-          activeTool.value = 'navigate';
-        },
+      bindKeymap({
+        scope: window,
+        bindings: [
+          {
+            keys: 'Escape',
+            on: () => {
+              activeTool.value = 'navigate';
+            },
+          },
+        ],
       }),
     [],
   );

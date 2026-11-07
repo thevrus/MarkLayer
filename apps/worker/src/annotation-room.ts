@@ -1,129 +1,131 @@
 import { DurableObject } from 'cloudflare:workers';
+import { WATCH_MAX_SECONDS } from '@marklayer/agent-tools';
+import { ORIGIN } from '@marklayer/brand';
+import { isAgentPeer } from '@marklayer/types/agents';
+import { applyOpPatch, type DrawOp, drawOpSchema, parseOps } from '@marklayer/types/ops';
 import {
-  applyOpPatch,
+  type AgentJoin,
+  type AgentSnapshot,
+  type AgentWatchRequest,
+  type AgentWatchResult,
   type ClientMsg,
-  canEditLink,
   clientMsgSchema,
-  type DrawOp,
-  effectiveExpiresAt,
-  type LinkAccess,
-  parseOps,
+  ROOM_ERROR_READ_ONLY,
+  ROOM_EXPIRED_CLOSE_CODE,
+  ROOM_GEN_HEADER,
   ROOM_LOCKED_CLOSE_CODE,
   RTC_MESSAGE_TYPES,
-  type RtcMessageType,
-} from '@marklayer/types';
-import { userFromCookieHeader } from './auth';
-import { STUN_ONLY, stripPort53 } from './ice';
-import { deliver, parseIntegrations } from './integrations/deliver';
-import { isSlackOp } from './integrations/slack-app';
-import { postBatchToSlack } from './integrations/slack-sync';
-import { type Notifiable, notifiableFrom } from './integrations/types';
-import { lockedSocket, ROOM_GEN_HEADER } from './lock/gate';
-import { isAgentPeer, type PeerInfo, readPeerInfo, sanitizeColor, sanitizeName, sanitizeUid } from './peers';
-import { captureServer } from './posthog';
-import { annotationStore } from './store';
+  type ServerMsg,
+  SOCKET_BURST,
+  SOCKET_RATE_LIMITED_CLOSE_CODE,
+  SOCKET_REFILL_PER_S,
+} from '@marklayer/types/wire';
+import { z } from 'zod/mini';
+import { canEditLink, effectiveExpiresAt, type LinkAccess } from '../shared/accounts';
+import { userFromCookieHeader } from './auth/session';
+import type { Env } from './env';
+import { getIceServers } from './ice';
+import { roomDestinations } from './integrations/destinations';
+import type { SlackEnv } from './integrations/slack-config';
+import { refusedSocket } from './lock/refused-socket';
+import { type PeerInfo, readPeerInfo, sanitizeColor, sanitizeName, sanitizeUid } from './peers';
+import { OutboundQueue } from './room-outbound';
+import { relayRtc } from './room-rtc';
+import type { SaveMode } from './room-stub';
+import { captureAgentJoined, captureAgentLeft, SessionStats } from './room-telemetry';
+import { annotationStore, type StoredAnnotation } from './store';
+import { isExpired } from './time';
 
-interface Env {
-  DB: D1Database;
-  TURN_KEY_ID?: string;
-  TURN_KEY_TOKEN?: string;
-  POSTHOG_KEY?: string;
-  POSTHOG_HOST?: string;
-  /** Unset means the Slack app is off, and the room never reads its install. */
-  SLACK_TOKEN_KEY?: string;
-}
+export { SOCKET_BURST, SOCKET_RATE_LIMITED_CLOSE_CODE };
 
-// TURN creds are tied to the worker's key (not per-room), so a module-level
-// cache works for all DO instances on this isolate. `turnPromise` coalesces
-// concurrent first-time fetches.
-const TURN_TTL_SECONDS = 3600;
-const STUN_FALLBACK_TTL_MS = 60_000;
-let turnCache: { iceServers: RTCIceServer[]; expiresAt: number } | null = null;
-let turnPromise: Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> | null = null;
+type RoomEnv = SlackEnv &
+  Pick<Env['Bindings'], 'DB' | 'TURN_KEY_ID' | 'TURN_KEY_TOKEN' | 'POSTHOG_KEY' | 'POSTHOG_HOST' | 'APP_ORIGIN'>;
 
-async function fetchIceServers(env: Env): Promise<{ iceServers: RTCIceServer[]; ttlMs: number }> {
-  if (!env.TURN_KEY_ID || !env.TURN_KEY_TOKEN) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
-  try {
-    const res = await fetch(
-      `https://rtc.live.cloudflare.com/v1/turn/keys/${env.TURN_KEY_ID}/credentials/generate-ice-servers`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${env.TURN_KEY_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ttl: TURN_TTL_SECONDS }),
-      },
-    );
-    if (!res.ok) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
-    const data = (await res.json()) as { iceServers?: RTCIceServer[] };
-    if (!data.iceServers?.length) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
-    const cleaned = data.iceServers.map(stripPort53).filter((s): s is RTCIceServer => s !== null);
-    if (cleaned.length === 0) return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
-    return { iceServers: cleaned, ttlMs: (TURN_TTL_SECONDS * 1000) / 2 };
-  } catch {
-    return { iceServers: STUN_ONLY, ttlMs: STUN_FALLBACK_TTL_MS };
-  }
-}
-
-async function getIceServers(env: Env): Promise<RTCIceServer[]> {
-  if (turnCache && turnCache.expiresAt > Date.now()) return turnCache.iceServers;
-  if (turnPromise) return (await turnPromise).iceServers;
-  // Set the cache inside the awaited promise so a caller arriving between
-  // promise-settle and the next microtask still sees the result without
-  // starting a duplicate fetch.
-  turnPromise = fetchIceServers(env).then((result) => {
-    turnCache = { iceServers: result.iceServers, expiresAt: Date.now() + result.ttlMs };
-    return result;
-  });
-  try {
-    return (await turnPromise).iceServers;
-  } finally {
-    turnPromise = null;
-  }
-}
-
-/** Non-mutating types — always allowed. Everything else hits `rejectIfReadOnly`
- * first, so a new mutating type is guarded by default, not by someone remembering. */
+/** Non-mutating types — always allowed. Everything else goes through `mutate`,
+ * so a new mutating type is guarded by default, not by someone remembering. */
 const READ_ONLY_SAFE_TYPES = new Set<ClientMsg['type']>(['ping', 'cursor', 'ripple', 'profile', 'flock']);
 
 /**
  * How long an agent stays in the peer list without calling again. Longer than
- * the longest `agentWatch`, so an agent parked in a watch is never dropped
- * mid-wait and then re-announced as if it had rejoined.
+ * the longest watch, so an agent parked in one is never dropped mid-wait and
+ * then re-announced as if it had rejoined.
  */
-const AGENT_PRESENCE_TTL_MS = 15 * 60_000;
+const AGENT_PRESENCE_TTL_MS = WATCH_MAX_SECONDS * 1000 + 5 * 60_000;
+
+/** Messages kept for watchers to catch up on. Past this an agent gets the tail and re-snapshots. */
+const LOG_CAP = 1000;
+
+/** Debounce between a mutation and its flush to D1. */
+const FLUSH_DELAY_MS = 3000;
 
 /**
- * Per-socket message budget, as a token bucket. The burst covers a reconnect
- * flushing its offline queue and a rename sending one `update_op` per annotation;
- * the refill covers a guide drag at display rate plus 20 Hz cursors.
+ * One op as the room stores and broadcasts it. The socket path arrives parsed and
+ * an RPC call arrives as a literal; the schema fixes the key order so a row and a
+ * broadcast are the same bytes whichever way the op came in. An op this build's
+ * schema cannot read (a newer client's) is kept as it is rather than dropped.
  */
-export const SOCKET_BURST = 1000;
-export const SOCKET_REFILL_PER_S = 200;
-/** RFC 6455 "policy violation". The client reconnects with backoff, into a fresh budget. */
-export const SOCKET_RATE_LIMITED_CLOSE_CODE = 1008;
+function canonicalOp<T>(op: T): T | DrawOp {
+  const parsed = drawOpSchema.safeParse(op);
+  return parsed.success ? parsed.data : op;
+}
+
+/** One parse per op: `stored` keeps what this build cannot read, `parsed` is what peers are told. */
+function canonicalOps(raw: unknown[]): { stored: unknown[]; parsed: DrawOp[] } {
+  const parsed: DrawOp[] = [];
+  const stored = raw.map((o) => {
+    const p = drawOpSchema.safeParse(o);
+    if (!p.success) return o;
+    parsed.push(p.data);
+    return p.data;
+  });
+  return { stored, parsed };
+}
 
 /** Stored ops are unparsed JSON; this reads an id without trusting the shape. */
 const opIdOf = (o: unknown) =>
   typeof o === 'object' && o !== null && 'id' in o && typeof o.id === 'string' ? o.id : undefined;
 
-/** What the remote MCP endpoint needs to answer any tool call, in one round trip. */
-export interface AgentSnapshot {
-  /** Parsed here rather than at the caller: RPC will not carry `unknown`, and a
-   *  Worker should not be handed ops nobody validated. */
-  ops: DrawOp[];
-  url: string | null;
-  width: number | null;
-  createdAt: number | null;
-  expiresAt: number | null;
-  /** False on a view-only link, so a mutator can say why rather than report a missing id. */
-  canEdit: boolean;
-}
+/**
+ * Every change to the ops column, however it arrives. The socket's own union, plus the
+ * REST save's two whole-array forms: `replace` (a deliberate publish) and `merge`.
+ */
+export type RoomChange =
+  | Extract<ClientMsg, { type: 'op' | 'update_op' | 'undo' | 'clear' }>
+  | { type: 'replace' | 'merge'; ops: unknown[] };
 
-export class AnnotationRoom extends DurableObject<Env> {
+/** Who is asking. A socket is judged by its attachment; an RPC or REST caller by the link's access row. */
+type Origin = { ws: WebSocket } | { userId?: string };
+
+export type MutateOutcome = 'applied' | 'noop' | 'refused';
+
+/**
+ * What survives eviction. Read first in `loadOps`: `rowExisted` is what lets a
+ * room tell "never minted" from "deleted behind me", and `seq` keeps watch
+ * cursors monotonic across a hibernation.
+ */
+const persistedSchema = z.object({
+  roomId: z.optional(z.string()),
+  rowExisted: z.optional(z.boolean()),
+  dead: z.optional(z.boolean()),
+  seq: z.optional(z.number()),
+});
+type Persisted = z.infer<typeof persistedSchema>;
+const PERSISTED_KEYS: (keyof Persisted)[] = ['roomId', 'rowExisted', 'dead', 'seq'];
+
+export class AnnotationRoom extends DurableObject<RoomEnv> {
   private ops: unknown[] | null = null;
   /** In-flight load promise — coalesces concurrent first-message reads. */
   private opsPromise: Promise<unknown[]> | null = null;
   private dirty = false;
   private annotationId: string | null = null;
+  /** Whether D1 had a row when this room loaded. False is the one case the flush may insert. */
+  private rowExisted = false;
+  /**
+   * The row vanished while this room was warm (or hibernating). Nothing in
+   * memory is flushed again and every socket is closed; the next entrant
+   * through the door starts the room afresh.
+   */
+  private dead = false;
   private createdAt: number | null = null;
   private expiresAt: number | null = null;
   private url: string | null = null;
@@ -133,68 +135,81 @@ export class AnnotationRoom extends DurableObject<Env> {
   private ownerId: string | null = null;
   private ownerExpiresAt: number | null = null;
 
-  // Aggregate telemetry for one room session, emitted once when the last peer
-  // leaves (see webSocketClose). Counting in memory rather than per-op keeps
-  // this to a single event per session instead of one per pen stroke — cheaper,
-  // and far less of a surveillance surface. Hibernation resets these, which is
-  // fine: it is best-effort product signal, not billing.
-  private sessionStartedAt = 0;
-  private sessionOps = 0;
-  /** tool → ops drawn with it this session. A set only ever said "used at all". */
-  private sessionTools = new Map<string, number>();
-  private peakPeers = 0;
-  private peakHumanPeers = 0;
-  private sessionHadAgent = false;
-  /** Status, priority and assignee edits — the triage half, which draws no ops. */
-  private sessionUpdates = 0;
-
-  /**
-   * Annotations written since the last outbound send. They ride the existing 3s
-   * flush alarm rather than a timer of their own, which makes the debounce the
-   * batching window too: ten comments in a burst arrive as one message.
-   */
-  private pendingNotifications: Notifiable[] = [];
-  /**
-   * Consecutive flushes where every destination failed. A revoked hook errors
-   * forever, and a room that keeps retrying one pays for a request on every
-   * flush, so it stops asking after three — the same circuit breaker the fetch
-   * relay uses.
-   */
-  private deliveryFailures = 0;
-  /**
-   * Ops bound for the room's Slack app install, if it has one. Ops rather than
-   * `Notifiable`s: threading needs the id and the parent. Ops that came from
-   * Slack never enter, which is what stops a Slack reply echoing back to Slack.
-   */
-  private pendingSlack: DrawOp[] = [];
-  private slackFailures = 0;
+  private readonly stats = new SessionStats();
+  private readonly outbound: OutboundQueue;
   /** Public origin of the request that opened this room, for the "open the room" link. */
   private origin: string | null = null;
+
+  /**
+   * The room's message log: every mutation as the message peers saw, numbered.
+   * A watcher names where it left off and gets what landed since, so nothing
+   * between an agent's snapshot and its watch is lost. `logBase` is the sequence
+   * number of `log[0]`.
+   */
+  private log: ServerMsg[] = [];
+  private logBase = 0;
+  /** Parked watches, each waiting for a message past its cursor. */
+  private watchers: { since: number; wake: (result: AgentWatchResult) => void }[] = [];
 
   /**
    * Agents attached over the remote MCP endpoint, which is HTTP and so holds no
    * socket to keep them present. They are kept here with a last-seen stamp and
    * folded into the peer list, so a person watching the room sees the agent the
-   * same way they see anyone else. Every RPC call refreshes the stamp; one that
-   * goes quiet for `AGENT_PRESENCE_TTL_MS` drops out on the next read. Losing
-   * this map to hibernation is correct rather than a bug: nothing was holding
-   * the room open, so nobody was there to see the agent anyway.
+   * same way they see anyone else. Losing this map to hibernation is correct:
+   * nothing was holding the room open, so nobody was there to see the agent.
    */
-  private httpAgents = new Map<string, { peer: Omit<PeerInfo, 'canEdit' | 'userId'>; lastSeen: number }>();
-  /** Parked `agentWatch` calls, woken by the next op from any source. */
-  private opWaiters: ((ops: DrawOp[]) => void)[] = [];
+  private httpAgents = new Map<
+    string,
+    {
+      peer: Omit<PeerInfo, 'canEdit' | 'userId'>;
+      lastSeen: number;
+      /** The room as this agent's last watch left it. A shallow copy: every path replaces an op, none edits one. */
+      seen: { cursor: number; ops: unknown[] };
+    }
+  >();
 
-  constructor(ctx: DurableObjectState, env: Env) {
+  constructor(ctx: DurableObjectState, env: RoomEnv) {
     super(ctx, env);
+    this.outbound = new OutboundQueue(roomDestinations(env));
     // Our heartbeat is a text message, not a protocol ping frame, so it would wake
     // the room from hibernation 4x/min per client. Answered by the runtime instead.
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('{"type":"ping"}', '{"type":"pong"}'));
   }
 
-  private async getOps(id: string): Promise<unknown[]> {
+  /**
+   * The room's name. `ctx.id.name` is set for an id made by `idFromName`, which
+   * is how every stub to this class is made; the id on a socket's upgrade URL is the
+   * fallback, and storage remembers it across evictions.
+   * Fail closed: a room that cannot say which row it is must not touch any.
+   */
+  private async roomId(hint?: string | null): Promise<string> {
+    const named = this.ctx.id.name ?? this.annotationId ?? hint ?? null;
+    if (named) {
+      this.annotationId = named;
+      return named;
+    }
+    const stored = await this.readPersisted();
+    if (stored.roomId) {
+      this.annotationId = stored.roomId;
+      return stored.roomId;
+    }
+    throw new Error('room has no name');
+  }
+
+  private async readPersisted(): Promise<Persisted> {
+    const raw = await this.ctx.storage.get(PERSISTED_KEYS);
+    const parsed = persistedSchema.safeParse(Object.fromEntries(raw));
+    return parsed.success ? parsed.data : {};
+  }
+
+  private persist(fields: Persisted): Promise<void> {
+    return this.ctx.storage.put({ ...fields });
+  }
+
+  private async getOps(hint?: string | null): Promise<unknown[]> {
     if (this.ops !== null) return this.ops;
     if (this.opsPromise) return this.opsPromise;
-    this.opsPromise = this.loadOps(id);
+    this.opsPromise = this.loadOps(hint);
     try {
       return await this.opsPromise;
     } finally {
@@ -202,44 +217,110 @@ export class AnnotationRoom extends DurableObject<Env> {
     }
   }
 
-  private async loadOps(id: string): Promise<unknown[]> {
-    this.annotationId = id;
-    const store = annotationStore(this.env.DB);
-    const row = await store.get(id);
+  private async loadOps(hint?: string | null): Promise<unknown[]> {
+    const id = await this.roomId(hint);
+    const [persisted, row] = await Promise.all([this.readPersisted(), annotationStore(this.env.DB).get(id)]);
+    this.logBase = persisted.seq ?? 0;
+    this.log = [];
     this.ops = row?.ops ?? [];
+    this.applyRow(row);
+    this.rowExisted = row !== null;
+    // The row was there when this room last saw D1 and is not now: deleted behind
+    // it, possibly while its sockets hibernated. Nothing it holds may come back.
+    this.dead = persisted.rowExisted === true && row === null;
+    await this.persist({ roomId: id, rowExisted: this.rowExisted, dead: this.dead, seq: this.logBase });
+    if (this.dead) this.closeAll(ROOM_EXPIRED_CLOSE_CODE, 'room gone');
+    else {
+      this.ctx.waitUntil(annotationStore(this.env.DB).touch(id));
+      await this.armExpiry();
+    }
+    return this.ops;
+  }
+
+  /** A fresh entrant after the row died: the door let it in, so the room starts over at this id. */
+  private async revive(): Promise<void> {
+    if (!this.dead) return;
+    this.dead = false;
+    this.ops = [];
+    this.rowExisted = false;
+    this.dirty = false;
+    await this.persist({ rowExisted: false, dead: false });
+  }
+
+  /** Everything the room caches from its row, in one place, so no field lags behind the rest. */
+  private applyRow(row: Omit<StoredAnnotation, 'ops'> | null): void {
     this.createdAt = row?.createdAt ?? null;
     this.expiresAt = row?.expiresAt ?? null;
     this.url = row?.url ?? null;
     this.width = row?.width ?? null;
-    this.applyAccessRow(row);
-    store.touch(id);
-    return this.ops;
-  }
-
-  /** Sets `access`/`ownerId`/`ownerExpiresAt` from a row — shared by `loadOps` and `refreshAccess`. */
-  private applyAccessRow(
-    row: { access: LinkAccess; ownerId: string | null; ownerExpiresAt: number | null } | null,
-  ): void {
     this.access = row?.access ?? 'edit';
     this.ownerId = row?.ownerId ?? null;
     this.ownerExpiresAt = row?.ownerExpiresAt ?? null;
   }
 
+  /** The row as D1 has it now. `loadOps` runs once per isolate, and the Worker writes around a warm room. */
+  private async refreshRow(): Promise<void> {
+    const meta = await annotationStore(this.env.DB).getMeta(await this.roomId());
+    // No row is not the defaults: one that was there was deleted, and its room must not reopen as an editable link.
+    if (meta === null) {
+      if (this.rowExisted) await this.rowGone();
+      return;
+    }
+    const before = this.deadline();
+    this.applyRow(meta);
+    if (this.deadline() !== before) await this.armExpiry();
+  }
+
+  private deadline(): number | null {
+    return effectiveExpiresAt({ expiresAt: this.expiresAt, ownerExpiresAt: this.ownerExpiresAt });
+  }
+
+  /**
+   * An alarm for the deadline, so a socket idling past it is closed rather than left
+   * reading. One alarm per object, shared with the flush: `alarm` re-arms whichever a
+   * flush replaced. The second past the deadline, since `isExpired` is strict.
+   */
+  private async armExpiry(): Promise<void> {
+    const deadline = this.deadline();
+    if (deadline === null || isExpired(deadline)) return;
+    const at = (deadline + 1) * 1000;
+    const armed = await this.ctx.storage.getAlarm();
+    if (armed === null || armed > at) await this.ctx.storage.setAlarm(at);
+  }
+
+  /**
+   * The door only stops who is arriving. Whoever is already inside stops here, against
+   * the row rather than the cache: an owner may have extended the link since this loaded.
+   */
+  private async pastDeadline(): Promise<boolean> {
+    if (!isExpired(this.deadline())) return false;
+    await this.refreshRow();
+    if (!isExpired(this.deadline())) return false;
+    this.closeAll(ROOM_EXPIRED_CLOSE_CODE, 'room expired');
+    this.httpAgents.clear();
+    this.wakeWatchers();
+    return true;
+  }
+
   /**
    * Parsed attachments, keyed by socket. The attachment is the source of truth
-   * (it survives hibernation), but deserializing and re-validating it on every
-   * message would tax every peer's every stroke, so the parse is memoized and a
-   * fresh isolate simply refills it on first read.
+   * (it survives hibernation), but re-validating it on every message would tax
+   * every peer's every stroke, so the parse is memoized and a fresh isolate
+   * simply refills it on first read.
    */
   private peerInfo = new WeakMap<WebSocket, PeerInfo>();
 
-  /** Read peer metadata from the socket attachment — survives DO hibernation. */
   private getPeerInfo(ws: WebSocket): PeerInfo | null {
     const cached = this.peerInfo.get(ws);
     if (cached) return cached;
     const info = readPeerInfo(ws.deserializeAttachment());
     if (info) this.peerInfo.set(ws, info);
     return info;
+  }
+
+  private setPeerInfo(ws: WebSocket, info: PeerInfo) {
+    ws.serializeAttachment(info);
+    this.peerInfo.set(ws, info);
   }
 
   /** In memory only: hibernation drops it, but a room only hibernates once its sockets go quiet. */
@@ -255,16 +336,10 @@ export class AnnotationRoom extends DurableObject<Env> {
     return bucket.tokens >= 0;
   }
 
-  /** Write peer metadata, keeping the memoized copy in step with the attachment. */
-  private setPeerInfo(ws: WebSocket, info: PeerInfo) {
-    ws.serializeAttachment(info);
-    this.peerInfo.set(ws, info);
-  }
-
   /**
    * Count an agent's work on its own socket attachment. Only agents are counted:
    * this costs a write per op, and the per-peer breakdown is only ever read for
-   * `agent_left`. Humans stay on the cheap in-memory counters above.
+   * `agent_left`. Humans stay on the cheap in-memory counters.
    */
   private countAgentWork(ws: WebSocket, field: 'ops' | 'updates') {
     const info = this.getPeerInfo(ws);
@@ -272,32 +347,15 @@ export class AnnotationRoom extends DurableObject<Env> {
     this.setPeerInfo(ws, { ...info, [field]: (info[field] ?? 0) + 1 });
   }
 
-  /** This room's access row applied to one socket's user. The rule itself is shared. */
+  /** This room's access row applied to one user. The rule itself is shared. */
   private canEditFor(userId: string | undefined): boolean {
     return canEditLink({ access: this.access, ownerId: this.ownerId, userId });
   }
 
   /**
-   * Rejects a mutation from a peer whose own attachment says it may not edit.
-   * `canEdit === false` only, never `!info`: a socket with no parsed info yet
-   * (or one from before this shipped) defaults to allowed, matching `'edit'`
-   * being every link's default.
-   */
-  private rejectIfReadOnly(ws: WebSocket): boolean {
-    const info = this.getPeerInfo(ws);
-    if (info?.canEdit === false) {
-      ws.send(JSON.stringify({ type: 'error', code: 'read_only' }));
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * Live human peers, ignoring one socket.
-   *
-   * `exclude` is load-bearing: workerd keeps a terminating socket in
-   * `getWebSockets()` for the whole of its close handler, so a leaving peer
-   * counts itself unless the caller says otherwise.
+   * Live human peers, ignoring one socket. `exclude` is load-bearing: workerd
+   * keeps a terminating socket in `getWebSockets()` for the whole of its close
+   * handler, so a leaving peer counts itself unless the caller says otherwise.
    */
   private countHumans(exclude?: WebSocket): number {
     let n = 0;
@@ -312,140 +370,16 @@ export class AnnotationRoom extends DurableObject<Env> {
   /**
    * Sockets already torn down. workerd dispatches `webSocketClose` or
    * `webSocketError` for one termination, never both, so this only guards
-   * against a runtime that someday does otherwise — and unlike clearing the
-   * attachment it leans on no undocumented behaviour around `close()`.
+   * against a runtime that someday does otherwise.
    */
   private readonly closed = new WeakSet<WebSocket>();
-
-  /** Strips `canEdit`/`userId` before peers see each other — bookkeeping for this
-   * room, not something one peer should read off another. */
-
-  // ---------------------------------------------------------------------------
-  // Remote MCP surface. Called by RPC from the Worker's `/s/:id/mcp` handler,
-  // which is stateless by design: the session lives here, in the room that
-  // already owns the ops, the peers and the broadcast, rather than in a second
-  // Durable Object standing beside it.
-  // ---------------------------------------------------------------------------
-
-  /** Keep an HTTP-attached agent in the peer list; announce it the first time. */
-  async agentHeartbeat(id: string, peer: { id: string; name: string; color: string }): Promise<void> {
-    await this.getOps(id);
-    const known = this.httpAgents.has(peer.id);
-    this.httpAgents.set(peer.id, { peer: { id: peer.id, name: peer.name, color: peer.color }, lastSeen: Date.now() });
-    if (!known) {
-      this.sessionHadAgent = true;
-      this.broadcast(JSON.stringify({ type: 'peer_join', peer: { id: peer.id, name: peer.name, color: peer.color } }));
-    }
-  }
-
-  async agentSnapshot(id: string): Promise<AgentSnapshot> {
-    const ops = parseOps(await this.getOps(id));
-    // The owner may have flipped the link since this isolate loaded it, and an
-    // HTTP agent has no `init` message to carry a later value to it.
-    await this.refreshAccess(id);
-    return {
-      ops,
-      url: this.url,
-      width: this.width,
-      createdAt: this.createdAt,
-      expiresAt: effectiveExpiresAt({ expiresAt: this.expiresAt, ownerExpiresAt: this.ownerExpiresAt }),
-      canEdit: this.canEditFor(undefined),
-    };
-  }
-
-  /**
-   * Append one op. `false` means the link is view-only — never that the write failed silently.
-   * An id already present is a redelivery (Slack retries an event it thinks timed out), so it is a no-op success.
-   */
-  async agentPushOp(id: string, op: DrawOp): Promise<boolean> {
-    const ops = await this.getOps(id);
-    await this.refreshAccess(id);
-    if (!this.canEditFor(undefined)) return false;
-    if (ops.some((o) => opIdOf(o) === op.id)) return true;
-    ops.push(op);
-    this.sessionOps++;
-    this.sessionTools.set(op.tool, (this.sessionTools.get(op.tool) ?? 0) + 1);
-    this.broadcast(JSON.stringify({ type: 'op', op }));
-    this.wakeWatchers([op]);
-    this.queueOutbound(op);
-    await this.scheduleFlush();
-    return true;
-  }
-
-  private queueOutbound(op: DrawOp): void {
-    const notifiable = notifiableFrom(op);
-    if (!notifiable) return;
-    this.pendingNotifications.push(notifiable);
-    if (this.env.SLACK_TOKEN_KEY && !isSlackOp(op)) this.pendingSlack.push(op);
-  }
-
-  /** Patch an op. `false` is view-only or no such op; the caller tells those apart from the snapshot. */
-  async agentPatchOp(id: string, opId: string, patch: Record<string, unknown>): Promise<boolean> {
-    const ops = await this.getOps(id);
-    await this.refreshAccess(id);
-    if (!this.canEditFor(undefined)) return false;
-    const idx = ops.findIndex((o) => opIdOf(o) === opId);
-    if (idx === -1) return false;
-    const current = ops[idx];
-    if (!current) return false;
-    const merged = applyOpPatch({ op: current, patch });
-    if (!merged) return false;
-    ops[idx] = merged;
-    this.sessionUpdates++;
-    this.broadcast(JSON.stringify({ type: 'update_op', opId, patch }));
-    await this.scheduleFlush();
-    return true;
-  }
-
-  /** Remove ops by id, broadcast as `undo` so open viewers drop them too. `false` is view-only. */
-  async agentRemoveOps(id: string, opIds: string[]): Promise<boolean> {
-    const ops = await this.getOps(id);
-    await this.refreshAccess(id);
-    if (!this.canEditFor(undefined)) return false;
-    const doomed = new Set(opIds);
-    const kept = ops.filter((o) => !doomed.has(opIdOf(o) ?? ''));
-    if (kept.length === ops.length) return true;
-    // In place: `this.ops` is the array every other path holds.
-    ops.splice(0, ops.length, ...kept);
-    for (const opId of doomed) this.broadcast(JSON.stringify({ type: 'undo', opId }));
-    await this.scheduleFlush();
-    return true;
-  }
-
-  /**
-   * Park until ops arrive, or the timeout expires. A promise held here rather
-   * than a poll from the handler: the request keeps this object resident for its
-   * duration, so there is nothing to hibernate out from under it, and a watching
-   * agent costs one call instead of one per second.
-   */
-  async agentWatch(id: string, { timeoutMs }: { timeoutMs: number }): Promise<DrawOp[]> {
-    await this.getOps(id);
-    return new Promise<DrawOp[]>((resolve) => {
-      let done = false;
-      const finish = (ops: DrawOp[]) => {
-        if (done) return;
-        done = true;
-        this.opWaiters = this.opWaiters.filter((w) => w !== waiter);
-        resolve(ops);
-      };
-      const waiter = (ops: DrawOp[]) => finish(ops);
-      this.opWaiters.push(waiter);
-      setTimeout(() => finish([]), timeoutMs);
-    });
-  }
-
-  private wakeWatchers(ops: DrawOp[]): void {
-    if (this.opWaiters.length === 0) return;
-    const waiters = this.opWaiters;
-    this.opWaiters = [];
-    for (const wake of waiters) wake(ops);
-  }
 
   private getPeerList(): Omit<PeerInfo, 'canEdit' | 'userId'>[] {
     const list: Omit<PeerInfo, 'canEdit' | 'userId'>[] = [];
     for (const ws of this.ctx.getWebSockets()) {
       const info = this.getPeerInfo(ws);
       if (info) {
+        // Bookkeeping for this room, not something one peer should read off another.
         const { canEdit: _canEdit, userId: _userId, ...peer } = info;
         list.push(peer);
       }
@@ -454,7 +388,7 @@ export class AnnotationRoom extends DurableObject<Env> {
     for (const [peerId, entry] of this.httpAgents) {
       if (entry.lastSeen < cutoff) {
         this.httpAgents.delete(peerId);
-        this.broadcast(JSON.stringify({ type: 'peer_leave', peerId }));
+        this.broadcast({ type: 'peer_leave', peerId });
         continue;
       }
       list.push(entry.peer);
@@ -462,54 +396,305 @@ export class AnnotationRoom extends DurableObject<Env> {
     return list;
   }
 
-  private broadcast(msg: string, exclude?: WebSocket) {
+  private broadcast(msg: ServerMsg, exclude?: WebSocket) {
+    const text = JSON.stringify(msg);
     for (const ws of this.ctx.getWebSockets()) {
-      if (ws !== exclude && ws.readyState === WebSocket.OPEN) {
-        ws.send(msg);
-      }
+      if (ws !== exclude && ws.readyState === WebSocket.OPEN) ws.send(text);
     }
   }
 
-  private async clearOps({ id, from }: { id: string; from?: WebSocket }) {
-    const ops = await this.getOps(id);
-    ops.length = 0;
-    this.broadcast(JSON.stringify({ type: 'clear' }), from);
-    await this.scheduleFlush();
-  }
-
-  private async scheduleFlush() {
-    this.dirty = true;
-    // Debounce: flush 3 seconds after last mutation
-    await this.ctx.storage.setAlarm(Date.now() + 3000);
-  }
-
-  /**
-   * Lowest password generation a new socket may arrive with. In memory only:
-   * it closes the milliseconds between the Worker's check and this room hearing
-   * of a change, and a room cold enough to lose it has no such race in flight.
-   */
-  private minGen = 0;
-
-  /**
-   * Ends every session admitted under an older password: sockets close with
-   * the code that sends a browser back to the prompt, and parked agent watches
-   * return empty, so nothing that arrives after the change reaches them.
-   */
-  private revoke(gen: number): void {
-    if (Number.isInteger(gen)) this.minGen = Math.max(this.minGen, gen);
+  private closeAll(code: number, reason: string, keep?: (info: PeerInfo | null) => boolean): void {
     for (const ws of this.ctx.getWebSockets()) {
-      // The owner skips the prompt anyway; closing their tab would only reload the panel they changed it from.
-      const userId = this.getPeerInfo(ws)?.userId;
-      if (userId !== undefined && userId === this.ownerId) continue;
-      // Teardown still runs on the close that follows, so the owner sees each one leave.
+      if (keep?.(this.getPeerInfo(ws))) continue;
       try {
-        ws.close(ROOM_LOCKED_CLOSE_CODE, 'password changed');
+        ws.close(code, reason);
       } catch {
         // Already closing on the client's side; nothing left to end.
       }
     }
-    this.httpAgents.clear();
-    this.wakeWatchers([]);
+  }
+
+  /** Append to the log and wake every watcher it reaches. All at once: a watcher must never see half of one change. */
+  /** A change to the ops, to sockets and HTTP agents alike: one without the other desyncs them silently. */
+  private announce(msgs: ServerMsg[], exclude?: WebSocket): void {
+    for (const msg of msgs) this.broadcast(msg, exclude);
+    this.record(...msgs);
+  }
+
+  private record(...msgs: ServerMsg[]): void {
+    this.log.push(...msgs);
+    const over = this.log.length - LOG_CAP;
+    if (over > 0) {
+      this.log.splice(0, over);
+      this.logBase += over;
+    }
+    const cursor = this.cursor();
+    const woken = this.watchers;
+    this.watchers = [];
+    for (const w of woken) w.wake({ messages: this.since(w.since), cursor });
+  }
+
+  /** End every parked watch, empty-handed. */
+  private wakeWatchers(): void {
+    const woken = this.watchers;
+    this.watchers = [];
+    for (const w of woken) w.wake({ messages: [], cursor: this.cursor() });
+  }
+
+  /** Where the room stands, as an agent's `seen`. Only true synchronously after a change is fully applied. */
+  private position(): { cursor: number; ops: unknown[] } {
+    return { cursor: this.cursor(), ops: [...(this.ops ?? [])] };
+  }
+
+  private cursor(): number {
+    return this.logBase + this.log.length;
+  }
+
+  private since(cursor: number): ServerMsg[] {
+    return this.log.slice(Math.max(0, cursor - this.logBase));
+  }
+
+  /** Whether this caller may change the room. A socket answers for itself; everyone else is read against the row. */
+  private async mayEdit(from: Origin): Promise<boolean> {
+    if ('ws' in from) {
+      // `canEdit === false` only, never `!info`: a socket with no parsed info yet
+      // defaults to allowed, matching `'edit'` being every link's default.
+      const info = this.getPeerInfo(from.ws);
+      if (info?.canEdit === false) {
+        from.ws.send(JSON.stringify({ type: 'error', code: ROOM_ERROR_READ_ONLY }));
+        return false;
+      }
+      return true;
+    }
+    // The owner may have flipped the link since this isolate loaded it, and an
+    // HTTP caller has no `init` message to carry a later value to it.
+    await this.refreshAccess();
+    return this.canEditFor(from.userId);
+  }
+
+  /**
+   * Every mutation of the ops column, from a socket, an RPC call or a REST save:
+   * one access check, one application, one broadcast, one log entry, one flush.
+   * The sender's own socket is skipped on `op`, `undo` and `clear` (it already
+   * applied them locally); `update_op` goes to everyone, as it always has.
+   */
+  private async mutate(change: RoomChange, from: Origin): Promise<MutateOutcome> {
+    const ops = await this.getOps();
+    if (this.dead || (await this.pastDeadline())) return 'refused';
+    // `mayEdit` rereads the row, which may find it gone.
+    if (!(await this.mayEdit(from)) || this.dead) return 'refused';
+    return this.apply({ change, ops, ws: 'ws' in from ? from.ws : undefined });
+  }
+
+  /** The write itself, past every check: what `mutate` does once the caller may, and what `reset` does outright. */
+  private async apply({
+    change,
+    ops,
+    ws,
+  }: {
+    change: RoomChange;
+    ops: unknown[];
+    ws?: WebSocket;
+  }): Promise<MutateOutcome> {
+    switch (change.type) {
+      case 'op': {
+        // An id already present is a redelivery (Slack retries an event it thinks timed out): a no-op success.
+        if (ops.some((o) => opIdOf(o) === change.op.id)) return 'noop';
+        // A socket op already passed `clientMsgSchema`; only an RPC literal needs the schema's key order.
+        const op = ws ? change.op : canonicalOp(change.op);
+        ops.push(op);
+        this.stats.noteOp(op.tool);
+        if (ws) this.countAgentWork(ws, 'ops');
+        this.announce([{ type: 'op', op }], ws);
+        this.outbound.queue(op);
+        break;
+      }
+      case 'update_op': {
+        const idx = ops.findIndex((o) => opIdOf(o) === change.opId);
+        const current = ops[idx];
+        if (idx === -1 || current === undefined) return 'noop';
+        // Reject rather than broadcast: this is the one path that persists a patched op.
+        const merged = applyOpPatch({ op: current, patch: change.patch });
+        if (!merged) return 'refused';
+        ops[idx] = merged;
+        this.stats.noteUpdate();
+        if (ws) this.countAgentWork(ws, 'updates');
+        this.announce([{ type: 'update_op', opId: change.opId, patch: change.patch }]);
+        break;
+      }
+      case 'undo': {
+        const idx = ops.findIndex((o) => opIdOf(o) === change.opId);
+        if (idx === -1) return 'noop';
+        ops.splice(idx, 1);
+        this.announce([{ type: 'undo', opId: change.opId }], ws);
+        break;
+      }
+      case 'clear': {
+        ops.length = 0;
+        this.announce([{ type: 'clear' }], ws);
+        break;
+      }
+      case 'replace': {
+        // The whole-array form, as a sequence of the messages peers understand:
+        // what left is undone, what arrived or changed is an op. In place, since
+        // `this.ops` is the array every other path holds.
+        const before = new Map<string, unknown>();
+        for (const o of ops) {
+          const id = opIdOf(o);
+          if (id) before.set(id, o);
+        }
+        const after = new Set(change.ops.map(opIdOf).filter((id): id is string => id !== undefined));
+        const { stored, parsed } = canonicalOps(change.ops);
+        ops.splice(0, ops.length, ...stored);
+        const said: ServerMsg[] = [];
+        for (const id of before.keys()) {
+          if (!after.has(id)) said.push({ type: 'undo', opId: id });
+        }
+        for (const op of parsed) {
+          const was = before.get(op.id);
+          if (was !== undefined && JSON.stringify(was) === JSON.stringify(op)) continue;
+          if (was !== undefined) {
+            said.push({ type: 'undo', opId: op.id });
+          } else {
+            this.stats.noteOp(op.tool);
+            this.outbound.queue(op);
+          }
+          said.push({ type: 'op', op });
+        }
+        this.announce(said);
+        break;
+      }
+      case 'merge': {
+        const known = new Set(ops.map(opIdOf));
+        const added = change.ops.filter((o) => {
+          const id = opIdOf(o);
+          if (id === undefined || known.has(id)) return false;
+          known.add(id);
+          return true;
+        });
+        if (added.length === 0) return 'noop';
+        const { stored, parsed } = canonicalOps(added);
+        ops.push(...stored);
+        const said: ServerMsg[] = [];
+        for (const op of parsed) {
+          this.stats.noteOp(op.tool);
+          this.outbound.queue(op);
+          said.push({ type: 'op', op });
+        }
+        this.announce(said);
+        break;
+      }
+    }
+    await this.scheduleFlush();
+    return 'applied';
+  }
+
+  private async scheduleFlush() {
+    this.dirty = true;
+    await this.ctx.storage.setAlarm(Date.now() + FLUSH_DELAY_MS);
+  }
+
+  // The Worker's routes and the remote MCP endpoint are stateless: the session lives here,
+  // in the room that owns the ops.
+
+  /** Keep an HTTP-attached agent in the peer list; announce it the first time. Returns the room as it stands. */
+  async join(peer: { id: string; uid: string; name: string; color: string }): Promise<AgentJoin> {
+    await this.getOps();
+    await this.revive();
+    const known = this.httpAgents.get(peer.id);
+    const announced = {
+      id: peer.id,
+      uid: sanitizeUid(peer.uid),
+      name: sanitizeName(peer.name),
+      color: sanitizeColor(peer.color),
+    };
+    const entry = { peer: announced, lastSeen: Date.now(), seen: known?.seen ?? this.position() };
+    this.httpAgents.set(peer.id, entry);
+    if (!known) {
+      this.stats.noteAgent();
+      this.broadcast({ type: 'peer_join', peer: announced });
+    }
+    const snapshot = await this.snapshot();
+    // Past the log's cap the gap cannot be replayed, so the agent re-snapshots, as a watcher would.
+    if (!known || entry.seen.cursor < this.logBase) {
+      entry.seen = this.position();
+      return { ...snapshot, missed: [] };
+    }
+    return { ...snapshot, ops: parseOps(entry.seen.ops), missed: this.since(entry.seen.cursor) };
+  }
+
+  async snapshot(): Promise<AgentSnapshot> {
+    await this.getOps();
+    await this.refreshAccess();
+    return {
+      // After the awaits, so `ops` and `cursor` are one instant: a message between them would be lost to a watch.
+      ops: parseOps(this.ops ?? []),
+      url: this.url,
+      width: this.width,
+      createdAt: this.createdAt,
+      expiresAt: this.deadline(),
+      canEdit: this.canEditFor(undefined),
+      cursor: this.cursor(),
+    };
+  }
+
+  /** One client message from an agent. `false` means the link is view-only — never that the write failed silently. */
+  async send(msg: ClientMsg): Promise<boolean> {
+    if (msg.type === 'op' || msg.type === 'update_op' || msg.type === 'undo' || msg.type === 'clear') {
+      const outcome = await this.mutate(msg, {});
+      return outcome !== 'refused';
+    }
+    return true;
+  }
+
+  /**
+   * Park until a message lands past `since`, or the timeout expires. A promise
+   * held here rather than a poll from the handler: the request keeps this object
+   * resident for its duration, so there is nothing to hibernate out from under it.
+   */
+  async watch({ timeoutMs, since, peerId }: AgentWatchRequest): Promise<AgentWatchResult> {
+    await this.getOps();
+    const seen = () => {
+      const agent = this.httpAgents.get(peerId);
+      if (agent) agent.seen = this.position();
+    };
+    if (since < this.cursor()) {
+      seen();
+      return { messages: this.since(since), cursor: this.cursor() };
+    }
+    return new Promise<AgentWatchResult>((resolve) => {
+      let done = false;
+      const wake = (result: AgentWatchResult) => {
+        if (done) return;
+        done = true;
+        this.watchers = this.watchers.filter((w) => w.wake !== wake);
+        seen();
+        resolve(result);
+      };
+      this.watchers.push({ since, wake });
+      setTimeout(() => wake({ messages: [], cursor: this.cursor() }), timeoutMs);
+    });
+  }
+
+  /** The REST save: the whole array, applied here so a warm room's flush cannot overwrite it. */
+  async saveOps({
+    ops,
+    userId,
+    mode,
+  }: {
+    ops: unknown[];
+    userId: string | undefined;
+    mode: SaveMode;
+  }): Promise<boolean> {
+    await this.getOps();
+    await this.revive();
+    return (await this.mutate({ type: mode, ops }, { userId })) !== 'refused';
+  }
+
+  /** The cron wiping the public demo board. */
+  async reset(): Promise<void> {
+    // A cron, not a participant: no access to check.
+    await this.apply({ change: { type: 'clear' }, ops: await this.getOps() });
   }
 
   /**
@@ -517,9 +702,9 @@ export class AnnotationRoom extends DurableObject<Env> {
    * once per isolate, so without this a flip to view-only would bite only after
    * the next eviction — and the owner's own tab keeps the room resident.
    */
-  private async refreshAccess(id: string): Promise<void> {
-    const row = await annotationStore(this.env.DB).getAccess(id);
-    this.applyAccessRow(row);
+  async refreshAccess(): Promise<void> {
+    await this.getOps();
+    await this.refreshRow();
     for (const ws of this.ctx.getWebSockets()) {
       const info = this.getPeerInfo(ws);
       if (!info) continue;
@@ -530,54 +715,62 @@ export class AnnotationRoom extends DurableObject<Env> {
     }
   }
 
+  /**
+   * Lowest password generation a new socket may arrive with. In memory only:
+   * it closes the milliseconds between the Worker's check and this room hearing
+   * of a change, and a room cold enough to lose it has no such race in flight.
+   */
+  private minGen = 0;
+
+  /**
+   * The owner set, changed or removed the password. Ends every session admitted
+   * under an older one: sockets close with the code that sends a browser back to
+   * the prompt, and parked agent watches return empty.
+   */
+  async revoke(gen: number): Promise<void> {
+    await this.getOps();
+    if (Number.isInteger(gen)) this.minGen = Math.max(this.minGen, gen);
+    // The owner skips the prompt anyway; closing their tab would only reload the panel they changed it from.
+    this.closeAll(ROOM_LOCKED_CLOSE_CODE, 'password changed', (info) => {
+      const userId = info?.userId;
+      return userId !== undefined && userId === this.ownerId;
+    });
+    this.httpAgents.clear();
+    this.wakeWatchers();
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     const id = url.searchParams.get('id');
-    if (!id) return new Response('Missing id', { status: 400 });
-
-    // Not a peer: the settings route poking a warm room. Checked before `origin`
-    // is recorded, since this request's origin is not one a person can open.
-    if (request.method === 'POST' && url.pathname === '/refresh-access') {
-      await this.refreshAccess(id);
-      return new Response(null, { status: 204 });
-    }
-    // The cron wiping the public demo board. Goes through the room rather than
-    // D1 so a warm room's in-memory ops cannot flush the old board straight back.
-    if (request.method === 'POST' && url.pathname === '/reset') {
-      await this.clearOps({ id });
-      return new Response(null, { status: 204 });
-    }
-    // The owner set, changed or removed the password.
-    if (request.method === 'POST' && url.pathname === '/revoke') {
-      this.revoke(Number(url.searchParams.get('gen')));
-      return new Response(null, { status: 204 });
-    }
 
     // The Worker admitted this socket against a generation; one older than a
     // revoke already seen lost a race with the change and is refused here.
     const admittedGen = Number(request.headers.get(ROOM_GEN_HEADER));
-    if (!Number.isInteger(admittedGen) || admittedGen < this.minGen) return lockedSocket();
+    if (!Number.isInteger(admittedGen) || admittedGen < this.minGen) {
+      return refusedSocket({ code: ROOM_LOCKED_CLOSE_CODE, reason: 'refused' });
+    }
 
-    this.origin = url.origin;
+    const roomId = await this.roomId(id);
+    this.origin ??= this.env.APP_ORIGIN ?? url.origin;
 
     const peerId = url.searchParams.get('peerId') || crypto.randomUUID();
     const peerName = sanitizeName(url.searchParams.get('name'));
     const peerColor = sanitizeColor(url.searchParams.get('color'));
     const peerUid = sanitizeUid(url.searchParams.get('uid'));
 
-    const pair = new WebSocketPair();
-    this.ctx.acceptWebSocket(pair[1], [id]);
-
-    // Run getOps, the TURN fetch and the connecting user's session lookup
-    // concurrently — all three are network-bound and independent, so this
-    // hides their latency behind each other instead of stacking round trips.
-    // getOps is what fills in this.access/this.ownerId (via loadOps), so canEdit
-    // can only be resolved once this resolves.
+    // getOps, the TURN fetch and the connecting user's session lookup are
+    // independent and network-bound, so they overlap. getOps fills in
+    // access/ownerId, so canEdit can only be resolved once it resolves.
     const [ops, iceServers, user] = await Promise.all([
-      this.getOps(id),
+      this.getOps(roomId),
       getIceServers(this.env),
       userFromCookieHeader({ header: request.headers.get('Cookie'), db: this.env.DB }),
     ]);
+    // The door let this socket in, so a room whose row died starts over here. Both
+    // before the accept: a load that finds the row dead closes every accepted socket.
+    await this.revive();
+    const pair = new WebSocketPair();
+    this.ctx.acceptWebSocket(pair[1], [roomId]);
     const canEdit = this.canEditFor(user?.id);
     this.setPeerInfo(pair[1], {
       id: peerId,
@@ -589,61 +782,45 @@ export class AnnotationRoom extends DurableObject<Env> {
       userId: user?.id,
     });
 
-    if (this.sessionStartedAt === 0) this.sessionStartedAt = Date.now();
-    // The MCP bridge joins as an ordinary peer under an `mcp-` id (apps/mcp/src/room.ts),
-    // so a room worked by an agent is countable without the client reporting
-    // anything — and an agent must not make a solo session read as collaborative.
-    this.sessionHadAgent ||= isAgentPeer(peerId);
     const sockets = this.ctx.getWebSockets();
-    this.peakPeers = Math.max(this.peakPeers, sockets.length);
     const humans = this.countHumans();
-    this.peakHumanPeers = Math.max(this.peakHumanPeers, humans);
+    // The MCP bridge joins as an ordinary peer under an `mcp-` id, so a room
+    // worked by an agent is countable without the client reporting anything.
+    this.stats.noteJoin({ peers: sockets.length, humans, agent: isAgentPeer(peerId) });
 
     const peerList = this.getPeerList();
-    pair[1].send(
-      JSON.stringify({
-        type: 'init',
-        ops,
-        peers: peerList,
-        createdAt: this.createdAt,
-        // The tighter of the two deadlines: the client has one `expiresAt`
-        // concept and must not learn about a link's own expiry while missing
-        // its owner's, or the info panel counts down to the wrong date.
-        expiresAt: effectiveExpiresAt({ expiresAt: this.expiresAt, ownerExpiresAt: this.ownerExpiresAt }),
-        // Whether anyone claimed this link, not who: the info panel's countdown
-        // needs to know the idle window no longer applies, and the owner's
-        // identity is none of a visiting peer's business.
-        owned: this.ownerId !== null,
-        url: this.url,
-        width: this.width,
-        access: this.access,
-        canEdit,
-        iceServers,
-      }),
-    );
+    const init: ServerMsg = {
+      type: 'init',
+      ops,
+      peers: peerList,
+      createdAt: this.createdAt,
+      // The tighter of the two deadlines: the client has one `expiresAt`
+      // concept and must not learn about a link's own expiry while missing
+      // its owner's, or the info panel counts down to the wrong date.
+      expiresAt: this.deadline(),
+      // Whether anyone claimed this link, not who: the info panel's countdown
+      // needs to know the idle window no longer applies, and the owner's
+      // identity is none of a visiting peer's business.
+      owned: this.ownerId !== null,
+      url: this.url,
+      width: this.width,
+      access: this.access,
+      canEdit,
+      iceServers: iceServers.map((s) => ({ ...s })),
+    };
+    pair[1].send(JSON.stringify(init));
 
-    // Notify others of new peer joining
     this.broadcast(
-      JSON.stringify({
-        type: 'peer_join',
-        peer: { id: peerId, uid: peerUid, name: peerName, color: peerColor },
-      }),
+      { type: 'peer_join', peer: { id: peerId, uid: peerUid, name: peerName, color: peerColor } },
       pair[1],
     );
 
     // Awaited before the 101 goes out. An accepted hibernatable socket does not
-    // keep this object resident — hibernating with the socket open is the whole
-    // point of the API — and an unawaited fetch neither blocks hibernation nor
-    // gets any delivery guarantee. Awaiting is what makes it pending I/O.
+    // keep this object resident, and an unawaited fetch neither blocks hibernation
+    // nor gets any delivery guarantee. Awaiting is what makes it pending I/O.
     // https://developers.cloudflare.com/durable-objects/concepts/durable-object-lifecycle/
     if (isAgentPeer(peerId)) {
-      await captureServer(this.env, this.ctx, 'agent_joined', {
-        // Whether the agent is working alongside someone or on its own — the
-        // difference between a live handoff and an unattended sweep.
-        humans_present: humans,
-        peers_present: sockets.length,
-        ops_waiting: ops.length,
-      });
+      await captureAgentJoined({ env: this.env, ctx: this.ctx, humans, peers: sockets.length, opsWaiting: ops.length });
     }
     return new Response(null, { status: 101, webSocket: pair[0] });
   }
@@ -670,22 +847,27 @@ export class AnnotationRoom extends DurableObject<Env> {
 
     // RTC signaling relay — payloads carry arbitrary SDP/ICE fields, so they bypass
     // the strict client schema and are forwarded as-is to the targeted peer.
-    const rawType = (raw as { type?: unknown }).type;
-    if (typeof rawType === 'string' && (RTC_MESSAGE_TYPES as readonly string[]).includes(rawType)) {
-      if (rawType === 'rtc_request_ice') {
+    // Checked by hand first: this runs on every frame, cursor moves included.
+    const rtc = 'type' in raw && RTC_TYPES.has(raw.type) ? rtcEnvelope.safeParse(raw) : null;
+    if (rtc?.success) {
+      if (rtc.data.type === 'rtc_request_ice') {
         // Sender wants fresh TURN creds (likely an ICE restart in progress).
         // Broadcast to every socket in the room — if only the requester updates,
         // its peer keeps stale creds and the restart half-completes once the
-        // remote relay rejects the old auth. Clients no-op when the URL set is
-        // unchanged (see iceServersEqual in useRealtimeSync).
+        // remote relay rejects the old auth. Clients no-op when the URL set is unchanged.
         getIceServers(this.env)
-          .then((iceServers) => {
-            this.broadcast(JSON.stringify({ type: 'ice_refresh', iceServers }));
-          })
+          .then((iceServers) => this.broadcast({ type: 'ice_refresh', iceServers: iceServers.map((s) => ({ ...s })) }))
           .catch(() => {});
         return;
       }
-      this.relayRtc(ws, raw as { type: RtcMessageType; to?: unknown });
+      const from = this.getPeerInfo(ws);
+      if (!from || typeof rtc.data.to !== 'string') return;
+      relayRtc({
+        sockets: this.ctx.getWebSockets(),
+        peerOf: (sock) => this.getPeerInfo(sock),
+        from,
+        msg: { ...rtc.data, type: rtc.data.type, to: rtc.data.to },
+      });
       return;
     }
 
@@ -693,71 +875,26 @@ export class AnnotationRoom extends DurableObject<Env> {
     if (!parsed.success) return;
     const msg = parsed.data;
 
-    const tags = this.ctx.getTags(ws);
-    const id = tags[0] || this.annotationId;
-    if (!id && msg.type !== 'ping') return;
-
-    if (!READ_ONLY_SAFE_TYPES.has(msg.type) && this.rejectIfReadOnly(ws)) return;
+    if (!READ_ONLY_SAFE_TYPES.has(msg.type)) {
+      // The tag names the room for a socket woken from hibernation on a fresh isolate.
+      await this.getOps(this.ctx.getTags(ws)[0]);
+    }
 
     switch (msg.type) {
-      case 'op': {
-        const ops = await this.getOps(id!);
-        ops.push(msg.op);
-        this.sessionOps++;
-        this.countAgentWork(ws, 'ops');
-        this.sessionTools.set(msg.op.tool, (this.sessionTools.get(msg.op.tool) ?? 0) + 1);
-        this.broadcast(JSON.stringify({ type: 'op', op: msg.op }), ws);
-        this.wakeWatchers([msg.op]);
-        this.queueOutbound(msg.op);
-        await this.scheduleFlush();
+      case 'op':
+      case 'update_op':
+      case 'undo':
+      case 'clear':
+        await this.mutate(msg, { ws });
         return;
-      }
-      case 'update_op': {
-        const ops = await this.getOps(id!);
-        const idx = ops.findIndex((o) => opIdOf(o) === msg.opId);
-        if (idx === -1) return;
-        const current = ops[idx];
-        if (!current) return;
-        // Reject rather than broadcast: this is the one path that persists a patched op.
-        const merged = applyOpPatch({ op: current, patch: msg.patch });
-        if (!merged) return;
-        ops[idx] = merged;
-        this.sessionUpdates++;
-        this.countAgentWork(ws, 'updates');
-        this.broadcast(JSON.stringify({ type: 'update_op', opId: msg.opId, patch: msg.patch }));
-        await this.scheduleFlush();
-        return;
-      }
-      case 'undo': {
-        const ops = await this.getOps(id!);
-        const idx = ops.findIndex((o) => opIdOf(o) === msg.opId);
-        if (idx === -1) return;
-        ops.splice(idx, 1);
-        this.broadcast(JSON.stringify({ type: 'undo', opId: msg.opId }), ws);
-        await this.scheduleFlush();
-        return;
-      }
-      case 'clear': {
-        await this.clearOps({ id: id!, from: ws });
-        return;
-      }
-      case 'ping': {
+      case 'ping':
         ws.send('{"type":"pong"}');
         return;
-      }
       case 'cursor': {
         const info = this.getPeerInfo(ws);
         if (!info) return;
         this.broadcast(
-          JSON.stringify({
-            type: 'cursor',
-            peerId: info.id,
-            name: info.name,
-            color: info.color,
-            x: msg.x,
-            y: msg.y,
-            tool: msg.tool,
-          }),
+          { type: 'cursor', peerId: info.id, name: info.name, color: info.color, x: msg.x, y: msg.y, tool: msg.tool },
           ws,
         );
         return;
@@ -765,16 +902,7 @@ export class AnnotationRoom extends DurableObject<Env> {
       case 'ripple': {
         const info = this.getPeerInfo(ws);
         if (!info) return;
-        this.broadcast(
-          JSON.stringify({
-            type: 'ripple',
-            peerId: info.id,
-            color: info.color,
-            x: msg.x,
-            y: msg.y,
-          }),
-          ws,
-        );
+        this.broadcast({ type: 'ripple', peerId: info.id, color: info.color, x: msg.x, y: msg.y }, ws);
         return;
       }
       case 'profile': {
@@ -788,7 +916,7 @@ export class AnnotationRoom extends DurableObject<Env> {
           color: sanitizeColor(msg.color, info.color),
         };
         this.setPeerInfo(ws, next);
-        this.broadcast(JSON.stringify({ type: 'profile', peerId: next.id, name: next.name, color: next.color }), ws);
+        this.broadcast({ type: 'profile', peerId: next.id, name: next.name, color: next.color }, ws);
         return;
       }
       case 'flock': {
@@ -796,19 +924,7 @@ export class AnnotationRoom extends DurableObject<Env> {
         if (!info) return;
         // Not persisted and not replayed on join: presenting is a live gesture,
         // so someone arriving after it started is not dragged into it.
-        this.broadcast(JSON.stringify({ type: 'flock', peerId: info.id, name: info.name, on: msg.on }), ws);
-        return;
-      }
-    }
-  }
-
-  private relayRtc(ws: WebSocket, msg: { type: RtcMessageType; to?: unknown }) {
-    const from = this.getPeerInfo(ws);
-    if (!from || typeof msg.to !== 'string') return;
-    for (const sock of this.ctx.getWebSockets()) {
-      const info = this.getPeerInfo(sock);
-      if (info?.id === msg.to && sock.readyState === WebSocket.OPEN) {
-        sock.send(JSON.stringify({ ...msg, from: from.id }));
+        this.broadcast({ type: 'flock', peerId: info.id, name: info.name, on: msg.on }, ws);
         return;
       }
     }
@@ -818,16 +934,14 @@ export class AnnotationRoom extends DurableObject<Env> {
     await this.teardown(ws);
   }
 
+  async webSocketError(ws: WebSocket) {
+    await this.teardown(ws);
+  }
+
   /**
-   * One exit path for both a clean close and an errored one.
-   *
-   * `webSocketError` used to only close the socket, which lost two things on
-   * every abrupt disconnect — the common case, since a closed tab rarely sends
-   * a close frame. Peers kept a ghost in their presence list because no
-   * `peer_leave` went out, and the session was never counted at all.
-   *
-   * Idempotent by way of the attachment: it is cleared before the socket is
-   * closed, so a second handler for the same socket finds no peer and returns.
+   * One exit path for both a clean close and an errored one. `webSocketError`
+   * used to only close the socket, which left peers a ghost in their presence
+   * list and never counted the session. Idempotent by way of `closed`.
    */
   private async teardown(ws: WebSocket) {
     if (this.closed.has(ws)) return;
@@ -840,154 +954,94 @@ export class AnnotationRoom extends DurableObject<Env> {
     }
     if (!info) return;
 
-    this.broadcast(JSON.stringify({ type: 'peer_leave', peerId: info.id }));
+    this.broadcast({ type: 'peer_leave', peerId: info.id });
 
     // Awaited, not fire-and-forget: an agent's socket is usually the last one
-    // out, and after that there is nothing keeping this object alive. Started
-    // together and awaited once — two PostHog posts and a D1 flush that share
-    // no state, so serializing them would only lengthen the window the object
-    // has to survive.
+    // out, and after that there is nothing keeping this object alive.
     const pending: Promise<unknown>[] = [];
     if (isAgentPeer(info.id)) {
-      pending.push(
-        captureServer(this.env, this.ctx, 'agent_left', {
-          ops_total: info.ops ?? 0,
-          updates_total: info.updates ?? 0,
-          // How long the agent held the room. `watch` idles here; `resolve` does not.
-          duration_ms: info.joinedAt ? Date.now() - info.joinedAt : 0,
-          // Did anyone see it happen, or did it work an empty room?
-          humans_present: this.countHumans(ws),
-        }),
-      );
+      pending.push(captureAgentLeft({ env: this.env, ctx: this.ctx, info, humans: this.countHumans(ws) }));
     }
 
     // Not `length === 0`: workerd defers dropping a terminating socket until
-    // this handler's promise resolves, so the leaver is still listed here. That
-    // is why the session event never once fired — the condition could not be
-    // true. https://github.com/cloudflare/workerd/blob/main/src/workerd/io/legacy-hibernation-manager.c++
+    // this handler's promise resolves, so the leaver is still listed here.
+    // https://github.com/cloudflare/workerd/blob/main/src/workerd/io/legacy-hibernation-manager.c++
     if (this.ctx.getWebSockets().every((s) => s === ws)) {
-      pending.push(this.captureSession());
-      // Flush immediately when the last peer leaves — otherwise a recent mutation
-      // (e.g. an MCP agent's status change) could be lost if the DO is evicted
-      // before the 3s alarm fires.
-      // A failed flush leaves the room dirty; the fresh alarm retries it instead of failing the close.
+      pending.push(this.stats.captureSession({ env: this.env, ctx: this.ctx }));
+      // Flush now: a recent mutation could be lost if the object is evicted before
+      // the alarm. A failed flush leaves the room dirty; the fresh alarm retries it.
       if (this.dirty) pending.push(this.alarm().catch(() => this.scheduleFlush()));
     }
     await Promise.all(pending);
   }
 
   /**
-   * One aggregate event per room session, fired as the last peer disconnects.
-   *
-   * Answers the questions we actually act on — which tools earn their place,
-   * how often a room is genuinely collaborative — without following anyone
-   * around. No room ID, no annotated URL, no peer names: `tools` is a sorted
-   * set of tool names and the rest are counters. See src/posthog.ts for the
-   * wider contract (and the scrubber that backstops it).
+   * The flush rule: UPDATE unless this room created the row. An UPDATE that
+   * touches nothing on a room that had a row means the row was deleted while
+   * the room was warm — the ops are dropped, never written back, and the
+   * sockets are closed. Deleted rooms are never recreated by a flush.
    */
-  private async captureSession() {
-    // An agent-only session draws nothing — it resolves and replies — so ops alone
-    // would drop exactly the sessions the MCP bridge exists for.
-    if (this.sessionOps === 0 && this.sessionUpdates === 0 && !this.sessionHadAgent) return;
-    // Heaviest first, and only the top few: `top_tool` charts with nothing to
-    // parse, and the ranking has to stay well inside the scrubber's 200-char cap
-    // (src/posthog.ts), which would otherwise truncate it mid-entry.
-    const byUse = [...this.sessionTools].sort((a, b) => b[1] - a[1]).slice(0, 5);
-    // Started before the counters are reset, awaited after — the reset is
-    // synchronous, so the event carries the session it describes.
-    const sent = captureServer(this.env, this.ctx, 'annotation_session_ended', {
-      ops_total: this.sessionOps,
-      tools: [...this.sessionTools.keys()].sort().join(','),
-      tool_ops: byUse.map(([tool, n]) => `${tool}:${n}`).join(','),
-      top_tool: byUse[0]?.[0] ?? null,
-      tool_count: this.sessionTools.size,
-      peak_peers: this.peakPeers,
-      peak_human_peers: this.peakHumanPeers,
-      collaborative: this.peakHumanPeers > 1,
-      agent_present: this.sessionHadAgent,
-      updates_total: this.sessionUpdates,
-      duration_ms: this.sessionStartedAt ? Date.now() - this.sessionStartedAt : 0,
-    });
-    this.sessionOps = 0;
-    this.sessionTools.clear();
-    this.peakPeers = 0;
-    this.peakHumanPeers = 0;
-    this.sessionHadAgent = false;
-    this.sessionUpdates = 0;
-    this.sessionStartedAt = 0;
-    await sent;
-  }
-
-  async webSocketError(ws: WebSocket) {
-    await this.teardown(ws);
-  }
-
   async alarm() {
+    // A deadline alarm wakes a room evicted long ago, with nothing in memory to go on.
+    await this.getOps();
+    if (this.dead || !this.annotationId) return;
     const id = this.annotationId;
-    if (!id) return;
-    // Independent: the ops write touches a different column from the one the
-    // notification flush reads, and neither needs the other's result. Settled
-    // rather than raced so a failing send cannot swallow the persist.
     // Cleared up front so an op landing mid-write keeps the room dirty.
-    const write = this.dirty && this.ops ? annotationStore(this.env.DB).putOps({ id, ops: this.ops }) : null;
-    if (write) this.dirty = false;
-    const [persisted] = await Promise.allSettled([write, this.flushNotifications(id), this.flushSlack(id)]);
+    const ops = this.dirty ? this.ops : null;
+    if (ops) this.dirty = false;
+    const write = ops ? this.writeOps({ id, ops }) : null;
+    const origin = this.origin ?? this.env.APP_ORIGIN ?? ORIGIN;
+    // Settled rather than raced so a failing send cannot swallow the persist.
+    const [persisted] = await Promise.allSettled([
+      write,
+      this.outbound.flush({
+        db: this.env.DB,
+        roomId: id,
+        origin,
+        pageUrl: this.url,
+        ops: () => parseOps(this.ops ?? []),
+      }),
+    ]);
     if (persisted.status === 'rejected') {
       // Thrown so the runtime retries the alarm; swallowed, the ops since the last good flush were gone.
       this.dirty = true;
       throw persisted.reason;
     }
+    if (ops) await this.persist({ seq: this.cursor() });
+    if (!(await this.pastDeadline())) await this.armExpiry();
   }
 
-  /**
-   * Send the batch to every destination the room has, if it has any.
-   *
-   * Drains `pendingNotifications` before awaiting anything: a send that fails
-   * must not replay the same annotations on the next flush, and a send that is
-   * slow must not block the ops arriving while it is in flight.
-   */
-  private async flushNotifications(id: string) {
-    if (this.pendingNotifications.length === 0) return;
-    const items = this.pendingNotifications;
-    this.pendingNotifications = [];
-    // Drained before the breaker is consulted: a room whose hook was revoked
-    // still discards each batch, rather than accumulating every comment it ever
-    // sees in memory for the life of the instance.
-    if (this.deliveryFailures >= 3) return;
-
-    const row = await annotationStore(this.env.DB).getIntegrations(id);
-    const integrations = parseIntegrations(row?.integrations ?? null);
-    if (integrations.length === 0) return;
-
-    const { sent } = await deliver({
-      integrations,
-      event: { type: 'annotations.created', items },
-      roomUrl: `${this.origin ?? 'https://marklayer.app'}/s/${id}`,
-      pageUrl: this.url,
-    });
-    // One destination succeeding is enough to say the room is still wired up.
-    this.deliveryFailures = sent > 0 ? 0 : this.deliveryFailures + 1;
+  private async writeOps({ id, ops }: { id: string; ops: unknown[] }): Promise<void> {
+    const store = annotationStore(this.env.DB);
+    if (!this.rowExisted) {
+      // False: the id is too weak to mint a room at. The door refuses such ids, so this is a room with no row to be.
+      if (!(await store.create({ id, ops, url: this.url, width: this.width, expiresAt: this.expiresAt }))) {
+        await this.rowGone();
+        return;
+      }
+      this.rowExisted = true;
+      await this.persist({ rowExisted: true });
+      return;
+    }
+    if ((await store.putOps({ id, ops })) === 'gone') await this.rowGone();
   }
 
-  /** The Slack app's half of the flush: same drain-first rule and breaker as above, its own counter. */
-  private async flushSlack(id: string) {
-    if (this.pendingSlack.length === 0) return;
-    const items = this.pendingSlack;
-    this.pendingSlack = [];
-    const tokenKey = this.env.SLACK_TOKEN_KEY;
-    if (!tokenKey || this.slackFailures >= 3) return;
-
-    const origin = this.origin ?? 'https://marklayer.app';
-    const result = await postBatchToSlack({
-      db: this.env.DB,
-      tokenKey,
-      roomId: id,
-      items,
-      ops: () => parseOps(this.ops ?? []),
-      roomUrl: `${origin}/s/${id}`,
-      origin,
-    });
-    if (!result) return;
-    this.slackFailures = result.sent > 0 || result.failed === 0 ? 0 : this.slackFailures + 1;
+  /** The row went away under a warm room. Nothing it holds survives; see `dead`. */
+  private async rowGone(): Promise<void> {
+    this.dead = true;
+    this.dirty = false;
+    this.ops = [];
+    this.rowExisted = false;
+    this.httpAgents.clear();
+    await this.persist({ rowExisted: false, dead: true });
+    this.closeAll(ROOM_EXPIRED_CLOSE_CODE, 'room gone');
+    this.wakeWatchers();
   }
 }
+
+/** RTC messages are matched by type and forwarded unread; `to` is the only field the room looks at. */
+const RTC_TYPES: ReadonlySet<unknown> = new Set(RTC_MESSAGE_TYPES);
+const rtcEnvelope = z.looseObject({
+  type: z.enum(RTC_MESSAGE_TYPES),
+  to: z.optional(z.unknown()),
+});

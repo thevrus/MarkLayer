@@ -1,8 +1,6 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import type { ComponentChildren } from 'preact';
-
-/* The seeded pin's purple, so every mark the page leaves on itself is one person's. */
-const MARK = '#8b5cf6';
+import { HERO_AUTHOR } from './content';
 
 /**
  * A note left in the margin with the pen and text tools: a stroked arrow and a
@@ -22,7 +20,7 @@ export function MarginNote({
     <div
       aria-hidden="true"
       class={cn('pointer-events-none absolute hidden select-none lg:flex', flip ? 'flex-row-reverse' : '', extra)}
-      style={{ color: MARK }}
+      style={{ color: HERO_AUTHOR.color }}
     >
       <span class="font-ui text-ui-lg font-medium whitespace-nowrap">{children}</span>
       <svg

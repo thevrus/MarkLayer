@@ -5,21 +5,22 @@ import { submitBtn } from '@ext/lib/buttons';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
 import { portalContainer } from '@ext/lib/portal';
-import { shareUrl } from '@ext/lib/share';
-import { toast } from '@ext/lib/state';
+import { toast } from '@ext/lib/toasts';
 import { useCopyToClipboard } from '@ext/lib/useCopy';
-import { cn, type OwnedLink } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { ArrowUpRight, Link2, Mail, Share2, Upload } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
+import type { OwnedLink } from '../shared/accounts';
 import { ActionRow } from './ActionRow';
 import { capture } from './analytics';
 import { LinkSettings } from './dashboard/LinkSettings';
 import { inviteToLink, links, linksLoading, loadSession, sessionLoading, user } from './dashboard/session';
 import { FeedbackButtonSection } from './FeedbackButtonSection';
+import { annotationId, projectId } from './projects';
+import { roomLink, shareRoom } from './share-room';
 import { CopyControl, Spinner } from './shared';
-import { annotationId, projectId, sharing } from './signals';
-import { useViewerFrame } from './viewerFrame';
+import { sharing } from './ui-state';
 
 /** One padded block. Sections are divided full-bleed, so the padding lives here, not on the shell. */
 function Block({ children }: { children: ComponentChildren }) {
@@ -275,18 +276,9 @@ function useShareOpen() {
  * the first time the card opens rather than on every viewer load.
  */
 function useShareLink() {
-  const {
-    actions: { share },
-  } = useViewerFrame();
   const pid = projectId.value;
   const id = annotationId.value;
-  // Built from the same helper `share()` copies from: a field displaying a link
-  // other than the one on the clipboard is a small lie.
-  const url = pid
-    ? shareUrl({ origin: location.origin, kind: 'project', id: pid, ref: 'web' })
-    : id
-      ? shareUrl({ origin: location.origin, kind: 'page', id, ref: 'web' })
-      : null;
+  const url = roomLink({ pid, id });
   const owned = id ? links.value.find((link) => link.id === id) : undefined;
   // Whichever id the card is actually showing a link for — a project or a
   // page — since inviting doesn't care which kind it is, only that one exists.
@@ -297,7 +289,7 @@ function useShareLink() {
     owned,
     checkingOwner: sessionLoading.value || linksLoading.value,
   });
-  return { share, pid, url, owned, linkId, settings, footer };
+  return { share: shareRoom, pid, url, owned, linkId, settings, footer };
 }
 
 type ShareLink = ReturnType<typeof useShareLink>;

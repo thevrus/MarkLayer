@@ -8,7 +8,8 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { getPublishedPrices } from '../lib/collections';
 import { breadcrumbSchema, faqSchema, type QA } from '../lib/schema';
-import { CHROME_STORE_URL, formatLastUpdated, ORIGIN, pageOgImage, REPO_URL } from '../lib/site';
+import { CHROME_STORE_URL, ORIGIN } from '@marklayer/brand';
+import { formatLastUpdated, pageOgImage, PRICES_CHECKED, REPO_URL, vsPath } from '../lib/site';
 import dates from '../data/page-dates.json';
 
 const { modified } = dates.pricing;
@@ -171,7 +172,7 @@ const qa: QA[] = [
               priced.map((c) => (
                 <tr>
                   <th scope="row">
-                    <a href={`/vs/${c.id}`}>{c.competitor}</a>
+                    <a href={vsPath(c.id)}>{c.competitor}</a>
                   </th>
                   <td>{c.price}</td>
                 </tr>
@@ -181,7 +182,7 @@ const qa: QA[] = [
         </table>
       </div>
       <p class="ml-meta">
-        Prices as published by each vendor, checked August 2026. Follow a tool's name for the full side-by-side, or start
+        Prices as published by each vendor, checked {PRICES_CHECKED}. Follow a tool's name for the full side-by-side, or start
         from the <a href="/compare">comparison index</a> and the <a href="/alternatives">alternatives directory</a>.
       </p>
 

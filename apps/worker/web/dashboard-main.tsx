@@ -1,21 +1,19 @@
-import { theme } from '@ext/lib/state';
-import { effect } from '@preact/signals';
+import { initHost } from '@ext/lib/host';
 import { render } from 'preact';
 import { Route, Router, Switch, useLocation, useParams } from 'wouter-preact';
+import { applyTheme } from './applyTheme';
 import { ComparePage } from './compare/Compare';
 import { AppBar } from './dashboard/AppBar';
 import { Dashboard } from './dashboard/Dashboard';
 import { SignIn } from './dashboard/SignIn';
 import { claimLink, loadSession, sessionLoading, user } from './dashboard/session';
+import { webHost } from './host';
 import { Spinner } from './shared';
 import './style.css';
 
-effect(() => {
-  const t = theme.value;
-  const cls = document.documentElement.classList;
-  cls.remove('light', 'dark');
-  t !== 'system' && cls.add(t);
-});
+initHost(webHost());
+
+applyTheme();
 
 /** The one thing on screen while a fetch decides what the screen is. */
 function Waiting({ label }: { label: string }) {

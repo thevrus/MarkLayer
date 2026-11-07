@@ -1,4 +1,6 @@
-import { peers, toast } from '@ext/lib/state';
+import { peers } from '@ext/lib/presence';
+import { onRtcMessage, turnIceServers, wsSend } from '@ext/lib/realtime';
+import { toast } from '@ext/lib/toasts';
 import { effect, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { capture } from './analytics';
@@ -12,17 +14,16 @@ import {
   videoConstraint,
   watchDevices,
 } from './devicePrefs';
-import { onRtcMessage, turnIceServers, wsSend } from './useRealtimeSync';
 import {
   audioBlocked,
   type ConnQuality,
   expandedPeers,
+  leaveVoice,
   localVideoStream,
   peerConnQuality,
   peerVideoStreams,
   QUALITY_CONSTRAINTS,
   videoActive,
-  videoMuted,
   videoQuality,
   voiceActive,
   voiceLevel,
@@ -155,6 +156,15 @@ function describeGumError(err: unknown): { code: string; title: string; hint?: s
   }
 }
 
+function attachAnalyser(stream: MediaStream): AnalyserNode {
+  const ctx = getSharedAudioCtx();
+  const analyser = ctx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.3;
+  ctx.createMediaStreamSource(stream).connect(analyser);
+  return analyser;
+}
+
 export function useVoiceRoom(localPeerId: string) {
   const connsRef = useRef(new Map<string, PeerConn>());
   const streamRef = useRef<MediaStream | null>(null);
@@ -169,6 +179,11 @@ export function useVoiceRoom(localPeerId: string) {
     let destroyed = false;
     /** Non-zero once media is actually flowing — see `voice_started` below. */
     let callStartedAt = 0;
+    /** Sticky, since leaving clears `videoActive` before this teardown reports the call. */
+    let sawVideo = false;
+    const disposeSawVideo = effect(() => {
+      sawVideo ||= videoActive.value;
+    });
 
     const conns = connsRef.current;
 
@@ -180,16 +195,6 @@ export function useVoiceRoom(localPeerId: string) {
       wsSend.value?.(msg);
     }
 
-    function attachAnalyser(stream: MediaStream): AnalyserNode {
-      const ctx = getSharedAudioCtx();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.3;
-      ctx.createMediaStreamSource(stream).connect(analyser);
-      return analyser;
-    }
-
-    // Poll all analysers and update voiceSpeaking signal.
     // Skip while tab is hidden — browsers throttle timers and analyser data goes stale.
     // Buffer matches `frequencyBinCount` (fftSize/2 = 128) so getByteFrequencyData
     // doesn't silently truncate the upper half of the spectrum.
@@ -361,7 +366,6 @@ export function useVoiceRoom(localPeerId: string) {
           };
           return;
         }
-        // Audio track
         const remoteStream = e.streams[0] || new MediaStream([e.track]);
         audio.srcObject = remoteStream;
         audio.play().catch((err) => {
@@ -409,7 +413,6 @@ export function useVoiceRoom(localPeerId: string) {
         if (destroyed) return;
         const live = conns.get(remotePeerId);
         if (live !== entry) return;
-        // If the state recovered on its own, no-op.
         if (entry.pc.iceConnectionState === 'connected' || entry.pc.iceConnectionState === 'completed') {
           entry.iceRestartAttempts = 0;
           return;
@@ -435,9 +438,7 @@ export function useVoiceRoom(localPeerId: string) {
       }, delayMs);
     }
 
-    function removePeer(id: string) {
-      const entry = conns.get(id);
-      if (!entry) return;
+    function closePeer(entry: PeerConn) {
       if (entry.iceRestartTimer !== null) {
         clearTimeout(entry.iceRestartTimer);
         entry.iceRestartTimer = null;
@@ -446,6 +447,12 @@ export function useVoiceRoom(localPeerId: string) {
       entry.audio.srcObject = null;
       entry.audio.remove();
       entry.analyser?.disconnect();
+    }
+
+    function removePeer(id: string) {
+      const entry = conns.get(id);
+      if (!entry) return;
+      closePeer(entry);
       conns.delete(id);
       if (peerVideoStreams.value.has(id)) {
         const m = new Map(peerVideoStreams.value);
@@ -552,14 +559,15 @@ export function useVoiceRoom(localPeerId: string) {
         const { code, title, hint } = describeGumError(err);
         capture('voice_failed', { stage: 'start', reason: code });
         toast(hint ? `${title}: ${hint}` : title, { type: 'error', duration: 6000 });
-        voiceActive.value = false;
-        videoActive.value = false;
+        leaveVoice();
         return;
       }
       if (destroyed) return;
-      // Reported here rather than off `voiceActive`, which the join button sets
-      // before the mic prompt is answered: a denied prompt would otherwise show
-      // up as a call that lasted half a second.
+      // Voice is the most expensive thing here to keep working and the least visible
+      // in the data, so one event per call, with its length: a room full of ten-second
+      // calls is a broken feature. Reported here rather than off `voiceActive`, which
+      // the join button sets before the mic prompt is answered, so a denied prompt
+      // would otherwise show up as a call that lasted half a second.
       callStartedAt = Date.now();
       capture('voice_started', { video: videoActive.peek() });
       rtcConfigRef.current = rtcConfig;
@@ -569,7 +577,6 @@ export function useVoiceRoom(localPeerId: string) {
       // from peers who initiated against us don't get dropped.
       onRtcMessage.value = handleRtc;
 
-      // Initiate connections to all existing peers
       for (const [peerId] of peers.value) {
         bootstrapPeer(peerId);
       }
@@ -614,9 +621,10 @@ export function useVoiceRoom(localPeerId: string) {
     return () => {
       destroyed = true;
       if (callStartedAt) {
-        capture('voice_ended', { duration_ms: Date.now() - callStartedAt, video: videoActive.peek() });
+        capture('voice_ended', { duration_ms: Date.now() - callStartedAt, video: sawVideo });
         callStartedAt = 0;
       }
+      disposeSawVideo();
       disposeBootstrap();
       disposeIceServers();
       onRtcMessage.value = null;
@@ -630,13 +638,7 @@ export function useVoiceRoom(localPeerId: string) {
       expandedPeers.value = new Set();
       localVideoStream.value = null;
       audioBlocked.value = false;
-      for (const [, entry] of conns) {
-        if (entry.iceRestartTimer !== null) clearTimeout(entry.iceRestartTimer);
-        entry.pc.close();
-        entry.audio.srcObject = null;
-        entry.audio.remove();
-        entry.analyser?.disconnect();
-      }
+      for (const entry of conns.values()) closePeer(entry);
       conns.clear();
       localAnalyserRef.current = null;
       if (streamRef.current) {
@@ -683,7 +685,6 @@ export function useVoiceRoom(localPeerId: string) {
               videoTrack.stop();
               return;
             }
-            videoTrack.enabled = !videoMuted.value;
             stream.addTrack(videoTrack);
             localVideoStream.value = stream;
             for (const [, entry] of conns) {
@@ -709,13 +710,6 @@ export function useVoiceRoom(localPeerId: string) {
         localVideoStream.value = null;
       }
     })();
-  });
-
-  useSignalEffect(() => {
-    const muted = videoMuted.value;
-    const stream = streamRef.current;
-    if (!stream) return;
-    for (const track of stream.getVideoTracks()) track.enabled = !muted;
   });
 
   useSignalEffect(() => {
@@ -778,10 +772,8 @@ async function hotSwapTrack(
   const oldTrack = kind === 'audio' ? stream.getAudioTracks()[0] : stream.getVideoTracks()[0];
   const newTrack = kind === 'audio' ? next.getAudioTracks()[0] : next.getVideoTracks()[0];
   if (!newTrack) return;
-  const mutedSignal = kind === 'audio' ? voiceMuted : videoMuted;
-  newTrack.enabled = oldTrack ? oldTrack.enabled : !mutedSignal.value;
+  newTrack.enabled = oldTrack ? oldTrack.enabled : kind !== 'audio' || !voiceMuted.value;
 
-  // replaceTrack is per-PC and independent — parallelize.
   await Promise.all(
     Array.from(conns.values(), (entry) => {
       const sender = entry.pc.getSenders().find((s) => s.track === oldTrack);
@@ -805,12 +797,7 @@ async function hotSwapTrack(
     // snapshots tracks at MediaStreamSource creation, so passing the mutated
     // `stream` would leave the analyser reading from the (stopped) old track.
     analyserRef.current?.disconnect();
-    const ctx = getSharedAudioCtx();
-    const fresh = ctx.createAnalyser();
-    fresh.fftSize = 256;
-    fresh.smoothingTimeConstant = 0.3;
-    ctx.createMediaStreamSource(new MediaStream([newTrack])).connect(fresh);
-    analyserRef.current = fresh;
+    analyserRef.current = attachAnalyser(new MediaStream([newTrack]));
   } else {
     // Bump signal identity so MediaBubble re-binds srcObject. Wrap in a fresh
     // MediaStream because the underlying stream object is unchanged — Preact

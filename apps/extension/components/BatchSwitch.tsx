@@ -1,4 +1,4 @@
-import { cn } from '@marklayer/types';
+import { cn } from '@marklayer/ui/cn';
 import { track } from '../lib/analytics';
 import { batchAvailable, batchMode, toggleBatchMode } from '../lib/batch';
 import { Toggle } from './Toggle';

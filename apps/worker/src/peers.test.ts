@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { isAgentPeer, readPeerInfo, sanitizeColor, sanitizeName, sanitizeUid } from './peers';
+import { isAgentPeer } from '@marklayer/types/agents';
+import { readPeerInfo, sanitizeColor, sanitizeName, sanitizeUid } from './peers';
 
 describe('sanitizeName', () => {
   test('falls back for a non-string value', () => {

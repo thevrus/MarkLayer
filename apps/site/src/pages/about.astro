@@ -4,7 +4,8 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { breadcrumbSchema, PERSON_SCHEMA } from '../lib/schema';
-import { AUTHOR_EMAIL, formatLastUpdated, ORIGIN, pageOgImage, REPO_URL } from '../lib/site';
+import { ORIGIN } from '@marklayer/brand';
+import { AUTHOR_EMAIL, formatLastUpdated, pageOgImage, REPO_URL } from '../lib/site';
 import dates from '../data/page-dates.json';
 
 const { modified } = dates.about;

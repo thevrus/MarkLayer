@@ -2,11 +2,11 @@ import { type AnchorDelta, applyAnchorDelta } from '@ext/lib/anchor';
 import { clearMarkPointer, setMarkPointer } from '@ext/lib/mark-hover';
 import { scrollOffset } from '@ext/lib/scroller';
 import { captureTarget, pickElementAtPoint } from '@ext/lib/selector';
-import type { CaptureViewport, PageAnchor, Point, TargetElement } from '@marklayer/types';
+import type { CaptureViewport, PageAnchor, Point, TargetElement } from '@marklayer/types/ops';
 import { useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
 import { capturePageAnchor, isPagedDocument, resolvePageAnchor } from './docAnchor';
-import { cssScale, frameRect, iframeScrollY } from './signals';
+import { cssScale, frameRect, iframeScrollY } from './viewer-state';
 
 // Cross-realm: iframe DOM nodes are instances of the iframe's Element, not the host's,
 // so `e.target instanceof Element` always returns false. Check nodeType instead.
@@ -117,25 +117,6 @@ export function resolveAnchors({
   return applyAnchorDelta(target, { docX, docY }, { doc, win: doc.defaultView ?? undefined });
 }
 
-interface RectLike {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-/** Translate iframe-local rects (e.g. from `Range.getClientRects`) to host viewport coords. */
-export function toViewportRects(frame: HTMLIFrameElement, rects: ArrayLike<RectLike>): RectLike[] {
-  const fr = frame.getBoundingClientRect();
-  const s = cssScale.value;
-  const out: RectLike[] = [];
-  for (let i = 0; i < rects.length; i++) {
-    const r = rects[i];
-    out.push({ x: fr.left + r.x * s, y: fr.top + r.y * s, width: r.width * s, height: r.height * s });
-  }
-  return out;
-}
-
 export function rectsEqual(a: DOMRectReadOnly, b: DOMRectReadOnly): boolean {
   return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
@@ -194,6 +175,12 @@ export function useFrameMarkPointer(frameRef: { current: HTMLIFrameElement | nul
       window.removeEventListener('blur', clearMarkPointer);
     };
   }, []);
+}
+
+/** Pixels per unit of a wheel delta: Firefox reports lines, and a page gesture reports pages. */
+export function wheelUnit({ e, pageHeight }: { e: WheelEvent; pageHeight: number }): number {
+  if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) return 16;
+  return e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? pageHeight : 1;
 }
 
 export interface IframeOverlayCtx {

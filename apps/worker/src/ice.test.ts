@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { stripPort53 } from './ice';
+import { getIceServers, STUN_ONLY, stripPort53 } from './ice';
 
 describe('stripPort53', () => {
   test('a single string url containing :53 yields null', () => {
@@ -49,5 +49,11 @@ describe('stripPort53', () => {
   test('keeps a lone non-:53 string url', () => {
     const result = stripPort53({ urls: 'stun:stun.l.google.com:19302' });
     expect([result?.urls].flat()).toEqual(['stun:stun.l.google.com:19302']);
+  });
+});
+
+describe('getIceServers', () => {
+  test('without TURN credentials a room gets the STUN-only list', async () => {
+    expect(await getIceServers({})).toEqual(STUN_ONLY);
   });
 });

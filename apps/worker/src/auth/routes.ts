@@ -1,22 +1,24 @@
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { csrf } from 'hono/csrf';
+import { createMiddleware } from 'hono/factory';
+import { Hono } from 'hono/tiny';
 import {
   folderNameRequestSchema,
   inviteRequestSchema,
   LINK_PASSWORD_MAX,
   LINK_PASSWORD_MIN,
+  MAX_FOLDER_NAME_LENGTH,
   moveLinkRequestSchema,
   resolveOwnerExpiresAt,
   setLinkPasswordSchema,
   signInRequestSchema,
   updateLinkSettingsSchema,
-} from '@marklayer/types';
-import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
-import { csrf } from 'hono/csrf';
-import { createMiddleware } from 'hono/factory';
-import { Hono } from 'hono/tiny';
+} from '../../shared/accounts';
 import { inviteTemplate, sendEmail, signInTemplate, UndeliverableAddressError } from '../email';
-import { overRateLimit } from '../http';
+import type { WaitUntil } from '../env';
 import { hashPassword } from '../lock/password';
 import { captureServer } from '../posthog';
+import { overRateLimit } from '../rate-limit';
 import { annotationStore, inviteStore, nowInSeconds } from '../store';
 import { type AuthVariables, withUser } from './middleware';
 import { authStore, folderStore, ownedStore } from './store';
@@ -55,15 +57,11 @@ function pingRoomRefreshAccess({
 }: {
   env: AuthEnv;
   // Just `waitUntil`, so both Hono's `ExecutionContext<unknown>` and a test double fit.
-  ctx: { waitUntil(promise: Promise<unknown>): void };
+  ctx: WaitUntil;
   id: string;
 }): void {
   const room = env.ANNOTATION_ROOM.get(env.ANNOTATION_ROOM.idFromName(id));
-  ctx.waitUntil(
-    room
-      .fetch(new Request(`https://room/refresh-access?id=${encodeURIComponent(id)}`, { method: 'POST' }))
-      .catch(() => undefined),
-  );
+  ctx.waitUntil(room.refreshAccess().catch(() => undefined));
 }
 
 /**
@@ -71,23 +69,9 @@ function pingRoomRefreshAccess({
  * an older generation. Off the response path like the access ping: a lost ping
  * leaves sockets open until they reconnect, and every reconnect is re-gated.
  */
-function pingRoomRevoke({
-  env,
-  ctx,
-  id,
-  gen,
-}: {
-  env: AuthEnv;
-  ctx: { waitUntil(promise: Promise<unknown>): void };
-  id: string;
-  gen: number;
-}): void {
+function pingRoomRevoke({ env, ctx, id, gen }: { env: AuthEnv; ctx: WaitUntil; id: string; gen: number }): void {
   const room = env.ANNOTATION_ROOM.get(env.ANNOTATION_ROOM.idFromName(id));
-  ctx.waitUntil(
-    room
-      .fetch(new Request(`https://room/revoke?id=${encodeURIComponent(id)}&gen=${gen}`, { method: 'POST' }))
-      .catch(() => undefined),
-  );
+  ctx.waitUntil(room.revoke(gen).catch(() => undefined));
 }
 
 const UNDELIVERABLE = 'We cannot deliver mail to that address. Check it for a typo, or use another one.';
@@ -234,14 +218,14 @@ auth.delete('/links/:id', async (c) => {
   const ownerId = c.get('session').id;
   const id = c.req.param('id');
   const before = await annotationStore(c.env.DB).getLock(id);
-  const released = await ownedStore(c.env.DB).releaseAnnotation({ id, ownerId });
+  const released = await ownedStore(c.env.DB).releaseAnnotationGen({ id, ownerId });
   // Release reopened editing to everyone, which a warm room would not notice.
   if (released) pingRoomRefreshAccess({ env: c.env, ctx: c.executionCtx, id });
   // It also dropped the password, which ends every session, the same as removing it by hand.
   if (released && before?.passwordHash) {
-    pingRoomRevoke({ env: c.env, ctx: c.executionCtx, id, gen: before.passwordGen + 1 });
+    pingRoomRevoke({ env: c.env, ctx: c.executionCtx, id, gen: released.gen });
   }
-  return c.json({ released }, 200);
+  return c.json({ released: released !== null }, 200);
 });
 
 /**
@@ -273,7 +257,7 @@ auth.patch('/links/:id', async (c) => {
   const id = c.req.param('id');
   const store = ownedStore(c.env.DB);
   const current = await store.getSettings({ id, ownerId });
-  // Same silent no-op convention as releaseAnnotation: the common cause is a
+  // Same silent no-op convention as releaseAnnotationGen: the common cause is a
   // non-owner poking at an id they don't hold, not worth a 403.
   if (!current) return c.json({ updated: false }, 200);
 
@@ -310,14 +294,16 @@ auth.get('/folders', async (c) => c.json({ folders: await folderStore(c.env.DB).
 
 auth.post('/folders', async (c) => {
   const body = folderNameRequestSchema.safeParse(await c.req.json().catch(() => null));
-  if (!body.success) return c.json({ error: 'Give the folder a name of up to 60 characters.' }, 400);
+  if (!body.success)
+    return c.json({ error: `Give the folder a name of up to ${MAX_FOLDER_NAME_LENGTH} characters.` }, 400);
   const folder = await folderStore(c.env.DB).create({ ownerId: c.get('session').id, name: body.data.name });
   return c.json({ folder }, 200);
 });
 
 auth.patch('/folders/:id', async (c) => {
   const body = folderNameRequestSchema.safeParse(await c.req.json().catch(() => null));
-  if (!body.success) return c.json({ error: 'Give the folder a name of up to 60 characters.' }, 400);
+  if (!body.success)
+    return c.json({ error: `Give the folder a name of up to ${MAX_FOLDER_NAME_LENGTH} characters.` }, 400);
   const updated = await folderStore(c.env.DB).rename({
     id: c.req.param('id'),
     ownerId: c.get('session').id,

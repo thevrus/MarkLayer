@@ -12,19 +12,19 @@ published: 2026-10-11
 modified: 2026-10-11
 options:
   - name: "MarkLayer"
-    url: "/vs/surefeedback"
+    compare: surefeedback
     pitch: "Free and open source, with nothing to install for a public page: paste any URL at marklayer.app, annotate the live page with drawings, comments, arrows and highlights, then share a link. There is no site or mockup count and no renewal. Live cursors and a peer-to-peer voice or video call run in the same room, a kanban board sorts threads by status, and every share link is also an MCP server, so Claude Code or Cursor can watch the room, resolve threads and leave annotations of their own. A page behind a login needs the free browser extension, in each reviewer's own signed-in tab. An unclaimed link is deleted 90 days after its last activity; claiming it with the free account stops that clock."
     bestFor: "Anyone who wants SureFeedback's live-page review without the yearly bill, and teams reviewing together in real time."
   - name: "Atarim"
-    url: "/vs/atarim"
+    compare: atarim
     pitch: "The paid tool closest to SureFeedback's agency shape, and the one most WordPress agencies will look at next. Comments pin to elements on the live site and become tasks with a screenshot, there is a WordPress plugin, a Chrome extension and a Guest Mode, and the client workspace carries your brand. The product is now sold as an AI web agency, with six AI specialists doing maintenance and content on client sites. Free is one project on one site with 200 one-time credits. Pro is $67 a month billed monthly, 20% off yearly, with up to 100 seats and 1,000 projects."
     bestFor: "WordPress agencies that want white-labelled client feedback and will use the AI maintenance agents too."
   - name: "BugHerd"
-    url: "/vs/bugherd"
+    compare: bugherd
     pitch: "A visual bug tracker rather than a review tool: every pinned comment becomes a task on a built-in kanban board, with browser, OS and resolution captured automatically and Jira, Asana, Linear and ClickUp sync on the top tier. There is no free plan. Standard is $50 a month, or $42 billed yearly, for five members and unlimited client users. Private team commenting and custom branding sit on Premium at $150 a month."
     bestFor: "QA teams that need feedback to land in a tracker and stay in sync, and have the budget."
   - name: "Pastel"
-    url: "/vs/pastel"
+    compare: pastel
     pitch: "Agency client review with persistent canvases per client, version history and branded review pages, with Trello, Asana, Jira, ClickUp and Monday integrations on Team. The free plan is one user and one active canvas. Pro is $35 a month, or $29 billed yearly, for two users and three active canvases; Team is $119 a month, or $99 yearly, for five users with extra seats at $24."
     bestFor: "Agencies that want a client-facing review workspace that is not tied to WordPress."
 faq:

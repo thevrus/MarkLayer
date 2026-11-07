@@ -7,6 +7,7 @@
 // url: an upload is served from `/f/{id}`, a path that says nothing about what
 // is in it, and the proxy has already settled the question for a remote one.
 
+import { FRAME_MESSAGE, type FrameMessage } from '../shared/frame-protocol';
 import { DOC_PAGE_ATTR } from './docAnchor';
 import { bytesUrl } from './docSource';
 
@@ -79,6 +80,20 @@ async function main(): Promise<void> {
   const { renderPdf } = await import('./pdf-render');
   await renderPdf({ bytes: await response.arrayBuffer(), root });
 }
+
+// A proxied page has these injected; this page is ours, so it says them itself.
+function speakFrameProtocol() {
+  const post = (message: FrameMessage) => window.parent.postMessage(message, location.origin);
+  const forward = (phase: 'keydown' | 'keyup') => (e: KeyboardEvent) => {
+    const { key, code, metaKey, ctrlKey, shiftKey, altKey } = e;
+    post({ type: FRAME_MESSAGE.key, phase, key, code, metaKey, ctrlKey, shiftKey, altKey, editable: false });
+  };
+  window.addEventListener('keydown', forward('keydown'));
+  window.addEventListener('keyup', forward('keyup'));
+  post({ type: FRAME_MESSAGE.ready });
+}
+
+speakFrameProtocol();
 
 main().catch((error: unknown) => {
   renderError(`Could not load this file: ${describeError(error)}`);

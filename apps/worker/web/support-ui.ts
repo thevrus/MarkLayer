@@ -6,19 +6,17 @@
  * its tests.
  */
 
-import { onOpMade, operations, toast } from '@ext/lib/state';
-import { type CommentStatus, isAnnotationOp } from '@marklayer/types';
+import { operations } from '@ext/lib/ops';
+import { canEditFromRoom } from '@ext/lib/realtime';
+import { toast } from '@ext/lib/toasts';
+import type { DrawOp } from '@ext/lib/types';
+import { SUPPORT_CHANNEL, SUPPORT_PAID } from '@marklayer/brand';
+import { type CommentStatus, isAnnotationOp } from '@marklayer/types/ops';
 import { effect } from '@preact/signals';
-import { SUPPORT_CHANNEL, SUPPORT_PAID } from '@site/lib/site';
 import { capture } from './analytics';
-import { STILL_FRAME, type SupportTrigger, showSupportDialog, type UnpromptedTrigger } from './signals';
-import {
-  agentWorkLanded,
-  noteSupportSignal,
-  POLAR_CHECKOUT_URL,
-  readSupportRecord,
-  shouldOfferSupport,
-} from './support';
+import { agentWorkLanded, noteSupportSignal, readSupportRecord, shouldOfferSupport } from './support';
+import { type SupportTrigger, showSupportDialog, type UnpromptedTrigger } from './ui-state';
+import { isReadonly, isStillFrame } from './viewer-state';
 
 /** Quiet time after the last thing an agent settles, so the card follows a batch instead of interrupting it. */
 const AGENT_QUIET_MS = 4000;
@@ -40,15 +38,27 @@ export function openSupportCard(trigger: SupportTrigger): void {
  */
 export function maybeOfferSupport(trigger: UnpromptedTrigger = 'auto'): void {
   // The landing page's demo is a playground, and a modal in its hero the worst place to ask.
-  if (STILL_FRAME) return;
+  if (isStillFrame.value) return;
   // The answer is only written on dismissal, so a second call while the card is
   // up would pass the record and count the same showing twice.
   if (showSupportDialog.value !== null) return;
   const eligible = shouldOfferSupport({
     record: readSupportRecord(),
-    hasCheckout: POLAR_CHECKOUT_URL.length > 0,
   });
   if (eligible) openSupportCard(trigger);
+}
+
+/**
+ * Distinct days of use, the slowest of the support signals. Authors only: a read-only visitor is
+ * looking at somebody else's work, and who is one is not known until the room answers.
+ */
+export function watchUse(): () => void {
+  let noted = false;
+  return effect(() => {
+    if (noted || canEditFromRoom.value === undefined || isReadonly.value) return;
+    noted = true;
+    noteSupportSignal('used');
+  });
 }
 
 /**
@@ -69,6 +79,11 @@ export function watchAgentWork(): () => void {
   };
 }
 
+let noteWatcher: ((op: DrawOp) => void) | null = null;
+
+/** The host's `onOpMade`: live only while `watchNotes` runs, so a read-only session counts nothing. */
+export const noteOpMade = (op: DrawOp) => noteWatcher?.(op);
+
 /**
  * Count this person's notes, and offer the card at the first real pause once
  * they qualify. Returns its disposer, which also drops an offer still waiting.
@@ -76,7 +91,7 @@ export function watchAgentWork(): () => void {
 export function watchNotes(): () => void {
   let timer: number | undefined;
   // Pen strokes and labels are marks, not notes; a reply is a note.
-  onOpMade.value = (op) => {
+  noteWatcher = (op) => {
     if (!isAnnotationOp(op)) return;
     noteSupportSignal('noted');
     window.clearTimeout(timer);
@@ -86,7 +101,7 @@ export function watchNotes(): () => void {
     }, NOTE_QUIET_MS);
   };
   return () => {
-    onOpMade.value = null;
+    noteWatcher = null;
     window.clearTimeout(timer);
   };
 }

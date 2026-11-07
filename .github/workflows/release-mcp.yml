@@ -21,6 +21,7 @@ on:
     paths:
       - 'apps/mcp/**'
       - 'packages/agent-tools/**'
+      - 'packages/brand/**'
       - 'packages/types/**'
 
 concurrency:

@@ -7,30 +7,27 @@ import { MentionText } from '@ext/components/MentionText';
 import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
 import { Reactions } from '@ext/components/Reactions';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
-import { track } from '@ext/lib/analytics';
 import { composerCls, textareaBareCls } from '@ext/lib/buttons';
 import { replyRequest } from '@ext/lib/checkFix';
 import { geist } from '@ext/lib/geist';
 import { glass } from '@ext/lib/glass';
+import { localUser } from '@ext/lib/identity';
+import { getReplies, pushReply, setOpPriority } from '@ext/lib/ops';
+import { color } from '@ext/lib/prefs';
 import { PRIORITY_LEVELS, PRIORITY_META } from '@ext/lib/priority';
-import {
-  color,
-  copyText,
-  getCommentStatus,
-  getReplies,
-  localUser,
-  pushReply,
-  setOpPriority,
-  toast,
-} from '@ext/lib/state';
+import { fileUrl, uploadFile } from '@ext/lib/share';
+import { getCommentStatus } from '@ext/lib/status-ui';
 import { timeAgo } from '@ext/lib/time';
+import { copyText, toast } from '@ext/lib/toasts';
 import type { AnnotationOp, CommentPriority, DrawOp } from '@ext/lib/types';
-import { cn, isAnchorableOp, isAnnotationOp } from '@marklayer/types';
+import { isAnchorableOp, isAnnotationOp } from '@marklayer/types/ops';
+import { cn } from '@marklayer/ui/cn';
 import { useSignalEffect } from '@preact/signals';
 import { ClipboardCopy, Crosshair, Minus } from 'lucide-preact';
 import type { ComponentChildren } from 'preact';
 import { useRef, useState } from 'preact/hooks';
-import { type AnnotationItem, itemAnchor } from './annotationItems';
+import { capture } from './analytics';
+import { type AnnotationItem, itemAnchor, opBody } from './annotationItems';
 import { LabelledField } from './IntegrationFields';
 import {
   fileTargets,
@@ -41,8 +38,8 @@ import {
   saveSecrets,
   stringField,
 } from './integrations';
+import { API_BASE, annotationId } from './projects';
 import { DEVICE_LABELS } from './shared';
-import { API_BASE, annotationId, fileUrl, uploadFile } from './signals';
 
 /** Local time, spelled out — the detail view has the room the list row does not. */
 const stamp = (ts: number) =>
@@ -219,7 +216,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
     const text = replyRef.current?.value.trim();
     if (!text || attachments.uploading) return;
     pushReply({ parent: op, text, mentions: mentions(), attachments: attachments.ids });
-    track('reply_submitted', { chars: text.length, has_attachment: attachments.ids.length > 0 });
+    capture('reply_submitted', { chars: text.length, has_attachment: attachments.ids.length > 0 });
     if (replyRef.current) replyRef.current.value = '';
     attachments.reset();
     setReplying(false);
@@ -347,6 +344,14 @@ function DetailBody({ item }: { item: AnnotationItem }) {
         </p>
         {op.attachments && <AttachmentGallery ids={op.attachments} resolveUrl={fileUrl} />}
       </>
+    );
+  }
+
+  if (item.kind === 'inspect') {
+    return (
+      <p class="text-body text-(--ds-gray-1000) leading-body m-0" style={{ wordBreak: 'break-word' }}>
+        {opBody(item.op)}
+      </p>
     );
   }
 
@@ -531,13 +536,7 @@ function FileRow({ op }: { op: { id: string; x: number; y: number } }) {
  * answers "what is there"; this answers "what do I do about this one", which is
  * why triage, context and replies live here and not in a 340px-wide row.
  */
-export function AnnotationDetail({
-  item,
-  onScrollTo,
-}: {
-  item: AnnotationItem;
-  onScrollTo: (x: number, y: number) => void;
-}) {
+export function AnnotationDetail({ item, onScrollTo }: { item: AnnotationItem; onScrollTo: (y: number) => void }) {
   const { op } = item;
   const annotation = isAnnotationOp(op) ? op : null;
   const author = 'author' in op ? op.author : undefined;
@@ -566,8 +565,8 @@ export function AnnotationDetail({
           <button
             type="button"
             onClick={() => {
-              onScrollTo(anchor.x, anchor.y);
-              track('annotation_located', { tool: item.kind });
+              onScrollTo(anchor.y);
+              capture('annotation_located', { tool: item.kind });
             }}
             title="Scroll the page to this annotation"
             class={cn(geist.ctlSm, geist.ctlIdle)}

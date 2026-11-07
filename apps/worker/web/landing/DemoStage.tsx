@@ -1,5 +1,5 @@
-import { DEMO_ROOM } from '@marklayer/types';
 import { ChevronLeft, ChevronRight, Lock } from 'lucide-preact';
+import { DEMO_ROOM } from '../../shared/demo-room';
 import { DemoWindow } from './DemoWindow';
 
 /** macOS's close, minimise and zoom, in the system's own colours. */

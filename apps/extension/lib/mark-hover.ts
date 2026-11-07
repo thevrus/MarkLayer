@@ -1,6 +1,6 @@
 import { signal, useComputed, useSignal, useSignalEffect } from '@preact/signals';
 import { useEffect, useRef } from 'preact/hooks';
-import { activeTool } from './state';
+import { activeTool } from './tool-state';
 
 interface Box {
   x: number;

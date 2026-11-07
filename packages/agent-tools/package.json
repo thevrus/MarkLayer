@@ -1,6 +1,6 @@
 {
   "name": "@marklayer/agent-tools",
-  "version": "0.0.0",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "sideEffects": false,
@@ -19,6 +19,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@marklayer/brand": "workspace:*",
     "@marklayer/types": "workspace:*",
     "zod": "^4.5.2"
   },

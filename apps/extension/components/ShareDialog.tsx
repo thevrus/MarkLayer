@@ -1,95 +1,30 @@
 import { Dialog } from '@base-ui/react/dialog';
-import { cn } from '@marklayer/types';
+import { mcpAddCommand, mcpEndpoint } from '@marklayer/brand/links';
+import { cn } from '@marklayer/ui/cn';
 import { useSignalEffect } from '@preact/signals';
 import { AlertTriangle, Bot, Check, Copy, Link2, MonitorOff, X } from 'lucide-preact';
-import { nanoid } from 'nanoid';
 import { useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
+import { flushInspectorStack } from '../lib/inspector-stack';
+import { useDismissible } from '../lib/keymap';
+import { operations } from '../lib/ops';
 import { portalContainer } from '../lib/portal';
-import { activeRoomId } from '../lib/room';
+import { activeRoomId, canPushSnapshot, getRoomId } from '../lib/room-id';
 import {
-  canPushSnapshot,
-  claudeMcpCommand,
-  getRoomId,
   getShareUrl,
   HOW_IT_WORKS_URL,
   isLikelyEmbedHostile,
   isShareableUrl,
-  mcpEndpoint,
   npxMcpCommand,
   type SaveFailure,
   saveAnnotations,
 } from '../lib/share';
-import {
-  clearInspectorStack,
-  color,
-  commitOp,
-  getCommentMeta,
-  inspectorStack,
-  lineWidth,
-  operations,
-  showShareDialog,
-  signedBy,
-  toast,
-} from '../lib/state';
-import type { CommentOp } from '../lib/types';
+import { toast } from '../lib/toasts';
+import { showShareDialog } from '../lib/ui-state';
 import { useCopyToClipboard } from '../lib/useCopy';
 import { PanelSection } from './PanelSection';
-
-/**
- * Convert any pending inspector-stack items into CommentOps so they sync to the
- * room and become visible to the agent. Inspector items carry rich AI-ready
- * markdown (selector + framework + cssStack); we use that as the comment body.
- *
- * We try to anchor each pin to the element its selector resolves to so users see
- * the pin where it belongs, not stacked at the top-left of the page. If the
- * selector no longer matches anything, we fall back to a grid layout.
- */
-function flushInspectorStackToComments(): number {
-  const items = inspectorStack.value;
-  if (!items.length) return 0;
-  const baseNum = operations.value.filter((o) => o.tool === 'comment' && !o.parentId).length;
-  let fallbackIdx = 0;
-  items.forEach((item, i) => {
-    let x: number;
-    let y: number;
-    const el = item.selector ? document.querySelector(item.selector) : null;
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      x = rect.left + rect.width / 2 + scrollX;
-      y = rect.top + rect.height / 2 + scrollY;
-    } else {
-      const col = fallbackIdx % 4;
-      const row = Math.floor(fallbackIdx / 4);
-      x = 80 + col * 56 + scrollX;
-      y = 80 + row * 56 + scrollY;
-      fallbackIdx++;
-    }
-    // Task first, then the element snapshot — order matters for the MCP agent
-    // reading these comments: the user's instruction is what they need to act
-    // on, and the snapshot is supporting context. Without this, the user's
-    // typed task was silently dropped on flush.
-    const text = item.comment ? `## Task\n\n${item.comment}\n\n${item.markdown}` : item.markdown;
-    const op: CommentOp = {
-      id: nanoid(),
-      tool: 'comment',
-      num: baseNum + i + 1,
-      text,
-      x,
-      y,
-      color: color.value,
-      lineWidth: lineWidth.value,
-      ts: Date.now() + i,
-      ...signedBy(),
-      meta: getCommentMeta(),
-    };
-    commitOp(op);
-  });
-  clearInspectorStack();
-  return items.length;
-}
 
 function saveFailureMessage(reason: SaveFailure): string {
   switch (reason) {
@@ -125,16 +60,20 @@ function CopyButton({ value, label, onCopy }: { value: string; label: string; on
 
 export function ShareDialog() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  useDismissible({
+    open: showShareDialog,
+    close: () => {
+      showShareDialog.value = false;
+    },
+  });
 
-  // Open: flush any pending inspector items into comments, then generate a URL
-  // and save annotations in the background. Allow opening with no annotations
-  // so users can hand a room to an agent before they've started annotating.
+  // Opens with no annotations too, so users can hand a room to an agent before annotating.
   useSignalEffect(() => {
     if (!showShareDialog.value) {
       setShareUrl(null);
       return;
     }
-    const flushed = flushInspectorStackToComments();
+    const flushed = flushInspectorStack();
     if (flushed > 0) {
       toast(`Added ${flushed} inspector ${flushed === 1 ? 'item' : 'items'}`, { type: 'success' });
     }
@@ -157,7 +96,7 @@ export function ShareDialog() {
   if (!showShareDialog.value || !shareUrl) return null;
 
   const roomId = getRoomId();
-  const claudeCommand = claudeMcpCommand({ roomId });
+  const claudeCommand = mcpAddCommand({ roomId });
   const endpoint = mcpEndpoint({ roomId });
   const npxCommand = npxMcpCommand({ roomId });
   const shareable = isShareableUrl();

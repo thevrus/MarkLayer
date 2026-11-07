@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { DrawOp } from '@marklayer/types';
+import type { DrawOp } from '@marklayer/types/ops';
 import { mergeOps } from './mergeOps';
 
 const op = (id: string, text = id): DrawOp => ({
@@ -14,12 +14,6 @@ const op = (id: string, text = id): DrawOp => ({
 });
 
 describe('mergeOps', () => {
-  test('keeps every local-only op and adds every remote-only op', () => {
-    const local = [op('local-1'), op('local-2')];
-    const remote = [op('remote-1')];
-    expect(mergeOps({ local, remote })).toEqual([op('remote-1'), op('local-1'), op('local-2')]);
-  });
-
   // Two browsers touched the same op and only one version survives. The room is the
   // shared source of truth, so the remote copy wins — not whichever side merges last.
   test('dedupes a shared id, keeping the remote copy even when its content differs', () => {

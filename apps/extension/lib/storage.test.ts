@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import { lsGet, lsSet, persistedFlag } from './storage';
+import { hydrateStorage, lsGet, lsSet, persistedFlag } from './storage';
+
+hydrateStorage({ persist: true });
 
 beforeEach(() => {
   localStorage.clear();

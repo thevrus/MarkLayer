@@ -1,6 +1,6 @@
 import type * as Real from '../../components/CommentTriage';
 
-// Widget stand-in: a site visitor leaves feedback, the owner triages it in the viewer.
-// Dropping the Status/Assignee menus drops Base UI's Menu from the bundle.
+// Widget stand-in, for size: dropping the Status/Assignee menus drops Base UI's Menu.
+// That a visitor does not triage is `capabilities.triage`, not this file.
 
 export const TriageSection: typeof Real.TriageSection = () => <></>;

@@ -6,7 +6,7 @@
  * asked to "review this page" has nothing to review. This is the read half of
  * that loop, shaped to close it — the entries carry exactly the `TargetElement`
  * fields the write tools take, so an outline row feeds straight into
- * `suggest_edit`. Nothing calls it yet; the tool that will is not written.
+ * `suggest_edit`.
  *
  * Built on HTMLRewriter rather than a DOM parser: it is native to Workers,
  * streams, and costs no bundle. The price is that there is no tree to query, so
@@ -17,7 +17,7 @@
  * reason, so keep the two agreeing on `FINGERPRINT_LEN` rather than on selectors.
  */
 
-import { FINGERPRINT_LEN, normalizeText } from '@marklayer/types';
+import { FINGERPRINT_LEN, normalizeText } from '@marklayer/types/ops';
 
 /** Elements that carry copy worth auditing. Layout containers are skipped. */
 const COPY_TAGS = new Set([

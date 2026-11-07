@@ -1,313 +1,96 @@
-import type { PageReading } from '@marklayer/agent-tools';
 import {
-  agentQuestionOp,
-  agentStepOps,
-  callCreateTool,
-  callRoomTool,
-  classifyOp,
-  describedSchema,
-  isWatchableOp as isWatchable,
-  type QuestionRequest,
-  type RoomMeta,
-  type RoomOps,
-  type StepRequest,
-  TOOLS,
+  callTool,
+  instructionsFor,
+  MCP_SERVER_VERSION,
+  type PageReading,
+  RoomCore,
+  type RoomTransport,
   type ToolContent,
-  WATCH_DEFAULT_SECONDS,
-  type WatchEvent,
+  type ToolSpec,
+  toolsFor,
 } from '@marklayer/agent-tools';
-import {
-  type AnnotationOp,
-  agentColor,
-  type CommentOp,
-  type CommentPriority,
-  type CommentStatus,
-  type DrawOp,
-  normalizeSuggestion,
-  opAnchor,
-  resolveOpStatus,
-  type SelectionOp,
-  type SelectionRect,
-  type TargetElement,
-} from '@marklayer/types';
+import { agentPresence } from '@marklayer/types/agents';
 import { McpServer, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 import { nanoid } from 'nanoid';
-import type { AnnotationRoom } from './annotation-room';
+import { z } from 'zod/mini';
+import type { Env, WaitUntil } from './env';
 import { outlinePage } from './page-outline';
 import { captureServer } from './posthog';
 import { createPreviewRoom } from './preview';
-import { fetchPage } from './proxy';
+import { fetchPage, type RelaySettings } from './proxy';
+import type { RoomStub } from './room-stub';
 
 /**
- * A room reached by RPC instead of a socket.
- *
- * Same contract the stdio client implements, so the tools are dispatched once
- * and answer identically on both. The difference is where the state lives:
- * nothing is held between calls here, because the Durable Object already holds
- * it — a Worker request loads a snapshot, acts, and goes away.
+ * Read a page through the proxy's own path, so it inherits the SSRF guard and the
+ * fixed-IP relay a WAF-blocked host needs: why this is not a fetch from wherever an agent runs.
  */
-/**
- * Read the page a room annotates. Fetched through the proxy's own path, so it
- * inherits the SSRF guard and the fixed-IP relay a WAF-blocked host needs —
- * the reason this cannot be a fetch from wherever an agent happens to run.
- */
-export async function readRoomPage({
-  stub,
-  roomId,
-  env,
-  url,
-}: {
-  stub: DurableObjectStub<AnnotationRoom>;
-  roomId: string;
-  env: Parameters<typeof fetchPage>[0]['env'];
-  url?: string | null;
-}): Promise<PageReading | null> {
-  const target = url ?? (await stub.agentSnapshot(roomId)).url;
-  if (!target) return null;
-  const page = await fetchPage({ url: target, env });
+async function readPage({ url, env }: { url: string; env: RelaySettings }): Promise<PageReading | null> {
+  const page = await fetchPage({ url, env });
   if (!page.stream || page.status >= 400 || !page.contentType.includes('html')) return null;
   return outlinePage({ html: await new Response(page.stream).text(), url: page.finalUrl });
 }
 
-/** Replies are numbered off root threads only, or one would take a real comment's number. */
-const nextCommentNum = (ops: DrawOp[]) => ops.filter((o) => o.tool === 'comment' && !o.parentId).length + 1;
-
-/**
- * A reply op under `parent`, as the `reply` tool writes it. Shared with the
- * Slack app, so a reply typed in a Slack thread lands exactly where an agent's would.
- */
-export function replyOp({
-  id,
-  parent,
-  ops,
-  text,
-  signature,
-}: {
-  id: string;
-  parent: AnnotationOp;
-  ops: DrawOp[];
-  text: string;
-  signature: { color: string; ts: number; author: string; authorId?: string; assignedAgent?: string };
-}): CommentOp {
-  return {
-    ...signature,
-    id,
-    tool: 'comment',
-    num: nextCommentNum(ops),
-    text,
-    ...opAnchor(parent),
-    lineWidth: parent.lineWidth,
-    parentId: parent.id,
-  };
+/** The page a room annotates, for a caller that has not loaded the room. */
+export async function readRoomPage({ stub, env }: { stub: RoomStub; env: RelaySettings }): Promise<PageReading | null> {
+  const { url } = await stub.snapshot();
+  return url ? readPage({ url, env }) : null;
 }
 
-export class WorkerRoom implements RoomOps {
-  private ops: DrawOp[] = [];
-  private meta: RoomMeta = { url: null, width: null, createdAt: null, expiresAt: null };
-  private canEdit = true;
+/**
+ * A room reached by RPC instead of a socket. Nothing is held between calls: the Durable
+ * Object keeps the state, so a request loads it into a core, acts, and goes away.
+ */
+async function loadRoom({
+  stub,
+  roomId,
+  agentId,
+  session,
+  env,
+}: {
+  stub: RoomStub;
+  roomId: string;
+  agentId: string;
+  session: string;
+  env: RelaySettings;
+}): Promise<RoomCore> {
+  const peer = agentPresence({ agentId, session });
+  const { missed, ...snapshot } = await stub.join(peer);
+  let cursor = snapshot.cursor;
+  const transport: RoomTransport = {
+    send: (msg) => stub.send(msg),
+    // The room parks the wait, so each pass of the core's watch loop is one call rather than a poll.
+    wait: async (ms) => {
+      const result = await stub.watch({ timeoutMs: ms, since: cursor, peerId: peer.id });
+      cursor = result.cursor;
+      return result.messages;
+    },
+    readPage: async (url) => (url ? readPage({ url, env }) : null),
+  };
+  const room = new RoomCore({ roomId, agentId, session, transport, newId: nanoid });
+  room.apply({ type: 'init', ...snapshot });
+  room.catchUp(missed);
+  return room;
+}
 
-  constructor(
-    private readonly stub: DurableObjectStub<AnnotationRoom>,
-    readonly roomId: string,
-    private readonly agentId: string,
-    private readonly env: Parameters<typeof fetchPage>[0]['env'],
-  ) {}
-
-  /** One round trip for everything a tool call might read. Also marks the agent present. */
-  async load(): Promise<void> {
-    await this.stub.agentHeartbeat(this.roomId, {
-      id: `mcp-${this.agentId}`,
-      name: this.agentId,
-      color: agentColor(this.agentId),
-    });
-    const snapshot = await this.stub.agentSnapshot(this.roomId);
-    this.ops = snapshot.ops;
-    this.meta = {
-      url: snapshot.url,
-      width: snapshot.width,
-      createdAt: snapshot.createdAt,
-      expiresAt: snapshot.expiresAt,
-    };
-    this.canEdit = snapshot.canEdit;
-  }
-
-  get viewOnly(): boolean {
-    return !this.canEdit;
-  }
-
-  /** Nothing to be disconnected from: the room is a call away, not a socket held open. */
-  checkLive(): string | null {
-    return null;
-  }
-
-  readPage(): Promise<PageReading | null> {
-    return readRoomPage({ stub: this.stub, roomId: this.roomId, env: this.env, url: this.meta.url });
-  }
-
-  getMeta(): RoomMeta {
-    return { ...this.meta };
-  }
-
-  listAnnotations(filter?: { status?: CommentStatus | 'all' }): AnnotationOp[] {
-    const status = filter?.status ?? 'all';
-    return this.ops.filter(
-      (op): op is AnnotationOp => isWatchable(op) && (status === 'all' || resolveOpStatus(op) === status),
-    );
-  }
-
-  getAnnotation(id: string): { op: AnnotationOp; replies: CommentOp[] } | null {
-    const op = this.ops.find((o): o is AnnotationOp => isWatchable(o) && o.id === id);
-    if (!op) return null;
-    return { op, replies: this.ops.filter((o): o is CommentOp => o.tool === 'comment' && o.parentId === id) };
-  }
-
-  /**
-   * The Durable Object parks the wait, so this is one call rather than a poll.
-   * Classification runs here against the snapshot already loaded, which is what
-   * makes a handoff mean the same thing on both transports.
-   */
-  async watch({
-    timeoutSeconds = WATCH_DEFAULT_SECONDS,
-  }: {
-    timeoutSeconds?: number;
-    batchMs?: number;
-  }): Promise<WatchEvent[]> {
-    const arrived = await this.stub.agentWatch(this.roomId, { timeoutMs: timeoutSeconds * 1000 });
-    const events: WatchEvent[] = [];
-    for (const op of arrived) {
-      const event = classifyOp({ op, ops: this.ops, agentId: this.agentId });
-      if (event) events.push(event);
-    }
-    return events;
-  }
-
-  private patch(id: string, patch: Record<string, unknown>): Promise<boolean> {
-    return this.stub.agentPatchOp(this.roomId, id, patch);
-  }
-
-  acknowledge(id: string): Promise<boolean> {
-    return this.patch(id, { status: 'in_progress', assignedAgent: this.agentId });
-  }
-
-  async resolve(id: string, summary?: string): Promise<boolean> {
-    if (summary) await this.reply(id, summary);
-    return this.patch(id, { status: 'resolved', resolved: true });
-  }
-
-  dismiss(id: string, reason: string): Promise<boolean> {
-    return this.patch(id, { status: 'dismissed', dismissReason: reason, assignedAgent: this.agentId });
-  }
-
-  async reply(id: string, text: string): Promise<boolean> {
-    const parent = this.ops.find((o): o is AnnotationOp => isWatchable(o) && o.id === id);
-    if (!parent) return false;
-    return this.push(replyOp({ id: nanoid(), parent, ops: this.ops, text, signature: this.signature() }));
-  }
-
-  async create({
-    text,
-    x,
-    y,
-    priority,
-    target,
-  }: {
-    text: string;
-    x: number;
-    y: number;
-    priority?: CommentPriority;
-    target?: TargetElement;
-  }): Promise<{ id: string } | null> {
-    const op: CommentOp = {
-      ...this.signature(),
-      id: nanoid(),
-      tool: 'comment',
-      num: this.nextNum(),
-      text,
-      x,
-      y,
-      lineWidth: 2,
-      ...(priority ? { priority } : {}),
-      ...(target ? { target } : {}),
-    };
-    return (await this.push(op)) ? { id: op.id } : null;
-  }
-
-  async suggestEdit({
-    text,
-    suggestion,
-    rects,
-    comment,
-    priority,
-    target,
-  }: {
-    text: string;
-    suggestion: string;
-    rects: SelectionRect[];
-    comment?: string;
-    priority?: CommentPriority;
-    target?: TargetElement;
-  }): Promise<{ id: string } | null> {
-    const op: SelectionOp = {
-      ...this.signature(),
-      id: nanoid(),
-      tool: 'selection',
-      text,
-      rects,
-      // Re-normalized rather than trusted verbatim: the schema refine proved it
-      // differs from `text`, not that it is trimmed.
-      suggestion: normalizeSuggestion({ text, suggestion }) ?? suggestion,
-      lineWidth: 2,
-      ...(comment ? { comment } : {}),
-      ...(priority ? { priority } : {}),
-      ...(target ? { target } : {}),
-    };
-    return (await this.push(op)) ? { id: op.id } : null;
-  }
-
-  listOps(): readonly DrawOp[] {
-    return this.ops;
-  }
-
-  async setNextSteps(steps: StepRequest[]): Promise<{ ids: string[] } | null> {
-    const stale = this.ops.filter((op) => op.tool === 'step').map((op) => op.id);
-    if (stale.length && !(await this.stub.agentRemoveOps(this.roomId, stale))) return null;
-    this.ops = this.ops.filter((op) => op.tool !== 'step');
-    const ops = agentStepOps({ newId: nanoid, steps, agentId: this.agentId });
-    for (const op of ops) if (!(await this.push(op))) return null;
-    return { ids: ops.map((op) => op.id) };
-  }
-
-  setStepDone({ id, done }: { id: string; done: boolean }): Promise<boolean> {
-    return this.patch(id, { done, doneBy: done ? this.agentId : null });
-  }
-
-  async ask(question: QuestionRequest): Promise<{ id: string } | null> {
-    const op = agentQuestionOp({ id: nanoid(), question, agentId: this.agentId });
-    return (await this.push(op)) ? { id: op.id } : null;
-  }
-
-  /** Every op this agent writes is signed and coloured the same way. */
-  private signature() {
-    return {
-      color: agentColor(this.agentId),
-      ts: Date.now(),
-      author: this.agentId,
-      // Stable across sessions: without it the roster forgets the agent as soon
-      // as it stops calling, and nobody can assign or @mention it afterwards.
-      authorId: this.agentId,
-      assignedAgent: this.agentId,
-    };
-  }
-
-  private nextNum(): number {
-    return nextCommentNum(this.ops);
-  }
-
-  private async push(op: DrawOp): Promise<boolean> {
-    const written = await this.stub.agentPushOp(this.roomId, op);
-    if (written) this.ops.push(op);
-    return written;
-  }
+/**
+ * Advertise a tool's arguments to MCP without validating them twice.
+ *
+ * SDK v2 takes a Standard Schema that both validates a call and describes itself for
+ * `tools/list`. Only the describing half is wanted: `callTool` already validates, against
+ * the Zod inputs that own the error text an agent reads. (Zod cannot fill this slot:
+ * only the full package carries `~standard.jsonSchema`, and this repo ships `zod/mini`.)
+ */
+function describedSchema(json: ToolSpec['inputSchema']) {
+  const convert = () => json;
+  return {
+    '~standard': {
+      version: 1 as const,
+      vendor: 'marklayer',
+      validate: (value: unknown) => ({ value }),
+      // A Converter, not a function: the SDK asks input and output separately.
+      jsonSchema: { input: convert, output: convert },
+    },
+  };
 }
 
 /**
@@ -320,28 +103,24 @@ function buildServer({
   createPreview,
   onToolCall,
 }: {
-  room: WorkerRoom;
+  room: RoomCore;
   apiBase: string;
-  createPreview: Parameters<typeof callCreateTool>[0]['createPreview'];
+  createPreview: Parameters<typeof callTool>[0]['createPreview'];
   onToolCall: (call: { tool: string; ok: boolean; duration_ms: number }) => void;
 }): McpServer {
-  const server = new McpServer({ name: 'marklayer', version: '1.0.0' });
-  for (const tool of TOOLS) {
-    // connect_room has no meaning here: the room is named in the URL.
-    if (tool.name === 'marklayer_connect_room') continue;
+  const server = new McpServer(
+    { name: 'marklayer', version: MCP_SERVER_VERSION },
+    { instructions: instructionsFor('http') },
+  );
+  for (const tool of toolsFor('http')) {
     server.registerTool(
       tool.name,
-      {
-        description: tool.description,
-        inputSchema: describedSchema(tool.inputSchema),
-      },
+      { description: tool.description, inputSchema: describedSchema(tool.inputSchema) },
       async (args: unknown): Promise<ToolContent> => {
         const started = Date.now();
         let answered: ToolContent | null = null;
         try {
-          answered =
-            (await callCreateTool({ name: tool.name, args, createPreview, apiBase })) ??
-            (await callRoomTool({ name: tool.name, args, room, apiBase }));
+          answered = await callTool({ name: tool.name, args, room, apiBase, createPreview });
         } finally {
           onToolCall({
             tool: tool.name,
@@ -356,6 +135,32 @@ function buildServer({
   return server;
 }
 
+/** What a client that never initialized shares: one presence entry, not a new peer on every call. */
+const NO_SESSION = 'http';
+/** Echoed into a peer id everyone in the room receives, so only the shape minted below is taken back. */
+const SESSION_ID = /^[\w-]{1,64}$/;
+const initializeRequest = z.object({ method: z.literal('initialize') });
+
+/**
+ * The SDK stays stateless (a transport per request cannot validate a session), so a session
+ * here is only a name: minted on `initialize`, as the spec lets a server do, and sent back
+ * by the client on every later request. Without this no HTTP client would ever have one.
+ */
+async function mcpSession(request: Request): Promise<{ session: string; minted: boolean }> {
+  const sent = request.headers.get('mcp-session-id');
+  if (sent && SESSION_ID.test(sent)) return { session: sent, minted: false };
+  const body: unknown =
+    request.method === 'POST'
+      ? await request
+          .clone()
+          .json()
+          .catch(() => null)
+      : null;
+  return initializeRequest.safeParse(body).success
+    ? { session: nanoid(), minted: true }
+    : { session: NO_SESSION, minted: false };
+}
+
 export async function handleMcpRequest({
   request,
   stub,
@@ -366,15 +171,15 @@ export async function handleMcpRequest({
   ctx,
 }: {
   request: Request;
-  stub: DurableObjectStub<AnnotationRoom>;
+  stub: RoomStub;
   roomId: string;
   apiBase: string;
   agentId: string;
-  env: Parameters<typeof fetchPage>[0]['env'] & { DB: D1Database };
-  ctx: { waitUntil(promise: Promise<unknown>): void };
+  env: RelaySettings & Pick<Env['Bindings'], 'DB' | 'POSTHOG_KEY' | 'POSTHOG_HOST'>;
+  ctx: WaitUntil;
 }): Promise<Response> {
-  const room = new WorkerRoom(stub, roomId, agentId, env);
-  await room.load();
+  const { session, minted } = await mcpSession(request);
+  const room = await loadRoom({ stub, roomId, agentId, session, env });
   const server = buildServer({
     room,
     apiBase,
@@ -392,9 +197,12 @@ export async function handleMcpRequest({
     // Name, outcome and time only: arguments and results carry room ids, page URLs and comment text.
     onToolCall: (call) => captureServer(env, ctx, 'mcp_tool_called', call),
   });
-  // No session id: each request is self-contained, which is what lets this run
-  // on a Worker with nothing held between calls.
+  // Each request is self-contained, which is what lets this run on a Worker with nothing held between calls.
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
   await server.connect(transport);
-  return transport.handleRequest(request);
+  const response = await transport.handleRequest(request);
+  if (!minted) return response;
+  const named = new Response(response.body, response);
+  named.headers.set('Mcp-Session-Id', session);
+  return named;
 }

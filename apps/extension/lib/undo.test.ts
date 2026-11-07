@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
-import type { DrawOp } from '@marklayer/types';
-import { operations, undo } from './state';
+import type { DrawOp } from '@marklayer/types/ops';
+import { operations, undo } from './ops';
 
 // A ballot or checklist step a peer just pushed must not be what my ⌘Z takes back.
 test('undo skips review ops that arrived after my last mark', () => {

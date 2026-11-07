@@ -1,5 +1,5 @@
-import type { AreaOp, CommentOp, SelectionOp, TextOp } from '@ext/lib/types';
-import { type AnnotationOp, opAnchor } from '@marklayer/types';
+import type { AreaOp, CommentOp, InspectOp, SelectionOp, TextOp } from '@ext/lib/types';
+import { type AnnotationOp, opAnchor } from '@marklayer/types/ops';
 
 // `opAnchor` lives in packages/types — the MCP server needs the same answer, and
 // two copies of it had already drifted on right-to-left area drags.
@@ -10,7 +10,8 @@ export type AnnotationItem =
   | { kind: 'comment'; op: CommentOp; replyCount: number }
   | { kind: 'text'; op: TextOp }
   | { kind: 'selection'; op: SelectionOp }
-  | { kind: 'area'; op: AreaOp };
+  | { kind: 'area'; op: AreaOp }
+  | { kind: 'inspect'; op: InspectOp };
 
 /**
  * Where the viewport scrolls to reveal this annotation. The list also sorts on

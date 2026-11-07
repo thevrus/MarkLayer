@@ -1,4 +1,4 @@
-import { MARK_ACCENT } from './brand';
+import { MARK_ACCENT } from '@marklayer/brand/mark';
 import { OG_HEADING_ADVANCES_PACKED } from './og-fonts';
 import { CARD, escapeXml, MARK_AXIS, mark, RIGHT_EDGE, SEPARATOR, SIGNATURE_MARK, TONE, TRACKING } from './og-svg';
 

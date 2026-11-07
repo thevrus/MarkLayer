@@ -1,15 +1,15 @@
 import { Button, Heading, Text } from '@react-email/components';
 import { Layout } from '../Layout';
-import { PLACEHOLDER } from './sign-in.meta';
+import { PLACEHOLDER, TTL_COPY } from './sign-in.meta';
 
 export default function SignIn() {
   return (
-    <Layout preview="Your sign-in link, good for 15 minutes">
+    <Layout preview={`Your sign-in link, good for ${TTL_COPY}`}>
       <Heading className="text-ml-fg m-0 mb-3 text-[24px] font-semibold tracking-[-0.02em]">
         Sign in to MarkLayer
       </Heading>
       <Text className="m-0 mb-6 text-[15px] leading-[24px] text-[#4d4d4d]">
-        Use the button below. The link works once and expires in 15 minutes.
+        {`Use the button below. The link works once and expires in ${TTL_COPY}.`}
       </Text>
       <Button
         href={PLACEHOLDER.link}

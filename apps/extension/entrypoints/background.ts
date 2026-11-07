@@ -1,5 +1,6 @@
 import type { Crop } from '../lib/capture';
 import { bridgePayload } from '../lib/fiber-bridge';
+import { CAPTURE_ELEMENT, TOGGLE_ANNOTATE } from '../lib/messages';
 import { errorBufferPayload } from '../lib/page-errors';
 
 /** Cut one element's box out of a full-tab screenshot, in the background's own heap. */
@@ -43,15 +44,16 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 const ANNOTATE_MENU_ID = 'marklayer-annotate-page';
 
 export default defineBackground(() => {
-  const injected = new Set<number>();
-
   // Shared by the toolbar icon and the "Annotate this page" context menu item —
   // both are user gestures that grant activeTab, so either can trigger first injection.
   async function activateTab(tabId: number) {
-    if (injected.has(tabId)) {
-      browser.tabs.sendMessage(tabId, { type: 'toggle-annotate' });
-      return;
-    }
+    // The tab is the record of what is injected there: a set in this worker's heap dies
+    // with the worker when MV3 idles it out, and a reload clears the tab on its own.
+    const toggled = await browser.tabs.sendMessage(tabId, { type: TOGGLE_ANNOTATE }).then(
+      () => true,
+      () => false,
+    );
+    if (toggled) return;
 
     // First activation — inject content script (activeTab grants permission). The
     // main-world bridge lets the isolated-world inspector read __reactFiber$<id>
@@ -73,7 +75,6 @@ export default defineBackground(() => {
         func: errorBufferPayload,
       }),
     ]);
-    injected.add(tabId);
   }
 
   browser.action.onClicked.addListener((tab) => {
@@ -100,7 +101,7 @@ export default defineBackground(() => {
   // the icon click) and crop here, so only the element-sized PNG crosses back rather
   // than a base64 copy of the whole viewport.
   browser.runtime.onMessage.addListener((msg, sender) => {
-    if (msg?.type !== 'capture-element') return;
+    if (msg?.type !== CAPTURE_ELEMENT) return;
     const windowId = sender.tab?.windowId ?? browser.windows.WINDOW_ID_CURRENT;
     return browser.tabs
       .captureVisibleTab(windowId, { format: 'png' })
@@ -109,11 +110,5 @@ export default defineBackground(() => {
         (dataUrl) => ({ dataUrl }),
         (err) => ({ error: String(err) }),
       );
-  });
-
-  // Clean up when tabs close or navigate
-  browser.tabs.onRemoved.addListener((tabId) => injected.delete(tabId));
-  browser.tabs.onUpdated.addListener((tabId, info) => {
-    if (info.status === 'loading') injected.delete(tabId);
   });
 });

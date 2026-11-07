@@ -1,17 +1,12 @@
-import { isWatchableOp } from '@marklayer/agent-tools';
-import type { AnnotationOp, DrawOp } from '@marklayer/types';
-import type { AnnotationRoom } from '../annotation-room';
-import { replyOp } from '../mcp';
-import {
-  decryptToken,
-  displayName,
-  type InboundReply,
-  parentMessage,
-  postMessage,
-  replyMessage,
-  slackOpId,
-} from './slack-app';
-import { slackStore } from './slack-store';
+import { replyOp } from '@marklayer/agent-tools';
+import type { AnnotationOp, DrawOp } from '@marklayer/types/ops';
+import { isRootAnnotation as isWatchableOp } from '@marklayer/types/ops';
+import type { RoomStub } from '../room-stub';
+import { displayName, postMessage } from './slack-api';
+import { decryptToken } from './slack-crypto';
+import type { InboundReply } from './slack-events';
+import { parentMessage, replyMessage, slackOpId } from './slack-format';
+import { type SlackInstall, slackStore } from './slack-store';
 
 /** Slack-born replies are drawn in one colour, so a room can tell them apart at a glance. */
 const SLACK_COLOR = '#611f69';
@@ -23,13 +18,12 @@ const findAnnotation = ({ ops, id }: { ops: DrawOp[]; id: string }) =>
  * Post a batch of new ops to the room's Slack channel, in order: a new
  * annotation opens a thread, a reply goes into its parent's.
  *
- * Returns null when the room has no install, so the caller's breaker only
- * counts rooms that are actually wired up. `ops` is a thunk because most rooms
- * have no install, and only a thread that needs opening reads the room.
+ * `ops` is a thunk because only a thread that needs opening reads the room.
  */
 export async function postBatchToSlack({
   db,
   tokenKey,
+  install,
   roomId,
   items,
   ops,
@@ -38,15 +32,14 @@ export async function postBatchToSlack({
 }: {
   db: D1Database;
   tokenKey: string;
+  install: SlackInstall;
   roomId: string;
   items: DrawOp[];
   ops: () => DrawOp[];
   roomUrl: string;
   origin: string;
-}): Promise<{ sent: number; failed: number } | null> {
+}): Promise<{ sent: number; failed: number }> {
   const store = slackStore(db);
-  const install = await store.install(roomId);
-  if (!install) return null;
   const token = await decryptToken({ secret: tokenKey, sealed: install.sealedToken, roomId });
   if (!token) return { sent: 0, failed: items.length };
 
@@ -100,7 +93,7 @@ export async function postBatchToSlack({
   return { sent, failed };
 }
 
-type RoomStub = Pick<DurableObjectStub<AnnotationRoom>, 'agentSnapshot' | 'agentPushOp'>;
+type RoomWriter = Pick<RoomStub, 'snapshot' | 'send'>;
 
 /**
  * A human's threaded Slack reply, written into the room as a reply op on the
@@ -116,7 +109,7 @@ export async function applyInboundReply({
   db: D1Database;
   tokenKey: string;
   reply: InboundReply;
-  roomStub: (roomId: string) => RoomStub;
+  roomStub: (roomId: string) => RoomWriter;
 }): Promise<boolean> {
   const store = slackStore(db);
   const thread = await store.annotationFor({
@@ -132,7 +125,7 @@ export async function applyInboundReply({
 
   const stub = roomStub(thread.room_id);
   const [snapshot, author] = await Promise.all([
-    stub.agentSnapshot(thread.room_id),
+    stub.snapshot(),
     decryptToken({ secret: tokenKey, sealed: install.sealedToken, roomId: thread.room_id }).then((token) =>
       token ? displayName({ token, user: reply.user }) : 'Slack user',
     ),
@@ -146,5 +139,5 @@ export async function applyInboundReply({
     text: reply.text,
     signature: { color: SLACK_COLOR, ts: Date.now(), author, authorId: `slack-${reply.user}` },
   });
-  return stub.agentPushOp(thread.room_id, op);
+  return stub.send({ type: 'op', op });
 }
