@@ -21,6 +21,7 @@ function fakeRoom(over: Partial<RoomOps> = {}): RoomOps & { calls: string[] } {
   const base: RoomOps = {
     roomId: 'room-1',
     viewOnly: false,
+    readOnlyByChoice: false,
     getMeta: () => ({ url: 'https://example.com', width: 1280, createdAt: 1, expiresAt: null }),
     checkLive: () => null,
     listAnnotations: () => [comment()],
@@ -99,6 +100,14 @@ describe('callTool', () => {
     const room = fakeRoom({ viewOnly: true, acknowledge: () => false });
     const result = await run('marklayer_acknowledge', { id: 'op-1' }, room);
     expect(body(result).error).toContain('view-only');
+  });
+
+  test('a read-only session refuses writes before they reach an editable room, and still reads', async () => {
+    const room = fakeRoom({ readOnlyByChoice: true });
+    const refused = await run('marklayer_resolve', { id: 'op-1', summary: 'done' }, room);
+    expect(body(refused).error).toContain('started read-only');
+    expect(room.calls).toEqual([]);
+    expect((await run('marklayer_list_annotations', {}, room))?.isError).toBeFalsy();
   });
 
   test('reports a refused write on a writable link as a missing annotation', async () => {

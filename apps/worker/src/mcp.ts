@@ -1,10 +1,12 @@
 import {
   callTool,
+  flagOn,
   instructionsFor,
   MCP_SERVER_VERSION,
   type PageReading,
   RoomCore,
   type RoomTransport,
+  readOnlyReason,
   type ToolContent,
   type ToolSpec,
   toolsFor,
@@ -46,12 +48,14 @@ async function loadRoom({
   agentId,
   session,
   env,
+  readOnly,
 }: {
   stub: RoomStub;
   roomId: string;
   agentId: string;
   session: string;
   env: RelaySettings;
+  readOnly: boolean;
 }): Promise<RoomCore> {
   const peer = agentPresence({ agentId, session });
   const { missed, ...snapshot } = await stub.join(peer);
@@ -66,7 +70,7 @@ async function loadRoom({
     },
     readPage: async (url) => (url ? readPage({ url, env }) : null),
   };
-  const room = new RoomCore({ roomId, agentId, session, transport, newId: nanoid });
+  const room = new RoomCore({ roomId, agentId, session, transport, newId: nanoid, readOnlyByChoice: readOnly });
   room.apply({ type: 'init', ...snapshot });
   room.catchUp(missed);
   return room;
@@ -110,12 +114,13 @@ function buildServer({
 }): McpServer {
   const server = new McpServer(
     { name: 'marklayer', version: MCP_SERVER_VERSION },
-    { instructions: instructionsFor('http') },
+    // Built per request after the room loads, so the read-only line reflects the link as it is now.
+    { instructions: instructionsFor({ transport: 'http', readOnly: readOnlyReason(room) }) },
   );
   for (const tool of toolsFor('http')) {
     server.registerTool(
       tool.name,
-      { description: tool.description, inputSchema: describedSchema(tool.inputSchema) },
+      { description: tool.description, inputSchema: describedSchema(tool.inputSchema), annotations: tool.annotations },
       async (args: unknown): Promise<ToolContent> => {
         const started = Date.now();
         let answered: ToolContent | null = null;
@@ -179,7 +184,9 @@ export async function handleMcpRequest({
   ctx: WaitUntil;
 }): Promise<Response> {
   const { session, minted } = await mcpSession(request);
-  const room = await loadRoom({ stub, roomId, agentId, session, env });
+  // `?readonly=1` narrows an editable link for one agent; the room's own view-only check runs regardless.
+  const readOnly = flagOn(new URL(request.url).searchParams.get('readonly'));
+  const room = await loadRoom({ stub, roomId, agentId, session, env, readOnly });
   const server = buildServer({
     room,
     apiBase,

@@ -103,7 +103,10 @@ export interface RoomOps {
    * reason to withhold the tool from stdio.
    */
   readPage(): Promise<PageReading | null>;
+  /** The room refuses this peer's writes. */
   readonly viewOnly: boolean;
+  /** Whoever started this session asked for read-only, on a link that may well allow edits. */
+  readonly readOnlyByChoice: boolean;
   getMeta(): RoomMeta;
   /** An error to return instead of acting, when the connection cannot carry a write. */
   checkLive(): string | null;
@@ -291,6 +294,7 @@ export interface RoomTransport {
 export class RoomCore implements RoomOps {
   readonly roomId: string;
   readonly peerId: string;
+  readonly readOnlyByChoice: boolean;
   private readonly agentId: string;
   private readonly transport: RoomTransport;
   private readonly newId: () => string;
@@ -308,13 +312,17 @@ export class RoomCore implements RoomOps {
     session,
     transport,
     newId,
+    readOnlyByChoice = false,
   }: {
     roomId: string;
     agentId: string;
     session: string;
     transport: RoomTransport;
     newId: () => string;
+    /** `--readonly` / `?readonly=1`: it can only refuse writes, never permit one the room refuses. */
+    readOnlyByChoice?: boolean;
   }) {
+    this.readOnlyByChoice = readOnlyByChoice;
     this.roomId = roomId;
     this.agentId = agentId;
     this.peerId = agentPeerId({ agentId, session });
@@ -546,7 +554,7 @@ export class RoomCore implements RoomOps {
    * nothing a sender could wait on, so refusing here is what keeps a later read honest.
    */
   private async send(msg: ClientMsg): Promise<boolean> {
-    return this.canEdit && this.transport.send(msg);
+    return this.canEdit && !this.readOnlyByChoice && this.transport.send(msg);
   }
 
   /** Send before recording: an op the room discarded would make every later read lie about what the human sees. */

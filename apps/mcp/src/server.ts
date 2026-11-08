@@ -26,6 +26,8 @@ interface ServerOptions {
   agentId: string;
   /** For a password-protected room. */
   password: string | null;
+  /** Refuse every write tool, whatever the room allows. */
+  readOnly: boolean;
 }
 
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -33,7 +35,10 @@ const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
 export async function startServer(opts: ServerOptions): Promise<void> {
   const server = new Server(
     { name: 'marklayer-mcp', version: MCP_SERVER_VERSION },
-    { capabilities: { tools: {} }, instructions: instructionsFor('stdio') },
+    {
+      capabilities: { tools: {} },
+      instructions: instructionsFor({ transport: 'stdio', readOnly: opts.readOnly ? 'session' : null }),
+    },
   );
 
   let connected: ConnectedRoom | null = null;
@@ -42,7 +47,13 @@ export async function startServer(opts: ServerOptions): Promise<void> {
   let roomPassword = opts.password;
 
   const open = (roomId: string) =>
-    connectRoom({ apiBase: opts.apiBase, roomId, agentId: opts.agentId, password: roomPassword });
+    connectRoom({
+      apiBase: opts.apiBase,
+      roomId,
+      agentId: opts.agentId,
+      password: roomPassword,
+      readOnly: opts.readOnly,
+    });
 
   /** Open a preview room through the share API, then connect to it so the next tool works the new room. */
   const createPreview = async (request: PreviewRequest): Promise<PreviewCreated | { error: string }> => {

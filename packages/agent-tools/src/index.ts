@@ -16,11 +16,13 @@ import {
   QuestionInput,
   ReplyInput,
   ResolveInput,
+  readOnlyReason,
   SetStepsInput,
   SharePreviewInput,
   SuggestInput,
   type ToolName,
   WatchInput,
+  WRITE_TOOLS,
 } from './tools';
 
 export * from './room-core';
@@ -193,6 +195,13 @@ async function workRoom({
   room: RoomOps;
   apiBase: string;
 }): Promise<ToolContent | null> {
+  // Up front, so a new write tool is gated by its spec without its case having to remember.
+  // On a view-only link the room refuses on its own too; a read-only session is enforced only here and in the core.
+  const readOnly = readOnlyReason(room);
+  if (WRITE_TOOLS.has(name) && readOnly) {
+    const why = readOnly === 'link' ? 'this link is view-only' : 'this session was started read-only';
+    return err(`${why}: ${name} changes the room, so it is refused. Read tools still work.`);
+  }
   // Checked once, up front: a case that forgot it was how watch looped forever on an empty batch.
   if (NEEDS_LIVE_ROOM.has(name)) {
     const dead = room.checkLive();

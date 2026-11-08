@@ -21,7 +21,7 @@ const comment = (over: Partial<CommentOp> = {}): CommentOp => ({
 });
 
 /** A socket's shape: `apply` is fed by hand, and `wait` hands over a script of arrivals, then sits out its window. */
-function room({ canSend = true, arrivals = [] as ServerMsg[][] } = {}) {
+function room({ canSend = true, arrivals = [] as ServerMsg[][], readOnlyByChoice = false } = {}) {
   const sent: ClientMsg[] = [];
   let id = 0;
   const transport: RoomTransport = {
@@ -37,11 +37,21 @@ function room({ canSend = true, arrivals = [] as ServerMsg[][] } = {}) {
     },
     readPage: async (url) => (url ? { url, title: null, entries: [], clientRendered: false, truncated: false } : null),
   };
-  const core = new RoomCore({ roomId: 'r1', agentId: AGENT, session: 's1', transport, newId: () => `id-${++id}` });
+  const core = new RoomCore({
+    roomId: 'r1',
+    agentId: AGENT,
+    session: 's1',
+    transport,
+    newId: () => `id-${++id}`,
+    readOnlyByChoice,
+  });
   return { core, sent };
 }
 
-const loaded = (ops: DrawOp[], over: { canEdit?: boolean; arrivals?: ServerMsg[][]; canSend?: boolean } = {}) => {
+const loaded = (
+  ops: DrawOp[],
+  over: { canEdit?: boolean; arrivals?: ServerMsg[][]; canSend?: boolean; readOnlyByChoice?: boolean } = {},
+) => {
   const made = room(over);
   made.core.apply({ type: 'init', ops, url: 'https://example.com', canEdit: over.canEdit });
   return made;
@@ -113,6 +123,13 @@ describe('RoomCore writes', () => {
     expect(await core.acknowledge('c1')).toBe(false);
     expect(sent).toEqual([]);
     expect(core.viewOnly).toBe(true);
+  });
+
+  test('a read-only session sends nothing, though the link allows edits', async () => {
+    const { core, sent } = loaded([comment()], { readOnlyByChoice: true });
+    expect(await core.reply('c1', 'x')).toBe(false);
+    expect(sent).toEqual([]);
+    expect(core.viewOnly).toBe(false);
   });
 
   test('a write that races an access flip latches read-only', async () => {

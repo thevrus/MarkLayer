@@ -193,6 +193,7 @@ export async function connectRoom({
   roomId,
   agentId,
   password = null,
+  readOnly = false,
   initTimeoutMs = 15_000,
 }: {
   apiBase: string;
@@ -200,11 +201,13 @@ export async function connectRoom({
   agentId: string;
   /** For a password-protected link. Sent as a header, never in a URL a log could keep. */
   password?: string | null;
+  /** Refuse every write tool, whatever the room allows. */
+  readOnly?: boolean;
   initTimeoutMs?: number;
 }): Promise<ConnectedRoom> {
   const session = nanoid();
   const transport = new SocketTransport({ apiBase, roomId, agentId, session, password });
-  const room = new RoomCore({ roomId, agentId, session, transport, newId: nanoid });
+  const room = new RoomCore({ roomId, agentId, session, transport, newId: nanoid, readOnlyByChoice: readOnly });
   await transport.join({ room, initTimeoutMs });
   return { room, close: () => transport.close(), disconnectedReason: () => transport.disconnectedReason() };
 }
