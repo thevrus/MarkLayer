@@ -28,6 +28,9 @@ export interface Peer {
 export const RTC_MESSAGE_TYPES = ['rtc_offer', 'rtc_answer', 'rtc_ice', 'rtc_request_ice'] as const;
 export type RtcMessageType = (typeof RTC_MESSAGE_TYPES)[number];
 
+export const execModeSchema = z.enum(['solo', 'guide', 'pair']);
+export type ExecMode = z.infer<typeof execModeSchema>;
+
 // Teaching is live room traffic: it is broadcast and watched, never stored as an annotation.
 const teachHighlight = {
   presentationId: z.string(),
@@ -60,6 +63,7 @@ const teachingPeer = { peerId: z.string(), color: z.optional(z.string()) };
  * Excludes RTC signaling (see RTC_MESSAGE_TYPES).
  */
 export const clientMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('set_exec_mode'), execMode: execModeSchema }),
   z.object({ type: z.literal('teach_highlight'), ...teachHighlight }),
   z.object({ type: z.literal('teach_caption'), ...teachCaption }),
   z.object({ type: z.literal('teach_state'), ...teachState }),
@@ -118,6 +122,7 @@ const rtcRelaySchema = z.looseObject({
 
 /** Every message a room sends down a socket. Additive: it describes what is sent today. */
 export const serverMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('exec_mode'), execMode: execModeSchema }),
   z.object({ type: z.literal('teach_highlight'), ...teachHighlight, ...teachingPeer }),
   z.object({ type: z.literal('teach_caption'), ...teachCaption, ...teachingPeer }),
   z.object({ type: z.literal('teach_state'), ...teachState, ...teachingPeer }),
@@ -134,6 +139,7 @@ export const serverMsgSchema = z.discriminatedUnion('type', [
     width: z.optional(z.nullable(z.number())),
     access: z.optional(z.string()),
     canEdit: z.optional(z.boolean()),
+    execMode: z.optional(execModeSchema),
     iceServers: z.optional(z.array(iceServerSchema)),
   }),
   z.object({ type: z.literal('access'), canEdit: z.boolean() }),
@@ -191,6 +197,7 @@ export interface AgentSnapshot {
   /** False on a view-only link, so a mutator can say why rather than report a missing id. */
   canEdit: boolean;
   cursor: number;
+  execMode?: ExecMode;
 }
 
 /**

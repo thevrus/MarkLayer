@@ -824,3 +824,15 @@ describe('execution mode enforcement', () => {
     expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'approved' } }, agent)).toBe(false);
   });
 });
+
+
+test('human mode changes persist and broadcast, while an agent cannot change the mode', async () => {
+  const live = liveRoom();
+  expect((await live.room.snapshot()).execMode).toBe('pair');
+  await live.room.webSocketMessage(live.human, JSON.stringify({ type: 'set_exec_mode', execMode: 'guide' }));
+  expect((await live.room.snapshot()).execMode).toBe('guide');
+  expect(live.human.sent).toContainEqual({ type: 'exec_mode', execMode: 'guide' });
+  const agent = new FakeWebSocket({ id: 'mcp-codex-session', name: 'Agent', color: '#333333' });
+  await live.room.webSocketMessage(agent, JSON.stringify({ type: 'set_exec_mode', execMode: 'solo' }));
+  expect((await live.room.snapshot()).execMode).toBe('guide');
+});

@@ -91,3 +91,13 @@ describe('serverMsgSchema', () => {
     expect(parse({ type: 'op', op: { tool: 'hologram' } }).success).toBe(false);
   });
 });
+
+
+test('execution mode messages accept only the three room modes', () => {
+  for (const execMode of ['solo', 'guide', 'pair']) {
+    expect(clientMsgSchema.safeParse({ type: 'set_exec_mode', execMode }).success).toBe(true);
+    expect(serverMsgSchema.safeParse({ type: 'exec_mode', execMode }).success).toBe(true);
+  }
+  expect(clientMsgSchema.safeParse({ type: 'set_exec_mode', execMode: 'invalid' }).success).toBe(false);
+  expect(serverMsgSchema.safeParse({ type: 'init', ops: [], execMode: 'invalid' }).success).toBe(false);
+});

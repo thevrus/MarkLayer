@@ -665,6 +665,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       createdAt: this.createdAt,
       expiresAt: this.deadline(),
       canEdit: this.canEditFor(undefined),
+      execMode: (await annotationStore(this.env.DB).getExecMode(await this.roomId())) ?? 'pair',
       cursor: this.cursor(),
     };
   }
@@ -842,6 +843,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       url: this.url,
       width: this.width,
       access: this.access,
+      execMode: (await annotationStore(this.env.DB).getExecMode(await this.roomId())) ?? 'pair',
       canEdit,
       iceServers: iceServers.map((s) => ({ ...s })),
     };
@@ -918,6 +920,14 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     }
 
     switch (msg.type) {
+      case 'set_exec_mode': {
+        const info = this.getPeerInfo(ws);
+        if (!info || isAgentPeer(info.id) || !(await this.mayEdit({ ws }))) return;
+        if (await annotationStore(this.env.DB).setExecMode(await this.roomId(), msg.execMode)) {
+          this.announce([{ type: 'exec_mode', execMode: msg.execMode }]);
+        }
+        return;
+      }
       case 'teach_highlight':
       case 'teach_caption':
       case 'teach_state':
