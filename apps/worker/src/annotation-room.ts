@@ -43,7 +43,27 @@ type RoomEnv = SlackEnv &
 
 /** Non-mutating types — always allowed. Everything else goes through `mutate`,
  * so a new mutating type is guarded by default, not by someone remembering. */
-const READ_ONLY_SAFE_TYPES = new Set<ClientMsg['type']>(['ping', 'cursor', 'ripple', 'profile', 'flock']);
+const READ_ONLY_SAFE_TYPES = new Set<ClientMsg['type']>([
+  'ping',
+  'cursor',
+  'ripple',
+  'profile',
+  'flock',
+  'teach_highlight',
+  'teach_caption',
+  'teach_state',
+  'teach_control',
+]);
+
+type TeachingMessage = Extract<
+  ClientMsg,
+  { type: 'teach_highlight' | 'teach_caption' | 'teach_state' | 'teach_control' }
+>;
+const isTeaching = (msg: ClientMsg): msg is TeachingMessage =>
+  msg.type === 'teach_highlight' ||
+  msg.type === 'teach_caption' ||
+  msg.type === 'teach_state' ||
+  msg.type === 'teach_control';
 
 /**
  * How long an agent stays in the peer list without calling again. Longer than
@@ -639,7 +659,13 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
   }
 
   /** One client message from an agent. `false` means the link is view-only — never that the write failed silently. */
-  async send(msg: ClientMsg): Promise<boolean> {
+  async send(msg: ClientMsg, peerId?: string): Promise<boolean> {
+    if (isTeaching(msg)) {
+      if (!peerId || !clientMsgSchema.safeParse(msg).success) return false;
+      await this.getOps();
+      this.announce([{ ...msg, peerId }]);
+      return true;
+    }
     if (msg.type === 'op' || msg.type === 'update_op' || msg.type === 'undo' || msg.type === 'clear') {
       const outcome = await this.mutate(msg, {});
       return outcome !== 'refused';
@@ -881,6 +907,16 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     }
 
     switch (msg.type) {
+      case 'teach_highlight':
+      case 'teach_caption':
+      case 'teach_state':
+      case 'teach_control': {
+        const info = this.getPeerInfo(ws);
+        if (!info) return;
+        await this.getOps(this.ctx.getTags(ws)[0]);
+        this.announce([{ ...msg, peerId: info.id, color: info.color }]);
+        return;
+      }
       case 'op':
       case 'update_op':
       case 'undo':

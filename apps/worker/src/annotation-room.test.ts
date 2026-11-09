@@ -110,6 +110,45 @@ describe('AnnotationRoom flush', () => {
 });
 
 describe('AnnotationRoom view-only enforcement', () => {
+  test('a read-only participant can send teaching controls to peers and watching agents without a write', async () => {
+    const db = fakeDb({ first: editableRow });
+    const viewer = new FakeWebSocket({ id: 'viewer', name: 'V', color: '#8b5cf6', canEdit: false });
+    const other = new FakeWebSocket({ id: 'editor', name: 'E', color: '#000', canEdit: true });
+    const { room, alarms } = makeRoom({ db, sockets: [viewer, other] });
+    const { cursor } = await room.snapshot();
+    const waiting = room.watch({ timeoutMs: 1000, since: cursor, peerId: 'agent' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await room.webSocketMessage(
+      viewer,
+      JSON.stringify({ type: 'teach_control', presentationId: 'p1', action: 'next' }),
+    );
+    const event = {
+      type: 'teach_control',
+      presentationId: 'p1',
+      action: 'next',
+      peerId: 'viewer',
+      color: '#8b5cf6',
+    } as const;
+    expect(other.sent).toContainEqual(event);
+    expect((await waiting).messages).toContainEqual(event);
+    expect(alarms).toEqual([]);
+    expect(db.calls.filter((c) => /INSERT|UPDATE annotations SET ops/.test(c.sql))).toEqual([]);
+  });
+
+  test('an HTTP agent can broadcast a transient teaching caption with its own peer identity', async () => {
+    const db = fakeDb({ first: editableRow });
+    const viewer = new FakeWebSocket({ id: 'viewer', name: 'V', color: '#8b5cf6', canEdit: false });
+    const { room, alarms } = makeRoom({ db, sockets: [viewer] });
+    expect(await room.send({ type: 'teach_caption', presentationId: 'p1', text: '下一步' }, 'agent-1')).toBe(true);
+    expect(viewer.sent).toContainEqual({
+      type: 'teach_caption',
+      presentationId: 'p1',
+      text: '下一步',
+      peerId: 'agent-1',
+    });
+    expect(alarms).toEqual([]);
+  });
+
   test('a read-only peer is refused every mutation and nothing reaches the room', async () => {
     const db = fakeDb({ first: editableRow });
     const viewer = new FakeWebSocket({ id: 'viewer', name: 'V', color: '#8b5cf6', canEdit: false });

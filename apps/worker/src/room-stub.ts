@@ -11,7 +11,7 @@ export interface RoomStub {
   fetch(request: Request): Promise<Response>;
   join(peer: { id: string; uid: string; name: string; color: string }): Promise<AgentJoin>;
   snapshot(): Promise<AgentSnapshot>;
-  send(msg: ClientMsg): Promise<boolean>;
+  send(msg: ClientMsg, peerId?: string): Promise<boolean>;
   watch(request: AgentWatchRequest): Promise<AgentWatchResult>;
   saveOps(change: { ops: unknown[]; userId: string | undefined; mode: SaveMode }): Promise<boolean>;
   reset(): Promise<void>;
