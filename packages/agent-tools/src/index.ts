@@ -19,6 +19,9 @@ import {
   SetStepsInput,
   SharePreviewInput,
   SuggestInput,
+  TeachEndInput,
+  TeachStartInput,
+  TeachStepInput,
   type ToolName,
   WatchInput,
 } from './tools';
@@ -200,6 +203,30 @@ async function workRoom({
   }
 
   switch (name) {
+    case 'teach_start': {
+      const parsed = TeachStartInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const started = await room.teachStart(parsed.data);
+      return started ? ok(started) : err('could not start the presentation');
+    }
+
+    case 'teach_step': {
+      const parsed = TeachStepInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      if (parsed.data.annotationId && !room.getAnnotation(parsed.data.annotationId)) {
+        return err(`annotation not found: ${parsed.data.annotationId}`);
+      }
+      return (await room.teachStep(parsed.data)) ? ok({ sent: true }) : err('could not send the teaching step');
+    }
+
+    case 'teach_end': {
+      const parsed = TeachEndInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      return (await room.teachEnd(parsed.data.presentationId))
+        ? ok({ ended: true })
+        : err('could not end the presentation');
+    }
+
     case 'marklayer_read_page': {
       const page = await room.readPage();
       if (!page) return err('could not read the page — it may be unreachable or not HTML');

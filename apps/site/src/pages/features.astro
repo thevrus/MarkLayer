@@ -4,7 +4,7 @@ import Faq from '../components/Faq.astro';
 import LinkGrid from '../components/LinkGrid.astro';
 import dates from '../data/page-dates.json';
 import ArticleLayout from '../layouts/ArticleLayout.astro';
-import { AGENT_TOOLS as agentTools } from '../lib/agent-tools';
+import { AGENT_TOOLS as agentTools, agentToolName } from '../lib/agent-tools';
 import { articleSchema, faqSchema, type QA } from '../lib/schema';
 
 const toolCount = agentTools.length;
@@ -271,7 +271,7 @@ const qa: QA[] = [
         {
           agentTools.map((t) => (
             <tr>
-              <th scope="row"><code>marklayer_{t.name}</code></th>
+              <th scope="row"><code>{agentToolName(t)}</code></th>
               <td>{t.does}</td>
             </tr>
           ))

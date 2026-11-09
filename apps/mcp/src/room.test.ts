@@ -149,6 +149,32 @@ describe('marklayer_watch_annotations', () => {
       createPreview: async () => ({ error: 'unused' }),
     });
 
+  test('teaching tools use the socket and watch returns a participant control', async () => {
+    const client = await connect({ ops: [] });
+    const invoke = (name: string, args: unknown) =>
+      callTool({
+        name,
+        args,
+        room: client.room,
+        apiBase: 'https://marklayer.app',
+        createPreview: async () => ({ error: 'unused' }),
+      });
+    const start = await invoke('teach_start', {});
+    const presentationId = JSON.parse(start?.content[0]?.text ?? '{}').presentationId;
+    await invoke('teach_step', { presentationId, index: 0, caption: '说明', selector: '#save' });
+    await invoke('teach_end', { presentationId });
+    await until(() => received.filter((msg) => msg.type?.startsWith('teach_')).length === 4);
+    expect(received.filter((msg) => msg.type?.startsWith('teach_')).map((msg) => msg.type)).toEqual([
+      'teach_state',
+      'teach_highlight',
+      'teach_caption',
+      'teach_state',
+    ]);
+    const waiting = client.room.watch({ timeoutSeconds: 1, batchMs: 5 });
+    toPeer({ type: 'teach_control', presentationId, action: 'next', peerId: 'human' });
+    expect((await waiting)[0]).toMatchObject({ kind: 'teach_control', control: { presentationId, action: 'next' } });
+  });
+
   test('reports a dropped socket instead of waiting on a dead room', async () => {
     const client = await connect({ ops: [] });
     peer?.close(1012, 'service restart');

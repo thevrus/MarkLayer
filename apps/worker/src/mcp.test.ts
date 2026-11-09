@@ -36,6 +36,7 @@ function fakeRoom({
   const watches: AgentWatchRequest[] = [];
   const removed: string[][] = [];
   const pushed: { tool: string }[] = [];
+  const sent: { msg: ClientMsg; peerId?: string }[] = [];
   const snapshot = async () => ({
     ops,
     url: null,
@@ -51,7 +52,8 @@ function fakeRoom({
       return { ...(await snapshot()), missed: [] };
     },
     snapshot,
-    send: async (msg: ClientMsg) => {
+    send: async (msg: ClientMsg, peerId?: string) => {
+      sent.push({ msg, peerId });
       if (msg.type === 'op') pushed.push(msg.op);
       if (msg.type === 'undo') removed.push([msg.opId]);
       return true;
@@ -65,7 +67,7 @@ function fakeRoom({
       return { messages: [], cursor: request.since };
     },
   };
-  return { stub, heartbeats, watches, removed, pushed };
+  return { stub, heartbeats, watches, removed, pushed, sent };
 }
 
 function post({ stub, body, session }: { stub: ReturnType<typeof fakeRoom>['stub']; body: unknown; session?: string }) {
@@ -109,6 +111,24 @@ async function toolText(res: Response) {
 }
 
 describe('D4 an HTTP agent’s session', () => {
+  test('teaching tools carry the HTTP agent identity to the room', async () => {
+    const { stub, sent } = fakeRoom();
+    const start = JSON.parse(
+      await toolText(await post({ stub, body: call('teach_start', { steps: ['first'] }), session: 's1' })),
+    );
+    const presentationId = start.presentationId;
+    await toolText(
+      await post({
+        stub,
+        body: call('teach_step', { presentationId, index: 0, caption: '说明', annotationId: 'c1' }),
+        session: 's1',
+      }),
+    );
+    await toolText(await post({ stub, body: call('teach_end', { presentationId }), session: 's1' }));
+    expect(sent.map(({ msg }) => msg.type)).toEqual(['teach_state', 'teach_highlight', 'teach_caption', 'teach_state']);
+    expect(sent.every(({ peerId }) => peerId === agentPeerId({ agentId: AGENT, session: 's1' }))).toBe(true);
+  });
+
   test('initialize names one, and the client’s later requests keep that peer', async () => {
     const { stub, heartbeats } = fakeRoom();
     const res = await post({ stub, body: initialize });

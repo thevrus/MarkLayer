@@ -53,9 +53,22 @@ export const AGENT_TOOL_GROUPS: { group: string; tools: AgentTool[] }[] = [
     ],
   },
   {
+    group: 'Teach',
+    tools: [
+      { name: 'teach_start', does: 'Start a temporary presentation for the room.' },
+      { name: 'teach_step', does: 'Highlight a target and show a caption for a presentation step.' },
+      { name: 'teach_end', does: 'End a presentation for the room.' },
+    ],
+  },
+  {
     group: 'npm only',
     tools: [{ name: 'connect_room', does: 'Switch to another share link by URL or id.' }],
   },
 ];
+
+/** Return the public tool name; teaching tools use their protocol names directly. */
+export function agentToolName(tool: AgentTool): string {
+  return tool.name.startsWith('teach_') ? tool.name : `marklayer_${tool.name}`;
+}
 
 export const AGENT_TOOLS: AgentTool[] = AGENT_TOOL_GROUPS.flatMap((g) => g.tools);

@@ -74,6 +74,49 @@ const run = (name: string, args: unknown, room: RoomOps = fakeRoom()) =>
 const body = (result: Awaited<ReturnType<typeof run>>) => JSON.parse(result?.content[0]?.text ?? '{}');
 
 describe('callTool', () => {
+  test('advertises and dispatches the teaching tools', async () => {
+    const calls: string[] = [];
+    const room = fakeRoom({
+      teachStart: ({ steps }) => {
+        calls.push(`start:${steps?.length ?? 0}`);
+        return { presentationId: 'demo-1' };
+      },
+      teachStep: ({ presentationId, index, annotationId }) => {
+        calls.push(`step:${presentationId}:${index}:${annotationId}`);
+        return true;
+      },
+      teachEnd: (id) => {
+        calls.push(`end:${id}`);
+        return true;
+      },
+    });
+    expect(TOOLS.map((tool) => tool.name)).toContain('teach_start');
+    expect(body(await run('teach_start', { steps: ['说明'] }, room)).presentationId).toBe('demo-1');
+    expect(
+      body(await run('teach_step', { presentationId: 'demo-1', index: 0, caption: '说明', annotationId: 'op-1' }, room))
+        .sent,
+    ).toBe(true);
+    expect(body(await run('teach_end', { presentationId: 'demo-1' }, room)).ended).toBe(true);
+    expect(calls).toEqual(['start:1', 'step:demo-1:0:op-1', 'end:demo-1']);
+    expect((await run('teach_step', { presentationId: 'demo-1', index: -1, caption: '说明' }, room))?.isError).toBe(
+      true,
+    );
+    expect(
+      (await run('teach_step', { presentationId: 'demo-1', index: 0, caption: '说明', annotationId: 'missing' }, room))
+        ?.isError,
+    ).toBe(true);
+  });
+
+  test('projects a teaching control in the existing watch result', async () => {
+    const control = { type: 'teach_control', presentationId: 'demo-1', action: 'next', peerId: 'human' } as const;
+    const result = await run(
+      'marklayer_watch_annotations',
+      {},
+      fakeRoom({ watch: async () => [{ kind: 'teach_control', control }] }),
+    );
+    expect(body(result).events).toEqual([{ kind: 'teach_control', control }]);
+  });
+
   test('leaves a name it does not own to the caller', async () => {
     expect(await run('marklayer_connect_room', { room: 'x' })).toBeNull();
     expect(await run('nonsense', {})).toBeNull();

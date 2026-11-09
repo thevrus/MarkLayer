@@ -1,6 +1,6 @@
 import { MCP_SERVER_VERSION } from '@marklayer/agent-tools';
 import type { APIRoute } from 'astro';
-import { AGENT_TOOL_GROUPS, AGENT_TOOLS } from '../lib/agent-tools';
+import { AGENT_TOOL_GROUPS, AGENT_TOOLS, agentToolName } from '../lib/agent-tools';
 import { MCP_CLIENTS, MCP_HABIT, MCP_PROMPTS, ROOM_MCP_URL } from '../lib/mcp-setup';
 
 /**
@@ -15,7 +15,7 @@ const clients = MCP_CLIENTS.map(
 ).join('\n\n');
 
 const tools = AGENT_TOOL_GROUPS.map(
-  (g) => `### ${g.group}\n\n${g.tools.map((t) => `- \`marklayer_${t.name}\`: ${t.does}`).join('\n')}`,
+  (g) => `### ${g.group}\n\n${g.tools.map((t) => `- \`${agentToolName(t)}\`: ${t.does}`).join('\n')}`,
 ).join('\n\n');
 
 const body = `# Connect MarkLayer to your coding agent

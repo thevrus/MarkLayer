@@ -8,7 +8,7 @@ import Faq from '../components/Faq.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import dates from '../data/page-dates.json';
-import { AGENT_TOOL_GROUPS, AGENT_TOOLS } from '../lib/agent-tools';
+import { AGENT_TOOL_GROUPS, AGENT_TOOLS, agentToolName } from '../lib/agent-tools';
 import { MCP_CLIENTS, MCP_HABIT, MCP_PROMPTS, ROOM_MCP_URL } from '../lib/mcp-setup';
 import { articleSchema, breadcrumbSchema, faqSchema, howToSchema, type QA } from '../lib/schema';
 import { ORIGIN } from '@marklayer/brand';
@@ -276,7 +276,7 @@ const schema = [
                   {g.tools.map((t) => (
                     <div class="mcp-tool">
                       <dt>
-                        <code>marklayer_{t.name}</code>
+                        <code>{agentToolName(t)}</code>
                       </dt>
                       <dd>{t.does}</dd>
                     </div>

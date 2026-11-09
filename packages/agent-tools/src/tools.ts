@@ -43,6 +43,16 @@ export const ConnectInput = z.object({
 });
 export const ListInput = z.object({ status: z.optional(StatusFilter) });
 export const IdInput = z.object({ ...idPart });
+export const TeachStartInput = z.object({ steps: z.optional(z.array(z.string())) });
+export const TeachStepInput = z.object({
+  presentationId: z.string().check(z.minLength(1)),
+  index: z.number().check(z.int(), z.gte(0)),
+  caption: z.string().check(z.minLength(1)),
+  annotationId: z.optional(z.string().check(z.minLength(1))),
+  selector: z.optional(z.string().check(z.minLength(1))),
+  rect: z.optional(selectionRectSchema),
+});
+export const TeachEndInput = z.object({ presentationId: z.string().check(z.minLength(1)) });
 
 /**
  * How long one `watch` blocks by default.
@@ -291,6 +301,23 @@ const READS_ROOM = { needsLiveRoom: false, needsRoom: true, transports: EVERY_TR
 const WORKS_ROOM = { needsLiveRoom: true, needsRoom: true, transports: EVERY_TRANSPORT };
 
 const TOOL_DEFS = {
+  teach_start: {
+    ...WORKS_ROOM,
+    description:
+      'Start a live teaching presentation and return its presentationId. Optional steps describe the planned sequence.',
+    input: TeachStartInput,
+  },
+  teach_step: {
+    ...WORKS_ROOM,
+    description:
+      'Show a teaching caption and highlight an annotation, selector or document-coordinate rectangle for one step.',
+    input: TeachStepInput,
+  },
+  teach_end: {
+    ...WORKS_ROOM,
+    description: 'End a live teaching presentation for the room.',
+    input: TeachEndInput,
+  },
   marklayer_read_page: {
     ...READS_ROOM,
     description:
