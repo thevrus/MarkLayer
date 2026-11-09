@@ -18,6 +18,7 @@ import { applyChange, onChange, operations } from './ops';
 import { clearDeparture, connectionStatus, noteDeparture, onCursorMove, peers } from './presence';
 import { isJoinedRoom } from './room-id';
 import { toast } from './toasts';
+import { applyTeachingMessage, presentation } from './teaching';
 import type { Peer } from './types';
 
 export const connected = signal(false);
@@ -276,6 +277,12 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
           toast('This link is view-only', { type: 'info' });
         }
         break;
+      case 'teach_highlight':
+      case 'teach_caption':
+      case 'teach_state':
+      case 'teach_control':
+        applyTeachingMessage(msg);
+        break;
       case 'exec_mode':
         execMode.value = msg.execMode;
         break;
@@ -505,6 +512,7 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
     peerCursorSamples.clear();
     wsSend.value = null;
     execMode.value = 'pair';
+    presentation.value = null;
     turnIceServers.value = null;
     clearInterval(pruneInterval);
     document.removeEventListener('visibilitychange', onVisible);
