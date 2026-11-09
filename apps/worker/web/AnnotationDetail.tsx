@@ -281,7 +281,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
               <MentionText text={reply.text} mentions={reply.mentions} />
             </p>
             {reply.attachments && <AttachmentGallery ids={reply.attachments} resolveUrl={fileUrl} />}
-            <Reactions class="mt-1.5" opId={reply.id} reactions={reply.reactions} />
+            <Reactions class="mt-1.5" opId={reply.id} reactions={reply.reactions} readOnly={isReadonly.value} />
           </div>
         </div>
       ))}
@@ -612,7 +612,9 @@ export function AnnotationDetail({ item, onScrollTo }: { item: AnnotationItem; o
           </button>
         </div>
         <DetailBody item={item} />
-        {item.kind !== 'text' && <Reactions class="mt-3" opId={item.op.id} reactions={item.op.reactions} />}
+        {item.kind !== 'text' && (
+          <Reactions class="mt-3" opId={item.op.id} reactions={item.op.reactions} readOnly={isReadonly.value} />
+        )}
       </div>
 
       {annotation &&

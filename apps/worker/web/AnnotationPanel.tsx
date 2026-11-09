@@ -766,7 +766,7 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
         })}
 
         {/* The phone draws nothing: say where the rest of the toolbar lives, once, under the list. */}
-        {items.length > 0 && compactChrome.value && (
+        {items.length > 0 && compactChrome.value && !isReadonly.value && (
           <p class="px-4 py-3 m-0 text-meta text-(--ds-gray-900) leading-snug">{DESKTOP_LINE}</p>
         )}
       </div>

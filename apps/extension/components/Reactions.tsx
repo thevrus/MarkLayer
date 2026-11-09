@@ -27,10 +27,13 @@ export function Reactions({
   opId,
   reactions,
   class: cls,
+  readOnly = false,
 }: {
   opId: string;
   reactions: Reaction[] | undefined;
   class?: string;
+  /** A view-only link: the room refuses the toggle, so show the counts as facts. */
+  readOnly?: boolean;
 }) {
   const react = (emoji: string) => toggleOpReaction({ opId, emoji });
   return (
@@ -45,12 +48,14 @@ export function Reactions({
             title={names}
             aria-label={`${emoji} ${by.length}, ${names}`}
             aria-pressed={mine}
+            disabled={readOnly}
             onClick={() => react(emoji)}
             class={cn(
               pill,
               mine
                 ? 'border-(--ds-blue-800) bg-[color-mix(in_oklch,var(--ds-blue-800)_14%,transparent)]'
                 : 'border-(--ds-gray-alpha-400) bg-(--ds-gray-alpha-100) hover:border-(--ds-gray-700)',
+              readOnly && 'cursor-default hover:border-(--ds-gray-alpha-400)',
             )}
           >
             <span aria-hidden="true">{emoji}</span>
@@ -58,7 +63,7 @@ export function Reactions({
           </button>
         );
       })}
-      <ReactionPicker onPick={react} />
+      {!readOnly && <ReactionPicker onPick={react} />}
     </div>
   );
 }
