@@ -51,10 +51,23 @@ const assign = (assignee: string | null): ServerMsg => ({ type: 'update_op', opI
 const quickly = { timeoutSeconds: 0.05, batchMs: 1 };
 
 describe('RoomCore.watch', () => {
+  test('returns a participant teaching control through the existing watch stream', async () => {
+    const { core } = loaded([], {
+      arrivals: [[{ type: 'teach_control', presentationId: 'demo-1', action: 'next', peerId: 'human-1' }]],
+    });
+    expect(await core.watch(quickly)).toEqual([
+      {
+        kind: 'teach_control',
+        control: { type: 'teach_control', presentationId: 'demo-1', action: 'next', peerId: 'human-1' },
+      },
+    ]);
+  });
   test('a person assigning the agent is a handoff, once', async () => {
     const { core } = loaded([comment()], { arrivals: [[assign(AGENT)]] });
     const events = await core.watch(quickly);
-    expect(events.map((e) => `${e.kind}:${e.op.id}`)).toEqual(['handoff:c1']);
+    expect(events.map((e) => `${e.kind}:${e.kind === 'teach_control' ? e.control.presentationId : e.op.id}`)).toEqual([
+      'handoff:c1',
+    ]);
     core.apply({ type: 'update_op', opId: 'c1', patch: { status: 'in_progress' } });
     expect(await core.watch(quickly)).toEqual([]);
   });
@@ -77,7 +90,7 @@ describe('RoomCore.watch', () => {
     const second: ServerMsg = { type: 'op', op: comment({ id: 'c3' }) };
     const { core } = loaded([], { arrivals: [[first], [second]] });
     const events = await core.watch({ timeoutSeconds: 5, batchMs: 20 });
-    expect(events.map((e) => e.op.id)).toEqual(['c2', 'c3']);
+    expect(events.map((e) => (e.kind === 'teach_control' ? e.control.presentationId : e.op.id))).toEqual(['c2', 'c3']);
   });
 
   test('answers as soon as the batch window closes, not at the timeout', async () => {
@@ -107,6 +120,20 @@ describe('RoomCore.watch', () => {
 });
 
 describe('RoomCore writes', () => {
+  test('a read-only participant can start, step and end a transient presentation', async () => {
+    const { core, sent } = loaded([], { canEdit: false });
+    const started = await core.teachStart({ steps: ['first', 'second'] });
+    expect(started).not.toBeNull();
+    const presentationId = started?.presentationId ?? '';
+    expect(await core.teachStep({ presentationId, index: 0, caption: '说明', selector: '#save' })).toBe(true);
+    expect(await core.teachEnd(presentationId)).toBe(true);
+    expect(sent).toEqual([
+      { type: 'teach_state', presentationId, state: 'active', step: 0, total: 2 },
+      { type: 'teach_highlight', presentationId, selector: '#save' },
+      { type: 'teach_caption', presentationId, text: '说明', step: 0 },
+      { type: 'teach_state', presentationId, state: 'ended' },
+    ]);
+  });
   test('a view-only room is refused locally, so no read lies about what the human sees', async () => {
     const { core, sent } = loaded([comment()], { canEdit: false });
     expect(await core.create({ text: 'x', x: 0, y: 0 })).toBeNull();

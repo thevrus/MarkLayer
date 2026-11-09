@@ -78,11 +78,23 @@ export interface RoomMeta {
  * comment is obviously addressed to the agent, and requiring an @mention there
  * would be ceremony for its own sake.
  */
-export interface WatchEvent {
+export interface AnnotationWatchEvent {
   kind: 'new' | 'handoff';
   op: AnnotationOp;
   /** The reply that handed it over, when a reply is what did. Read it: it is the instruction. */
   reply?: CommentOp;
+}
+export type WatchEvent =
+  | AnnotationWatchEvent
+  | { kind: 'teach_control'; control: Extract<ServerMsg, { type: 'teach_control' }> };
+
+export interface TeachingStep {
+  presentationId: string;
+  index: number;
+  caption: string;
+  annotationId?: string;
+  selector?: string;
+  rect?: { x: number; y: number; width: number; height: number };
 }
 
 /**
@@ -110,6 +122,9 @@ export interface RoomOps {
   listAnnotations(filter?: { status?: CommentStatus | 'all' }): AnnotationOp[];
   getAnnotation(id: string): { op: AnnotationOp; replies: CommentOp[] } | null;
   watch(opts: { timeoutSeconds?: number; batchMs?: number }): Promise<WatchEvent[]>;
+  teachStart(opts: { steps?: string[] }): Awaitable<{ presentationId: string } | null>;
+  teachStep(step: TeachingStep): Awaitable<boolean>;
+  teachEnd(presentationId: string): Awaitable<boolean>;
   // Awaited by the dispatch: a socket send returns at once, an RPC call to the
   // Durable Object does not, and both are legitimate ways to reach a room.
   acknowledge(id: string): Awaitable<boolean>;
@@ -159,7 +174,7 @@ export function classifyOp({
   op: DrawOp;
   ops: readonly DrawOp[];
   agentId: string;
-}): WatchEvent | null {
+}): AnnotationWatchEvent | null {
   // Taken before any narrowing: `isRootAnnotation` is a type predicate, so testing
   // it first would leave the else branch typed as everything a reply is not.
   const reply = op.tool === 'comment' && op.parentId ? op : null;
@@ -187,7 +202,7 @@ function classifyMessage({
   before: DrawOp | undefined;
   ops: readonly DrawOp[];
   agentId: string;
-}): WatchEvent | null {
+}): AnnotationWatchEvent | null {
   if (msg.type === 'op') return classifyOp({ op: msg.op, ops, agentId });
   if (msg.type !== 'update_op') return null;
   const assigned = (op: DrawOp | undefined) => !!op && 'assignee' in op && op.assignee === agentId;
@@ -325,6 +340,9 @@ export class RoomCore implements RoomOps {
   apply(msg: ServerMsg): void {
     const before = msg.type === 'update_op' ? this.ops.find((op) => op.id === msg.opId) : undefined;
     switch (msg.type) {
+      case 'teach_control':
+        if (msg.peerId !== this.peerId) this.events.push({ kind: 'teach_control', control: msg });
+        return;
       case 'init':
         this.ops = parseOps(msg.ops);
         this.meta = {
@@ -438,6 +456,35 @@ export class RoomCore implements RoomOps {
     } finally {
       this.watching = false;
     }
+  }
+
+  async teachStart({ steps }: { steps?: string[] }): Promise<{ presentationId: string } | null> {
+    const presentationId = `${this.peerId}-${this.newId()}`;
+    const sent = await this.transport.send({
+      type: 'teach_state',
+      presentationId,
+      state: 'active',
+      step: 0,
+      ...(steps?.length ? { total: steps.length } : {}),
+    });
+    return sent ? { presentationId } : null;
+  }
+
+  async teachStep({ presentationId, index, caption, annotationId, selector, rect }: TeachingStep): Promise<boolean> {
+    const highlighted = await this.transport.send({
+      type: 'teach_highlight',
+      presentationId,
+      ...(annotationId ? { annotationId } : {}),
+      ...(selector ? { selector } : {}),
+      ...(rect ? { rect } : {}),
+    });
+    return (
+      highlighted && (await this.transport.send({ type: 'teach_caption', presentationId, text: caption, step: index }))
+    );
+  }
+
+  async teachEnd(presentationId: string): Promise<boolean> {
+    return this.transport.send({ type: 'teach_state', presentationId, state: 'ended' });
   }
 
   acknowledge(id: string): Promise<boolean> {

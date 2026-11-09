@@ -26,6 +26,9 @@ function fakeRoom(over: Partial<RoomOps> = {}): RoomOps & { calls: string[] } {
     listAnnotations: () => [comment()],
     getAnnotation: (id) => (id === 'op-1' ? { op: comment(), replies: [] } : null),
     watch: async () => [],
+    teachStart: () => ({ presentationId: 'demo-1' }),
+    teachStep: () => true,
+    teachEnd: () => true,
     acknowledge: (id) => {
       calls.push(`ack:${id}`);
       return true;

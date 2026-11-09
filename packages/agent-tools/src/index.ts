@@ -246,13 +246,17 @@ async function workRoom({
       const batch = await room.watch(parsed.data);
       return ok({
         count: batch.length,
-        events: batch.map((event) => ({
-          kind: event.kind,
-          annotation: projectAnnotation(event.op, apiBase),
-          // The reply that handed it over is the instruction — surfaced beside
-          // the thread so the agent reads what was asked, not just what exists.
-          ...(event.reply ? { request: { from: event.reply.author ?? null, text: event.reply.text } } : {}),
-        })),
+        events: batch.map((event) =>
+          event.kind === 'teach_control'
+            ? event
+            : {
+                kind: event.kind,
+                annotation: projectAnnotation(event.op, apiBase),
+                // The reply that handed it over is the instruction — surfaced beside
+                // the thread so the agent reads what was asked, not just what exists.
+                ...(event.reply ? { request: { from: event.reply.author ?? null, text: event.reply.text } } : {}),
+              },
+        ),
       });
     }
 
