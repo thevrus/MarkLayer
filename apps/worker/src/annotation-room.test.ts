@@ -802,3 +802,25 @@ describe('remote MCP endpoint against a live room', () => {
     expect(names).toEqual(['a'.repeat(64)]);
   });
 });
+
+
+describe('execution mode enforcement', () => {
+  test('Guide refuses agent resolution and approval while Pair permits resolution', async () => {
+    const comment = { id: 'c1', tool: 'comment', x: 1, y: 1, num: 1, text: 'Question', color: '#333333', lineWidth: 2, ts: 1 } as const;
+    const live = liveRoom({ ops: [comment] });
+    live.sqlite.query("UPDATE annotations SET exec_mode = 'guide' WHERE id = ?").run(ID);
+    const agent = 'mcp-codex-session';
+    expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'resolved' } }, agent)).toBe(false);
+    expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'approved' } }, agent)).toBe(false);
+    expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'dismissed' } }, agent)).toBe(false);
+    const suggestion = { id: 's1', tool: 'selection', text: 'old', suggestion: 'new', rects: [], color: '#333333', lineWidth: 2, ts: 1 } satisfies DrawOp;
+    expect(await live.room.send({ type: 'op', op: suggestion }, agent)).toBe(false);
+    const socketAgent = new FakeWebSocket({ id: agent, name: 'Agent', color: '#333333' });
+    await live.room.webSocketMessage(socketAgent, JSON.stringify({ type: 'update_op', opId: 'c1', patch: { status: 'resolved' } }));
+    expect(live.human.sent).toEqual([]);
+    expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'in_progress' } }, agent)).toBe(true);
+    live.sqlite.query("UPDATE annotations SET exec_mode = 'pair' WHERE id = ?").run(ID);
+    expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'resolved' } }, agent)).toBe(true);
+    expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'approved' } }, agent)).toBe(false);
+  });
+});

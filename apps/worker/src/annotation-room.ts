@@ -114,7 +114,7 @@ export type RoomChange =
   | { type: 'replace' | 'merge'; ops: unknown[] };
 
 /** Who is asking. A socket is judged by its attachment; an RPC or REST caller by the link's access row. */
-type Origin = { ws: WebSocket } | { userId?: string };
+type Origin = { ws: WebSocket } | { userId?: string; peerId?: string };
 
 export type MutateOutcome = 'applied' | 'noop' | 'refused';
 
@@ -503,6 +503,17 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     if (this.dead || (await this.pastDeadline())) return 'refused';
     // `mayEdit` rereads the row, which may find it gone.
     if (!(await this.mayEdit(from)) || this.dead) return 'refused';
+    const peerId = 'ws' in from ? this.getPeerInfo(from.ws)?.id : from.peerId;
+    if (peerId && isAgentPeer(peerId)) {
+      const status = change.type === 'update_op' ? change.patch.status : change.type === 'op' && 'status' in change.op ? change.op.status : undefined;
+      if (status === 'approved') return 'refused';
+      const mode = await annotationStore(this.env.DB).getExecMode(await this.roomId());
+      if (mode === 'guide') {
+        if (status === 'resolved' || status === 'dismissed') return 'refused';
+        if (change.type === 'op' && change.op.tool === 'selection' && change.op.suggestion) return 'refused';
+        if (change.type === 'update_op' && 'suggestion' in change.patch && change.patch.suggestion) return 'refused';
+      }
+    }
     return this.apply({ change, ops, ws: 'ws' in from ? from.ws : undefined });
   }
 
@@ -667,7 +678,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       return true;
     }
     if (msg.type === 'op' || msg.type === 'update_op' || msg.type === 'undo' || msg.type === 'clear') {
-      const outcome = await this.mutate(msg, {});
+      const outcome = await this.mutate(msg, { peerId });
       return outcome !== 'refused';
     }
     return true;
