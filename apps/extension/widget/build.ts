@@ -15,6 +15,7 @@ import { build, type Plugin, type Rolldown } from 'vite';
 
 const extRoot = resolve(import.meta.dir, '..');
 const outDir = resolve(process.argv[2] ?? join(extRoot, '../worker/public/client'));
+const normalizePath = (path: string) => path.replaceAll('\\', '/');
 // The bundler writes `//#region` paths relative to cwd into the output, so the chunk
 // hash would otherwise depend on which workspace launched the build.
 process.chdir(extRoot);
@@ -36,14 +37,14 @@ const SWAPS = new Map([
   [join(extRoot, 'components/PriorityMenu.tsx'), join(import.meta.dir, 'lite/PriorityMenu.tsx')],
   [join(extRoot, 'components/Tooltip.tsx'), join(import.meta.dir, 'lite/Tooltip.tsx')],
   [join(extRoot, 'components/BatchSwitch.tsx'), join(import.meta.dir, 'lite/BatchSwitch.tsx')],
-]);
+].map(([from, to]) => [normalizePath(from!), to!] as [string, string]));
 
 const swapModules: Plugin = {
   name: 'marklayer-widget-swaps',
   enforce: 'pre',
   async resolveId(source, importer, options) {
     const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
-    return (resolved && SWAPS.get(resolved.id)) ?? null;
+    return (resolved && SWAPS.get(normalizePath(resolved.id))) ?? null;
   },
 };
 
@@ -57,8 +58,8 @@ const scopeTailwind = (sources: string[]): Plugin => ({
   name: 'marklayer-widget-tailwind-sources',
   enforce: 'pre',
   transform(code, id) {
-    if (id.split('?')[0] !== stylesheet) return null;
-    const scoped = sources.map((file) => `@source "${relative(dirname(stylesheet), file)}";`).join('\n');
+    if (normalizePath(id.split('?')[0] ?? '') !== normalizePath(stylesheet)) return null;
+    const scoped = sources.map((file) => `@source "${normalizePath(relative(dirname(stylesheet), file))}";`).join('\n');
     return code.replace('@import "tailwindcss";', `@import "tailwindcss" source(none);\n${scoped}`);
   },
 });
@@ -93,7 +94,7 @@ async function buildApp({ sources, write }: { sources?: string[]; write: boolean
 
 const probe = await buildApp({ write: false });
 const sources = Object.keys(probe.modules)
-  .map((id) => id.split('?')[0] ?? id)
+  .map((id) => normalizePath(id.split('?')[0] ?? id))
   .filter((file) => /\.(tsx?|jsx?|mjs)$/.test(file) && !file.includes('/node_modules/'));
 if (!Object.values(probe.modules).some((m) => m.renderedExports.includes('CommentPin'))) {
   throw new Error('widget build: module graph looks wrong, refusing to scope Tailwind to it');

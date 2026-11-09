@@ -21,7 +21,7 @@ const WORKER_PATHS = new Set([
   '/.well-known/security.txt',
 ]);
 
-const files = await readdir(DIST, { recursive: true });
+const files = (await readdir(DIST, { recursive: true })).map((file) => file.replaceAll('\\', '/'));
 const htmlFiles = files.filter((f) => f.endsWith('.html'));
 const distSet = new Set(files.map((f) => f.split('\\').join('/')));
 
