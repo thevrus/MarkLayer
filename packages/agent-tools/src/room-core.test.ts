@@ -254,3 +254,13 @@ describe('RoomCore state', () => {
     expect(core.listOps()).toEqual([]);
   });
 });
+
+
+test('room info follows initial and broadcast execution mode', () => {
+  const { core } = room();
+  core.apply({ type: 'init', ops: [], execMode: 'guide' });
+  expect(core.getMeta().execMode).toBe('guide');
+  core.apply({ type: 'exec_mode', execMode: 'pair' });
+  expect(core.getMeta().execMode).toBe('pair');
+});
+

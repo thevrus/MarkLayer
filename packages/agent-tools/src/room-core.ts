@@ -64,6 +64,7 @@ export interface RoomMeta {
   width: number | null;
   createdAt: number | null;
   expiresAt: number | null;
+  execMode?: 'solo' | 'guide' | 'pair';
   /** Stored ops this build could not read, when there are any: the agent is acting on a partial room. */
   unreadableOps?: number;
 }
@@ -350,6 +351,7 @@ export class RoomCore implements RoomOps {
           width: msg.width ?? null,
           createdAt: msg.createdAt ?? null,
           expiresAt: msg.expiresAt ?? null,
+          execMode: msg.execMode ?? 'pair',
           ...(msg.ops.length > this.ops.length ? { unreadableOps: msg.ops.length - this.ops.length } : {}),
         };
         if (msg.canEdit !== undefined) this.canEdit = msg.canEdit;
@@ -370,6 +372,9 @@ export class RoomCore implements RoomOps {
         return;
       case 'clear':
         this.ops = [];
+        return;
+      case 'exec_mode':
+        this.meta = { ...this.meta, execMode: msg.execMode };
         return;
       case 'access':
         this.canEdit = msg.canEdit;

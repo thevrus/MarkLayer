@@ -434,3 +434,15 @@ describe('with no room connected', () => {
     expect(await noRoom(name)).toBeNull();
   });
 });
+
+
+test('Guide blocks destructive tools before they write and permits replies', async () => {
+  const room = fakeRoom({ getMeta: () => ({ url: null, width: null, createdAt: null, expiresAt: null, execMode: 'guide' }) });
+  for (const [name, args] of [
+    ['marklayer_resolve', { id: 'op-1', summary: 'done' }],
+    ['marklayer_dismiss', { id: 'op-1', reason: 'no' }],
+    ['marklayer_suggest_edit', {}],
+  ] as const) expect((await run(name, args, room))?.isError).toBe(true);
+  expect((await run('marklayer_reply', { id: 'op-1', text: 'question' }, room))?.isError).not.toBe(true);
+  expect(room.calls).toEqual(['reply:op-1']);
+});

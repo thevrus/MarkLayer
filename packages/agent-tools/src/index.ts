@@ -295,6 +295,7 @@ async function workRoom({
     }
 
     case 'marklayer_resolve': {
+      if (room.getMeta().execMode === 'guide') return err('Guide mode does not allow agents to resolve annotations');
       const parsed = ResolveInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
       if (!(await room.resolve(parsed.data.id, parsed.data.summary))) return mutationErr({ room, id: parsed.data.id });
@@ -302,6 +303,7 @@ async function workRoom({
     }
 
     case 'marklayer_dismiss': {
+      if (room.getMeta().execMode === 'guide') return err('Guide mode does not allow agents to dismiss annotations');
       const parsed = DismissInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
       if (!(await room.dismiss(parsed.data.id, parsed.data.reason))) return mutationErr({ room, id: parsed.data.id });
@@ -333,6 +335,7 @@ async function workRoom({
     }
 
     case 'marklayer_suggest_edit': {
+      if (room.getMeta().execMode === 'guide') return err('Guide mode does not allow agents to suggest edits');
       const parsed = SuggestInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);
       const { text, suggestion, rects, comment, priority, selector, tag, markdown } = parsed.data;
