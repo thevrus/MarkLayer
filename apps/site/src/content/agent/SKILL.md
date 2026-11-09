@@ -93,3 +93,7 @@ When a human opens a share link in a browser whose agent supports WebMCP, the
 same actions (list / get / acknowledge / resolve / dismiss / reply) are exposed
 on the page via `document.modelContext` (falling back to the deprecated
 `navigator.modelContext` on Chrome 149), with no install required.
+
+## Live teaching
+
+Use `teach_start` to begin, `teach_step` to show a target and caption, and `teach_end` to finish. Controls from participants arrive through `marklayer_watch_annotations`.

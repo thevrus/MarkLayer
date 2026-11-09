@@ -335,3 +335,7 @@ Email: hello@marklayer.app
 ## Optional
 
 - [Full details](/llms-full.txt)
+
+## Live teaching
+
+Use `teach_start` to begin, `teach_step` to show a target and caption, and `teach_end` to finish. Controls from participants arrive through `marklayer_watch_annotations`.
