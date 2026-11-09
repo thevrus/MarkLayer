@@ -130,7 +130,7 @@ MarkLayer's is free and needs no key. Every share link is itself an MCP server, 
 
 SureFeedback is built around the agency handing a client a link and collecting comments and approvals over days. MarkLayer has that async mode too, but it also has the room: live cursors show who is looking where, and a peer-to-peer voice or video call runs in the same tab. Desktop, tablet and mobile widths sit side by side on one screen. SureFeedback doesn't advertise any of the three.
 
-One limit runs the other way. MarkLayer is desktop only today, and a phone will tell you so. SureFeedback's plugin page says it works on any mobile device.
+One limit runs the other way. MarkLayer draws only on a desktop; a phone can open a share link to read the threads and leave a comment, nothing more. SureFeedback's plugin page says it works on any mobile device.
 
 ## Who should not switch from SureFeedback
 

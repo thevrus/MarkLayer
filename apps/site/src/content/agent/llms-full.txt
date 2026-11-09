@@ -162,8 +162,8 @@ not close when the ticket closes. Those two gaps are what the $39-79 tier is pri
 switch off on a PDF or an image, and for the same reason: the element inspector, measure and multi-select
 all read the page's HTML, and a file has none, so pointing at it returns the whole page rather than a
 heading or a button. A scanned PDF with no text layer, and any image, takes drawing and comments but not
-text highlights, because there are no words to attach one to. Both surfaces are desktop only today, and a
-phone is told so rather than shown a broken toolbar. Without an account there is no list of past links,
+text highlights, because there are no words to attach one to. Drawing and the inspector need a desktop; a phone opens any share link
+read-first, with the comment threads in a sheet and tappable pins on the page, and can leave a comment. Without an account there is no list of past links,
 because there is nothing to look them up against. If a comment has to stay in step with a ticket in an
 existing tracker, BugHerd, Marker.io or Usersnap are the honest recommendation. MarkLayer is the visual
 feedback layer in front of one, not a project management system.

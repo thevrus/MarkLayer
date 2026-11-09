@@ -16,7 +16,7 @@ faq:
   - q: "How do I annotate a whole webpage rather than just the part I can see?"
     a: "You need a full-page capture, which is a separate feature from an ordinary screenshot. Edge has it built in: Ctrl + Shift + S, then Capture full page. On iPhone and iPad, take a screenshot, tap the preview thumbnail, and choose Full Page, which captures the entire scrolling page as a PDF you can mark up. Chrome can do the capture through DevTools but gives you no way to draw on it. Windows Snipping Tool marks up beautifully but has no full-page web capture at all."
   - q: "How do you annotate a website on an iPhone?"
-    a: "Screenshot the page, tap the thumbnail that appears in the corner, and switch from Screen to Full Page to capture the whole scrolling page. The Markup tools then work across the entire capture, and you save the result as a PDF. This is the one situation where the built-in route is clearly the best one, because most annotation tools, MarkLayer included, are desktop only."
+    a: "Screenshot the page, tap the thumbnail that appears in the corner, and switch from Screen to Full Page to capture the whole scrolling page. The Markup tools then work across the entire capture, and you save the result as a PDF. This is the one situation where the built-in route is clearly the best one, because most annotation tools are desktop only (MarkLayer reads and takes comments on a phone, but draws only on a desktop)."
   - q: "Can two people annotate the same website at the same time?"
     a: "Not with any built-in method, because all of them produce a static file. This is the dividing line in the whole category. Tools that annotate the live page can put several people on the same annotation at once with live cursors and threaded replies. A marked-up screenshot cannot be replied to at all: the other person has to describe their answer in prose, which is the email thread you were trying to escape."
   - q: "How do I annotate a page that needs a login?"
@@ -94,7 +94,7 @@ So the decision rule is short. Annotating for yourself, or for someone who only 
 
 **Sites that refuse to be embedded** defeat the share-link method specifically. The big social platforms are the ones you will hit.
 
-**Phones** defeat almost everything except Apple's built-in Full Page capture. The dedicated tools in this category are overwhelmingly desktop only, MarkLayer included, and marklayer.app will say so if you open it on a phone.
+**Phones** defeat almost everything except Apple's built-in Full Page capture. The dedicated tools in this category are overwhelmingly desktop only. MarkLayer opens a share link on a phone to read the threads and leave a comment, but its drawing tools need a desktop.
 
 **Very long pages** defeat the naive screenshot. If the page scrolls, you need a full-page capture, and only Edge and iOS have one built in that you can then draw on.
 

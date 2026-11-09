@@ -53,7 +53,7 @@ import { ReviewSection } from './ReviewPanel';
 import { DEVICE_ICONS, DEVICE_LABELS, menuItem } from './shared';
 import { annotationPanelOpen, commentFilter, focusedAnnotationId, showAnnotationPanel } from './ui-state';
 import { setBoardOpen } from './viewer-actions';
-import { isReadonly, opMatchesDevice } from './viewer-state';
+import { compactChrome, isReadonly, opMatchesDevice } from './viewer-state';
 import { useViewerFrame } from './viewerFrame';
 
 /** One export at a time: a long PDF takes seconds, and a second click would race the first. */
@@ -114,6 +114,9 @@ function DeviceBadge({ device }: { device?: DeviceMode }) {
  * A coarse pointer has no hover to find it with, so there it sits under the text.
  */
 function QuickAction({ label, onClick }: { label: string; onClick: () => void }) {
+  // Always on show under a finger, so a view-only session gets none at all:
+  // the room would refuse the write after the row had already shown it done.
+  if (isReadonly.value) return null;
   return (
     <button
       type="button"
@@ -139,7 +142,7 @@ const rowButton =
   'w-full text-left px-4 py-3 bg-transparent border-none cursor-pointer transition-colors duration-100 hover:bg-(--ds-gray-alpha-100)';
 
 /** A row that carries a `QuickAction`: room beneath the text for it on touch. */
-const actionRowButton = cn(rowButton, 'pointer-coarse:pb-10');
+const actionRow = () => cn(rowButton, !isReadonly.value && 'pointer-coarse:pb-10');
 
 function ReplyCount({ n }: { n: number }) {
   if (n === 0) return null;
@@ -164,7 +167,7 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
 
   return (
     <div class="group relative border-b border-(--ds-gray-alpha-400)">
-      <button type="button" onClick={onOpen} class={actionRowButton}>
+      <button type="button" onClick={onOpen} class={actionRow()}>
         <div class="flex items-center gap-2 h-5 mb-1">
           <div
             class="w-5 h-5 rounded-full text-white text-mini font-medium tabular-nums grid place-items-center shrink-0"
@@ -198,6 +201,15 @@ function CommentRow({ op, onOpen }: { op: CommentOp; onOpen: () => void }) {
       <QuickAction label={STATUS_ACTIONS[status]} onClick={() => setOpStatus(op.id, STATUS_CYCLE[status])} />
     </div>
   );
+}
+
+const DESKTOP_LINE = 'Drawing and the other tools need a desktop. Open this link there to annotate.';
+
+/** The empty list's one line of help, true for whoever is reading it: a key on a desktop, a button on a phone, nothing when they cannot write. */
+function emptyHint(): string {
+  if (isReadonly.value) return 'This link is view-only.';
+  if (compactChrome.value) return `Tap Comment in the bar to add one. ${DESKTOP_LINE}`;
+  return 'Use the comment tool (C) to add one';
 }
 
 const STATUS_VALUES = ['open', 'in_progress', 'resolved', 'approved'] as const satisfies readonly CommentStatus[];
@@ -587,7 +599,7 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
             {filter === 'all' ? (
               <>
                 <span class="text-ui font-medium text-(--ds-gray-1000)">No comments yet</span>
-                <span class="text-meta text-(--ds-gray-900) leading-snug">Use the comment tool (C) to add one</span>
+                <span class="text-meta text-(--ds-gray-900) leading-snug">{emptyHint()}</span>
               </>
             ) : (
               <>
@@ -619,7 +631,7 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
             const areaResolved = isClosed(areaStatus);
             return (
               <div key={op.id} class="group relative border-b border-(--ds-gray-alpha-400)">
-                <button type="button" class={actionRowButton} onClick={() => open(item)}>
+                <button type="button" class={actionRow()} onClick={() => open(item)}>
                   <div class="flex items-center gap-2 h-5 mb-1">
                     <BoxSelect
                       size={12}
@@ -663,7 +675,7 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
             const status = getCommentStatus(op);
             return (
               <div key={op.id} class="group relative border-b border-(--ds-gray-alpha-400)">
-                <button type="button" class={actionRowButton} onClick={() => open(item)}>
+                <button type="button" class={actionRow()} onClick={() => open(item)}>
                   <div class="flex items-center gap-2 h-5 mb-1">
                     <SquareDashedMousePointer size={12} strokeWidth={1.5} color={op.color} aria-hidden="true" />
                     <span class="text-meta text-(--ds-gray-900) font-medium flex-1">{opLabel(op)}</span>
@@ -687,7 +699,7 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
             const SelIcon = op.suggestion ? Replace : TextSelect;
             return (
               <div key={op.id} class="group relative border-b border-(--ds-gray-alpha-400)">
-                <button type="button" class={actionRowButton} onClick={() => open(item)}>
+                <button type="button" class={actionRow()} onClick={() => open(item)}>
                   <div class="flex items-center gap-2 h-5 mb-1">
                     <SelIcon
                       size={12}
@@ -752,6 +764,11 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
             </button>
           );
         })}
+
+        {/* The phone draws nothing: say where the rest of the toolbar lives, once, under the list. */}
+        {items.length > 0 && compactChrome.value && (
+          <p class="px-4 py-3 m-0 text-meta text-(--ds-gray-900) leading-snug">{DESKTOP_LINE}</p>
+        )}
       </div>
     </>
   );

@@ -24,7 +24,7 @@ faq:
   - q: "Why does my share link show a blank or broken page?"
     a: "The share link reloads the original page inside MarkLayer, so it only works for pages that are publicly reachable on the internet. Pages behind a login, on localhost, or on an internal company network cannot be loaded that way. A handful of sites also refuse to load inside another page at all, including YouTube, Instagram, X, Facebook and TikTok. Your marks are still there in these cases, but the page underneath them may not render."
   - q: "Can I use MarkLayer on my phone?"
-    a: "Not yet. Both the web app and the extension are desktop only, and marklayer.app will tell you so if you open it on a phone. Share links can be opened on a phone but are not designed for annotating there."
+    a: "Reading, yes. A share link opens on a phone with the comment threads in a sheet and tappable pins on the page, and you can leave a comment there. Drawing, the inspector and the extension need a desktop."
 ---
 
 ## Two ways to use it, and the difference that matters

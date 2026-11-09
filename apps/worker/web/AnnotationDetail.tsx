@@ -5,8 +5,10 @@ import { CommentMedia } from '@ext/components/CommentMedia';
 import { TriageSection } from '@ext/components/CommentTriage';
 import { MentionText } from '@ext/components/MentionText';
 import { MentionTextarea, useMentions } from '@ext/components/MentionTextarea';
+import { PriorityBadge } from '@ext/components/PriorityPicker';
 import { Reactions } from '@ext/components/Reactions';
 import { SuggestionDiff } from '@ext/components/SelectionEdit';
+import { StatusDot } from '@ext/components/StatusDot';
 import { composerCls, textareaBareCls } from '@ext/lib/buttons';
 import { replyRequest } from '@ext/lib/checkFix';
 import { geist } from '@ext/lib/geist';
@@ -16,7 +18,7 @@ import { getReplies, pushReply, setOpPriority } from '@ext/lib/ops';
 import { color } from '@ext/lib/prefs';
 import { PRIORITY_LEVELS, PRIORITY_META } from '@ext/lib/priority';
 import { fileUrl, uploadFile } from '@ext/lib/share';
-import { getCommentStatus } from '@ext/lib/status-ui';
+import { getCommentStatus, STATUS_LABELS } from '@ext/lib/status-ui';
 import { timeAgo } from '@ext/lib/time';
 import { copyText, toast } from '@ext/lib/toasts';
 import type { AnnotationOp, CommentPriority, DrawOp } from '@ext/lib/types';
@@ -40,6 +42,7 @@ import {
 } from './integrations';
 import { API_BASE, annotationId } from './projects';
 import { DEVICE_LABELS } from './shared';
+import { isReadonly } from './viewer-state';
 
 /** Local time, spelled out — the detail view has the room the list row does not. */
 const stamp = (ts: number) =>
@@ -66,6 +69,40 @@ function Section({ label, children }: { label: string; children: ComponentChildr
     <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400)">
       <span class={cn(geist.sectionLabel, 'block mb-1.5')}>{label}</span>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Triage as plain facts for a view-only session. The room refuses every write
+ * from one, but the local copy still took it, so a reader who pressed a live
+ * control saw a status the room never held until the next reload.
+ */
+function TriageSummary({ op }: { op: AnnotationOp }) {
+  const status = getCommentStatus(op);
+  const priority = op.priority ?? null;
+  const fact = 'flex items-center justify-between gap-3 text-ui';
+  return (
+    <div class="px-4 py-3 border-b border-(--ds-gray-alpha-400) flex flex-col gap-2">
+      <div class={fact}>
+        <span class={geist.sectionLabel}>Status</span>
+        <span class="inline-flex items-center gap-1.5 text-(--ds-gray-1000)">
+          <StatusDot status={status} />
+          {STATUS_LABELS[status]}
+        </span>
+      </div>
+      {op.assignee && (
+        <div class={fact}>
+          <span class={geist.sectionLabel}>Assignee</span>
+          <span class="text-(--ds-gray-1000) truncate">{op.assignee}</span>
+        </div>
+      )}
+      {priority && (
+        <div class={fact}>
+          <span class={geist.sectionLabel}>Priority</span>
+          <PriorityBadge priority={priority} />
+        </div>
+      )}
     </div>
   );
 }
@@ -249,7 +286,7 @@ function Replies({ op }: { op: { id: string; x: number; y: number } }) {
         </div>
       ))}
 
-      {replying ? (
+      {isReadonly.value ? null : replying ? (
         <div class="flex gap-2 mt-1">
           <Avatar name={localUser.name} color={color.value} size="sm" style={{ marginTop: 6 }} />
           <div class="flex-1">
@@ -578,18 +615,21 @@ export function AnnotationDetail({ item, onScrollTo }: { item: AnnotationItem; o
         {item.kind !== 'text' && <Reactions class="mt-3" opId={item.op.id} reactions={item.op.reactions} />}
       </div>
 
-      {annotation && (
-        <>
-          <TriageSection
-            opId={annotation.id}
-            status={getCommentStatus(annotation)}
-            assignee={annotation.assignee ?? null}
-            class="px-4 py-3 border-b border-(--ds-gray-alpha-400)"
-          />
-          <PriorityRow op={annotation} />
-          <FileRow op={{ id: annotation.id, x: anchor.x, y: anchor.y }} />
-        </>
-      )}
+      {annotation &&
+        (isReadonly.value ? (
+          <TriageSummary op={annotation} />
+        ) : (
+          <>
+            <TriageSection
+              opId={annotation.id}
+              status={getCommentStatus(annotation)}
+              assignee={annotation.assignee ?? null}
+              class="px-4 py-3 border-b border-(--ds-gray-alpha-400)"
+            />
+            <PriorityRow op={annotation} />
+            <FileRow op={{ id: annotation.id, x: anchor.x, y: anchor.y }} />
+          </>
+        ))}
 
       <ContextSection op={op} />
       <PageErrorsSection op={op} />
