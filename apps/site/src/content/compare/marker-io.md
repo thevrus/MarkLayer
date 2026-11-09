@@ -84,7 +84,7 @@ On MarkLayer, the issue carries the annotation's text, author, priority and page
 
 Treating MarkLayer as a Marker.io alternative means giving up automatic capture and two-way sync, the two things Marker.io charges for. MarkLayer draws and comments on a page. It doesn't record what the browser was doing underneath.
 
-Marker.io attaches console logs, network requests and environment details to every report without anyone typing them, per its Starter plan feature list. Team adds session replay, custom metadata fields, custom branding and CSV export. MarkLayer has none of that, and its exports stop at a Markdown file or a PNG of the page.
+Marker.io attaches console logs, network requests and environment details to every report without anyone typing them, per its Starter plan feature list. Team adds session replay, custom metadata fields, custom branding and CSV export. MarkLayer has none of that, and its exports stop at a Markdown file, plus a flattened copy of an uploaded PDF or image.
 
 Guest management works differently too. Marker.io scopes guests to specific projects, with admin control over who sees what. MarkLayer's control is per link: whoever has it is in the room, and a link you've claimed with the free account can be switched to view-only.
 

@@ -118,8 +118,13 @@ function observeForLazyPaint(entries: PageEntry[]): void {
   for (const entry of entries) observer.observe(entry.container);
 }
 
+/** Shared with the annotated-file export, so pdf.js is configured in one place. */
+export function loadPdf(bytes: ArrayBuffer): Promise<PDFDocumentProxy> {
+  return getDocument({ data: bytes }).promise;
+}
+
 export async function renderPdf({ bytes, root }: { bytes: ArrayBuffer; root: HTMLElement }): Promise<void> {
-  const pdf = await getDocument({ data: bytes }).promise;
+  const pdf = await loadPdf(bytes);
 
   const entries = await loadPages({ pdf, root });
   const firstEntry = entries[0];

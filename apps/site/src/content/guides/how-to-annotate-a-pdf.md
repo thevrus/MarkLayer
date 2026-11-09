@@ -20,7 +20,7 @@ faq:
   - q: "Does highlighting work on a PDF, or only drawing?"
     a: "Both, as long as the PDF has a real text layer. The text stays selectable, so a highlight binds to the words you picked rather than to a rectangle in space. A scanned PDF is different: a photographed or faxed document has no text layer and therefore no words to attach a highlight to, so you get drawing, arrows, area captures and pinned comments but not text highlights."
   - q: "Can I download the annotated PDF afterwards?"
-    a: "Not from MarkLayer. The annotations live in the share link as a layer over the file, and nothing is written back into the PDF, so there is no marked-up copy to hand in. That is the trade for not needing an account. If the deliverable has to be one annotated file, use Preview, Edge or Acrobat Reader, which all save the marks into the PDF itself."
+    a: "Yes, if you uploaded it. The annotations live in the share link and nothing is written back into the original, but Download annotated file in the annotations panel's menu builds a copy: every page rasterized with its drawings, highlights, areas and numbered comment pins on it. The copy's pages are images, so its text is no longer selectable. If the marks have to stay editable PDF annotations, use Preview, Edge or Acrobat Reader, which save them into the file itself."
   - q: "What is the largest PDF I can upload?"
     a: "25MB. A PDF that is already hosted online is opened by its URL instead, so its size is whatever the host serves. Uploaded files are deleted on the same clock as the link they belong to, which is 90 days after the last time anyone opened it."
 ---

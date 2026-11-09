@@ -21,8 +21,10 @@ import { getCommentStatus, STATUS_LABELS } from '@ext/lib/status-ui';
 import { timeAgo } from '@ext/lib/time';
 import { copyText, toast } from '@ext/lib/toasts';
 import type { CommentOp, CommentStatus, DeviceMode } from '@ext/lib/types';
+import { isUploadPath } from '@marklayer/brand/links';
 import { isClosed } from '@marklayer/types/ops';
 import { cn } from '@marklayer/ui/cn';
+import { signal } from '@preact/signals';
 import {
   BoxSelect,
   Check,
@@ -46,11 +48,16 @@ import { type AnnotationItem, itemAnchor, itemLabel, opBody, opLabel } from './a
 import { DOCKED_ANNOTATION_WIDTH, DockedPanel, PANEL_SIDEBAR, PANEL_TRANSITION } from './DockedPanel';
 import { buildExportData } from './export-data';
 import { IntroComposerSlot, IntroVideo, introComposerOpen, intros } from './IntroVideo';
+import { pageUrl } from './projects';
 import { ReviewSection } from './ReviewPanel';
 import { DEVICE_ICONS, DEVICE_LABELS, menuItem } from './shared';
 import { annotationPanelOpen, commentFilter, focusedAnnotationId, showAnnotationPanel } from './ui-state';
 import { setBoardOpen } from './viewer-actions';
-import { isReadonly } from './viewer-state';
+import { isReadonly, opMatchesDevice } from './viewer-state';
+import { useViewerFrame } from './viewerFrame';
+
+/** One export at a time: a long PDF takes seconds, and a second click would race the first. */
+const fileExporting = signal(false);
 
 /** What an export writes: the live page's ops, plus every other page when this is a project. */
 
@@ -308,10 +315,13 @@ function PanelMenu({
   onCopyForAi,
   onCopy,
   onDownload,
+  onDownloadFile,
 }: {
   onCopyForAi: () => void;
   onCopy: () => void;
   onDownload: () => void;
+  /** Absent unless the link annotates an uploaded file. */
+  onDownloadFile?: () => void;
 }) {
   const noneOpen = openAnnotationTotal.value === 0;
   return (
@@ -331,6 +341,11 @@ function PanelMenu({
             <Menu.Item className={menuItem} onClick={onDownload}>
               Download Markdown
             </Menu.Item>
+            {onDownloadFile && (
+              <Menu.Item className={menuItem} onClick={onDownloadFile} disabled={fileExporting.value}>
+                {fileExporting.value ? 'Preparing annotated file…' : 'Download annotated file'}
+              </Menu.Item>
+            )}
             <Menu.Separator className={cn(geist.divider, 'my-1 -mx-1')} />
             {!isReadonly.value && (
               <Menu.Item className={menuItem} onClick={() => (introComposerOpen.value = true)}>
@@ -358,6 +373,9 @@ function AnnotationPanelBody(props: BodyProps) {
 }
 
 function AnnotationPanelView({ onScrollTo }: BodyProps) {
+  const {
+    meta: { frameRef },
+  } = useViewerFrame();
   const buildExport = () => {
     const data = buildExportData();
     return buildMarkdownExport(data.ops, {
@@ -381,6 +399,23 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
     downloadMarkdown(md, defaultExportFilename(data.url));
     capture('export_completed', { format: 'markdown', ops: operations.value.length });
     toast('Markdown exported', { type: 'success' });
+  };
+
+  const handleDownloadFile = async () => {
+    if (fileExporting.peek()) return;
+    fileExporting.value = true;
+    const ops = operations.value.filter(opMatchesDevice);
+    try {
+      const { exportAnnotatedFile } = await import('./doc-export');
+      const { format } = await exportAnnotatedFile({ frame: frameRef.current, url: pageUrl.value, ops });
+      capture('export_completed', { format, ops: ops.length });
+      toast(format === 'pdf' ? 'Annotated PDF exported' : 'Annotated PNG exported', { type: 'success' });
+    } catch (error) {
+      capture('export_failed', { format: 'file', reason: error instanceof Error ? error.message : 'unknown' });
+      toast('Could not export the annotated file', { type: 'error' });
+    } finally {
+      fileExporting.value = false;
+    }
   };
 
   const allOps = operations.value;
@@ -514,7 +549,12 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
             <span class="text-ui font-normal text-(--ds-gray-900) tabular-nums">{totalCount}</span>
           </h2>
           <div class="flex shrink-0 items-center gap-0.5">
-            <PanelMenu onCopyForAi={handleCopyForAi} onCopy={handleCopy} onDownload={handleDownload} />
+            <PanelMenu
+              onCopyForAi={handleCopyForAi}
+              onCopy={handleCopy}
+              onDownload={handleDownload}
+              onDownloadFile={isUploadPath(pageUrl.value) ? handleDownloadFile : undefined}
+            />
             <button
               type="button"
               onClick={() => (showAnnotationPanel.value = false)}

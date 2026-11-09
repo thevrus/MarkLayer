@@ -18,7 +18,7 @@ faq:
   - q: "Can I annotate a design mockup or a Figma export?"
     a: "Yes. Export the frame as a PNG or a PDF and open it like any other image. For a mockup that has not shipped, Figma's own commenting is the better fit, because it understands frames and prototype flows and the export does not. The export route is for getting a quick pass from someone who has no Figma account."
   - q: "Can I download the annotated image afterwards?"
-    a: "Not from MarkLayer. The marks are a layer over the image, held in the share link, and nothing is written back into the file, so there is no annotated copy to save. If you need one flattened PNG to attach somewhere, mark it up in Snipping Tool or Preview instead, since both save into the file."
+    a: "Yes, if you uploaded it. The marks stay a layer in the share link and nothing is written back into the original, but the menu in the annotations panel has Download annotated file, which saves a PNG at the image's own resolution with the drawings, areas and numbered comment pins flattened onto it. An image pasted as a link has no such download."
   - q: "Does text highlighting work on an image?"
     a: "No. A highlight binds to selectable text and an image has none, even when there are words visible in it. Drawing, arrows, shapes, area captures and pinned comments all work; text highlighting is the one tool with nothing to attach to. On a PDF that has a real text layer it does work."
   - q: "Is the image resized when I open it?"

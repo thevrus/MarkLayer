@@ -20,7 +20,7 @@ faq:
   - q: "Who can see my annotations?"
     a: "Anyone who has the link. The link is the access control, the same way an unlisted document link works: the code in it is random and unguessable, but it is not password protected. Keep links to sensitive work in private channels."
   - q: "How long do my annotations stay online?"
-    a: "90 days from the last time anyone opened the link. Any view or comment resets that clock, so an active review round stays available for as long as it is active. After 90 days of silence the annotations are deleted for good. If you need a permanent record, download the comments as a Markdown file or export the page as a PNG from the viewer before the round goes quiet."
+    a: "90 days from the last time anyone opened the link. Any view or comment resets that clock, so an active review round stays available for as long as it is active. After 90 days of silence the annotations are deleted for good. If you need a permanent record, download the comments as a Markdown file before the round goes quiet. On an uploaded PDF or image you can also download the file with the marks flattened onto it."
   - q: "Why does my share link show a blank or broken page?"
     a: "The share link reloads the original page inside MarkLayer, so it only works for pages that are publicly reachable on the internet. Pages behind a login, on localhost, or on an internal company network cannot be loaded that way. A handful of sites also refuse to load inside another page at all, including YouTube, Instagram, X, Facebook and TikTok. Your marks are still there in these cases, but the page underneath them may not render."
   - q: "Can I use MarkLayer on my phone?"
@@ -56,6 +56,6 @@ If it is in neither place, it is gone. There is no account, so there is no list 
 
 ## Getting the feedback out
 
-Comments do not have to stay in MarkLayer. In the panel on the right of any share link you can copy every comment and highlight as Markdown, or download it as a `.md` file, which paste cleanly into a ticket, a doc, or an AI coding assistant. You can also export the annotated page as a PNG image.
+Comments do not have to stay in MarkLayer. In the panel on the right of any share link you can copy every comment and highlight as Markdown, or download it as a `.md` file, which paste cleanly into a ticket, a doc, or an AI coding assistant. If the link is on an uploaded PDF or image, the same menu downloads the file with every mark flattened onto it: a PNG for an image, a PDF for a PDF.
 
 Do this before a review goes quiet if you need a permanent record, because the link itself is cleaned up 90 days after the last time anyone opened it.

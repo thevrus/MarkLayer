@@ -82,7 +82,7 @@ Jam's free plan allows 30 captures and five recording links a month, each record
 
 ## Which ones leave a record you can export
 
-MarkLayer exports a room as one Markdown file, with comments, replies and suggested edits, or as a PNG of the annotated page. Jam's recording is its own record, a shareable link with an automatic summary. BugHerd's record lives task by task on its board, inside its dashboard. A GitHub issue is already the permanent record.
+MarkLayer exports a room as one Markdown file, with comments, replies and suggested edits, and an uploaded PDF or image downloads with its annotations flattened onto it. Jam's recording is its own record, a shareable link with an automatic summary. BugHerd's record lives task by task on its board, inside its dashboard. A GitHub issue is already the permanent record.
 
 ## Moving your team off Marker.io
 

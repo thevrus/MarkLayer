@@ -44,7 +44,7 @@ Eight destinations, connected from the panel on any share link, five per room. S
 All eight are one way out. MarkLayer creates the issue and reads back its URL once so it can show a link; nothing about that ticket's later state comes back, and no destination sends anything in. For the three issue trackers the API token never reaches MarkLayer's server: the room stores only the non-secret fields (repository, project key, team id), and the token stays in the browser of whoever set it up. Chat webhooks are different, because the webhook URL is itself the credential, so it is stored with the room and anyone holding the share link can see its last four characters and remove it.
 
 ### Export
-Two ways out, both from the panel on a share link. Copy or download every comment, reply and highlighted selection as Markdown, carrying statuses, authors, device metadata and suggested edits as fenced diff blocks, which pastes cleanly into a ticket or an AI coding agent. Or export the annotated page as a PNG, which captures the live page with the drawings over it and falls back to the drawings alone if the page refuses capture.
+Two ways out, both from the panel on a share link. Copy or download every comment, reply and highlighted selection as Markdown, carrying statuses, authors, device metadata and suggested edits as fenced diff blocks, which pastes cleanly into a ticket or an AI coding agent. And when the link annotates an uploaded PDF or image, download the file with its annotations flattened onto it: an image comes back as a PNG at its own resolution, a PDF as a PDF of the same pages, each page rasterized with its drawings, highlights, areas and numbered comment pins drawn over it. A webpage has no such download.
 
 ### Multi-page Projects
 One share link can hold a project of up to 50 pages, each with its own annotations, switched through a tab strip at the top of the viewer. Add a page by pasting its URL. The Markdown export covers the whole project in a single document with a section per page.
@@ -74,8 +74,9 @@ browser and puts the same canvas over it, so drawing, comments, areas and highli
 they do on a webpage. Text inside a PDF stays selectable, so a highlight binds to the words rather than
 to a point in space. Every mark records the page it was made on and where it sat on that page — an image
 is simply a document of one page — which is what keeps it in place at any zoom level. The annotations
-belong to the share link rather than to the file, so nothing is written back into it and there is no
-annotated copy to download. An uploaded file is deleted on the same clock as the annotation: 90 days
+belong to the share link rather than to the file, so nothing is written back into the original. For an
+uploaded file, the panel's menu offers an annotated copy: an image as a PNG at its native resolution, a
+PDF as a PDF whose pages carry the marks, flattened as images, so its text is no longer selectable. An uploaded file is deleted on the same clock as the annotation: 90 days
 after the link was last opened.
 
 ### No Sign-up Required
