@@ -139,8 +139,19 @@ const NO_OWNED_PAGE = `NOT EXISTS (
   JOIN annotations a ON a.id = page.value WHERE a.owner_id IS NOT NULL
 )`;
 
+export type ExecMode = 'solo' | 'guide' | 'pair';
+
 export function annotationStore(db: D1Database) {
   return {
+    async getExecMode(id: string): Promise<ExecMode | null> {
+      const row = await db.prepare('SELECT exec_mode FROM annotations WHERE id = ?').bind(id).first<{ exec_mode: ExecMode }>();
+      return row?.exec_mode ?? null;
+    },
+
+    async setExecMode(id: string, mode: ExecMode): Promise<boolean> {
+      return wroteRow(await db.prepare('UPDATE annotations SET exec_mode = ? WHERE id = ?').bind(mode, id).run());
+    },
+
     async get(id: string): Promise<StoredAnnotation | null> {
       const row = await db
         .prepare(

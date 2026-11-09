@@ -204,3 +204,17 @@ describe('annotationStore.createPreview', () => {
     expect(await annotations.getOps(STRONG)).toEqual([{ id: 'theirs' }]);
   });
 });
+
+
+describe('room execution mode storage', () => {
+  test('defaults to pair and persists changes independently per room', async () => {
+    room('first');
+    room('second');
+    expect(await annotations.getExecMode('first')).toBe('pair');
+    expect(await annotations.setExecMode('first', 'guide')).toBe(true);
+    expect(await annotations.getExecMode('first')).toBe('guide');
+    expect(await annotations.getExecMode('second')).toBe('pair');
+    expect(await annotations.setExecMode('missing', 'solo')).toBe(false);
+    expect(await annotations.getExecMode('missing')).toBeNull();
+  });
+});
