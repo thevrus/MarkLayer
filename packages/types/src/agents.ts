@@ -67,6 +67,12 @@ export const agentColor = (id: string): string => AGENT_BRANDS[canonicalAgent(id
 export const isAgentAuthored = (op: { author?: string; assignedAgent?: string }) =>
   !!op.assignedAgent && op.assignedAgent === op.author;
 
+/** The brand an id belongs to, or `other`: the id is free text, so only a known name may leave the server. */
+export const agentBrand = (id: string): string => {
+  const brand = canonicalAgent(id);
+  return AGENT_BRANDS[brand] ? brand : 'other';
+};
+
 /** MCP agents connect as peers under this prefix (apps/mcp/src/room.ts). */
 export const isAgentPeer = (peerId: string) => peerId.startsWith('mcp-');
 

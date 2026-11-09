@@ -1,3 +1,4 @@
+import { agentBrand, isAgentPeer } from '@marklayer/types/agents';
 import { ROOM_GEN_HEADER } from '@marklayer/types/wire';
 import { setCookie } from 'hono/cookie';
 import { csrf } from 'hono/csrf';
@@ -6,6 +7,7 @@ import type { Env } from './env';
 import { agentIdentityFrom, attemptPassword, openRoom, refuse, unlockCookie } from './lock/gate';
 import { safeReturnPath, unlockPage } from './lock/page';
 import { handleMcpRequest, readRoomPage } from './mcp';
+import { captureServer } from './posthog';
 import { overRateLimit } from './rate-limit';
 import { annotationStore } from './store';
 
@@ -101,6 +103,11 @@ rooms.get('/ws/:id', async (c) => {
   const room = await openRoom({ env: c.env, id, headers: c.req.raw.headers, ctx: c.executionCtx });
   if (!room.ok) return refuse(room, 'socket');
   const url = new URL(c.req.url);
+  // The stdio package joins over this socket; a reconnect counts again, so read it as connections, not agents.
+  if (isAgentPeer(url.searchParams.get('peerId') ?? '')) {
+    const agent = agentBrand(url.searchParams.get('uid') ?? '');
+    captureServer(c.env, c.executionCtx, 'mcp_room_connected', { transport: 'stdio', agent });
+  }
   url.searchParams.set('id', id);
   const headers = new Headers(c.req.raw.headers);
   // `set`, so a client that sends its own value is overwritten rather than believed.

@@ -11,7 +11,7 @@ import {
   type ToolSpec,
   toolsFor,
 } from '@marklayer/agent-tools';
-import { agentPresence } from '@marklayer/types/agents';
+import { agentBrand, agentPresence } from '@marklayer/types/agents';
 import { McpServer, WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/server';
 import { nanoid } from 'nanoid';
 import { z } from 'zod/mini';
@@ -184,6 +184,7 @@ export async function handleMcpRequest({
   ctx: WaitUntil;
 }): Promise<Response> {
   const { session, minted } = await mcpSession(request);
+  if (minted) captureServer(env, ctx, 'mcp_room_connected', { transport: 'http', agent: agentBrand(agentId) });
   // `?readonly=1` narrows an editable link for one agent; the room's own view-only check runs regardless.
   const readOnly = flagOn(new URL(request.url).searchParams.get('readonly'));
   const room = await loadRoom({ stub, roomId, agentId, session, env, readOnly });

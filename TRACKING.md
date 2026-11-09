@@ -47,6 +47,8 @@ Naming is `object_action`, lowercase with underscores.
 | `page_render_failed` | Viewer iframe fails to render | `reason` (`timeout`/`no-marker`/`iframe-error`), `proxy_error`, `duration_ms` | Is the proxy regressing, and how |
 | `proxy_render_failed` | Worker proxy rejects or fails a fetch | `reason`, `status`, `duration_ms`, `message` (scrubbed) | Which failure mode dominates |
 | `$exception` | Unhandled client error | Stack, URL-stripped | Crash rate |
+| `mcp_room_connected` | An agent joins a room: `initialize` on `/s/:id/mcp` (`http`) or a `mcp-` peer opening `/ws/:id` (`stdio`; reconnects count again) | `transport`, `agent` (a known brand or `other`, never the typed name) | Is MCP used, and through which transport and agent? |
+| `mcp_tool_called` | Each tool call on `/s/:id/mcp` | `tool`, `ok`, `duration_ms` | Which tools agents use and how often they fail |
 
 `annotation_session_ended` is aggregated in the Durable Object
 ([`annotation-room.ts`](apps/worker/src/annotation-room.ts)) and emitted **once
@@ -64,10 +66,6 @@ Documented on [/privacy](apps/site/src/pages/privacy.astro).
 
 Deliberately unbuilt for now, listed so they are choices rather than oversights:
 
-- **MCP adoption is unmeasured.** `marklayer-mcp` is the product's real
-  differentiator and we have no signal on it. An `mcp_room_connected` event
-  fired when the MCP server attaches to a room would be privacy-safe (it is a
-  server-side counter) and is the highest-value addition left.
 - **Extension → web activation is unmeasurable by design.** No extension
   telemetry means no install→first-annotation funnel. Chrome Web Store install
   counts are the substitute.
