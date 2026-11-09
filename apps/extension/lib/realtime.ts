@@ -2,6 +2,7 @@ import { parseOps } from '@marklayer/types/ops';
 import {
   ROOM_ERROR_READ_ONLY,
   ROOM_LOCKED_CLOSE_CODE,
+  type ExecMode,
   type ServerMsg,
   SOCKET_BURST,
   SOCKET_REFILL_PER_S,
@@ -20,6 +21,7 @@ import { toast } from './toasts';
 import type { Peer } from './types';
 
 export const connected = signal(false);
+export const execMode = signal<ExecMode>('pair');
 /** Unix timestamp (seconds) when the annotation was first created */
 export const createdAt = signal<number | null>(null);
 /** Unix timestamp (seconds) when the annotation expires (null = never) */
@@ -236,6 +238,7 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
         if (msg.expiresAt != null) expiresAt.value = msg.expiresAt;
         if (typeof msg.owned === 'boolean') isOwned.value = msg.owned;
         if (typeof msg.canEdit === 'boolean') canEditFromRoom.value = msg.canEdit;
+        execMode.value = msg.execMode ?? 'pair';
         if (msg.url) serverUrl.value = msg.url;
         if (msg.width) serverWidth.value = msg.width;
         if (isIceServerArray(msg.iceServers)) turnIceServers.value = msg.iceServers;
@@ -272,6 +275,9 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
           canEditFromRoom.value = false;
           toast('This link is view-only', { type: 'info' });
         }
+        break;
+      case 'exec_mode':
+        execMode.value = msg.execMode;
         break;
       case 'access': {
         // The owner flipped the link while this tab was open.
@@ -498,6 +504,7 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
     host.capabilities.fx?.reset();
     peerCursorSamples.clear();
     wsSend.value = null;
+    execMode.value = 'pair';
     turnIceServers.value = null;
     clearInterval(pruneInterval);
     document.removeEventListener('visibilitychange', onVisible);

@@ -12,7 +12,7 @@ mock.module('idb-keyval', () => ({
 }));
 
 const { onChange, operations } = await import('./ops');
-const { canEditFromRoom, connectRoom } = await import('./realtime');
+const { canEditFromRoom, connectRoom, execMode } = await import('./realtime');
 const { resetRoomIdentity, setAnnotationId } = await import('./room-id');
 const { toasts } = await import('./toasts');
 
@@ -98,6 +98,18 @@ describe('connectRoom', () => {
   afterAll(() => {
     setGlobal('WebSocket', originals.WebSocket);
     setGlobal('fetch', originals.fetch);
+  });
+
+  test('room execution mode follows init and live changes and resets on disconnect', () => {
+    const socket = connect();
+    socket.open();
+    socket.receive({ type: 'init', ops: [], execMode: 'guide' });
+    expect(execMode.value).toBe('guide');
+    socket.receive({ type: 'exec_mode', execMode: 'solo' });
+    expect(execMode.value).toBe('solo');
+    teardown?.();
+    teardown = null;
+    expect(execMode.value).toBe('pair');
   });
 
   test('a presenter says nothing on a host with no follow to explain', () => {

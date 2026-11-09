@@ -19,6 +19,7 @@ import { capturePointer, pointerSampler } from '../lib/pointer';
 import { portalContainer } from '../lib/portal';
 import { color, colorName, toggleToolbarMinimized, toolbarMinimized } from '../lib/prefs';
 import { connectionStatus } from '../lib/presence';
+import { canEditFromRoom, connected, execMode, wsSend } from '../lib/realtime';
 import {
   activeTool,
   groupFaces,
@@ -807,6 +808,20 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
         </>
       )}
 
+      {connected.value && (
+        <select
+          aria-label="执行模式"
+          title="房间执行模式"
+          value={execMode.value}
+          disabled={canEditFromRoom.value === false}
+          onChange={(event) => wsSend.value?.({ type: 'set_exec_mode', execMode: event.currentTarget.value })}
+          class="rounded px-1 py-1 text-xs"
+        >
+          <option value="solo">自主 Solo</option>
+          <option value="guide">引导 Guide</option>
+          <option value="pair">协作 Pair</option>
+        </select>
+      )}
       <DragGrip drag={drag} />
 
       <ConnectionDot />
