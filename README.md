@@ -24,6 +24,7 @@
   <a href="https://marklayer.app"><img src="https://img.shields.io/badge/no%20account-required-1f9d68?style=flat-square" alt="No account required"></a>
   <a href="https://www.npmjs.com/package/marklayer-mcp"><img src="https://img.shields.io/npm/v/marklayer-mcp?style=flat-square&label=mcp&color=5b47d6" alt="marklayer-mcp on npm"></a>
   <a href="https://github.com/thevrus/MarkLayer"><img src="https://img.shields.io/github/stars/thevrus/MarkLayer?style=flat-square" alt="GitHub stars"></a>
+  <a href="https://deepwiki.com/thevrus/MarkLayer"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
 <p align="center">
