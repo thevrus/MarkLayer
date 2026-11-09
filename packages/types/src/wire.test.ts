@@ -2,6 +2,23 @@ import { describe, expect, test } from 'bun:test';
 import { clientMsgSchema, serverMsgSchema } from './wire';
 
 describe('clientMsgSchema', () => {
+  test('accepts teaching messages and rejects an unknown control action', () => {
+    expect(
+      clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', selector: '#save' }).success,
+    ).toBe(true);
+    expect(
+      clientMsgSchema.safeParse({ type: 'teach_caption', presentationId: 'p1', text: '说明', step: 1 }).success,
+    ).toBe(true);
+    expect(clientMsgSchema.safeParse({ type: 'teach_state', presentationId: 'p1', state: 'active' }).success).toBe(
+      true,
+    );
+    expect(clientMsgSchema.safeParse({ type: 'teach_control', presentationId: 'p1', action: 'next' }).success).toBe(
+      true,
+    );
+    expect(clientMsgSchema.safeParse({ type: 'teach_control', presentationId: 'p1', action: 'delete' }).success).toBe(
+      false,
+    );
+  });
   test('accepts a flock toggle in both directions', () => {
     expect(clientMsgSchema.safeParse({ type: 'flock', on: true }).success).toBe(true);
     expect(clientMsgSchema.safeParse({ type: 'flock', on: false }).success).toBe(true);
@@ -27,6 +44,17 @@ describe('serverMsgSchema', () => {
     lineWidth: 2,
     ts: 1,
   };
+
+  test('keeps the presenting peer and target on a teaching message', () => {
+    const message = {
+      type: 'teach_highlight',
+      presentationId: 'p1',
+      peerId: 'agent-1',
+      annotationId: 'c1',
+      rect: { x: 1, y: 2, width: 30, height: 40 },
+    } as const;
+    expect(parse(message).data).toEqual(message);
+  });
 
   test('an init holding an op from a newer client still arrives whole', () => {
     const parsed = parse({ type: 'init', ops: [comment, { tool: 'hologram' }], peers: [] });

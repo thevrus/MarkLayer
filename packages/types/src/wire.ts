@@ -28,11 +28,42 @@ export interface Peer {
 export const RTC_MESSAGE_TYPES = ['rtc_offer', 'rtc_answer', 'rtc_ice', 'rtc_request_ice'] as const;
 export type RtcMessageType = (typeof RTC_MESSAGE_TYPES)[number];
 
+// Teaching is live room traffic: it is broadcast and watched, never stored as an annotation.
+const teachHighlight = {
+  presentationId: z.string(),
+  annotationId: z.optional(z.string()),
+  selector: z.optional(z.string()),
+  rect: z.optional(z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })),
+  label: z.optional(z.string()),
+};
+const teachCaption = {
+  presentationId: z.string(),
+  text: z.string(),
+  step: z.optional(z.number()),
+  total: z.optional(z.number()),
+};
+const teachState = {
+  presentationId: z.string(),
+  state: z.enum(['active', 'paused', 'ended']),
+  step: z.optional(z.number()),
+  total: z.optional(z.number()),
+};
+const teachControl = {
+  presentationId: z.string(),
+  action: z.enum(['previous', 'pause', 'resume', 'next']),
+  step: z.optional(z.number()),
+};
+const teachingPeer = { peerId: z.string(), color: z.optional(z.string()) };
+
 /**
  * Operational client→server messages, strictly validated at the WS boundary.
  * Excludes RTC signaling (see RTC_MESSAGE_TYPES).
  */
 export const clientMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('teach_highlight'), ...teachHighlight }),
+  z.object({ type: z.literal('teach_caption'), ...teachCaption }),
+  z.object({ type: z.literal('teach_state'), ...teachState }),
+  z.object({ type: z.literal('teach_control'), ...teachControl }),
   z.object({ type: z.literal('op'), op: drawOpSchema }),
   z.object({
     type: z.literal('update_op'),
@@ -87,6 +118,10 @@ const rtcRelaySchema = z.looseObject({
 
 /** Every message a room sends down a socket. Additive: it describes what is sent today. */
 export const serverMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('teach_highlight'), ...teachHighlight, ...teachingPeer }),
+  z.object({ type: z.literal('teach_caption'), ...teachCaption, ...teachingPeer }),
+  z.object({ type: z.literal('teach_state'), ...teachState, ...teachingPeer }),
+  z.object({ type: z.literal('teach_control'), ...teachControl, ...teachingPeer }),
   z.object({
     type: z.literal('init'),
     // Unknown, not `drawOpSchema`: one op from a newer client must not blank the room. Read through `parseOps`.
