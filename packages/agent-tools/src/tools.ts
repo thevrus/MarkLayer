@@ -1,3 +1,4 @@
+import { agentTaskCommandSchema } from '@marklayer/types/wire';
 import { parseFetchableUrl } from '@marklayer/types/net';
 import {
   commentPrioritySchema,
@@ -301,6 +302,11 @@ const READS_ROOM = { needsLiveRoom: false, needsRoom: true, transports: EVERY_TR
 const WORKS_ROOM = { needsLiveRoom: true, needsRoom: true, transports: EVERY_TRANSPORT };
 
 const TOOL_DEFS = {
+  marklayer_task: {
+    ...WORKS_ROOM,
+    description: 'Coordinate assigned work: list, take the next task, wait for a person, resume, complete, or confirm_cancel. Only take another after completing or confirming cancellation of the current task. The queue prioritizes the agent owner.',
+    input: agentTaskCommandSchema,
+  },
   teach_start: {
     ...WORKS_ROOM,
     description:

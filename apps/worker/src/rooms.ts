@@ -1,4 +1,5 @@
-import { ROOM_GEN_HEADER } from '@marklayer/types/wire';
+import { agentTaskCommandSchema, ROOM_GEN_HEADER } from '@marklayer/types/wire';
+import { agentPresence } from '@marklayer/types/agents';
 import { setCookie } from 'hono/cookie';
 import { csrf } from 'hono/csrf';
 import { Hono } from 'hono/tiny';
@@ -91,6 +92,18 @@ rooms.all('/s/:id/mcp', async (c) => {
     env: c.env,
     ctx: c.executionCtx,
   });
+});
+
+rooms.post('/s/:id/agent-task', async (c) => {
+  if (await overRateLimit({ limiter: c.env.ROOM_LIMITER, req: c.req })) return c.text('Too many requests', 429);
+  const room = await openRoom({ env: c.env, id: c.req.param('id'), headers: c.req.raw.headers, ctx: c.executionCtx });
+  if (!room.ok) return refuse(room, 'json');
+  const command = agentTaskCommandSchema.safeParse(await c.req.json().catch(() => null));
+  const session = c.req.query('session');
+  if (!command.success || !session || session.length > 128) return c.json({ error: 'invalid task command' }, 400);
+  const peer = agentPresence({ agentId: agentIdentityFrom(c.req.query('agent')), session });
+  await room.stub.join(peer);
+  return c.json(await room.stub.agentTaskCommand(peer.id, command.data));
 });
 
 rooms.get('/ws/:id', async (c) => {

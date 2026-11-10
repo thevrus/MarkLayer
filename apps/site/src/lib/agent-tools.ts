@@ -29,6 +29,7 @@ export const AGENT_TOOL_GROUPS: { group: string; tools: AgentTool[] }[] = [
   {
     group: 'Work',
     tools: [
+      { name: 'task', does: 'Take and coordinate assigned work through the room queue.' },
       { name: 'watch_annotations', does: 'Wait for new comments, and for anything assigned to the agent by name.' },
       { name: 'acknowledge', does: 'Flip a comment to in progress so the reviewer sees it was picked up.' },
       { name: 'resolve', does: 'Close a comment and post what changed as a reply.' },

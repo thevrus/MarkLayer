@@ -1,7 +1,7 @@
 import type { PageReading, RoomTransport } from '@marklayer/agent-tools';
 import { pageReadingSchema, RoomCore } from '@marklayer/agent-tools';
 import { agentPresence } from '@marklayer/types/agents';
-import type { ClientMsg, ServerMsg } from '@marklayer/types/wire';
+import type { AgentTaskCommand, ClientMsg, RoomTask, ServerMsg } from '@marklayer/types/wire';
 import { ROOM_EXPIRED_CLOSE_CODE, ROOM_LOCKED_CLOSE_CODE, serverMsgSchema } from '@marklayer/types/wire';
 import { nanoid } from 'nanoid';
 import WebSocket from 'ws';
@@ -26,10 +26,10 @@ function readMessage(data: string): ServerMsg | null {
   } catch {
     return null;
   }
-  const init = initSchema.safeParse(raw);
-  if (init.success) return init.data;
   const msg = serverMsgSchema.safeParse(raw);
-  return msg.success ? msg.data : null;
+  if (msg.success) return msg.data;
+  const init = initSchema.safeParse(raw);
+  return init.success ? init.data : null;
 }
 
 /** What `watch` is parked on. Messages reach `RoomCore.apply` as they land, so waking carries nothing. */
@@ -47,6 +47,8 @@ class SocketTransport implements RoomTransport {
   private readonly roomId: string;
   private readonly apiBase: string;
   private readonly password: string | null;
+  private readonly agentId: string;
+  private readonly session: string;
 
   constructor({
     apiBase,
@@ -62,6 +64,8 @@ class SocketTransport implements RoomTransport {
     password: string | null;
   }) {
     this.apiBase = apiBase;
+    this.agentId = agentId;
+    this.session = session;
     this.roomId = roomId;
     this.password = password;
     const { protocol, host } = new URL(apiBase);
@@ -99,6 +103,15 @@ class SocketTransport implements RoomTransport {
         this.die(this.closeReason(code));
       });
     });
+  }
+
+  async taskCommand(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }> {
+    const params = new URLSearchParams({ agent: this.agentId, session: this.session });
+    const res = await fetch(`${this.apiBase}/s/${this.roomId}/agent-task?${params}`, {
+      method: 'POST', headers: { ...this.authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(command),
+    });
+    if (!res.ok) return { ok: false, tasks: [] };
+    return await res.json() as { ok: boolean; tasks: RoomTask[] };
   }
 
   send(msg: ClientMsg): boolean {

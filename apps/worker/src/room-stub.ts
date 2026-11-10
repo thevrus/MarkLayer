@@ -1,4 +1,4 @@
-import type { AgentJoin, AgentSnapshot, AgentWatchRequest, AgentWatchResult, ClientMsg } from '@marklayer/types/wire';
+import type { AgentJoin, AgentSnapshot, AgentWatchRequest, AgentWatchResult, AgentTaskCommand, ClientMsg, RoomTask } from '@marklayer/types/wire';
 
 /** The REST save's two forms. Merge only adds: its caller's list may be stale, so it can neither undo nor revert. */
 export type SaveMode = 'replace' | 'merge';
@@ -11,6 +11,7 @@ export interface RoomStub {
   fetch(request: Request): Promise<Response>;
   join(peer: { id: string; uid: string; name: string; color: string }): Promise<AgentJoin>;
   snapshot(): Promise<AgentSnapshot>;
+  agentTaskCommand(peerId: string, command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }>;
   send(msg: ClientMsg, peerId?: string): Promise<boolean>;
   watch(request: AgentWatchRequest): Promise<AgentWatchResult>;
   saveOps(change: { ops: unknown[]; userId: string | undefined; mode: SaveMode }): Promise<boolean>;

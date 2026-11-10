@@ -1,3 +1,4 @@
+import type { AgentTaskCommand, RoomTask } from '@marklayer/types/wire';
 import { agentColor, agentPeerId, isAgentAuthored } from '@marklayer/types/agents';
 import type {
   AnnotationOp,
@@ -108,6 +109,7 @@ export interface TeachingStep {
  */
 export interface RoomOps {
   readonly roomId: string;
+  taskCommand?(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }>;
   /**
    * The page's own copy, so an agent can review it rather than only react to
    * annotations someone already left. Both transports ask the Worker for it:
@@ -288,6 +290,7 @@ export function replyOp({
 
 /** How a room is reached. Everything else about working one lives in `RoomCore`. */
 export interface RoomTransport {
+  taskCommand?(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }>;
   send(msg: ClientMsg): Awaitable<boolean>;
   /**
    * Resolve with what arrived, within `ms`. A transport that feeds `apply` as messages
@@ -337,6 +340,10 @@ export class RoomCore implements RoomOps {
     this.peerId = agentPeerId({ agentId, session });
     this.transport = transport;
     this.newId = newId;
+  }
+
+  async taskCommand(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }> {
+    return this.transport.taskCommand ? this.transport.taskCommand(command) : { ok: false, tasks: [] };
   }
 
   apply(msg: ServerMsg): void {

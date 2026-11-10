@@ -5,6 +5,7 @@ import { ORIGIN } from '@marklayer/brand';
 import { isAgentPeer } from '@marklayer/types/agents';
 import { applyOpPatch, type DrawOp, drawOpSchema, parseOps } from '@marklayer/types/ops';
 import {
+  type AgentTaskCommand,
   type AgentJoin,
   type AgentSnapshot,
   type AgentWatchRequest,
@@ -517,6 +518,18 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     if (this.dead || (await this.pastDeadline())) return 'refused';
     // `mayEdit` rereads the row, which may find it gone.
     if (!(await this.mayEdit(from)) || this.dead) return 'refused';
+    const peerId = 'ws' in from ? this.getPeerInfo(from.ws)?.id : from.peerId;
+    const peer = peerId ? this.httpAgents.get(peerId)?.peer ?? this.getPeerList().find((item) => item.id === peerId) : undefined;
+    let assignedLayer: string | undefined;
+    if (peer?.uid && isAgentPeer(peer.id)) {
+      const active = (await collaborationStore(this.env.DB).tasks(await this.roomId(), peer.uid))
+        .find((task) => ['running', 'waiting', 'cancel_requested'].includes(task.status));
+      if (active?.status === 'cancel_requested') return 'refused';
+      if (active && change.type === 'op' && !(change.op.tool === 'comment' && change.op.parentId)) {
+        assignedLayer = active.layer_id;
+        change = { ...change, op: { ...change.op, layerId: assignedLayer } };
+      }
+    }
     if (change.type === 'op' || change.type === 'update_op') {
       const target = change.type === 'op' ? change.op.layerId : change.patch.layerId;
       if (target !== undefined) {
@@ -537,7 +550,6 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
         if ((change.op.layerId ?? 'default') !== (parentLayer ?? 'default')) return 'refused';
       }
     }
-    const peerId = 'ws' in from ? this.getPeerInfo(from.ws)?.id : from.peerId;
     if (peerId && isAgentPeer(peerId)) {
       const status = change.type === 'update_op' ? change.patch.status : change.type === 'op' && 'status' in change.op ? change.op.status : undefined;
       if (status === 'approved') return 'refused';
@@ -548,7 +560,11 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
         if (change.type === 'update_op' && 'suggestion' in change.patch && change.patch.suggestion) return 'refused';
       }
     }
-    return this.apply({ change, ops, ws: 'ws' in from ? from.ws : undefined });
+    const outcome = await this.apply({ change, ops, ws: 'ws' in from ? from.ws : undefined });
+    if (outcome === 'applied' && assignedLayer && change.type === 'op' && 'ws' in from) {
+      from.ws.send(JSON.stringify({ type: 'update_op', opId: change.op.id, patch: { layerId: assignedLayer } }));
+    }
+    return outcome;
   }
 
   /** The write itself, past every check: what `mutate` does once the caller may, and what `reset` does outright. */
@@ -717,6 +733,26 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       tasks: await collaborationStore(this.env.DB).allTasks(await this.roomId()),
       cursor: this.cursor(),
     };
+  }
+
+  /** Each transition is serialized with room mutations and identifies the agent from its registered peer. */
+  async agentTaskCommand(peerId: string, command: AgentTaskCommand) {
+    return this.serializeCollaboration(async () => {
+      await this.getOps();
+      const peer = this.httpAgents.get(peerId)?.peer ?? this.getPeerList().find((item) => item.id === peerId);
+      if (!peer?.uid || !isAgentPeer(peer.id) || this.dead || await this.pastDeadline()) return { ok: false, tasks: [] };
+      const store = collaborationStore(this.env.DB);
+      const roomId = await this.roomId();
+      if (command.action !== 'list' && !(await this.mayEdit({ peerId }))) return { ok: false, tasks: [] };
+      let ok = command.action === 'list';
+      if (command.action === 'take') ok = !!(await store.takeNext(roomId, peer.uid));
+      if (command.action === 'wait' && command.taskId && command.waitingFor) ok = await store.waitFor(roomId, peer.uid, command.taskId, command.waitingFor);
+      if (command.action === 'resume' && command.taskId) ok = await store.resume(roomId, peer.uid, command.taskId);
+      if (command.action === 'complete' && command.taskId) ok = await store.finish(roomId, peer.uid, command.taskId);
+      if (command.action === 'confirm_cancel' && command.taskId) ok = await store.confirmCancel(roomId, peer.uid, command.taskId);
+      if (ok && command.action !== 'list') this.announce([{ type: 'collaboration', claims: await store.claims(roomId), tasks: await store.allTasks(roomId) }]);
+      return { ok, tasks: await store.tasks(roomId, peer.uid) };
+    });
   }
 
   /** One client message from an agent. `false` means the link is view-only — never that the write failed silently. */

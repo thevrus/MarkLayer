@@ -369,3 +369,7 @@ Email: hello@marklayer.app
 ## Live teaching
 
 Use `teach_start` to begin, `teach_step` to show a target and caption, and `teach_end` to finish. Controls from participants arrive through `marklayer_watch_annotations`.
+
+## Assigned task coordination
+
+Use `marklayer_task` with `list` to inspect tasks, `take` to start the next eligible task, `wait` with taskId and waitingFor when a person must answer, `resume` when ready, `complete` when done, and `confirm_cancel` after stopping a cancellation request. Do not start another task while one is active.

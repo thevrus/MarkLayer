@@ -41,6 +41,13 @@ export const roomTaskSchema = z.object({
 export type RoomTask = z.infer<typeof roomTaskSchema>;
 export type AgentClaim = z.infer<typeof agentClaimSchema>;
 
+export const agentTaskCommandSchema = z.object({
+  action: z.enum(['list', 'take', 'wait', 'resume', 'complete', 'confirm_cancel']),
+  taskId: z.optional(z.string().check(z.minLength(1), z.maxLength(80))),
+  waitingFor: z.optional(z.string().check(z.minLength(1), z.maxLength(128))),
+});
+export type AgentTaskCommand = z.infer<typeof agentTaskCommandSchema>;
+
 export const execModeSchema = z.enum(['solo', 'guide', 'pair']);
 export type ExecMode = z.infer<typeof execModeSchema>;
 

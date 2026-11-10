@@ -1,3 +1,4 @@
+import { agentTaskCommandSchema } from '@marklayer/types/wire';
 import { mcpEndpoint, parseRoomRef as roomIdIn, uploadPath } from '@marklayer/brand/links';
 import type { AnnotationOp, CommentStatus, DrawOp, QuestionOp, StepOp } from '@marklayer/types/ops';
 import { isRootAnnotation, orderedSteps, resolveOpStatus, tallyQuestion } from '@marklayer/types/ops';
@@ -203,6 +204,13 @@ async function workRoom({
   }
 
   switch (name) {
+    case 'marklayer_task': {
+      const parsed = agentTaskCommandSchema.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      if (!room.taskCommand) return err('task coordination is unavailable on this connection');
+      const result = await room.taskCommand(parsed.data);
+      return result.ok ? ok(result) : err('task transition refused or no eligible queued task');
+    }
     case 'teach_start': {
       const parsed = TeachStartInput.safeParse(args);
       if (!parsed.success) return fail(parsed.error);

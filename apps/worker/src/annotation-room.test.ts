@@ -884,3 +884,25 @@ test('room members claim an agent and queue an explicit assignment without losin
   await send({ type: 'task_cancel', taskId: 't1' });
   expect((await live.room.snapshot()).tasks?.[0]?.status).toBe('cancelled');
 });
+
+
+test('agent task transitions keep waiting and cancellation requests ahead of the queue', async () => {
+  const root: DrawOp = { id: 'root', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  const live = liveRoom({ ops: [root] });
+  const person = new FakeWebSocket({ id: 'p2', uid: 'user-1', name: 'Alice', color: '#000000' });
+  live.ctx.getWebSockets().push(person);
+  const peer = { id: 'mcp-codex-session', uid: 'codex', name: 'Codex', color: '#000000' };
+  await live.room.join(peer);
+  const send = (message: unknown) => live.room.webSocketMessage(person, JSON.stringify(message));
+  await send({ type: 'layer_create', id: 'review', name: '审查' });
+  await send({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'root', sourceId: 'root', layerId: 'review' });
+  expect((await live.room.agentTaskCommand(peer.id, { action: 'take' })).tasks[0]?.status).toBe('running');
+  expect(await live.room.send({ type: 'op', op: { ...root, id: 'created-by-agent' } }, peer.id)).toBe(true);
+  expect((await live.room.snapshot()).ops).toContainEqual(expect.objectContaining({ id: 'created-by-agent', layerId: 'review' }));
+  expect((await live.room.agentTaskCommand(peer.id, { action: 'wait', taskId: 't1', waitingFor: 'Alice' })).tasks[0]?.status).toBe('waiting');
+  expect((await live.room.agentTaskCommand(peer.id, { action: 'take' })).ok).toBe(false);
+  await send({ type: 'task_cancel', taskId: 't1' });
+  expect((await live.room.agentTaskCommand(peer.id, { action: 'complete', taskId: 't1' })).ok).toBe(false);
+  expect((await live.room.agentTaskCommand(peer.id, { action: 'confirm_cancel', taskId: 't1' })).tasks[0]?.status).toBe('cancelled');
+  expect((await live.room.agentTaskCommand('mcp-unknown-session', { action: 'list' })).ok).toBe(false);
+});

@@ -57,6 +57,7 @@ async function loadRoom({
   const { missed, ...snapshot } = await stub.join(peer);
   let cursor = snapshot.cursor;
   const transport: RoomTransport = {
+    taskCommand: (command) => stub.agentTaskCommand(peer.id, command),
     send: (msg) => stub.send(msg, peer.id),
     // The room parks the wait, so each pass of the core's watch loop is one call rather than a poll.
     wait: async (ms) => {
