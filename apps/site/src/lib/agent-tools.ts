@@ -20,6 +20,7 @@ export const AGENT_TOOL_GROUPS: { group: string; tools: AgentTool[] }[] = [
       { name: 'room_info', does: 'The URL under review, the viewport it was annotated at, and timestamps.' },
       { name: 'list_annotations', does: 'Everything left on the page, filtered by status.' },
       { name: 'get_annotation', does: 'One annotation in full, with its reply thread and any attached images.' },
+      { name: 'read_attachment', does: 'Read an attached image as MCP image content.' },
       {
         name: 'get_feedback',
         does: 'One read of the room: counts by status, open items, checklist progress, poll tallies.',

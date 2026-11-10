@@ -5,7 +5,8 @@ import { hidePresentation, lastTeachingControl, presentation, showTeachingCompos
 import { useSignalEffect } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import type { RefObject } from 'preact';
-import { useRef, useState } from 'preact/hooks';
+import { createPortal } from 'preact/compat';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { cssScale, frameRect, iframeMutationTick, iframeScrollY } from './viewer-state';
 
 interface Step { selector: string; caption: string }
@@ -15,6 +16,7 @@ export function TeachLayer({ frameRef }: { frameRef: RefObject<HTMLIFrameElement
   const [selector, setSelector] = useState('');
   const [caption, setCaption] = useState('');
   const [steps, setSteps] = useState<Step[]>([]);
+  const [pendingControl, setPendingControl] = useState(false);
   const owned = useRef<{ id: string; steps: Step[]; index: number; paused: boolean } | null>(null);
   const current = presentation.value;
   const frameBox = frameRect.value;
@@ -40,6 +42,7 @@ export function TeachLayer({ frameRef }: { frameRef: RefObject<HTMLIFrameElement
     if (control.action === 'resume') show.paused = false;
     publish(show);
   });
+  useEffect(() => { setPendingControl(false); }, [current?.id, current?.caption, current?.step, current?.state]);
 
   let box: { left: number; top: number; width: number; height: number } | null = null;
   if (current?.highlight && frameBox) {
@@ -48,10 +51,15 @@ export function TeachLayer({ frameRef }: { frameRef: RefObject<HTMLIFrameElement
     const target = highlight.selector ?? (annotation && 'target' in annotation ? annotation.target?.selector : undefined);
     let element: Element | null = null;
     try { if (target) element = frameRef.current?.contentDocument?.querySelector(target) ?? null; } catch { /* invalid selector */ }
-    if (element) {
+    if (highlight.toolbarTarget) {
+      const slot = highlight.toolbarTarget === 'pen' ? 'draw' : highlight.toolbarTarget === 'rectangle' ? 'shapes' : highlight.toolbarTarget;
+      const tool = document.querySelector(`[data-tool="${slot}"]`);
+      if (tool) { const r = tool.getBoundingClientRect(); box = { left: r.left, top: r.top, width: r.width, height: r.height }; }
+    }
+    if (!box && element) {
       const r = element.getBoundingClientRect();
       box = { left: frameBox.left + r.left * scale, top: frameBox.top + r.top * scale, width: r.width * scale, height: r.height * scale };
-    } else {
+    } else if (!box) {
       const r = highlight.rect ?? (annotation && 'target' in annotation ? annotation.target?.rect : undefined);
       if (r) box = { left: frameBox.left + r.x * scale, top: frameBox.top + (r.y - scrollY) * scale, width: r.width * scale, height: r.height * scale };
       else if (annotation && 'x' in annotation && 'y' in annotation) box = { left: frameBox.left + annotation.x * scale - 12, top: frameBox.top + (annotation.y - scrollY) * scale - 12, width: 24, height: 24 };
@@ -84,10 +92,11 @@ export function TeachLayer({ frameRef }: { frameRef: RefObject<HTMLIFrameElement
       <div class="flex gap-2"><button type="button" onClick={add}>添加步骤</button><button type="button" onClick={start}>开始演示</button><button type="button" onClick={() => { showTeachingComposer.value = false; }}>取消</button></div>
     </section>}
     {current && !current.hidden && <>
-      {box && <div aria-hidden="true" class="fixed pointer-events-none z-2147483645" style={{ ...box, border: '3px solid #7c3aed', borderRadius: 6, boxShadow: '0 0 0 4px rgba(124,58,237,.2)' }} />}
+      {box && createPortal(<div aria-hidden="true" class="fixed pointer-events-none z-2147483647" style={{ ...box, border: '3px solid #7c3aed', borderRadius: 6, boxShadow: '0 0 0 4px rgba(124,58,237,.2)' }} />, document.body)}
       <section aria-label="演示控制" class="fixed left-1/2 -translate-x-1/2 z-2147483647 rounded-xl bg-white p-3 shadow-xl text-black" style={{ bottom: box && box.top > window.innerHeight / 2 ? 'auto' : 90, top: box && box.top > window.innerHeight / 2 ? 80 : 'auto', maxWidth: 'min(90vw, 560px)' }}>
         <p>{current.caption || '演示已开始'} {current.total ? `${(current.step ?? 0) + 1}/${current.total}` : ''}</p>
-        <div class="flex gap-2">{(['previous', current.state === 'paused' ? 'resume' : 'pause', 'next'] as const).map((action) => <button type="button" onClick={() => send({ type: 'teach_control', presentationId: current.id, action })}>{action === 'previous' ? '上一步' : action === 'next' ? '下一步' : action === 'pause' ? '暂停' : '继续'}</button>)}
+        {pendingControl && <p role="status">已发送，等待演示者响应</p>}
+        <div class="flex gap-2">{(['previous', current.state === 'paused' ? 'resume' : 'pause', 'next'] as const).map((action) => <button type="button" onClick={() => { setPendingControl(true); send({ type: 'teach_control', presentationId: current.id, action }); }}>{action === 'previous' ? '上一步' : action === 'next' ? '下一步' : action === 'pause' ? '暂停' : '继续'}</button>)}
           <button type="button" onClick={hidePresentation}>关闭</button>
           {current.presenter === localPeerId && <button type="button" onClick={() => { send({ type: 'teach_state', presentationId: current.id, state: 'ended' }); owned.current = null; }}>结束演示</button>}
         </div>

@@ -6,6 +6,7 @@ import { formatStyleEdit } from './prompt';
 import type { PreviewCreated, RoomOps } from './room-core';
 import {
   CompleteStepInput,
+  AttachmentInput,
   CreateInput,
   DismissInput,
   IdInput,
@@ -132,7 +133,7 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
   };
 }
 
-export type ToolContent = { content: { type: 'text'; text: string }[]; isError?: boolean };
+export type ToolContent = { content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[]; isError?: boolean };
 
 export function ok(data: unknown): ToolContent {
   return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
@@ -274,6 +275,26 @@ async function workRoom({
           attachments: attachmentUrls(r.attachments, apiBase),
         })),
       });
+    }
+
+    case 'marklayer_read_attachment': {
+      const parsed = AttachmentInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const found = room.getAnnotation(parsed.data.id);
+      if (!found) return err('annotation not found');
+      const ids = [found.op, ...found.replies].flatMap((op) => 'attachments' in op ? op.attachments ?? [] : []);
+      if (!ids.includes(parsed.data.attachmentId)) return err('attachment is not attached to this annotation');
+      try {
+        const response = await fetch(`${apiBase}${uploadPath(parsed.data.attachmentId)}`);
+        const mimeType = response.headers.get('content-type')?.split(';')[0] ?? '';
+        const length = Number(response.headers.get('content-length') ?? 0);
+        if (!response.ok || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(mimeType) || length > 8_000_000) return err('image unavailable or unsupported');
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        if (bytes.length > 8_000_000) return err('image exceeds size limit');
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        return { content: [{ type: 'image', data: btoa(binary), mimeType }] };
+      } catch { return err('could not read image; do not claim to have seen it'); }
     }
 
     case 'marklayer_watch_annotations': {

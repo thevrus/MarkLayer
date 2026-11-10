@@ -44,12 +44,15 @@ export const ConnectInput = z.object({
 });
 export const ListInput = z.object({ status: z.optional(StatusFilter) });
 export const IdInput = z.object({ ...idPart });
+export const AttachmentInput = z.object({ id: z.string().check(z.minLength(1)), attachmentId: z.string().check(z.minLength(1)) });
 export const TeachStartInput = z.object({ steps: z.optional(z.array(z.string())) });
 export const TeachStepInput = z.object({
   presentationId: z.string().check(z.minLength(1)),
   index: z.number().check(z.int(), z.gte(0)),
   caption: z.string().check(z.minLength(1)),
   annotationId: z.optional(z.string().check(z.minLength(1))),
+  toolbarTarget: z.optional(z.enum(['comment', 'selection', 'pen', 'rectangle', 'area', 'eraser', 'inspect', 'text', 'guide'])),
+  state: z.optional(z.enum(['active', 'paused'])),
   selector: z.optional(z.string().check(z.minLength(1))),
   rect: z.optional(selectionRectSchema),
 });
@@ -316,7 +319,7 @@ const TOOL_DEFS = {
   teach_step: {
     ...WORKS_ROOM,
     description:
-      'Show a teaching caption and highlight an annotation, selector or document-coordinate rectangle for one step.',
+      'Show a teaching caption and highlight an annotation, page selector, rectangle, or toolbarTarget. The selection target selects webpage text; the arrow cursor is the separate Move tool, not Selection. Tool order can be changed, so do not infer its position from a default layout. While presenting call marklayer_watch_annotations for teach_control events; on next or previous send the selected step, on pause send state paused, and on resume send state active. Never claim to respond to controls without doing so.',
     input: TeachStepInput,
   },
   teach_end: {
@@ -364,6 +367,11 @@ const TOOL_DEFS = {
       'Get full detail for a single annotation of any kind (comment, area, selection, inspect), including ' +
       'its element `target` context and — for comments — the reply thread.',
     input: IdInput,
+  },
+  marklayer_read_attachment: {
+    ...READS_ROOM,
+    description: 'Read an image attached to a room annotation as MCP image content. Use the attachment id from its URL; report failure or lack of image support honestly.',
+    input: AttachmentInput,
   },
   marklayer_watch_annotations: {
     ...WORKS_ROOM,
@@ -511,9 +519,10 @@ const WORKING_A_ROOM =
   'A selection annotation may also carry a `suggestion`: the exact text the reviewer wants in place of its ' +
   '`text`. Apply it verbatim rather than paraphrasing it. ' +
   'A comment (or a reply, from marklayer_get_annotation) may carry `attachments`: fetchable image URLs the ' +
-  'reviewer attached — fetch and look at one before acting on a comment that has any, they often show the ' +
+  'reviewer attached — call marklayer_read_attachment and inspect its image content before claiming to see it. If the tool fails or your client cannot see images, tell the user; do not infer what an image shows. They often show the ' +
   'bug or the intended layout better than the text does. ' +
   'For assigned work, use marklayer_task list/take to select the next task. Follow task_update events, stop on cancel_requested and confirm_cancel, and report completion before taking another task. Waiting for a person keeps the current task active. ' +
+  'The Selection tool marks webpage text; the arrow cursor is the separate Move tool. Toolbar order can be customized; use teach_step toolbarTarget to show the named tool in each viewer. ' +
   'Typical loop: marklayer_list_annotations to backfill anything pending, then marklayer_watch_annotations ' +
   'in a loop. For assigned work, take the next task before acting; acknowledge, make the requested changes, and report task completion. In Guide mode reply and explain without resolving. ' +
   'Use dismiss when an annotation cannot be acted on, with a reason the human can read. ' +

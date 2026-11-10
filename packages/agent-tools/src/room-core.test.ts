@@ -56,6 +56,19 @@ const waitingTask = (over: Partial<RoomTask> = {}): RoomTask => ({
 const quickly = { timeoutSeconds: 0.05, batchMs: 1 };
 
 describe('RoomCore.watch', () => {
+  test('teaching step broadcasts toolbar target and pause or resume state', async () => {
+    const { core, sent } = loaded([]);
+    await core.teachStep({ presentationId: 'p', index: 1, caption: '选择', toolbarTarget: 'selection', state: 'paused' });
+    await core.teachStep({ presentationId: 'p', index: 1, caption: '选择', toolbarTarget: 'selection', state: 'active' });
+    expect(sent.filter((msg) => msg.type === 'teach_highlight')).toEqual([
+      { type: 'teach_highlight', presentationId: 'p', toolbarTarget: 'selection' },
+      { type: 'teach_highlight', presentationId: 'p', toolbarTarget: 'selection' },
+    ]);
+    expect(sent.filter((msg) => msg.type === 'teach_state')).toEqual([
+      { type: 'teach_state', presentationId: 'p', state: 'paused', step: 1 },
+      { type: 'teach_state', presentationId: 'p', state: 'active', step: 1 },
+    ]);
+  });
   test('returns a participant teaching control through the existing watch stream', async () => {
     const { core } = loaded([], {
       arrivals: [[{ type: 'teach_control', presentationId: 'demo-1', action: 'next', peerId: 'human-1' }]],

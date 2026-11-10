@@ -92,6 +92,8 @@ export type WatchEvent =
   | { kind: 'teach_control'; control: Extract<ServerMsg, { type: 'teach_control' }> };
 
 export interface TeachingStep {
+  state?: 'active' | 'paused';
+  toolbarTarget?: 'comment' | 'selection' | 'pen' | 'rectangle' | 'area' | 'eraser' | 'inspect' | 'text' | 'guide';
   presentationId: string;
   index: number;
   caption: string;
@@ -510,17 +512,17 @@ export class RoomCore implements RoomOps {
     return sent ? { presentationId } : null;
   }
 
-  async teachStep({ presentationId, index, caption, annotationId, selector, rect }: TeachingStep): Promise<boolean> {
+  async teachStep({ presentationId, index, caption, annotationId, selector, rect, toolbarTarget, state }: TeachingStep): Promise<boolean> {
     const highlighted = await this.transport.send({
       type: 'teach_highlight',
       presentationId,
       ...(annotationId ? { annotationId } : {}),
+      ...(toolbarTarget ? { toolbarTarget } : {}),
       ...(selector ? { selector } : {}),
       ...(rect ? { rect } : {}),
     });
-    return (
-      highlighted && (await this.transport.send({ type: 'teach_caption', presentationId, text: caption, step: index }))
-    );
+    if (!highlighted || !(await this.transport.send({ type: 'teach_caption', presentationId, text: caption, step: index }))) return false;
+    return state ? this.transport.send({ type: 'teach_state', presentationId, state, step: index }) : true;
   }
 
   async teachEnd(presentationId: string): Promise<boolean> {

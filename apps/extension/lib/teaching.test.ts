@@ -19,3 +19,11 @@ test('teaching messages are transient and closing is local until ended', () => {
   applyTeachingMessage({ type: 'teach_state', presentationId: 'p', peerId: 'presenter', state: 'ended' });
   expect(presentation.value).toBeNull();
 });
+
+test('caption retains total and propagates a toolbar target', () => {
+  presentation.value = null;
+  applyTeachingMessage({ type: 'teach_state', presentationId: 'p2', peerId: 'agent', state: 'active', total: 4 });
+  applyTeachingMessage({ type: 'teach_highlight', presentationId: 'p2', peerId: 'agent', toolbarTarget: 'selection' });
+  applyTeachingMessage({ type: 'teach_caption', presentationId: 'p2', peerId: 'agent', text: '选择', step: 1 });
+  expect(presentation.value).toMatchObject({ total: 4, step: 1, highlight: { toolbarTarget: 'selection' } });
+});

@@ -3,6 +3,8 @@ import { clientMsgSchema, serverMsgSchema } from './wire';
 
 describe('clientMsgSchema', () => {
   test('accepts teaching messages and rejects an unknown control action', () => {
+    expect(clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', toolbarTarget: 'selection' }).success).toBe(true);
+    expect(clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', toolbarTarget: 'unexpected' }).success).toBe(false);
     expect(
       clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', selector: '#save' }).success,
     ).toBe(true);

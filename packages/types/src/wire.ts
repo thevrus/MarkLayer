@@ -55,6 +55,7 @@ export type ExecMode = z.infer<typeof execModeSchema>;
 const teachHighlight = {
   presentationId: z.string(),
   annotationId: z.optional(z.string()),
+  toolbarTarget: z.optional(z.enum(['comment', 'selection', 'pen', 'rectangle', 'area', 'eraser', 'inspect', 'text', 'guide'])),
   selector: z.optional(z.string()),
   rect: z.optional(z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })),
   label: z.optional(z.string()),

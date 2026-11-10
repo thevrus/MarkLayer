@@ -96,7 +96,7 @@ on the page via `document.modelContext` (falling back to the deprecated
 
 ## Live teaching
 
-Use `teach_start` to begin, `teach_step` to show a target and caption, and `teach_end` to finish. Controls from participants arrive through `marklayer_watch_annotations`.
+Use `marklayer_read_attachment` to inspect a comment's image; report when image content is unavailable. Use `teach_start` to begin, `teach_step` with `toolbarTarget` to highlight a toolbar control, and `teach_end` to finish. While presenting, receive and respond to participant controls through `marklayer_watch_annotations`.
 
 ## Assigned task coordination
 

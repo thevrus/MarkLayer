@@ -185,7 +185,7 @@ Pre-connect it to a specific room:
 
     claude mcp add marklayer -- npx -y marklayer-mcp --room https://marklayer.app/s/abc123
 
-Twelve tools: marklayer_connect_room, marklayer_room_info, marklayer_read_page, marklayer_list_annotations, marklayer_get_annotation, marklayer_watch_annotations, marklayer_acknowledge, marklayer_resolve, marklayer_dismiss, marklayer_reply, marklayer_create_annotation, marklayer_suggest_edit.
+Tools include marklayer_connect_room, marklayer_room_info, marklayer_read_page, marklayer_list_annotations, marklayer_get_annotation, marklayer_read_attachment, marklayer_watch_annotations, marklayer_acknowledge, marklayer_resolve, marklayer_dismiss, marklayer_reply, marklayer_create_annotation, marklayer_suggest_edit. Read image attachments before describing them; report when image content is unavailable.
 
 Three of those are worth spelling out, because they are what separates an agent that reads feedback from one that takes part in the review. marklayer_read_page returns the page's headings, text, links and controls with their selectors, so an agent can review a page before anyone has annotated it. marklayer_create_annotation lets it leave a comment of its own, anchored to an element. marklayer_suggest_edit proposes exact replacement text, shown to the human as a diff they can read rather than a paragraph describing a change.
 

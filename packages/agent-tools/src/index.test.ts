@@ -71,9 +71,31 @@ const run = (name: string, args: unknown, room: RoomOps = fakeRoom()) =>
     createPreview: async () => ({ error: 'no preview here' }),
   });
 
-const body = (result: Awaited<ReturnType<typeof run>>) => JSON.parse(result?.content[0]?.text ?? '{}');
+const body = (result: Awaited<ReturnType<typeof run>>) => { const item = result?.content[0]; return JSON.parse(item?.type === 'text' ? item.text : '{}'); };
 
 describe('callTool', () => {
+  test('refuses an image not attached to the requested annotation', async () => {
+    const result = await run('marklayer_read_attachment', { id: 'op-1', attachmentId: 'other' });
+    expect(result?.isError).toBe(true);
+    expect(body(result).error).toContain('not attached');
+  });
+
+  test('returns attached image bytes as MCP image content', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } })) as unknown as typeof fetch;
+    try {
+      const room = fakeRoom({ getAnnotation: () => ({ op: comment({ attachments: ['image-1'] }), replies: [] }) });
+      const result = await run('marklayer_read_attachment', { id: 'op-1', attachmentId: 'image-1' }, room);
+      expect(result?.content[0]).toEqual({ type: 'image', data: 'AQID', mimeType: 'image/png' });
+    } finally { globalThis.fetch = original; }
+  });
+
+  test('passes a toolbar target to the presenter', async () => {
+    let target = '';
+    const room = fakeRoom({ teachStep: (step) => { target = step.toolbarTarget ?? ''; return true; } });
+    expect(body(await run('teach_step', { presentationId: 'p', index: 0, caption: '选择', toolbarTarget: 'selection' }, room)).sent).toBe(true);
+    expect(target).toBe('selection');
+  });
   test('advertises and dispatches the teaching tools', async () => {
     const calls: string[] = [];
     const room = fakeRoom({
@@ -426,7 +448,8 @@ describe('with no room connected', () => {
   test.each(TOOLS.map((tool) => tool.name).filter((name) => !roomless.includes(name)))(
     '%s says how to get one',
     async (name) => {
-      expect((await noRoom(name))?.content[0]?.text).toContain('marklayer_connect_room');
+      const result = await noRoom(name);
+      expect(result?.content[0]?.type === 'text' && result.content[0].text).toContain('marklayer_connect_room');
     },
   );
 

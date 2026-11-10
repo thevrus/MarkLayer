@@ -168,7 +168,8 @@ describe('marklayer_watch_annotations', () => {
         createPreview: async () => ({ error: 'unused' }),
       });
     const start = await invoke('teach_start', {});
-    const presentationId = JSON.parse(start?.content[0]?.text ?? '{}').presentationId;
+    const item = start?.content[0];
+    const presentationId = JSON.parse(item?.type === 'text' ? item.text : '{}').presentationId;
     await invoke('teach_step', { presentationId, index: 0, caption: '说明', selector: '#save' });
     await invoke('teach_end', { presentationId });
     await until(() => received.filter((msg) => msg.type?.startsWith('teach_')).length === 4);
@@ -189,7 +190,7 @@ describe('marklayer_watch_annotations', () => {
     await until(() => client.disconnectedReason() !== null);
     const result = await watch(client);
     expect(result?.isError).toBe(true);
-    expect(result?.content[0]?.text).toContain('marklayer_connect_room');
+    expect(result?.content[0]?.type === 'text' && result.content[0].text).toContain('marklayer_connect_room');
   });
 
   test('a socket that drops mid-watch fails the watch rather than leaving it parked', async () => {

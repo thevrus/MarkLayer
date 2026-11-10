@@ -88,6 +88,7 @@ The twelve tools:
 - marklayer_read_page: the page's headings, text, links and controls, with selectors
 - marklayer_list_annotations: everything outstanding, filtered by status
 - marklayer_get_annotation: one annotation in full, including its reply thread
+- marklayer_read_attachment: read an annotation's image attachment as MCP image content
 - marklayer_watch_annotations: long-poll for new work and for anything handed to this agent by name
 - marklayer_acknowledge: mark in_progress, so the human sees it has been picked up
 - marklayer_resolve: close it and post the summary as a reply

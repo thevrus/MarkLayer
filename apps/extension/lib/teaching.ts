@@ -30,7 +30,7 @@ export function applyTeachingMessage(msg: TeachMessage): void {
     id: msg.presentationId, presenter: msg.peerId, state: 'active', hidden: false,
   };
   if (msg.type === 'teach_highlight') presentation.value = { ...current, highlight: msg };
-  else if (msg.type === 'teach_caption') presentation.value = { ...current, caption: msg.text, step: msg.step, total: msg.total };
+  else if (msg.type === 'teach_caption') presentation.value = { ...current, caption: msg.text, step: msg.step ?? current.step, total: msg.total ?? current.total };
   else presentation.value = { ...current, state: msg.state === 'paused' ? 'paused' : 'active', step: msg.step ?? current.step, total: msg.total ?? current.total };
 }
 
