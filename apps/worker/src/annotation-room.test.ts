@@ -836,3 +836,34 @@ test('human mode changes persist and broadcast, while an agent cannot change the
   await live.room.webSocketMessage(agent, JSON.stringify({ type: 'set_exec_mode', execMode: 'solo' }));
   expect((await live.room.snapshot()).execMode).toBe('guide');
 });
+
+test('room layers broadcast and an occupied layer cannot be deleted while operations are unflushed', async () => {
+  const live = liveRoom();
+  const send = (message: unknown) => live.room.webSocketMessage(live.human, JSON.stringify(message));
+  await send({ type: 'layer_create', id: 'review', name: '页面问题' });
+  expect(live.human.sent).toContainEqual({ type: 'layers', layers: expect.arrayContaining([expect.objectContaining({ id: 'review', name: '页面问题' })]) });
+  const comment: DrawOp = { id: 'layer-comment', layerId: 'review', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  await send({ type: 'op', op: comment });
+  await send({ type: 'layer_delete', id: 'review' });
+  expect(live.human.sent).toContainEqual({ type: 'error', code: 'layer_change_refused' });
+  expect(live.sqlite.query("SELECT id FROM room_layers WHERE id = 'review'").get()).toEqual({ id: 'review' });
+  const reply = { ...comment, id: 'reply', parentId: 'layer-comment', layerId: 'default' };
+  await send({ type: 'op', op: reply });
+  await live.room.alarm();
+  expect(JSON.parse(opsColumn(live.sqlite) ?? '[]').map((op: { id: string }) => op.id)).toEqual(['layer-comment']);
+});
+
+test('moving a root annotation moves its replies and forbids moving a reply separately', async () => {
+  const root: DrawOp = { id: 'root', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  const reply: DrawOp = { ...root, id: 'reply', parentId: 'root', text: '回复' };
+  const live = liveRoom({ ops: [root, reply] });
+  const send = (message: unknown) => live.room.webSocketMessage(live.human, JSON.stringify(message));
+  await send({ type: 'layer_create', id: 'review', name: '页面问题' });
+  await send({ type: 'update_op', opId: 'reply', patch: { layerId: 'review' } });
+  await send({ type: 'update_op', opId: 'root', patch: { layerId: 'review' } });
+  await live.room.alarm();
+  expect(JSON.parse(opsColumn(live.sqlite) ?? '[]')).toEqual([
+    expect.objectContaining({ id: 'root', layerId: 'review' }),
+    expect.objectContaining({ id: 'reply', layerId: 'review' }),
+  ]);
+});

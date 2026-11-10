@@ -28,6 +28,9 @@ export interface Peer {
 export const RTC_MESSAGE_TYPES = ['rtc_offer', 'rtc_answer', 'rtc_ice', 'rtc_request_ice'] as const;
 export type RtcMessageType = (typeof RTC_MESSAGE_TYPES)[number];
 
+export const roomLayerSchema = z.object({ id: z.string().check(z.minLength(1)), name: z.string().check(z.minLength(1), z.maxLength(80)), created_at: z.number() });
+export type RoomLayer = z.infer<typeof roomLayerSchema>;
+
 export const execModeSchema = z.enum(['solo', 'guide', 'pair']);
 export type ExecMode = z.infer<typeof execModeSchema>;
 
@@ -63,6 +66,9 @@ const teachingPeer = { peerId: z.string(), color: z.optional(z.string()) };
  * Excludes RTC signaling (see RTC_MESSAGE_TYPES).
  */
 export const clientMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('layer_create'), id: z.string().check(z.minLength(1), z.maxLength(80)), name: z.string().check(z.minLength(1), z.maxLength(80)) }),
+  z.object({ type: z.literal('layer_rename'), id: z.string().check(z.minLength(1), z.maxLength(80)), name: z.string().check(z.minLength(1), z.maxLength(80)) }),
+  z.object({ type: z.literal('layer_delete'), id: z.string().check(z.minLength(1), z.maxLength(80)) }),
   z.object({ type: z.literal('set_exec_mode'), execMode: execModeSchema }),
   z.object({ type: z.literal('teach_highlight'), ...teachHighlight }),
   z.object({ type: z.literal('teach_caption'), ...teachCaption }),
@@ -122,6 +128,7 @@ const rtcRelaySchema = z.looseObject({
 
 /** Every message a room sends down a socket. Additive: it describes what is sent today. */
 export const serverMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('layers'), layers: z.array(roomLayerSchema) }),
   z.object({ type: z.literal('exec_mode'), execMode: execModeSchema }),
   z.object({ type: z.literal('teach_highlight'), ...teachHighlight, ...teachingPeer }),
   z.object({ type: z.literal('teach_caption'), ...teachCaption, ...teachingPeer }),
@@ -140,6 +147,7 @@ export const serverMsgSchema = z.discriminatedUnion('type', [
     access: z.optional(z.string()),
     canEdit: z.optional(z.boolean()),
     execMode: z.optional(execModeSchema),
+    layers: z.optional(z.array(roomLayerSchema)),
     iceServers: z.optional(z.array(iceServerSchema)),
   }),
   z.object({ type: z.literal('access'), canEdit: z.boolean() }),
@@ -198,6 +206,7 @@ export interface AgentSnapshot {
   canEdit: boolean;
   cursor: number;
   execMode?: ExecMode;
+  layers?: RoomLayer[];
 }
 
 /**

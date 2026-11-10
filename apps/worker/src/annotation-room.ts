@@ -1,4 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
+import { collaborationStore } from './collaboration-store';
 import { WATCH_MAX_SECONDS } from '@marklayer/agent-tools';
 import { ORIGIN } from '@marklayer/brand';
 import { isAgentPeer } from '@marklayer/types/agents';
@@ -137,6 +138,15 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
   /** In-flight load promise — coalesces concurrent first-message reads. */
   private opsPromise: Promise<unknown[]> | null = null;
   private dirty = false;
+  private collaborationLock: Promise<void> = Promise.resolve();
+
+  private async serializeCollaboration<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.collaborationLock;
+    let release!: () => void;
+    this.collaborationLock = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try { return await operation(); } finally { release(); }
+  }
   private annotationId: string | null = null;
   /** Whether D1 had a row when this room loaded. False is the one case the flush may insert. */
   private rowExisted = false;
@@ -498,11 +508,35 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
    * The sender's own socket is skipped on `op`, `undo` and `clear` (it already
    * applied them locally); `update_op` goes to everyone, as it always has.
    */
-  private async mutate(change: RoomChange, from: Origin): Promise<MutateOutcome> {
+  private mutate(change: RoomChange, from: Origin): Promise<MutateOutcome> {
+    return this.serializeCollaboration(() => this.mutateLocked(change, from));
+  }
+
+  private async mutateLocked(change: RoomChange, from: Origin): Promise<MutateOutcome> {
     const ops = await this.getOps();
     if (this.dead || (await this.pastDeadline())) return 'refused';
     // `mayEdit` rereads the row, which may find it gone.
     if (!(await this.mayEdit(from)) || this.dead) return 'refused';
+    if (change.type === 'op' || change.type === 'update_op') {
+      const target = change.type === 'op' ? change.op.layerId : change.patch.layerId;
+      if (target !== undefined) {
+        if (typeof target !== 'string' || !(await collaborationStore(this.env.DB).layers(await this.roomId())).some((layer) => layer.id === target)) return 'refused';
+      }
+      if (change.type === 'update_op' && target !== undefined) {
+        const current = parseOps(ops).find((op) => op.id === change.opId);
+        if (current?.tool === 'comment' && current.parentId) {
+          const parent = parseOps(ops).find((op) => op.id === current.parentId);
+          if (!parent || (parent.layerId ?? 'default') !== target) return 'refused';
+        }
+      }
+      if (change.type === 'op' && change.op.tool === 'comment' && change.op.parentId) {
+        const parentId = change.op.parentId;
+        const parent = ops.find((op) => opIdOf(op) === parentId);
+        if (!parent || typeof parent !== 'object') return 'refused';
+        const parentLayer = 'layerId' in parent ? parent.layerId : undefined;
+        if ((change.op.layerId ?? 'default') !== (parentLayer ?? 'default')) return 'refused';
+      }
+    }
     const peerId = 'ws' in from ? this.getPeerInfo(from.ws)?.id : from.peerId;
     if (peerId && isAgentPeer(peerId)) {
       const status = change.type === 'update_op' ? change.patch.status : change.type === 'op' && 'status' in change.op ? change.op.status : undefined;
@@ -550,7 +584,19 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
         ops[idx] = merged;
         this.stats.noteUpdate();
         if (ws) this.countAgentWork(ws, 'updates');
-        this.announce([{ type: 'update_op', opId: change.opId, patch: change.patch }]);
+        const messages: ServerMsg[] = [{ type: 'update_op', opId: change.opId, patch: change.patch }];
+        if (typeof change.patch.layerId === 'string' && !('parentId' in merged && merged.parentId)) {
+          for (let i = 0; i < ops.length; i++) {
+            const child = ops[i];
+            if (typeof child !== 'object' || child === null || !('parentId' in child) || child.parentId !== change.opId) continue;
+            const updated = applyOpPatch({ op: child, patch: { layerId: change.patch.layerId } });
+            if (updated) {
+              ops[i] = updated;
+              messages.push({ type: 'update_op', opId: updated.id, patch: { layerId: change.patch.layerId } });
+            }
+          }
+        }
+        this.announce(messages);
         break;
       }
       case 'undo': {
@@ -666,6 +712,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       expiresAt: this.deadline(),
       canEdit: this.canEditFor(undefined),
       execMode: (await annotationStore(this.env.DB).getExecMode(await this.roomId())) ?? 'pair',
+      layers: await collaborationStore(this.env.DB).layers(await this.roomId()),
       cursor: this.cursor(),
     };
   }
@@ -844,6 +891,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       width: this.width,
       access: this.access,
       execMode: (await annotationStore(this.env.DB).getExecMode(await this.roomId())) ?? 'pair',
+      layers: await collaborationStore(this.env.DB).layers(await this.roomId()),
       canEdit,
       iceServers: iceServers.map((s) => ({ ...s })),
     };
@@ -920,6 +968,28 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     }
 
     switch (msg.type) {
+      case 'layer_create':
+      case 'layer_rename':
+      case 'layer_delete': {
+        const info = this.getPeerInfo(ws);
+        if (!info || isAgentPeer(info.id)) return;
+        await this.serializeCollaboration(async () => {
+          if (!(await this.mayEdit({ ws })) || this.dead || (await this.pastDeadline())) return;
+          const store = collaborationStore(this.env.DB);
+          const id = await this.roomId();
+          const name = msg.type === 'layer_delete' ? '' : msg.name.trim();
+          let ok = false;
+          if (msg.type === 'layer_create' && name && msg.id !== 'default') ok = await store.createLayer(id, msg.id, name);
+          if (msg.type === 'layer_rename' && name) ok = await store.renameLayer(id, msg.id, name);
+          if (msg.type === 'layer_delete') {
+            const occupied = (this.ops ?? []).some((op) => typeof op === 'object' && op !== null && 'layerId' in op && op.layerId === msg.id);
+            if (!occupied) ok = await store.deleteLayer(id, msg.id);
+          }
+          if (ok) this.announce([{ type: 'layers', layers: await store.layers(id) }]);
+          else ws.send(JSON.stringify({ type: 'error', code: 'layer_change_refused' }));
+        });
+        return;
+      }
       case 'set_exec_mode': {
         const info = this.getPeerInfo(ws);
         if (!info || isAgentPeer(info.id) || !(await this.mayEdit({ ws }))) return;

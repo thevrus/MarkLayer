@@ -101,3 +101,11 @@ test('execution mode messages accept only the three room modes', () => {
   expect(clientMsgSchema.safeParse({ type: 'set_exec_mode', execMode: 'invalid' }).success).toBe(false);
   expect(serverMsgSchema.safeParse({ type: 'init', ops: [], execMode: 'invalid' }).success).toBe(false);
 });
+
+
+test('layer commands and snapshots validate their identifiers and names', () => {
+  expect(clientMsgSchema.safeParse({ type: 'layer_create', id: 'review', name: '页面问题' }).success).toBe(true);
+  expect(clientMsgSchema.safeParse({ type: 'layer_create', id: '', name: '页面问题' }).success).toBe(false);
+  expect(clientMsgSchema.safeParse({ type: 'layer_rename', id: 'review', name: '' }).success).toBe(false);
+  expect(serverMsgSchema.safeParse({ type: 'layers', layers: [{ id: 'default', name: '默认图层', created_at: 1 }] }).success).toBe(true);
+});
