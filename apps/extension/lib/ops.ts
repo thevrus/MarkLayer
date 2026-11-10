@@ -17,6 +17,7 @@ import { getCommentMeta } from './comment-meta';
 import type { DraftStore } from './drafts';
 import { type HostCapabilities, host } from './host-config';
 import { localUser, signedBy } from './identity';
+import { activeLayer, inVisibleLayer } from './layers';
 import { pageUrl } from './page-url';
 import { color, lineWidth } from './prefs';
 import { copyText, toast } from './toasts';
@@ -50,8 +51,9 @@ export function openDrafts(create: HostCapabilities['drafts']) {
 export const restoreDraft = () => drafts?.restore();
 
 export const operations = signal<DrawOp[]>([]);
+export const visibleOperations = computed(() => operations.value.filter(inVisibleLayer));
 export const undoStack = signal<(DrawOp | { type: 'clear'; ops: DrawOp[] })[]>([]);
-export const commentCounter = computed(() => comments.value.length);
+export const commentCounter = computed(() => operations.value.filter((op) => op.tool === 'comment').length);
 
 /** What can happen to the op list: the socket's own vocabulary, so a local edit and a peer's are one thing. */
 export type OpChange = Extract<ClientMsg, { type: 'op' | 'update_op' | 'undo' | 'clear' }>;
@@ -128,7 +130,7 @@ const _opIndex = computed(() => {
   const allInspects: InspectOp[] = [];
   const roots: CommentOp[] = [];
   const replies = new Map<string, CommentOp[]>();
-  for (const op of operations.value) {
+  for (const op of visibleOperations.value) {
     if (op.tool === 'comment') {
       allComments.push(op);
       if (op.parentId) {
@@ -174,7 +176,11 @@ export function pushOp(op: DrawOp): 'held' | 'sent' {
 }
 
 /** Every op this person authors carries who: ⌘Z and a rename both find their work by `authorId`. */
-const signedOp = (op: DrawOp): DrawOp => (isSigned(op) ? op : { ...op, ...signedBy() });
+const signedOp = (op: DrawOp): DrawOp => {
+  const parent = op.tool === 'comment' && op.parentId ? operations.peek().find((item) => item.id === op.parentId) : undefined;
+  const layerId = parent ? (parent.layerId ?? 'default') : (op.layerId ?? activeLayer.peek());
+  return { ...op, ...(isSigned(op) ? {} : signedBy()), ...(layerId === 'default' && !op.layerId ? {} : { layerId }) };
+};
 
 /** When each op landed on the shared batch clock, so ⌘Z can tell a held note from a newer stroke. */
 const committedAt = new Map<string, number>();
@@ -296,13 +302,13 @@ const isUndoable = (op: DrawOp | undefined) =>
 export function undo() {
   // Counted as an intent: a press with nothing to undo is still someone reaching for it.
   track('history_action', { action: 'undo' });
-  const mine = operations.value.filter(isUndoable).pop();
+  const mine = visibleOperations.value.filter(isUndoable).pop();
   if (undoHeld({ after: (mine && committedAt.get(mine.id)) ?? 0 })) return;
   const ops = operations.value;
   const stack = undoStack.value;
   // While the guide tool is active, ⌘Z pops the most recent guide op specifically —
   // even if a non-guide op was added later — so guide scratch work feels independent.
-  const guide = activeTool.value === 'guide' ? ops.filter((op) => op.tool === 'guide').pop() : undefined;
+  const guide = activeTool.value === 'guide' ? visibleOperations.value.filter((op) => op.tool === 'guide').pop() : undefined;
   const last = stack[stack.length - 1];
   if (!guide && !ops.length && last && 'type' in last) {
     operations.value = last.ops;
@@ -333,6 +339,7 @@ export function redo() {
 export function clearAll() {
   const ops = operations.value;
   if (!ops.length) return;
+  if (visibleOperations.value.length !== ops.length) { toast('请先显示所有图层，再清除全部批注'); return; }
   if (!confirm('Clear all annotations on this page? Undo brings them back.')) return;
   track('history_action', { action: 'clear', ops: ops.length });
   undoStack.value = [...undoStack.value, { type: 'clear' as const, ops: structuredClone(ops) }];
@@ -363,7 +370,7 @@ const DUPLICATE_OFFSET = 12;
 export function duplicateLastOp() {
   // Walked backwards in place: the hit is almost always the last element, and
   // `operations` runs to hundreds of ops that a copy-then-reverse would touch twice.
-  const ops = operations.value;
+  const ops = visibleOperations.value;
   for (let i = ops.length - 1; i >= 0; i--) {
     const op = ops[i];
     const moved = op && translateOp({ op, dx: DUPLICATE_OFFSET, dy: DUPLICATE_OFFSET });

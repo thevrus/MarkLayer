@@ -18,6 +18,7 @@ mock.module('idb-keyval', () => ({
   },
 }));
 
+const { enterLayers, selectLayer, setLayerVisible } = await import('./layers');
 const { getCommentMeta } = await import('./comment-meta');
 const { configureHost } = await import('./host-config');
 const { annotatedUrl } = await import('./page-url');
@@ -1185,4 +1186,20 @@ describe('ensureScrollTickListener', () => {
     await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
     expect(scrollTick.value).toBe(start + 1);
   });
+});
+
+
+test('new annotations use the active layer and replies stay with their parent', () => {
+  const layers = [{ id: 'default', name: '默认图层', created_at: 0 }, { id: 'review', name: '审查', created_at: 1 }];
+  enterLayers('layer-test-room', layers);
+  selectLayer('review');
+  pushOp(comment({ id: 'layer-root' }));
+  expect(operations.value.find((op) => op.id === 'layer-root')?.layerId).toBe('review');
+  selectLayer('default');
+  pushReply({ parent: { id: 'layer-root', x: 0, y: 0 }, text: '回复' });
+  expect(operations.value.at(-1)?.layerId).toBe('review');
+  setLayerVisible('review', false);
+  expect(comments.value).toEqual([]);
+  expect(operations.value).toHaveLength(2);
+  enterLayers('reset-test-room', []);
 });

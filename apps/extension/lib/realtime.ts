@@ -12,6 +12,7 @@ import { type ReadonlySignal, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { track } from './analytics';
 import { host } from './host-config';
+import { enterLayers, updateLayers } from './layers';
 import { FALLBACK_PEER_COLOR, localUser, onProfileChange } from './identity';
 import { mergeOps } from './mergeOps';
 import { applyChange, onChange, operations } from './ops';
@@ -240,6 +241,8 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
         if (typeof msg.owned === 'boolean') isOwned.value = msg.owned;
         if (typeof msg.canEdit === 'boolean') canEditFromRoom.value = msg.canEdit;
         execMode.value = msg.execMode ?? 'pair';
+        if (arriving) enterLayers(roomId, msg.layers ?? []);
+        else updateLayers(msg.layers ?? []);
         if (msg.url) serverUrl.value = msg.url;
         if (msg.width) serverWidth.value = msg.width;
         if (isIceServerArray(msg.iceServers)) turnIceServers.value = msg.iceServers;
@@ -272,10 +275,14 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
       case 'error':
         // The room rejected an edit rather than trusting the toolbar to stay
         // hidden — a stale client, or a race with the owner flipping access.
+        if (msg.code === 'layer_change_refused') toast('图层操作未完成，请检查图层是否为空', { type: 'info' });
         if (msg.code === ROOM_ERROR_READ_ONLY) {
           canEditFromRoom.value = false;
           toast('This link is view-only', { type: 'info' });
         }
+        break;
+      case 'layers':
+        if (updateLayers(msg.layers) > 0) toast('房间新增了图层，默认隐藏', { type: 'info' });
         break;
       case 'teach_highlight':
       case 'teach_caption':
