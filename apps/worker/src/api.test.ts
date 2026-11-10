@@ -209,3 +209,10 @@ describe('integration routes never expose a credential', () => {
     expect(await res.text()).not.toContain('ghp_new');
   });
 });
+
+test('GET room includes the persisted execution mode', async () => {
+  const { db } = roomInDb(ID, { exec_mode: 'guide' });
+  const res = await api.request(`/${ID}`, {}, fakeEnv({ DB: db }), testCtx);
+  expect(res.status).toBe(200);
+  expect(await res.json()).toMatchObject({ exec_mode: 'guide' });
+});

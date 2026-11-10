@@ -240,7 +240,7 @@ async function workRoom({
     }
 
     case 'marklayer_room_info':
-      return ok({ roomId: room.roomId, ...room.getMeta() });
+      return ok({ roomId: room.roomId, ...room.getMeta(), exec_mode: room.getMeta().execMode ?? 'pair' });
 
     case 'marklayer_list_annotations': {
       const parsed = ListInput.safeParse(args);

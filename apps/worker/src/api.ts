@@ -194,7 +194,7 @@ const annotationShape = {
   width: z.number().nullable(),
 };
 
-const AnnotationResponse = z.object(annotationShape).openapi('Annotation');
+const AnnotationResponse = z.object({ ...annotationShape, exec_mode: z.enum(['solo', 'guide', 'pair']) }).openapi('Annotation');
 
 /**
  * Which surface published this payload, from the CORS `Origin` header.
@@ -308,7 +308,7 @@ api.openapi(getAnnotation, async (c) => {
   const row = await store.get(id);
   if (!row) return c.json({ error: 'not found' }, 404);
   c.executionCtx.waitUntil(store.touch(id));
-  return c.json({ ops: row.ops, url: row.url, width: row.width }, 200);
+  return c.json({ ops: row.ops, url: row.url, width: row.width, exec_mode: (await store.getExecMode(id)) ?? 'pair' }, 200);
 });
 
 /** Documents the request; `SharePreviewInput` from agent-tools is what validates it, shared with the MCP tool. */

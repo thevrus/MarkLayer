@@ -459,7 +459,7 @@ const TOOL_DEFS = {
     description:
       'Everything the room has told you, in one read: annotation counts by status with the open ones in full, the ' +
       'next-steps checklist and how far along it is, and every poll with its current tally. Use it to decide what ' +
-      'to do next; use marklayer_watch_annotations to wait for more.',
+      'to do next. In Guide mode, acknowledge and answer questions without resolving or dismissing them; use teach_step with an annotationId to explain a target. Keep marklayer_watch_annotations running for replies and teaching controls.',
     input: NoInput,
   },
 } as const satisfies Record<string, ToolDef>;

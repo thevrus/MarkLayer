@@ -446,3 +446,9 @@ test('Guide blocks destructive tools before they write and permits replies', asy
   expect((await run('marklayer_reply', { id: 'op-1', text: 'question' }, room))?.isError).not.toBe(true);
   expect(room.calls).toEqual(['reply:op-1']);
 });
+
+
+test('room info exposes the execution mode under the protocol field name', async () => {
+  const room = fakeRoom({ getMeta: () => ({ url: null, width: null, createdAt: null, expiresAt: null, execMode: 'guide' }) });
+  expect(body(await run('marklayer_room_info', {}, room)).exec_mode).toBe('guide');
+});
