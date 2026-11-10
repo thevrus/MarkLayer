@@ -4,6 +4,7 @@ import type { DrawOp } from '@marklayer/types/ops';
 import { ROOM_EXPIRED_CLOSE_CODE, ROOM_GEN_HEADER, ROOM_LOCKED_CLOSE_CODE } from '@marklayer/types/wire';
 import { z } from 'zod/mini';
 import { api } from './api';
+import { collaborationStore } from './collaboration-store';
 import { hashToken } from './auth/tokens';
 import { rooms } from './rooms';
 import { saveRoom } from './rooms-lifecycle';
@@ -736,6 +737,18 @@ describe('remote MCP endpoint against a live room', () => {
     await live.room.webSocketMessage(person, JSON.stringify({ type: 'task_submit', taskId: 'task-from-mcp', agentId: AGENT, annotationId: comment.id, sourceId: comment.id, layerId: 'default' }));
     const response = await callTool({ room: live.room, db: live.db, agent: AGENT, name: 'marklayer_task', args: { action: 'take' } });
     expect(await response.text()).toContain('running');
+  });
+
+  test('a remote MCP watch wakes for a plain reply to its waiting task', async () => {
+    const { db, human, room } = liveRoom({ ops: [comment] });
+    const store = collaborationStore(db);
+    await store.enqueue({ id: 'waiting-task', room_id: ID, agent_id: AGENT, requester_id: 'u1', requester_name: 'Ada', layer_id: 'default', annotation_id: 'c1', source_id: 'c1' });
+    expect(await store.takeNext(ID, AGENT)).not.toBeNull();
+    expect(await store.waitFor(ID, AGENT, 'waiting-task', 'Ada')).toBe(true);
+    const watching = watchEvents({ room, db });
+    await Bun.sleep(100);
+    await room.webSocketMessage(human, JSON.stringify({ type: 'op', op: { ...comment, id: 'answer', parentId: 'c1', text: '确认继续', author: 'Ada' } }));
+    expect(await watching).toEqual(['handoff:c1']);
   });
 
   test('P4 a parked watch returns a handoff when a person assigns the agent', async () => {

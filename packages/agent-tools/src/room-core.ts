@@ -175,10 +175,12 @@ export function classifyOp({
   op,
   ops,
   agentId,
+  waitingAnnotationIds,
 }: {
   op: DrawOp;
   ops: readonly DrawOp[];
   agentId: string;
+  waitingAnnotationIds?: ReadonlySet<string>;
 }): AnnotationWatchEvent | null {
   // Taken before any narrowing: `isRootAnnotation` is a type predicate, so testing
   // it first would leave the else branch typed as everything a reply is not.
@@ -189,7 +191,7 @@ export function classifyOp({
   if (!parent) return null;
   const named = (reply.mentions ?? []).some((mention) => mention.id === agentId);
   const mine = parent.author === agentId || parent.assignedAgent === agentId || parent.assignee === agentId;
-  return named || mine ? { kind: 'handoff', op: parent, reply } : null;
+  return named || mine || waitingAnnotationIds?.has(parent.id) ? { kind: 'handoff', op: parent, reply } : null;
 }
 
 /**
@@ -202,13 +204,15 @@ function classifyMessage({
   before,
   ops,
   agentId,
+  waitingAnnotationIds,
 }: {
   msg: ServerMsg;
   before: DrawOp | undefined;
   ops: readonly DrawOp[];
   agentId: string;
+  waitingAnnotationIds: ReadonlySet<string>;
 }): AnnotationWatchEvent | null {
-  if (msg.type === 'op') return classifyOp({ op: msg.op, ops, agentId });
+  if (msg.type === 'op') return classifyOp({ op: msg.op, ops, agentId, waitingAnnotationIds });
   if (msg.type !== 'update_op') return null;
   const assigned = (op: DrawOp | undefined) => !!op && 'assignee' in op && op.assignee === agentId;
   const now = ops.find((op) => op.id === msg.opId);
@@ -318,6 +322,7 @@ export class RoomCore implements RoomOps {
   private readonly newId: () => string;
   private ops: DrawOp[] = [];
   private layers: RoomLayer[] = [];
+  private waitingAnnotationIds = new Set<string>();
   private meta: RoomMeta = { url: null, width: null, createdAt: null, expiresAt: null };
   /** Defaults true: `edit` is every link's default, and a room predating the field says nothing about it. */
   private canEdit = true;
@@ -347,20 +352,30 @@ export class RoomCore implements RoomOps {
 
   listLayers(): RoomLayer[] { return this.layers; }
 
+  private setWaitingTasks(tasks: readonly RoomTask[]): void {
+    this.waitingAnnotationIds = new Set(
+      tasks.filter((task) => task.agent_id === this.agentId && task.status === 'waiting').map((task) => task.annotation_id),
+    );
+  }
+
   async taskCommand(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }> {
-    return this.transport.taskCommand ? this.transport.taskCommand(command) : { ok: false, tasks: [] };
+    const result = this.transport.taskCommand ? await this.transport.taskCommand(command) : { ok: false, tasks: [] };
+    if (result.ok) this.setWaitingTasks(result.tasks);
+    return result;
   }
 
   apply(msg: ServerMsg): void {
     const before = msg.type === 'update_op' ? this.ops.find((op) => op.id === msg.opId) : undefined;
     switch (msg.type) {
       case 'collaboration':
+        this.setWaitingTasks(msg.tasks);
         this.events.push({ kind: 'task_update', tasks: msg.tasks.filter((task) => task.agent_id === this.agentId) });
         return;
       case 'teach_control':
         if (msg.peerId !== this.peerId) this.events.push({ kind: 'teach_control', control: msg });
         return;
       case 'init':
+        this.setWaitingTasks(msg.tasks ?? []);
         this.layers = msg.layers ?? [];
         this.ops = parseOps(msg.ops);
         this.meta = {
@@ -406,7 +421,7 @@ export class RoomCore implements RoomOps {
       default:
         return;
     }
-    const event = classifyMessage({ msg, before, ops: this.ops, agentId: this.agentId });
+    const event = classifyMessage({ msg, before, ops: this.ops, agentId: this.agentId, waitingAnnotationIds: this.waitingAnnotationIds });
     if (event) this.events.push(event);
   }
 

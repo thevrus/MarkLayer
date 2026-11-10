@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { isAgentAuthored } from '@marklayer/types/agents';
 import { type CommentOp, type DrawOp, drawOpSchema } from '@marklayer/types/ops';
-import type { ClientMsg, ServerMsg } from '@marklayer/types/wire';
+import type { ClientMsg, RoomTask, ServerMsg } from '@marklayer/types/wire';
 import { RoomCore, type RoomTransport } from './room-core';
 
 const AGENT = 'claude-code';
@@ -48,6 +48,11 @@ const loaded = (ops: DrawOp[], over: { canEdit?: boolean; arrivals?: ServerMsg[]
 };
 
 const assign = (assignee: string | null): ServerMsg => ({ type: 'update_op', opId: 'c1', patch: { assignee } });
+const waitingTask = (over: Partial<RoomTask> = {}): RoomTask => ({
+  sequence: 1, id: 't1', room_id: 'r1', agent_id: AGENT, requester_id: 'u', requester_name: 'Ada',
+  layer_id: 'default', annotation_id: 'c1', source_id: 'c1', status: 'waiting', waiting_for: 'Ada', created_at: 1,
+  ...over,
+});
 const quickly = { timeoutSeconds: 0.05, batchMs: 1 };
 
 describe('RoomCore.watch', () => {
@@ -66,6 +71,34 @@ describe('RoomCore.watch', () => {
     const { core } = loaded([]);
     core.apply({ type: 'collaboration', claims: [], tasks: [{ sequence: 1, id: 't1', room_id: 'room', agent_id: AGENT, requester_id: 'u', requester_name: 'User', layer_id: 'default', annotation_id: 'c1', source_id: 'c1', status: 'cancel_requested', waiting_for: null, created_at: 1 }] });
     expect(await core.watch(quickly)).toEqual([expect.objectContaining({ kind: 'task_update', tasks: [expect.objectContaining({ id: 't1', status: 'cancel_requested' })] })]);
+  });
+
+  test('a plain human reply wakes the agent waiting on that annotation after reconnect', async () => {
+    const { core } = room();
+    core.apply({ type: 'init', ops: [comment()], tasks: [waitingTask()] });
+    const reply = comment({ id: 'r1', parentId: 'c1', author: 'Ada', text: '请继续' });
+    core.apply({ type: 'op', op: reply });
+    expect(await core.watch(quickly)).toEqual([{ kind: 'handoff', op: comment(), reply }]);
+  });
+
+  test('waiting state follows broadcasts and ignores other agents and threads', async () => {
+    const { core } = loaded([comment(), comment({ id: 'c2' })]);
+    core.apply({ type: 'collaboration', claims: [], tasks: [waitingTask()] });
+    await core.watch(quickly);
+    const answer = comment({ id: 'answer', parentId: 'c1', text: '好的' });
+    core.apply({ type: 'op', op: answer });
+    expect(await core.watch(quickly)).toEqual([{ kind: 'handoff', op: comment(), reply: answer }]);
+    core.apply({ type: 'op', op: comment({ id: 'r2', parentId: 'c2', text: '旁人的讨论' }) });
+    core.apply({ type: 'op', op: comment({ id: 'own', parentId: 'c1', author: AGENT }) });
+    expect(await core.watch(quickly)).toEqual([]);
+    core.apply({ type: 'collaboration', claims: [], tasks: [waitingTask({ agent_id: 'other' })] });
+    await core.watch(quickly);
+    core.apply({ type: 'op', op: comment({ id: 'r3', parentId: 'c1' }) });
+    expect(await core.watch(quickly)).toEqual([]);
+    core.apply({ type: 'collaboration', claims: [], tasks: [waitingTask({ status: 'completed', waiting_for: null })] });
+    await core.watch(quickly);
+    core.apply({ type: 'op', op: comment({ id: 'r4', parentId: 'c1' }) });
+    expect(await core.watch(quickly)).toEqual([]);
   });
 
   test('a person assigning the agent is a handoff, once', async () => {

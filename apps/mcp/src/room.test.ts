@@ -149,6 +149,14 @@ describe('marklayer_watch_annotations', () => {
       createPreview: async () => ({ error: 'unused' }),
     });
 
+  test('a plain reply wakes a reconnected agent waiting on that thread', async () => {
+    const task = { sequence: 1, id: 't1', room_id: 'room-1', agent_id: AGENT, requester_id: 'u1', requester_name: 'Ada', layer_id: 'default', annotation_id: 'op-1', source_id: 'op-1', status: 'waiting', waiting_for: 'Ada', created_at: 1 };
+    const client = await connect({ ops: [comment('op-1')], tasks: [task] });
+    const waiting = client.room.watch({ timeoutSeconds: 2, batchMs: 5 });
+    toPeer({ type: 'op', op: { ...comment('reply'), parentId: 'op-1', text: '确认继续' } });
+    expect(await waiting).toEqual([expect.objectContaining({ kind: 'handoff', op: expect.objectContaining({ id: 'op-1' }), reply: expect.objectContaining({ text: '确认继续' }) })]);
+  });
+
   test('teaching tools use the socket and watch returns a participant control', async () => {
     const client = await connect({ ops: [] });
     const invoke = (name: string, args: unknown) =>
