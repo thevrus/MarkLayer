@@ -19,6 +19,7 @@ import { capturePointer, pointerSampler } from '../lib/pointer';
 import { portalContainer } from '../lib/portal';
 import { color, colorName, toggleToolbarMinimized, toolbarMinimized } from '../lib/prefs';
 import { connectionStatus } from '../lib/presence';
+import { openTeaching } from '../lib/teaching';
 import { canEditFromRoom, connected, execMode, wsSend } from '../lib/realtime';
 import {
   activeTool,
@@ -808,6 +809,11 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
         </>
       )}
 
+      {connected.value && (
+        <button type="button" class="rounded px-2 py-1 text-xs" onClick={openTeaching}>
+          演示
+        </button>
+      )}
       {connected.value && (
         <select
           aria-label="执行模式"

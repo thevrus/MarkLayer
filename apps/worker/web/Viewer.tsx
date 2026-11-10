@@ -20,6 +20,7 @@ import { watchUse } from './support-ui';
 import { useCheckFix } from './useCheckFix';
 import { useRealtimeSync } from './useRealtimeSync';
 import { ViewerTopBar } from './ViewerChrome';
+import { TeachLayer } from './TeachLayer';
 import { AudioUnblockPrompt, FollowIndicator, VideoBubbles, ViewOnlyBadge, VoicePill } from './ViewerHud';
 import { ViewerStage } from './ViewerStage';
 import { AuthoringChrome } from './viewer/AuthoringChrome';
@@ -170,6 +171,7 @@ export default function Viewer() {
         {!chromeHidden && <ProjectTabs />}
         <ViewerStage />
 
+        <TeachLayer frameRef={frameRef} />
         <ContextMenu />
         {/* One bar at the bottom: the phone's, or the desktop toolbar (a guest's badge in its place). */}
         {!chromeHidden && (compactChrome.value ? <PhoneBar /> : readonly ? <ViewOnlyBadge /> : <Toolbar />)}

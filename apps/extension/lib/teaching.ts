@@ -14,12 +14,14 @@ export interface Presentation {
   hidden: boolean;
 }
 
+export const showTeachingComposer = signal(false);
+export const lastTeachingControl = signal<Extract<TeachMessage, { type: 'teach_control' }> | null>(null);
 export const presentation = signal<Presentation | null>(null);
 
 /** Temporary messages stay in memory and never enter the annotation queue. */
 export function applyTeachingMessage(msg: TeachMessage): void {
   const old = presentation.peek();
-  if (msg.type === 'teach_control') return;
+  if (msg.type === 'teach_control') { lastTeachingControl.value = msg; return; }
   if (msg.type === 'teach_state' && msg.state === 'ended') {
     if (old?.id === msg.presentationId) presentation.value = null;
     return;
@@ -35,4 +37,10 @@ export function applyTeachingMessage(msg: TeachMessage): void {
 export function hidePresentation(): void {
   const current = presentation.peek();
   if (current) presentation.value = { ...current, hidden: true };
+}
+
+export function openTeaching(): void {
+  const current = presentation.peek();
+  if (current?.hidden) presentation.value = { ...current, hidden: false };
+  else showTeachingComposer.value = true;
 }

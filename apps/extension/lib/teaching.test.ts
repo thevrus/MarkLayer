@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { applyTeachingMessage, hidePresentation, presentation } from './teaching';
+import { applyTeachingMessage, hidePresentation, lastTeachingControl, openTeaching, presentation } from './teaching';
 
 test('teaching messages are transient and closing is local until ended', () => {
   presentation.value = null;
@@ -10,6 +10,10 @@ test('teaching messages are transient and closing is local until ended', () => {
   hidePresentation();
   applyTeachingMessage({ type: 'teach_state', presentationId: 'p', peerId: 'presenter', state: 'paused' });
   expect(presentation.value).toMatchObject({ hidden: true, state: 'paused' });
+  openTeaching();
+  expect(presentation.peek()?.hidden).toBe(false);
+  applyTeachingMessage({ type: 'teach_control', presentationId: 'p', peerId: 'viewer', action: 'next' });
+  expect(lastTeachingControl.value?.action).toBe('next');
   applyTeachingMessage({ type: 'teach_state', presentationId: 'other', peerId: 'presenter', state: 'ended' });
   expect(presentation.peek()?.id).toBe('p');
   applyTeachingMessage({ type: 'teach_state', presentationId: 'p', peerId: 'presenter', state: 'ended' });
