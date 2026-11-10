@@ -56,3 +56,11 @@ test('owner priority only applies after the current task, waiting and cancellati
   expect(await store.finish('r', 'ai', 'd')).toBe(true);
   expect((await store.takeNext('r', 'ai'))?.id).toBe('b');
 });
+
+test('a completed annotation can be assigned to the same agent again', async () => {
+  expect(await store.enqueue(task('first', 'user'))).toBe(true);
+  expect(await store.takeNext('r', 'ai')).not.toBeNull();
+  expect(await store.finish('r', 'ai', 'first')).toBe(true);
+  expect(await store.enqueue({ ...task('second', 'user'), source_id: 'first' })).toBe(true);
+  expect((await store.takeNext('r', 'ai'))?.id).toBe('second');
+});

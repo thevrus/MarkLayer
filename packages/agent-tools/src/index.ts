@@ -68,6 +68,7 @@ function attachmentUrls(ids: string[] | undefined, apiBase: string): string[] {
 export function projectAnnotation(op: AnnotationOp, apiBase: string) {
   const common = {
     id: op.id,
+    layerId: op.layerId ?? 'default',
     kind: op.tool,
     status: resolveOpStatus(op),
     author: op.author ?? null,
@@ -248,7 +249,7 @@ async function workRoom({
     }
 
     case 'marklayer_room_info':
-      return ok({ roomId: room.roomId, ...room.getMeta(), exec_mode: room.getMeta().execMode ?? 'pair' });
+      return ok({ roomId: room.roomId, ...room.getMeta(), exec_mode: room.getMeta().execMode ?? 'pair', layers: room.listLayers?.() ?? [] });
 
     case 'marklayer_list_annotations': {
       const parsed = ListInput.safeParse(args);
@@ -282,7 +283,7 @@ async function workRoom({
       return ok({
         count: batch.length,
         events: batch.map((event) =>
-          event.kind === 'teach_control'
+          event.kind === 'teach_control' || event.kind === 'task_update'
             ? event
             : {
                 kind: event.kind,

@@ -133,7 +133,7 @@ describe('against a worker on the old wire', () => {
     toPeer({ type: 'cursor', peerId: 'p2', x: 1, y: 2 });
     toPeer({ type: 'rtc_offer', from: 'p2', to: 'p3', sdp: 'opaque' });
     toPeer({ type: 'op', op: comment('op-2') });
-    expect((await batch).map((e) => [e.kind, e.kind === 'teach_control' ? e.control.presentationId : e.op.id])).toEqual(
+    expect((await batch).map((e) => [e.kind, e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id])).toEqual(
       [['new', 'op-2']],
     );
   });
@@ -204,7 +204,7 @@ describe('marklayer_watch_annotations', () => {
     toPeer({ type: 'op', op: comment('op-2') });
     await until(() => room.listOps().length > 0);
     const events = await room.watch({ timeoutSeconds: 5, batchMs: 5 });
-    expect(events.map((e) => (e.kind === 'teach_control' ? e.control.presentationId : e.op.id))).toEqual(['op-2']);
+    expect(events.map((e) => (e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id))).toEqual(['op-2']);
   });
 });
 
@@ -236,7 +236,7 @@ describe('handoff', () => {
     toPeer({ type: 'update_op', opId: 'op-1', patch: { assignee: AGENT } });
     toPeer({ type: 'update_op', opId: 'op-1', patch: { status: 'open' } });
     const events = await batch;
-    expect(events.map((e) => [e.kind, e.kind === 'teach_control' ? e.control.presentationId : e.op.id])).toEqual([
+    expect(events.map((e) => [e.kind, e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id])).toEqual([
       ['handoff', 'op-1'],
     ]);
   });

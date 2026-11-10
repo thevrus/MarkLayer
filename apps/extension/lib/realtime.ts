@@ -1,3 +1,5 @@
+import { agentLabel, isAgentPeer } from '@marklayer/types/agents';
+import type { AgentClaim, RoomTask } from '@marklayer/types/wire';
 import { parseOps } from '@marklayer/types/ops';
 import {
   ROOM_ERROR_READ_ONLY,
@@ -12,16 +14,18 @@ import { type ReadonlySignal, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { track } from './analytics';
 import { host } from './host-config';
-import { enterLayers, updateLayers } from './layers';
+import { activeLayer, enterLayers, updateLayers } from './layers';
 import { FALLBACK_PEER_COLOR, localUser, onProfileChange } from './identity';
 import { mergeOps } from './mergeOps';
-import { applyChange, onChange, operations } from './ops';
+import { applyChange, onChange, operations, type OpChange } from './ops';
 import { clearDeparture, connectionStatus, noteDeparture, onCursorMove, peers } from './presence';
 import { isJoinedRoom } from './room-id';
 import { toast } from './toasts';
 import { applyTeachingMessage, presentation } from './teaching';
 import type { Peer } from './types';
 
+export const agentClaims = signal<AgentClaim[]>([]);
+export const roomTasks = signal<RoomTask[]>([]);
 export const connected = signal(false);
 export const execMode = signal<ExecMode>('pair');
 /** Unix timestamp (seconds) when the annotation was first created */
@@ -241,6 +245,8 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
         if (typeof msg.owned === 'boolean') isOwned.value = msg.owned;
         if (typeof msg.canEdit === 'boolean') canEditFromRoom.value = msg.canEdit;
         execMode.value = msg.execMode ?? 'pair';
+        agentClaims.value = msg.claims ?? [];
+        roomTasks.value = msg.tasks ?? [];
         if (arriving) enterLayers(roomId, msg.layers ?? []);
         else updateLayers(msg.layers ?? []);
         if (msg.url) serverUrl.value = msg.url;
@@ -275,11 +281,16 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
       case 'error':
         // The room rejected an edit rather than trusting the toolbar to stay
         // hidden — a stale client, or a race with the owner flipping access.
+        if (msg.code === 'collaboration_change_refused') toast('操作未完成', { type: 'info' });
         if (msg.code === 'layer_change_refused') toast('图层操作未完成，请检查图层是否为空', { type: 'info' });
         if (msg.code === ROOM_ERROR_READ_ONLY) {
           canEditFromRoom.value = false;
           toast('This link is view-only', { type: 'info' });
         }
+        break;
+      case 'collaboration':
+        agentClaims.value = msg.claims;
+        roomTasks.value = msg.tasks;
         break;
       case 'layers':
         if (updateLayers(msg.layers) > 0) toast('房间新增了图层，默认隐藏', { type: 'info' });
@@ -480,7 +491,23 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
     if (ws?.readyState !== WebSocket.OPEN) scheduleSave();
   };
 
-  onChange.value = sendMsg;
+  onChange.value = (change: OpChange) => {
+    sendMsg(change);
+    const knownAgents = new Map(agentClaims.peek().map((claim) => [claim.agent_id, { uid: claim.agent_id, name: agentLabel(claim.agent_id) }]));
+    for (const peer of peers.peek().values()) if (isAgentPeer(peer.id) && peer.uid) knownAgents.set(peer.uid, { uid: peer.uid, name: peer.name });
+    const agents = [...knownAgents.values()];
+    if (change.type === 'op' && 'mentions' in change.op && change.op.mentions?.length) {
+      const source = change.op;
+      const annotationId = source.tool === 'comment' && source.parentId ? source.parentId : source.id;
+      for (const agent of agents) if (source.mentions?.some((mention) => mention.id === agent.uid)) {
+        sendMsg({ type: 'task_submit', taskId: nanoid(), agentId: agent.uid, annotationId, sourceId: source.id, layerId: activeLayer.peek() });
+      }
+    }
+    if (change.type === 'update_op' && typeof change.patch.assignee === 'string') {
+      const agent = agents.find((peer) => peer.name === change.patch.assignee || peer.uid === change.patch.assignee);
+      if (agent?.uid) sendMsg({ type: 'task_submit', taskId: nanoid(), agentId: agent.uid, annotationId: change.opId, sourceId: change.opId, layerId: activeLayer.peek() });
+    }
+  };
   onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });
   wsSend.value = sendMsg;
 
@@ -519,6 +546,8 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
     peerCursorSamples.clear();
     wsSend.value = null;
     execMode.value = 'pair';
+    agentClaims.value = [];
+    roomTasks.value = [];
     presentation.value = null;
     turnIceServers.value = null;
     clearInterval(pruneInterval);

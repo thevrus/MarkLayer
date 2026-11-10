@@ -30,6 +30,7 @@ describe('projectAnnotation — comment', () => {
   test('carries the position, page url, and target through', () => {
     expect(projectAnnotation(comment, API_BASE)).toEqual({
       id: 'op-1',
+      layerId: 'default',
       kind: 'comment',
       status: 'open',
       author: 'Ada',
@@ -91,6 +92,7 @@ describe('projectAnnotation — comment', () => {
     });
     expect(projectAnnotation(bare, API_BASE)).toEqual({
       id: 'op-2',
+      layerId: 'default',
       kind: 'comment',
       status: 'open',
       author: null,
@@ -184,6 +186,7 @@ describe('projectAnnotation — area', () => {
     });
     expect(projectAnnotation(area, API_BASE)).toEqual({
       id: 'op-3',
+      layerId: 'default',
       kind: 'area',
       status: 'open',
       author: null,
@@ -215,6 +218,7 @@ describe('projectAnnotation — selection', () => {
     });
     expect(projectAnnotation(selection, API_BASE)).toEqual({
       id: 'op-4',
+      layerId: 'default',
       kind: 'selection',
       status: 'open',
       author: null,
@@ -263,6 +267,7 @@ describe('projectAnnotation — inspect', () => {
     const projected = projectAnnotation(inspect, API_BASE);
     expect(projected).toEqual({
       id: 'op-6',
+      layerId: 'default',
       kind: 'inspect',
       status: 'open',
       author: null,

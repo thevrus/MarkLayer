@@ -1,4 +1,4 @@
-import type { AgentTaskCommand, RoomTask } from '@marklayer/types/wire';
+import type { AgentTaskCommand, RoomLayer, RoomTask } from '@marklayer/types/wire';
 import { agentColor, agentPeerId, isAgentAuthored } from '@marklayer/types/agents';
 import type {
   AnnotationOp,
@@ -88,6 +88,7 @@ export interface AnnotationWatchEvent {
 }
 export type WatchEvent =
   | AnnotationWatchEvent
+  | { kind: 'task_update'; tasks: RoomTask[] }
   | { kind: 'teach_control'; control: Extract<ServerMsg, { type: 'teach_control' }> };
 
 export interface TeachingStep {
@@ -110,6 +111,7 @@ export interface TeachingStep {
 export interface RoomOps {
   readonly roomId: string;
   taskCommand?(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }>;
+  listLayers?(): RoomLayer[];
   /**
    * The page's own copy, so an agent can review it rather than only react to
    * annotations someone already left. Both transports ask the Worker for it:
@@ -315,6 +317,7 @@ export class RoomCore implements RoomOps {
   private readonly transport: RoomTransport;
   private readonly newId: () => string;
   private ops: DrawOp[] = [];
+  private layers: RoomLayer[] = [];
   private meta: RoomMeta = { url: null, width: null, createdAt: null, expiresAt: null };
   /** Defaults true: `edit` is every link's default, and a room predating the field says nothing about it. */
   private canEdit = true;
@@ -342,6 +345,8 @@ export class RoomCore implements RoomOps {
     this.newId = newId;
   }
 
+  listLayers(): RoomLayer[] { return this.layers; }
+
   async taskCommand(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }> {
     return this.transport.taskCommand ? this.transport.taskCommand(command) : { ok: false, tasks: [] };
   }
@@ -349,10 +354,14 @@ export class RoomCore implements RoomOps {
   apply(msg: ServerMsg): void {
     const before = msg.type === 'update_op' ? this.ops.find((op) => op.id === msg.opId) : undefined;
     switch (msg.type) {
+      case 'collaboration':
+        this.events.push({ kind: 'task_update', tasks: msg.tasks.filter((task) => task.agent_id === this.agentId) });
+        return;
       case 'teach_control':
         if (msg.peerId !== this.peerId) this.events.push({ kind: 'teach_control', control: msg });
         return;
       case 'init':
+        this.layers = msg.layers ?? [];
         this.ops = parseOps(msg.ops);
         this.meta = {
           url: msg.url ?? null,
@@ -363,6 +372,9 @@ export class RoomCore implements RoomOps {
           ...(msg.ops.length > this.ops.length ? { unreadableOps: msg.ops.length - this.ops.length } : {}),
         };
         if (msg.canEdit !== undefined) this.canEdit = msg.canEdit;
+        return;
+      case 'layers':
+        this.layers = msg.layers;
         return;
       case 'op':
         // The room echoes an agent's own write back to it over RPC.

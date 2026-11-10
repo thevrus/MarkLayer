@@ -728,6 +728,16 @@ describe('remote MCP endpoint against a live room', () => {
 
   const assign = (id: string) => JSON.stringify({ type: 'update_op', opId: id, patch: { assignee: AGENT } });
 
+  test('an MCP client can take an explicitly queued task', async () => {
+    const live = liveRoom({ ops: [comment] });
+    const person = new FakeWebSocket({ id: 'task-person', uid: 'requester', name: 'Requester', color: '#000000' });
+    live.ctx.getWebSockets().push(person);
+    await (await callTool({ room: live.room, db: live.db, agent: AGENT, name: 'marklayer_task', args: { action: 'list' } })).text();
+    await live.room.webSocketMessage(person, JSON.stringify({ type: 'task_submit', taskId: 'task-from-mcp', agentId: AGENT, annotationId: comment.id, sourceId: comment.id, layerId: 'default' }));
+    const response = await callTool({ room: live.room, db: live.db, agent: AGENT, name: 'marklayer_task', args: { action: 'take' } });
+    expect(await response.text()).toContain('running');
+  });
+
   test('P4 a parked watch returns a handoff when a person assigns the agent', async () => {
     const { db, human, room } = liveRoom({ ops: [comment] });
     const watching = watchEvents({ room, db });
@@ -905,4 +915,17 @@ test('agent task transitions keep waiting and cancellation requests ahead of the
   expect((await live.room.agentTaskCommand(peer.id, { action: 'complete', taskId: 't1' })).ok).toBe(false);
   expect((await live.room.agentTaskCommand(peer.id, { action: 'confirm_cancel', taskId: 't1' })).tasks[0]?.status).toBe('cancelled');
   expect((await live.room.agentTaskCommand('mcp-unknown-session', { action: 'list' })).ok).toBe(false);
+});
+
+
+test('a layer can be deleted immediately after its persisted content is moved', async () => {
+  const live = liveRoom();
+  const send = (message: unknown) => live.room.webSocketMessage(live.human, JSON.stringify(message));
+  await send({ type: 'layer_create', id: 'review', name: '审查' });
+  await send({ type: 'op', op: { id: 'm', layerId: 'review', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 } });
+  await live.room.alarm();
+  await send({ type: 'update_op', opId: 'm', patch: { layerId: 'default' } });
+  await send({ type: 'layer_delete', id: 'review' });
+  expect((await live.room.snapshot()).layers?.some((layer) => layer.id === 'review')).toBe(false);
+  expect(JSON.parse(opsColumn(live.sqlite) ?? '[]')[0].layerId).toBe('default');
 });

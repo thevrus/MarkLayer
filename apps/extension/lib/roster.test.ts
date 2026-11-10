@@ -4,6 +4,7 @@ import type { Peer } from '@marklayer/types/wire';
 import { localUser } from './identity';
 import { operations } from './ops';
 import { peers } from './presence';
+import { agentClaims } from './realtime';
 import { setUserName } from './rename';
 import { asMention, matchRoster, OFFLINE_COLOR, roster, rosterNames } from './roster';
 
@@ -39,9 +40,15 @@ const seed = ({ ops = [], present = [] }: { ops?: DrawOp[]; present?: Peer[] } =
 
 afterEach(() => {
   seed();
+  agentClaims.value = [];
 });
 
 describe('roster', () => {
+  test('offers a claimed AI even when it is offline and has never posted', () => {
+    seed(); agentClaims.value = [{ agent_id: 'codex', owner_id: 'u', owner_name: 'Owner' }];
+    expect(matchRoster({ query: 'Codex' })).toContainEqual(expect.objectContaining({ id: 'codex', name: 'Codex', online: false }));
+  });
+
   test('always includes you, marked as yourself', () => {
     seed();
     expect(roster.value).toEqual([

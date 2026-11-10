@@ -513,6 +513,7 @@ const WORKING_A_ROOM =
   'A comment (or a reply, from marklayer_get_annotation) may carry `attachments`: fetchable image URLs the ' +
   'reviewer attached — fetch and look at one before acting on a comment that has any, they often show the ' +
   'bug or the intended layout better than the text does. ' +
+  'For assigned work, use marklayer_task list/take to select the next task. Follow task_update events, stop on cancel_requested and confirm_cancel, and report completion before taking another task. Waiting for a person keeps the current task active. ' +
   'Typical loop: marklayer_list_annotations to backfill anything pending, then marklayer_watch_annotations ' +
   'in a loop. For each one: acknowledge, make the requested code changes, resolve with a summary. ' +
   'Use dismiss when an annotation cannot be acted on, with a reason the human can read. ' +

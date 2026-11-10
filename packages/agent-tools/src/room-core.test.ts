@@ -62,10 +62,16 @@ describe('RoomCore.watch', () => {
       },
     ]);
   });
+  test('queue changes wake a watcher with cancellation state for its agent', async () => {
+    const { core } = loaded([]);
+    core.apply({ type: 'collaboration', claims: [], tasks: [{ sequence: 1, id: 't1', room_id: 'room', agent_id: AGENT, requester_id: 'u', requester_name: 'User', layer_id: 'default', annotation_id: 'c1', source_id: 'c1', status: 'cancel_requested', waiting_for: null, created_at: 1 }] });
+    expect(await core.watch(quickly)).toEqual([expect.objectContaining({ kind: 'task_update', tasks: [expect.objectContaining({ id: 't1', status: 'cancel_requested' })] })]);
+  });
+
   test('a person assigning the agent is a handoff, once', async () => {
     const { core } = loaded([comment()], { arrivals: [[assign(AGENT)]] });
     const events = await core.watch(quickly);
-    expect(events.map((e) => `${e.kind}:${e.kind === 'teach_control' ? e.control.presentationId : e.op.id}`)).toEqual([
+    expect(events.map((e) => `${e.kind}:${e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id}`)).toEqual([
       'handoff:c1',
     ]);
     core.apply({ type: 'update_op', opId: 'c1', patch: { status: 'in_progress' } });
@@ -90,7 +96,7 @@ describe('RoomCore.watch', () => {
     const second: ServerMsg = { type: 'op', op: comment({ id: 'c3' }) };
     const { core } = loaded([], { arrivals: [[first], [second]] });
     const events = await core.watch({ timeoutSeconds: 5, batchMs: 20 });
-    expect(events.map((e) => (e.kind === 'teach_control' ? e.control.presentationId : e.op.id))).toEqual(['c2', 'c3']);
+    expect(events.map((e) => (e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id))).toEqual(['c2', 'c3']);
   });
 
   test('answers as soon as the batch window closes, not at the timeout', async () => {

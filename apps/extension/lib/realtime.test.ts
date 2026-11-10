@@ -12,6 +12,7 @@ mock.module('idb-keyval', () => ({
 }));
 
 const { onChange, operations } = await import('./ops');
+const { selectLayer } = await import('./layers');
 const { canEditFromRoom, connectRoom, execMode } = await import('./realtime');
 const { resetRoomIdentity, setAnnotationId } = await import('./room-id');
 const { toasts } = await import('./toasts');
@@ -110,6 +111,25 @@ describe('connectRoom', () => {
     teardown?.();
     teardown = null;
     expect(execMode.value).toBe('pair');
+  });
+
+  test('an explicit AI mention queues a task in the current working layer', () => {
+    const socket = connect();
+    socket.open();
+    socket.receive({ type: 'init', ops: [], layers: [{ id: 'default', name: '默认图层', created_at: 0 }, { id: 'review', name: '审查', created_at: 1 }], peers: [{ id: 'mcp-codex-a', uid: 'codex', name: 'Codex', color: '#000000' }] });
+    selectLayer('review');
+    const comment: DrawOp = { id: 'reply', tool: 'comment', num: 1, text: '@Codex', parentId: 'root', x: 0, y: 0, color: '#000000', lineWidth: 2, ts: 1, mentions: [{ id: 'codex', name: 'Codex' }] };
+    onChange.value?.({ type: 'op', op: comment });
+    const frames = socket.sent.map((frame) => JSON.parse(frame));
+    expect(frames).toContainEqual(expect.objectContaining({ type: 'task_submit', agentId: 'codex', annotationId: 'root', sourceId: 'reply', layerId: 'review' }));
+  });
+
+  test('a mention can be queued for a claimed AI after it disconnects', () => {
+    const socket = connect(); socket.open();
+    socket.receive({ type: 'init', ops: [], peers: [], claims: [{ agent_id: 'codex', owner_id: 'u1', owner_name: 'User' }] });
+    const comment: DrawOp = { id: 'offline', tool: 'comment', num: 1, text: '@Codex', x: 0, y: 0, color: '#000000', lineWidth: 2, ts: 1, mentions: [{ id: 'codex', name: 'Codex' }] };
+    onChange.value?.({ type: 'op', op: comment });
+    expect(socket.sent.map((frame) => JSON.parse(frame))).toContainEqual(expect.objectContaining({ type: 'task_submit', agentId: 'codex', sourceId: 'offline' }));
   });
 
   test('a presenter says nothing on a host with no follow to explain', () => {

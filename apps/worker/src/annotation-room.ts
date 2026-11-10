@@ -1051,7 +1051,15 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
           if (msg.type === 'layer_rename' && name) ok = await store.renameLayer(id, msg.id, name);
           if (msg.type === 'layer_delete') {
             const occupied = (this.ops ?? []).some((op) => typeof op === 'object' && op !== null && 'layerId' in op && op.layerId === msg.id);
-            if (!occupied) ok = await store.deleteLayer(id, msg.id);
+            if (!occupied) {
+              // The database's empty-layer guard must see moves and deletions still held in memory.
+              if (this.dirty && this.ops) {
+                await this.writeOps({ id, ops: this.ops });
+                this.dirty = false;
+                await this.persist({ seq: this.cursor() });
+              }
+              ok = await store.deleteLayer(id, msg.id);
+            }
           }
           if (ok) this.announce([{ type: 'layers', layers: await store.layers(id) }]);
           else ws.send(JSON.stringify({ type: 'error', code: 'layer_change_refused' }));
