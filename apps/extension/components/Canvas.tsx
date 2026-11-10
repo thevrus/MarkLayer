@@ -222,7 +222,7 @@ export function Canvas() {
         data-marklayer-canvas
         onMouseDown={onDown}
         onTouchStart={onDown}
-        class="fixed inset-0 z-2147483645"
+        class="fixed inset-0 size-full z-2147483645"
         style={{
           pointerEvents: showCanvas ? 'auto' : 'none',
           cursor: showCanvas ? (tool === 'eraser' ? 'none' : 'crosshair') : 'default',
