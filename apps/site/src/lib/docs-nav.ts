@@ -70,6 +70,12 @@ async function buildDocsNav(): Promise<DocsNav> {
       label: 'Guides',
       links: [
         hub({ href: '/guides', title: 'All guides', keywords: 'guides' }),
+        {
+          href: '/website-feedback-statistics',
+          label: 'Feedback statistics',
+          title: 'Website feedback statistics, 2026',
+          keywords: 'statistics data index pricing median free plan sign-up research',
+        },
         ...guides.map((g) => ({
           href: guidePath(g.id),
           label: g.data.nav ?? g.data.h1,

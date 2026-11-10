@@ -56,6 +56,7 @@ export const GET: APIRoute = async () => {
       priority: '0.5',
     })),
     article('/pricing', dates.pricing.modified),
+    article('/website-feedback-statistics', dates.statistics.modified),
     // Lower than a hub: it is in the nav and it should be findable, but it is
     // not a page anybody is searching for.
     { path: '/support', lastmod: dates.support.modified, changefreq: 'monthly', priority: '0.4' },

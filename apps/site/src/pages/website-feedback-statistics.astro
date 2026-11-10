@@ -1,0 +1,712 @@
+---
+import Faq from '../components/Faq.astro';
+import LinkGrid from '../components/LinkGrid.astro';
+import ArticleLayout from '../layouts/ArticleLayout.astro';
+import dates from '../data/page-dates.json';
+import { articleSchema, type Crumb, faqSchema } from '../lib/schema';
+import { ORIGIN } from '@marklayer/brand';
+import { guidePath, vsPath } from '../lib/site';
+
+type Reviewer = 'none' | 'name-email' | 'conditional' | 'account' | 'unstated';
+
+interface Tool {
+  name: string;
+  /** The tool's `/vs/<slug>` page. MarkLayer has none. */
+  vs?: string;
+  free: 'yes' | 'no' | 'unclear';
+  /** Replaces the label derived from `free` and `trialDays`. */
+  freeNote?: string;
+  trialDays?: number;
+  plan?: string;
+  /** Dollars unless set. */
+  currency?: '€';
+  /** Cheapest paid plan, list price per month on monthly billing. */
+  monthly?: number;
+  /** The same plan per month on annual billing. */
+  annual?: number;
+  unit?: string;
+  priceNote?: string;
+  /** The entry price this site recorded in August, on rows where it has since changed. */
+  was?: { monthly: number; annual?: number };
+  reviewer: Reviewer;
+  reviewerNote?: string;
+  /** Starting a review: no account needed, or never stated. Unset means the site says to sign up. */
+  creator?: 'none' | 'unstated';
+}
+
+const INDEX = 'MarkLayer Feedback Tool Index 2026';
+const READ_ISO = '2026-11-10';
+const AUGUST_ISO = '2026-08-29';
+// The 17 priced rows of the August guide, less Usersnap, whose billing period could not be confirmed today.
+const AUGUST_COMPARABLE = 16;
+const CHEAP = 20;
+const PRICEY = 49;
+
+// Every row is the vendor's own site as read on READ_ISO; MarkLayer's is its own source. Ordered by entry price.
+// A deliberate snapshot: the compare pages own each tool's current price and are re-read on their own dates.
+const tools: Tool[] = [
+  {
+    name: 'MarkLayer',
+    free: 'yes',
+    freeNote: 'Free, no paid tier',
+    reviewer: 'none',
+    creator: 'none',
+  },
+  {
+    name: 'AnnotateWeb',
+    vs: 'annotateweb',
+    free: 'yes',
+    freeNote: 'Free, no paid tier',
+    reviewer: 'none',
+    creator: 'none',
+  },
+  {
+    name: 'Hypothesis',
+    vs: 'hypothesis',
+    free: 'yes',
+    freeNote: 'Free personal account',
+    priceNote: 'Institutional, no published price',
+    reviewer: 'account',
+  },
+  {
+    name: 'Webvizio',
+    vs: 'webvizio',
+    free: 'no',
+    trialDays: 7,
+    plan: 'Solo',
+    monthly: 10,
+    annual: 8,
+    reviewer: 'none',
+  },
+  {
+    name: 'Ybug',
+    vs: 'ybug',
+    free: 'yes',
+    plan: 'Basic',
+    currency: '€',
+    monthly: 13,
+    annual: 10,
+    reviewer: 'none',
+  },
+  {
+    name: 'Jam',
+    vs: 'jam',
+    free: 'yes',
+    plan: 'Team',
+    monthly: 16,
+    annual: 14,
+    unit: 'per creator',
+    reviewer: 'unstated',
+  },
+  {
+    name: 'Ruttl',
+    vs: 'ruttl',
+    free: 'yes',
+    plan: 'Pro',
+    monthly: 18,
+    annual: 15,
+    unit: 'per user',
+    reviewer: 'none',
+  },
+  {
+    name: 'Inflight',
+    vs: 'inflight',
+    free: 'yes',
+    plan: 'Pro',
+    monthly: 18,
+    annual: 15,
+    unit: 'per member',
+    reviewer: 'none',
+    creator: 'unstated',
+  },
+  {
+    name: 'Huddlekit',
+    vs: 'huddlekit',
+    free: 'yes',
+    plan: 'Pro',
+    monthly: 19,
+    annual: 15.83,
+    reviewer: 'none',
+    creator: 'unstated',
+  },
+  {
+    name: 'BugSmash',
+    vs: 'bugsmash',
+    free: 'yes',
+    plan: 'Starter',
+    monthly: 25,
+    annual: 19,
+    was: { monthly: 14 },
+    reviewer: 'none',
+  },
+  {
+    name: 'Superflow',
+    vs: 'superflow',
+    free: 'yes',
+    freeNote: 'Yes, after a 10-day trial',
+    plan: 'Growth',
+    monthly: 29,
+    annual: 24,
+    unit: 'per seat',
+    reviewer: 'conditional',
+    reviewerNote: 'Scale plan and up',
+    creator: 'unstated',
+  },
+  {
+    name: 'Volley',
+    vs: 'volley',
+    free: 'unclear',
+    freeNote: 'Unclear: the FAQ names one, the plan table does not',
+    plan: 'Pro',
+    monthly: 29,
+    priceNote: 'billing period not stated',
+    reviewer: 'none',
+  },
+  {
+    name: 'SimpleCommenter',
+    vs: 'simplecommenter',
+    free: 'no',
+    trialDays: 14,
+    plan: 'Pro',
+    monthly: 34.99,
+    annual: 29.17,
+    reviewer: 'conditional',
+    reviewerNote: 'If the owner allows it',
+  },
+  {
+    name: 'Pastel',
+    vs: 'pastel',
+    free: 'yes',
+    plan: 'Pro',
+    monthly: 35,
+    annual: 29,
+    reviewer: 'none',
+  },
+  {
+    name: 'PageProofer',
+    vs: 'pageproofer',
+    free: 'no',
+    trialDays: 15,
+    plan: 'Freelancer',
+    monthly: 39,
+    annual: 32.5,
+    reviewer: 'conditional',
+    reviewerNote: 'Depends on the plan',
+  },
+  {
+    name: 'Userback',
+    vs: 'userback',
+    free: 'yes',
+    plan: 'Team',
+    monthly: 49,
+    annual: 39,
+    was: { monthly: 39, annual: 29 },
+    reviewer: 'unstated',
+  },
+  {
+    name: 'Feedbucket',
+    vs: 'feedbucket',
+    free: 'no',
+    trialDays: 14,
+    plan: 'Pro',
+    monthly: 49,
+    annual: 39.2,
+    priceNote: 'annual from the stated 20% off',
+    reviewer: 'none',
+  },
+  {
+    name: 'Usersnap',
+    vs: 'usersnap',
+    free: 'no',
+    freeNote: 'No, trial only',
+    priceNote: 'Starter, $49 a month, billing period not confirmed',
+    reviewer: 'none',
+    creator: 'unstated',
+  },
+  {
+    name: 'BugHerd',
+    vs: 'bugherd',
+    free: 'no',
+    trialDays: 7,
+    plan: 'Standard',
+    monthly: 50,
+    annual: 42,
+    reviewer: 'none',
+  },
+  {
+    name: 'Marker.io',
+    vs: 'marker-io',
+    free: 'no',
+    trialDays: 15,
+    plan: 'Starter',
+    monthly: 59,
+    annual: 39,
+    reviewer: 'none',
+  },
+  {
+    name: 'Atarim',
+    vs: 'atarim',
+    free: 'unclear',
+    freeNote: 'Unclear: 200 credits, granted once',
+    plan: 'Pro',
+    monthly: 67,
+    annual: 53.6,
+    reviewer: 'name-email',
+  },
+  {
+    name: 'MarkUp.io',
+    vs: 'markup-io',
+    free: 'no',
+    trialDays: 14,
+    plan: 'Pro',
+    monthly: 79,
+    priceNote: 'no like-for-like annual tier',
+    reviewer: 'none',
+    creator: 'unstated',
+  },
+  {
+    name: 'zipBoard',
+    vs: 'zipboard',
+    free: 'no',
+    trialDays: 14,
+    plan: 'Team',
+    monthly: 99,
+    priceNote: '"starts at", billing period not stated',
+    reviewer: 'none',
+  },
+  {
+    name: 'SureFeedback',
+    vs: 'surefeedback',
+    free: 'no',
+    trialDays: 7,
+    priceNote: 'Annual only: $199 first year, $299 on renewal',
+    reviewer: 'name-email',
+  },
+];
+
+const REVIEWER_LABEL: Record<Reviewer, string> = {
+  none: 'No',
+  account: 'Yes',
+  unstated: 'Not stated',
+  'name-email': 'Name and email',
+  conditional: 'Conditional',
+};
+
+const day = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+const READ_ON = day.format(new Date(READ_ISO));
+const AUGUST_ON = day.format(new Date(AUGUST_ISO));
+const DAYS_BETWEEN = Math.round((Date.parse(READ_ISO) - Date.parse(AUGUST_ISO)) / 86_400_000);
+
+const median = (values: number[]): number => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = sorted.slice(Math.ceil(sorted.length / 2) - 1, Math.floor(sorted.length / 2) + 1);
+  return middle.reduce((sum, v) => sum + v, 0) / middle.length;
+};
+const total = tools.length;
+const count = (test: (t: Tool) => boolean): number => tools.filter(test).length;
+const pct = (n: number): number => Math.round((n / total) * 100);
+// An amount and its currency are one value, so this stays positional.
+const money = (value: number, currency = '$'): string =>
+  `${currency}${Number.isInteger(value) ? value : value.toFixed(2)}`;
+const hasPaidTier = (t: Tool): boolean => t.plan !== undefined || t.priceNote !== undefined;
+
+const freeCell = (t: Tool): string => {
+  if (t.freeNote) return t.freeNote;
+  if (t.free === 'yes') return 'Yes';
+  return t.trialDays ? `No, ${t.trialDays}-day trial` : 'No';
+};
+const priceCell = (t: Tool): string => {
+  if (t.monthly === undefined) return t.priceNote ?? 'None';
+  return [`${t.plan}, ${money(t.monthly, t.currency)}`, t.unit, t.priceNote].filter(Boolean).join(', ');
+};
+const annualCell = (t: Tool): string => {
+  if (t.annual !== undefined) return money(t.annual, t.currency);
+  return hasPaidTier(t) ? 'Not published' : 'None';
+};
+
+const monthlyPrices = tools.flatMap((t) => (t.monthly === undefined ? [] : [t.monthly]));
+const priced = monthlyPrices.length;
+const medianMonthly = Math.round(median(monthlyPrices));
+const lowest = Math.min(...monthlyPrices);
+const highest = Math.max(...monthlyPrices);
+const cheap = monthlyPrices.filter((p) => p < CHEAP).length;
+const pricey = monthlyPrices.filter((p) => p >= PRICEY).length;
+const perSeat = count((t) => t.unit !== undefined);
+
+const discounts = tools.flatMap((t) =>
+  t.monthly === undefined || t.annual === undefined ? [] : [(1 - t.annual / t.monthly) * 100],
+);
+const medianDiscount = Math.round(median(discounts));
+const minDiscount = Math.round(Math.min(...discounts));
+const maxDiscount = Math.round(Math.max(...discounts));
+const trials = tools.flatMap((t) => (t.trialDays === undefined ? [] : [t.trialDays]));
+
+const freePlan = count((t) => t.free === 'yes');
+const noFreePlan = count((t) => t.free === 'no');
+const freeUnclear = count((t) => t.free === 'unclear');
+const noPaidNames = tools.filter((t) => !hasPaidTier(t)).map((t) => t.name);
+const noPaidTier = noPaidNames.length;
+const neitherSide = tools.filter((t) => t.creator === 'none' && t.reviewer === 'none');
+const creatorNoAccount = count((t) => t.creator === 'none');
+const creatorUnstated = count((t) => t.creator === 'unstated');
+const reviewerNone = count((t) => t.reviewer === 'none');
+const reviewerNameEmail = count((t) => t.reviewer === 'name-email');
+const reviewerConditional = count((t) => t.reviewer === 'conditional');
+const reviewerAccount = count((t) => t.reviewer === 'account');
+const reviewerUnstated = count((t) => t.reviewer === 'unstated');
+
+const changed = tools.flatMap((t) =>
+  t.was === undefined || t.monthly === undefined || t.annual === undefined
+    ? []
+    : [{ name: t.name, was: t.was, monthly: t.monthly, annual: t.annual }],
+);
+const AUGUST_CHANGED = changed.length;
+const changeLine = (c: (typeof changed)[number]): string => {
+  const monthly = `${c.name}'s cheapest paid plan went from ${money(c.was.monthly)} a month to ${money(c.monthly)}`;
+  return c.was.annual === undefined
+    ? `${monthly}, or ${money(c.annual)} billed annually.`
+    : `${monthly}, and from ${money(c.was.annual)} to ${money(c.annual)} billed annually.`;
+};
+
+const SRC = {
+  ipa: 'https://ipa.co.uk/news/betterbriefs-creative-ideas/',
+  streamwork: 'https://www.streamwork.com/post/creative-teams-are-losing-up-to-one-full-day-each-workweek-on-approvals',
+  bettenburg: 'https://thomas-zimmermann.com/publications/files/bettenburg-fse-2008.pdf',
+  baymard: 'https://baymard.com/lists/cart-abandonment-rate',
+  stackOverflow: 'https://survey.stackoverflow.co/2025/ai',
+  jetbrains: 'https://devecosystem-2025.jetbrains.com/artificial-intelligence',
+} as const;
+
+const path = '/website-feedback-statistics';
+const { published, modified } = dates.statistics;
+const h1 = 'Website feedback statistics, 2026';
+const title = `Website Feedback Statistics 2026: ${total} Tools, Prices Indexed`;
+const description = `${total} website feedback tools indexed from their own sites in November 2026: median price, free plans, sign-up rules, plus sourced industry figures.`;
+const bottomLine = `The median website feedback tool costs ${money(medianMonthly)} a month at its cheapest paid plan, ${freePlan} of ${total} have a permanent free plan, and ${reviewerNone} of ${total} let a reviewer comment with no account. Only ${creatorNoAccount} of ${total}, MarkLayer among them, say a review can be started with no account.`;
+
+const faq = [
+  {
+    q: 'How much does a website feedback tool cost in 2026?',
+    a: `The ${INDEX} puts the median entry price at ${money(medianMonthly)} a month on monthly billing, across the ${priced} tools that publish an entry price. Entry prices run from ${money(lowest)} to ${money(highest)} a month. ${cheap} of the ${priced} start under ${money(CHEAP)} and ${pricey} start at ${money(PRICEY)} or more.`,
+  },
+  {
+    q: 'How many website feedback tools are free?',
+    a: `${freePlan} of the ${total} tools in the ${INDEX} (${pct(freePlan)}%) have a permanent free plan, ${noFreePlan} offer only a time-limited trial, and ${freeUnclear} are unclear from their own pages. ${noPaidTier} are free with no paid tier at all: ${noPaidNames.join(' and ')}.`,
+  },
+  {
+    q: 'Do reviewers need an account to leave website feedback?',
+    a: `Usually not. ${reviewerNone} of ${total} tools say a reviewer can comment with no account, and ${reviewerNameEmail} more ask only for a name and email. The sign-up sits on the other side: only ${creatorNoAccount} of ${total} say a review can be started with no account, and the other ${total - creatorNoAccount} lead with a sign-up or trial prompt.`,
+  },
+  {
+    q: 'How often do website feedback tools change their prices?',
+    a: `${AUGUST_CHANGED} of the ${AUGUST_COMPARABLE} entry prices this site recorded on ${AUGUST_ON} were different ${DAYS_BETWEEN} days later. A price quoted from a roundup older than a quarter is worth checking against the vendor's own page.`,
+  },
+  {
+    q: 'Can I cite these statistics?',
+    a: `Yes. Credit the first-party figures to the ${INDEX} and link to this page. Third-party figures on this page belong to the publishers named beside them, so cite those at the source.`,
+  },
+];
+
+const breadcrumbs: Crumb[] = [{ name: 'MarkLayer', path: '/' }, { name: 'Website feedback statistics' }];
+
+const datasetSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Dataset',
+  name: INDEX,
+  description: `Free-plan availability, cheapest paid plan and account requirements of ${total} website feedback tools, read from each vendor's own site on ${READ_ON}.`,
+  url: `${ORIGIN}${path}`,
+  dateModified: modified,
+  creator: { '@type': 'Organization', name: 'MarkLayer', url: ORIGIN },
+  variableMeasured: ['Permanent free plan', 'Cheapest paid plan price', 'Reviewer account requirement'],
+};
+
+const related = [
+  { href: guidePath('website-feedback-tools'), label: 'Website feedback tools compared' },
+  { href: guidePath('free-website-annotation-tools'), label: 'Free website annotation tools' },
+  { href: guidePath('website-feedback-without-login'), label: 'Website feedback without a login' },
+  { href: '/compare', label: 'MarkLayer against each tool' },
+];
+---
+
+<ArticleLayout
+  title={title}
+  description={description}
+  path={path}
+  h1={h1}
+  bottomLine={bottomLine}
+  breadcrumbs={breadcrumbs}
+  modified={modified}
+  schema={[articleSchema({ h1, description, path, published, modified }), faqSchema(faq), datasetSchema]}
+>
+  <Fragment slot="intro">
+    <p>
+      I make one of the tools counted here, so the method comes first. The {INDEX} covers {total} tools that put comments
+      on a live webpage, MarkLayer included. Every figure in it was read off the vendor's own site on {READ_ON}, and
+      MarkLayer's row comes from its own source code.
+      The statistics further down come from other publishers, each named and linked at its original source.
+    </p>
+  </Fragment>
+
+  <h2>Key website feedback statistics</h2>
+  <ul>
+    <li>
+      The {INDEX} found a median entry price of <strong>{money(medianMonthly)} a month</strong> across the {priced} tools
+      that publish an entry price.
+    </li>
+    <li>
+      The {INDEX} found that <strong>{freePlan} of {total} tools ({pct(freePlan)}%)</strong> have a permanent free plan.
+    </li>
+    <li>
+      The {INDEX} found that <strong>{reviewerNone} of {total} tools ({pct(reviewerNone)}%)</strong> let a reviewer comment
+      without an account.
+    </li>
+    <li>
+      The {INDEX} found that <strong>{creatorNoAccount} of {total} tools ({pct(creatorNoAccount)}%)</strong> say a review
+      can be started without an account. MarkLayer is one of them.
+    </li>
+    <li>
+      The {INDEX} found that <strong>{AUGUST_CHANGED} of {AUGUST_COMPARABLE} entry prices</strong> changed in the{' '}
+      {DAYS_BETWEEN} days after {AUGUST_ON}.
+    </li>
+  </ul>
+
+  <h2>Website feedback tool pricing statistics</h2>
+  <ul>
+    <li>
+      Entry prices run from <strong>{money(lowest)} to {money(highest)} a month</strong> on monthly billing ({INDEX},{' '}
+      {priced} tools).
+    </li>
+    <li><strong>{cheap} of {priced}</strong> paid tools start under {money(CHEAP)} a month.</li>
+    <li><strong>{pricey} of {priced}</strong> paid tools start at {money(PRICEY)} a month or more.</li>
+    <li>
+      Annual billing cuts the entry price by a median of <strong>{medianDiscount}%</strong>, with a range of {minDiscount}%
+      to {maxDiscount}% ({discounts.length} tools that publish both prices).
+    </li>
+    <li><strong>{perSeat} of {priced}</strong> price their entry plan per seat. The rest bundle seats into the plan.</li>
+    <li><strong>{noPaidTier} of {total}</strong> tools have no paid tier at all. MarkLayer is one of them.</li>
+    <li>
+      <strong>{noFreePlan} of {total}</strong> tools offer only a time-limited trial, from {Math.min(...trials)} to{' '}
+      {Math.max(...trials)} days where the length is stated.
+    </li>
+  </ul>
+  <p>
+    Ybug lists in euros and is counted at face value. It sits well below the median, so converting it does not move it.
+    Volley and zipBoard show a price without saying which billing period it is. Usersnap shows $49 a month, but its billing
+    switch could not be read, so it is left out of the price figures.
+  </p>
+
+  <div class="ml-scroll-x ml-scroll-wide">
+    <table>
+      <caption>{INDEX}: vendor sites as read on {READ_ON}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Tool</th>
+          <th scope="col">Permanent free plan</th>
+          <th scope="col">Cheapest paid plan, billed monthly</th>
+          <th scope="col">Billed annually, per month</th>
+          <th scope="col">Reviewer needs an account?</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          tools.map((t) => (
+            <tr>
+              <th scope="row">{t.vs ? <a href={vsPath(t.vs)}>{t.name}</a> : t.name}</th>
+              <td>{freeCell(t)}</td>
+              <td>{priceCell(t)}</td>
+              <td>{annualCell(t)}</td>
+              <td>{t.reviewerNote ?? REVIEWER_LABEL[t.reviewer]}</td>
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Sign-up statistics: who needs an account</h2>
+  <ul>
+    <li><strong>{reviewerNone} of {total}</strong> tools say a reviewer can comment with no account ({INDEX}).</li>
+    <li><strong>{reviewerNameEmail} of {total}</strong> ask the reviewer for a name and email but no account.</li>
+    <li>
+      <strong>{reviewerConditional} of {total}</strong> allow account-free review only on a higher plan or when the owner
+      switches it on.
+    </li>
+    <li>
+      <strong>{reviewerAccount} of {total}</strong> requires a reviewer account outright, and {reviewerUnstated} do not say.
+    </li>
+    <li>
+      <strong>{creatorNoAccount} of {total}</strong> say a review can be started with no account. The other{' '}
+      {total - creatorNoAccount} lead with a sign-up or trial prompt, and {creatorUnstated} of those never state the requirement.
+    </li>
+  </ul>
+  <p>
+    Account-free review is common on the reviewer's side. The sign-up sits with the person who sends the link. The
+    tools that say neither side needs an account are{' '}
+    {neitherSide.map((t, i) => (
+      <>
+        {i > 0 && ' and '}
+        {t.vs ? <a href={vsPath(t.vs)}>{t.name}</a> : t.name}
+      </>
+    ))}.
+  </p>
+
+  <h2>How fast website feedback tool prices change</h2>
+  <ul>
+    <li>
+      <strong>{AUGUST_CHANGED} of {AUGUST_COMPARABLE}</strong> entry prices recorded in
+      <a href={guidePath('website-feedback-tools')}>this site's {AUGUST_ON} comparison</a> had changed by {READ_ON} ({INDEX}).
+    </li>
+    {changed.map((c) => <li>{changeLine(c)}</li>)}
+  </ul>
+
+  <h2>Creative feedback and approval statistics</h2>
+  <p>These cover advertising and marketing work in general. I found no traceable survey of website review rounds.</p>
+  <ul>
+    <li>
+      Sign-off on a creative idea now takes <strong>5 rounds</strong> of development, up from 3 in a 2007 study (<a
+        href={SRC.ipa}>IPA, WFA and BetterBriefs, 2025</a>, 1,034 respondents in
+      54 countries).
+    </li>
+    <li>
+      <strong>30% of agencies</strong> say clients give clear and constructive feedback. 52% of marketers say they do (<a
+        href={SRC.ipa}>IPA, WFA and BetterBriefs, 2025</a>).
+    </li>
+    <li>
+      <strong>23% of agencies</strong> agree the creative approval process works well, against 56% of marketers (<a
+        href={SRC.ipa}>IPA, WFA and BetterBriefs, 2025</a>).
+    </li>
+    <li>
+      <strong>74%</strong> of US marketing and advertising workers say approvals take more effort than the creative work (<a
+        href={SRC.streamwork}
+        >StreamWork, 2025</a
+      >, a vendor survey of 500 people fielded by Pollfish).
+    </li>
+    <li>
+      <strong>85%</strong> say approvals regularly run past the planned timeline (<a
+        href={SRC.streamwork}
+        >StreamWork, 2025</a
+      >).
+    </li>
+  </ul>
+
+  <h2>Bug reporting statistics</h2>
+  <ul>
+    <li>
+      <strong>83%</strong> of open-source developers rate steps to reproduce among the most important parts of a bug report
+      (<a href={SRC.bettenburg}>Bettenburg et al., 2008</a>, 130
+      developers on Apache, Eclipse and Mozilla).
+    </li>
+    <li>
+      <strong>79%</strong> of the same developers rate errors in those steps a severe problem (<a
+        href={SRC.bettenburg}>Bettenburg et al., 2008</a>).
+    </li>
+    <li>
+      Developers spend <strong>17.3 hours</strong> of a 41.1-hour week on maintenance such as debugging and refactoring (<a
+        href="https://stripe.com/files/reports/the-developer-coefficient.pdf">Stripe and Harris Poll, 2018</a>).
+    </li>
+    <li>
+      <strong>50% of developers</strong> lose 10 or more hours a week, largely to organisational inefficiencies (<a
+        href="https://www.atlassian.com/blog/developer/developer-experience-report-2025">Atlassian, 2025</a>, a vendor survey
+      of 3,500 developers and managers).
+    </li>
+    <li>
+      Inadequate software testing was estimated to cost the US economy <strong>$59.5 billion a year</strong> (<a
+        href="https://www.nist.gov/system/files/documents/director/planning/report02-3.pdf">NIST, 2002</a>). The figure is an
+      estimate, and it is more than two decades old.
+    </li>
+  </ul>
+  <p>
+    The widely repeated claim that a bug costs 100 times more to fix in production, credited to an IBM Systems Sciences
+    Institute, is left out. No original for it has been located.
+  </p>
+
+  <h2>Sign-up friction statistics</h2>
+  <ul>
+    <li>
+      <strong>18%</strong> of US shoppers who abandoned a checkout did so because the site wanted them to create an account
+      (<a href={SRC.baymard}>Baymard Institute, 2025</a>, sample size not published).
+    </li>
+    <li>
+      The average documented cart abandonment rate is <strong>70.22%</strong>, across 50 studies (<a
+        href={SRC.baymard}>Baymard Institute, 2025</a>).
+    </li>
+  </ul>
+  <p>These measure shopping, not review tools. They are the best-sourced figures on what a forced account costs.</p>
+
+  <h2>Interruption and tool sprawl statistics</h2>
+  <ul>
+    <li>
+      The most-pinged fifth of Microsoft 365 users are interrupted <strong>every two minutes</strong> in core hours, 275
+      times a day (<a href="https://www.microsoft.com/en-us/worklab/work-trend-index/breaking-down-infinite-workday"
+        >Microsoft Work Trend Index, 2025</a
+      >).
+    </li>
+    <li>
+      The average company uses <strong>101 apps</strong> (<a
+        href="https://www.okta.com/newsroom/articles/businesses-at-work-2025/">Okta Businesses at Work, 2025</a>, counted
+      across Okta's own customers).
+    </li>
+    <li>
+      Teams spend <strong>25% of their time</strong> searching for answers (<a
+        href="https://www.atlassian.com/blog/state-of-teams-2025">Atlassian State of Teams, 2025</a>, 12,000 knowledge
+      workers).
+    </li>
+  </ul>
+
+  <h2>AI coding tool statistics</h2>
+  <ul>
+    <li>
+      <strong>84% of developers</strong> use or plan to use AI tools, up from 76% a year earlier (<a
+        href={SRC.stackOverflow}>Stack Overflow Developer Survey, 2025</a>, 49,009 responses).
+    </li>
+    <li>
+      <strong>51% of professional developers</strong> use AI tools daily (<a href={SRC.stackOverflow}
+        >Stack Overflow, 2025</a
+      >).
+    </li>
+    <li>
+      <strong>46%</strong> of developers distrust the accuracy of AI tools and 33% trust it (<a
+        href={SRC.stackOverflow}>Stack Overflow, 2025</a>).
+    </li>
+    <li>
+      <strong>66%</strong> name AI answers that are "almost right, but not quite" as a frustration (<a
+        href={SRC.stackOverflow}>Stack Overflow, 2025</a>).
+    </li>
+    <li>
+      <strong>62% of developers</strong> use at least one AI coding assistant, agent or code editor (<a
+        href={SRC.jetbrains}>JetBrains, 2025</a>, 24,534 developers).
+    </li>
+    <li>
+      <strong>88%</strong> of developers who use AI say it saves them more than an hour a week, and 19% save eight hours or
+      more (<a href={SRC.jetbrains}>JetBrains, 2025</a>).
+    </li>
+    <li>
+      <strong>90%</strong> of technology professionals use AI at work (<a
+        href="https://cloud.google.com/blog/products/ai-machine-learning/announcing-the-2025-dora-report"
+        >Google Cloud DORA, 2025</a
+      >, nearly 5,000 respondents).
+    </li>
+  </ul>
+
+  <h2>Method and how to cite</h2>
+  <p>
+    The index counts tools sold for one job: a reviewer reporting on a live webpage. Screen-video tools and design-file
+    commenting are out. Jam records a bug instead of pinning a comment and is counted because it is sold for that job. For each tool I recorded three things from the vendor's own site: whether a free plan is
+    permanent, the list price of the cheapest paid plan on monthly and on annual billing, and what the vendor says a
+    reviewer needs. Promotions are ignored. Where a page contradicts itself or leaves a field out, the table says so
+    instead of guessing.
+  </p>
+  <p>
+    Third-party figures are included only where the original publication could be opened and the number found in it. Most
+    are surveys run by companies that sell to the people they surveyed, so read them with that in mind. Corrections are welcome through the contact on the <a href="/about">about page</a>.
+  </p>
+  <p>
+    To cite a first-party figure, credit the {INDEX} and link to <a href={path}>{ORIGIN}{path}</a>. The page keeps this
+    address each year and the index is re-read when prices move.
+  </p>
+
+  <Faq qa={faq} />
+
+  <h2>Related reading</h2>
+  <LinkGrid links={related} />
+</ArticleLayout>

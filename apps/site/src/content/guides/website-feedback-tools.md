@@ -55,6 +55,8 @@ Cheapest paid plan for each tool, read off the vendor's own pricing page on 29 A
 | **Markup.io** | $79/month | Not published | Not published | "As long as we have your consent" |
 | **Simple Commenter** | Not published; the pricing page needs JavaScript | No | No | Not published |
 
+These prices are as read in August. The [website feedback statistics](/website-feedback-statistics) page re-reads them and records which have moved since.
+
 ## The cheapest ones are not the free ones
 
 Three tools here have no paid tier at all, and each pays for it somewhere.

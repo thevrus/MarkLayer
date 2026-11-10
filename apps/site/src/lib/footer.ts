@@ -64,6 +64,7 @@ export const FOOTER_COLUMNS: FooterColumn[] = [
     links: [
       { href: '/guides', label: 'Guides' },
       { href: '/guides/free-website-annotation-tools', label: 'Free annotation tools' },
+      { href: '/website-feedback-statistics', label: 'Feedback statistics' },
       { href: '/changelog', label: "What's new" },
       { href: REPO_URL, label: 'GitHub', external: true },
       { href: 'https://www.producthunt.com/products/marklayer', label: 'Product Hunt', external: true },

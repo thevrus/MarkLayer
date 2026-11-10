@@ -238,6 +238,7 @@ visual feedback layer, not a project management system.
 
 ## Guides
 
+- Website feedback statistics, 2026: the MarkLayer Feedback Tool Index (24 tools, entry prices, free plans and account requirements read off each vendor's own site) plus sourced third-party figures: https://marklayer.app/website-feedback-statistics
 - How MarkLayer works, in plain English: https://marklayer.app/guides/how-marklayer-works
 - Twenty-one website feedback tools compared, prices checked against each vendor's own page: https://marklayer.app/guides/website-feedback-tools
 - How to annotate a website, four methods (built-in markup, extension, share link, dev tools) and what each one breaks on: https://marklayer.app/guides/how-to-annotate-a-website
