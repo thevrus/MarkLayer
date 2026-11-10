@@ -44,6 +44,7 @@ import {
 import type { Tool } from '../lib/types';
 import { requestShare, showSettings } from '../lib/ui-state';
 import { SettingsPanel } from './SettingsPanel';
+import { LayerPanel } from './LayerPanel';
 import { ToolFan, useToolFan } from './ToolFan';
 import { Tooltip } from './Tooltip';
 
@@ -744,6 +745,7 @@ function useToolReorder(containerRef: RefObject<HTMLDivElement | null>) {
 }
 
 function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: DragApi }) {
+  const [showLayers, setShowLayers] = useState(false);
   const slots = visibleSlots.value;
   // The faces are read here so the FLIP pass re-runs when a group swaps its icon.
   const toolsRef = useFlipReorder([slots, groupFaces.value]);
@@ -809,6 +811,8 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
         </>
       )}
 
+      {connected.value && <button type="button" class="rounded px-2 py-1 text-xs" onClick={() => setShowLayers(!showLayers)}>图层</button>}
+      {showLayers && <LayerPanel onClose={() => setShowLayers(false)} />}
       {connected.value && (
         <button type="button" class="rounded px-2 py-1 text-xs" onClick={openTeaching}>
           演示
