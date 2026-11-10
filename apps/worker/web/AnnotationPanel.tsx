@@ -14,6 +14,7 @@ import {
   openAnnotationTotal,
   operations,
   rootComments,
+  visibleOperations,
   setOpStatus,
 } from '@ext/lib/ops';
 import { fileUrl } from '@ext/lib/share';
@@ -383,7 +384,7 @@ function AnnotationPanelView({ onScrollTo }: BodyProps) {
     toast('Markdown exported', { type: 'success' });
   };
 
-  const allOps = operations.value;
+  const allOps = visibleOperations.value;
   const filter = commentFilter.value;
 
   const items: AnnotationItem[] = [];

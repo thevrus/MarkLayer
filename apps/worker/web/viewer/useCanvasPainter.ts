@@ -1,4 +1,4 @@
-import { operations, undoRedoFlash } from '@ext/lib/ops';
+import { visibleOperations, undoRedoFlash } from '@ext/lib/ops';
 import { inView, opBounds, renderOp } from '@ext/lib/renderer';
 import { useSignalEffect } from '@preact/signals';
 import { useCallback } from 'preact/hooks';
@@ -67,7 +67,7 @@ export function useCanvasPainter({
     ctx.save();
     const scrollY = iframeScrollY.value;
     ctx.translate(0, -scrollY);
-    for (const op of operations.value) {
+    for (const op of visibleOperations.value) {
       if (op.tool === 'comment' || op.tool === 'selection') continue;
       if (!opMatchesDevice(op)) continue;
       if (!inView(opBounds(op), 0, scrollY, canvasW, canvasH)) continue;
@@ -78,7 +78,7 @@ export function useCanvasPainter({
   }, []);
 
   useSignalEffect(() => {
-    operations.value;
+    visibleOperations.value;
     iframeScrollY.value;
     renderAll();
   });

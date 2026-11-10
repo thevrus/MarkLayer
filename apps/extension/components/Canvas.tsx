@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { applyAnchorDelta } from '../lib/anchor';
 import { scrollTick } from '../lib/host-mutations';
-import { areas, comments, deleteOp, inspects, operations, pushOp, selections, undoRedoFlash } from '../lib/ops';
+import { areas, comments, deleteOp, inspects, operations, visibleOperations, pushOp, selections, undoRedoFlash } from '../lib/ops';
 import { color, lineWidth } from '../lib/prefs';
 import { circleHitsRect, eraserDiameter, redrawCanvas } from '../lib/renderer';
 import { scrollOffset, toDoc } from '../lib/scroller';
@@ -139,7 +139,7 @@ export function Canvas() {
       canvas.height = Math.floor(innerHeight * dpr);
       const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      redrawCanvas(canvas, operations.value);
+      redrawCanvas(canvas, visibleOperations.value);
     };
     resize();
     window.addEventListener('resize', resize);
@@ -177,7 +177,7 @@ export function Canvas() {
   }, [engine, onMove, onUp]);
 
   useSignalEffect(() => {
-    const ops = operations.value;
+    const ops = visibleOperations.value;
     // scrollTick is the sole scroll-driven redraw path, and it is already
     // rAF-coalesced by the shared listener in host-mutations.ts. hostMutationTick is
     // deliberately not subscribed: only comment, selection and area ops anchor

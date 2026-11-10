@@ -1,7 +1,7 @@
 import { computed, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { signedBy } from './identity';
-import { applyChange, operations, pushOp, removeOp } from './ops';
+import { applyChange, visibleOperations, pushOp, removeOp } from './ops';
 import { color, lineWidth } from './prefs';
 import type { GuideOp } from './types';
 
@@ -12,7 +12,7 @@ import type { GuideOp } from './types';
  * computed view over `operations` filtered to `tool: 'guide'`.
  */
 export type Orientation = 'horizontal' | 'vertical';
-export const guides = computed<GuideOp[]>(() => operations.value.filter((op): op is GuideOp => op.tool === 'guide'));
+export const guides = computed<GuideOp[]>(() => visibleOperations.value.filter((op): op is GuideOp => op.tool === 'guide'));
 export const selectedGuideId = signal<string | null>(null);
 
 export function addGuide(orientation: Orientation, position: number): GuideOp {
