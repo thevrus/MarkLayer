@@ -33,8 +33,7 @@ CREATE TABLE room_tasks (
   waiting_for TEXT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   UNIQUE (room_id, id),
-  UNIQUE (room_id, agent_id, source_id),
-  FOREIGN KEY (room_id, layer_id) REFERENCES room_layers(room_id, id)
+  UNIQUE (room_id, agent_id, source_id)
 );
 CREATE UNIQUE INDEX room_tasks_one_active ON room_tasks(room_id, agent_id)
   WHERE status IN ('running', 'waiting', 'cancel_requested');
