@@ -933,7 +933,7 @@ export function Toolbar() {
         ref={tbRef}
         data-ml-toolbar
         class={cn(
-          'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483646 select-none',
+          'fixed bottom-5 left-1/2 -translate-x-1/2 z-2147483647 select-none',
           geist.surface,
           glass.font,
           // 4px gutter, which is what makes the 8px control radius concentric
