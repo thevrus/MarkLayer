@@ -282,6 +282,7 @@ export function replyOp({
     ...opAnchor(parent),
     lineWidth: parent.lineWidth,
     parentId: parent.id,
+    ...(parent.layerId ? { layerId: parent.layerId } : {}),
   };
 }
 

@@ -163,6 +163,7 @@ describe('RoomCore writes', () => {
   test('a reply lands on any annotation kind, at its anchor, on the parent stroke', async () => {
     const area: DrawOp = {
       id: 'a1',
+      layerId: 'review',
       tool: 'area',
       color: '#000',
       lineWidth: 5,
@@ -176,7 +177,7 @@ describe('RoomCore writes', () => {
     expect(await core.reply('a1', 'on it')).toBe(true);
     expect(sent[0]).toMatchObject({
       type: 'op',
-      op: { parentId: 'a1', x: 10, y: 20, lineWidth: 5, num: 2, author: AGENT, assignedAgent: AGENT },
+      op: { parentId: 'a1', layerId: 'review', x: 10, y: 20, lineWidth: 5, num: 2, author: AGENT, assignedAgent: AGENT },
     });
   });
 

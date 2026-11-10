@@ -39,7 +39,10 @@ const authored = {
   authorId: z.optional(z.string()),
 };
 
+export const DEFAULT_LAYER_ID = 'default';
+
 const baseOp = {
+  layerId: z.optional(z.string().check(z.minLength(1))),
   id: z.string(),
   color: z.string(),
   lineWidth: z.number(),
