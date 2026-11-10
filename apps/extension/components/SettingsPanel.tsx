@@ -382,7 +382,7 @@ function JoinRoomRow() {
 function PanelHeader() {
   return (
     <div class="flex items-center justify-between px-4 h-11">
-      <span class="text-ui font-semibold tracking-ui text-(--ds-gray-1000)">MarkLayer</span>
+      <span class="text-ui font-semibold tracking-ui text-(--ds-gray-1000)">visual collaboration</span>
       <span class={cn(geist.meta, 'text-meta tabular-nums')}>v{version}</span>
     </div>
   );

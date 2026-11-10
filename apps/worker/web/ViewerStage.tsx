@@ -130,7 +130,7 @@ function OwnerFix({ ip }: { ip: string }) {
   return (
     <div class="flex flex-col items-center gap-2 max-w-md">
       <p class="text-ui text-ml-fg/70 leading-snug m-0">
-        {advice?.before ?? 'Own this site? Your host can allow MarkLayer with one address:'}{' '}
+        {advice?.before ?? 'Own this site? Your host can allow visual collaboration with one address:'}{' '}
         <code class="px-1.5 py-0.5 rounded bg-ml-fg/8 font-mono text-meta text-ml-fg">{ip}</code>
         {advice ? ` ${advice.after}` : '.'}
       </p>
@@ -184,7 +184,7 @@ function PageFailure() {
           </a>
           {!upload && (
             <p class="text-meta text-ml-fg/60 max-w-xs leading-snug m-0">
-              Then click the MarkLayer extension's icon to load these annotations there.{' '}
+              Then click the visual collaboration extension's icon to load these annotations there.{' '}
               <a
                 href={CHROME_STORE_URL}
                 target="_blank"

@@ -24,21 +24,27 @@ const {
   ogImage = OG_IMAGE,
 } = Astro.props;
 const robots = noindex ? 'noindex, follow' : 'max-image-preview:large, max-snippet:-1';
+const renamedTitle = title.replaceAll('MarkLayer', 'visual collaboration');
+// Keep the brand visible while respecting the site's 60-character title limit.
+const brand = 'visual collaboration';
+const pageTitle = renamedTitle.length <= 60 ? renamedTitle : renamedTitle.includes(brand)
+  ? `${renamedTitle.replace(brand, '').replace(/\s*[|·–—-]\s*$/, '').trim().slice(0, 35).trimEnd()}… | ${brand}`
+  : `${renamedTitle.slice(0, 59).trimEnd()}…`;
 ---
 
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>{title}</title>
+<title>{pageTitle}</title>
 <meta name="description" content={description} />
 <link rel="canonical" href={canonical} />
 <meta property="og:type" content={ogType} />
 <meta property="og:url" content={canonical} />
-<meta property="og:title" content={title} />
+<meta property="og:title" content={pageTitle} />
 <meta property="og:description" content={description} />
 <meta property="og:image" content={ogImage} />
-<meta property="og:site_name" content="MarkLayer" />
+<meta property="og:site_name" content="visual collaboration" />
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content={title} />
+<meta name="twitter:title" content={pageTitle} />
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={ogImage} />
 <meta name="robots" content={robots} />

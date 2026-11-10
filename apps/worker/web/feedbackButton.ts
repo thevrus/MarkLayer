@@ -17,7 +17,7 @@ export function feedbackButtonHtml({ url }: { url: string }): string {
   const credit = 'font-size:11px;font-weight:400;color:#a1a1aa';
   return (
     `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="${box}">` +
-    `Leave feedback<span style="${credit}">via MarkLayer</span></a>`
+    `Leave feedback<span style="${credit}">via visual collaboration</span></a>`
   );
 }
 
@@ -26,7 +26,7 @@ const PAREN = { '(': '%28', ')': '%29' } as const;
 /** For READMEs and Notion, where inline HTML is stripped. Parens and spaces would end the link early. */
 export function feedbackButtonMarkdown({ url }: { url: string }): string {
   const safe = url.replace(/[()\s]/g, (ch) => (ch === '(' || ch === ')' ? PAREN[ch] : encodeURIComponent(ch)));
-  return `[Leave feedback](${safe}) · via [MarkLayer](${new URL(url).origin})`;
+  return `[Leave feedback](${safe}) · via [visual collaboration](${new URL(url).origin})`;
 }
 
 /**

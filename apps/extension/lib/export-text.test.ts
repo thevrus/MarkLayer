@@ -32,7 +32,7 @@ const build = (ops: DrawOp[], meta: Parameters<typeof buildMarkdownExport>[1] = 
 describe('buildMarkdownExport', () => {
   test('produces a header and nothing else for an empty canvas', () => {
     const md = build([]);
-    expect(md).toContain('# MarkLayer annotations');
+    expect(md).toContain('# visual collaboration annotations');
     expect(md).not.toContain('Totals');
     expect(md).not.toContain('## Comments');
   });
@@ -103,7 +103,7 @@ describe('buildMarkdownExport', () => {
 
   test('omits a kind with nothing in it from the totals', () => {
     expect(build([comment()])).toBe(
-      `${['# MarkLayer annotations', '', `**Generated:** ${new Date(Date.UTC(2026, 0, 2)).toLocaleString()}`, '**Totals:** 1 comment', '', '## Comments', '', '### #1 — Anonymous _(Open)_', '', 'Nav feels cramped'].join('\n')}\n`,
+      `${['# visual collaboration annotations', '', `**Generated:** ${new Date(Date.UTC(2026, 0, 2)).toLocaleString()}`, '**Totals:** 1 comment', '', '## Comments', '', '### #1 — Anonymous _(Open)_', '', 'Nav feels cramped'].join('\n')}\n`,
     );
   });
 

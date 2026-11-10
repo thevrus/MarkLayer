@@ -1,4 +1,6 @@
 import type { WaitUntil } from './env';
+// Refresh pre-rebrand images in place, without changing room or object keys.
+const OG_ARTWORK_VERSION = 'visual-collaboration-1';
 /**
  * Response headers for a static, immutable-per-deploy document — the agent-facing
  * files (robots, llms.txt, security.txt, the skill and MCP cards), the OpenAPI
@@ -32,10 +34,15 @@ export async function cachedPng({
   admit?: () => Promise<boolean>;
 }): Promise<Response> {
   const cached = await bucket.get(key);
-  if (cached) return new Response(cached.body, { headers: dayCached('image/png') });
+  if (cached?.customMetadata?.artwork === OG_ARTWORK_VERSION) {
+    return new Response(cached.body, { headers: dayCached('image/png') });
+  }
   if (admit && !(await admit())) return new Response('Too many requests', { status: 429 });
 
   const png = await render();
-  ctx.waitUntil(bucket.put(key, png, { httpMetadata: { contentType: 'image/png' } }));
+  ctx.waitUntil(bucket.put(key, png, {
+    httpMetadata: { contentType: 'image/png' },
+    customMetadata: { artwork: OG_ARTWORK_VERSION },
+  }));
   return new Response(png, { headers: dayCached('image/png') });
 }

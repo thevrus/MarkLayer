@@ -1256,7 +1256,7 @@
      A short fade, or one still at partial opacity where the box ends, puts a
      visible band across the glyphs — which is the whole failure this avoids. */
   .ml-signature-clip {
-    font-size: 21vw;
+    font-size: 9vw;
     height: 0.6em;
     overflow: hidden;
     text-align: center;

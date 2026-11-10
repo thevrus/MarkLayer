@@ -86,6 +86,7 @@ export function buildOgSvg({ domain, ops, faviconUri }: OgCardParams): string {
   ${watermark()}
 
   ${mark({ ...SIGNATURE_MARK, fill: TONE.ink })}
+  <text x="152" y="90" font-family="Geist" font-size="28" font-weight="500" fill="${TONE.ink}">visual collaboration</text>
 
   ${faviconUri ? `<image x="${MARK_AXIS}" y="${iconY.toFixed(1)}" width="${icon}" height="${icon}" href="${faviconUri}"/>` : ''}
 

@@ -313,7 +313,7 @@ function InfoPanelBody() {
         )}
         <a href={HOW_IT_WORKS_URL} target="_blank" rel="noopener" class={panelLinkRow}>
           <BookOpen size={14} strokeWidth={1.5} class="shrink-0" aria-hidden="true" />
-          <span class="flex-1">How MarkLayer works</span>
+          <span class="flex-1">How visual collaboration works</span>
           <ArrowUpRight size={14} strokeWidth={1.5} class="shrink-0" aria-hidden="true" />
         </a>
         {/* Authors only, because the card itself is: `SupportDialog` renders

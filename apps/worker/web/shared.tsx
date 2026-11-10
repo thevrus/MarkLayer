@@ -2,7 +2,7 @@ import { geist } from '@ext/lib/geist';
 import { color, lineWidth } from '@ext/lib/prefs';
 import { TEXT_FONT_STACK, TEXT_LINE_HEIGHT, textFontSize } from '@ext/lib/text-op';
 import type { DeviceMode } from '@ext/lib/types';
-import { MARK_PATHS, MARK_TRANSFORM } from '@marklayer/brand/mark';
+import { MARK_BLUE, MARK_PATHS, MARK_PURPLE, MARK_TRANSFORM } from '@marklayer/brand/mark';
 import { cn } from '@marklayer/ui/cn';
 import { Check, Copy, Loader2, Monitor, Smartphone, Tablet } from 'lucide-preact';
 import { useEffect, useRef } from 'preact/hooks';
@@ -97,8 +97,8 @@ export function Logo({ size = 24, class: className }: { size?: number; class?: s
       </g>
       <defs>
         <linearGradient id={id} gradientTransform="rotate(45)" style={{ transformOrigin: 'center center' }}>
-          <stop stop-color="#A855F7" />
-          <stop offset="1" stop-color="#6D28D9" />
+          <stop stop-color={MARK_BLUE} />
+          <stop offset="1" stop-color={MARK_PURPLE} />
         </linearGradient>
       </defs>
     </svg>

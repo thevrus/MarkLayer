@@ -305,6 +305,7 @@ export function buildPageOgSvg({ heading, path }: PageOgCardParams): string {
   <rect width="${CARD.width}" height="${CARD.height}" fill="${TONE.ground}"/>
 
   ${mark({ ...SIGNATURE_MARK, fill: TONE.ink })}
+  <text x="152" y="90" font-family="Geist" font-size="28" font-weight="500" fill="${TONE.ink}">visual collaboration</text>
 
   ${heads}
 

@@ -115,7 +115,7 @@ export function Landing() {
           <nav class="mx-auto flex h-14 w-full max-w-page items-center justify-between gap-6 px-6 sm:px-10">
             <a href="/" class="flex items-center gap-2 no-underline">
               <Logo size={26} />
-              <span class="font-ui text-lede font-semibold tracking-brand text-ml-fg">MarkLayer</span>
+              <span class="font-ui text-lede font-semibold tracking-brand text-ml-fg">visual collaboration</span>
             </a>
             <div class="flex items-center gap-0.5 sm:gap-1">
               <div class="mr-1 hidden items-center sm:flex">
@@ -392,7 +392,7 @@ export function Landing() {
                 own toolbar floats there and swallowed it when flush. `aria-hidden`:
                 the accessible wordmark is the one in the nav. */}
             <div class="lp-wordmark-clip mt-12 select-none" aria-hidden="true">
-              <span class="lp-wordmark">MarkLayer</span>
+              <span class="lp-wordmark">visual collaboration</span>
             </div>
           </footer>
         </main>

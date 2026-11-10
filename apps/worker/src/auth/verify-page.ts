@@ -17,16 +17,16 @@ export function isTokenShaped(token: string | undefined): token is string {
  * Scanners follow links; they do not press buttons.
  */
 export function confirmPage(token: string): Response {
-  const body = `<h1>Sign in to MarkLayer</h1>
+  const body = `<h1>Sign in to visual collaboration</h1>
 <p>Press continue to finish signing in on this device.</p>
 <form method="post" action="/auth/verify"><input type="hidden" name="token" value="${token}"><button type="submit" autofocus>Continue</button></form>
 <small>If you did not ask to sign in, close this page and nothing will happen.</small>`;
-  return new Response(page({ title: 'Sign in · MarkLayer', body }), { status: 200, headers: HTML_HEADERS });
+  return new Response(page({ title: 'Sign in · visual collaboration', body }), { status: 200, headers: HTML_HEADERS });
 }
 
 export function expiredPage(): Response {
   const body = `<h1>This link has expired</h1>
 <p>Sign-in links work once and last ${LOGIN_TOKEN_TTL_SECONDS / 60} minutes. Ask for a new one and use the newest email.</p>
 <a class="btn" href="/app">Get a new link</a>`;
-  return new Response(page({ title: 'Link expired · MarkLayer', body }), { status: 400, headers: HTML_HEADERS });
+  return new Response(page({ title: 'Link expired · visual collaboration', body }), { status: 400, headers: HTML_HEADERS });
 }

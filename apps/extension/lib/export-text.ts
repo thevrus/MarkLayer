@@ -118,7 +118,7 @@ function renderSection({
 
 export function buildMarkdownExport(ops: DrawOp[], meta: ExportMeta = {}): string {
   const out: string[] = [];
-  out.push('# MarkLayer annotations', '');
+  out.push('# visual collaboration annotations', '');
   if (meta.url) out.push(`**URL:** ${meta.url}`);
   const generated = new Date(meta.generatedAt ?? Date.now()).toLocaleString();
   out.push(`**Generated:** ${generated}`);

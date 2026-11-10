@@ -7,7 +7,7 @@ export default defineConfig({
     plugins: [preact(), tailwindcss()],
   }),
   manifest: {
-    name: 'MarkLayer — Webpage Annotator & Visual Feedback Tool',
+    name: 'visual collaboration',
     description:
       'Free open-source webpage annotator. Mark up any page, share a link, no account needed. Hand feedback to AI agents via MCP.',
     action: {},

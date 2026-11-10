@@ -70,7 +70,7 @@ app.get('/s/:id', async (c) => {
   domain ??= 'a webpage';
   const res = await shellResponse({ env: c.env, url: reqUrl });
   const ogImage = `${reqUrl.origin}/og/${annotationId}.png`;
-  const title = `MarkLayer · Annotations on ${domain}`;
+  const title = `visual collaboration · Annotations on ${domain}`;
   const description = shareDescription({ domain, ops: ops ?? [] });
   return shareShell({ html: await res.text(), url: reqUrl.href, title, image: ogImage, description });
 });
@@ -130,7 +130,7 @@ app.get('/p/:id', async (c) => {
   const res = await assetsPromise;
   const ogImage = `${reqUrl.origin}/og/${projectId}.png`;
   const pagesLabel = pageCount > 0 ? ` (${pageCount} pages)` : '';
-  const title = `MarkLayer · Annotations on ${domain}${pagesLabel}`;
+  const title = `visual collaboration · Annotations on ${domain}${pagesLabel}`;
   const description = shareDescription({ domain, ops: firstPageOps ?? [] });
   return shareShell({ html: await res.text(), url: reqUrl.href, title, image: ogImage, description });
 });

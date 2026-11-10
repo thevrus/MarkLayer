@@ -1,20 +1,6 @@
 ---
-/**
- * The MarkLayer mark: a hand-drawn annotation gesture, used bare with no tile
- * or chip behind it.
- *
- * This is the SAME artwork the app's own lockup draws: the 512 box, the three
- * paths and the transform are defined once in packages/brand (`mark.ts`). The
- * 45° gradient's two stops are the site's own `--color-brand` /
- * `--color-brand-deep` rather than hexes written into the SVG a second time.
- * The site used to run a different cut of the mark (a fourth arrowhead path, a
- * 26×30 box, one flat purple), so the brand changed shape and colour between `/`
- * and every page linked from it. One mark, one gradient, both surfaces.
- *
- * The gradient lives inside the glyph, which is the only place colour is allowed
- * to be a gradient here: nothing else on the site is one.
- */
-import { MARK_PATHS, MARK_TRANSFORM } from '@marklayer/brand/mark';
+/** The shared visual collaboration mark and its blue-purple gradient. */
+import { MARK_BLUE, MARK_PATHS, MARK_PURPLE, MARK_TRANSFORM } from '@marklayer/brand/mark';
 
 interface Props {
   /** Rendered box in px; the artwork is square and self-padded. */
@@ -35,10 +21,8 @@ const id = `ml-mark-${Math.random().toString(36).slice(2, 9)}`;
   </g>
   <defs>
     <linearGradient id={id} gradientTransform="rotate(45)" style="transform-origin: center center">
-      {/* `style`, not a `stop-color` attribute: `var()` resolves in a CSS
-          declaration and is ignored in a presentation attribute. */}
-      <stop style="stop-color: var(--color-brand)"></stop>
-      <stop offset="1" style="stop-color: var(--color-brand-deep)"></stop>
+      <stop stop-color={MARK_BLUE}></stop>
+      <stop offset="1" stop-color={MARK_PURPLE}></stop>
     </linearGradient>
   </defs>
 </svg>

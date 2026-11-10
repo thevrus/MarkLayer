@@ -6,7 +6,7 @@ import dates from '../data/page-dates.json';
 import { getCurrentVersion } from '../lib/collections';
 import { faqSchema } from '../lib/schema';
 import { ORIGIN } from '@marklayer/brand';
-import { OG_IMAGE, OG_VIDEO, WORKER_DEV } from '../lib/site';
+import { OG_IMAGE, WORKER_DEV } from '../lib/site';
 
 /**
  * The application shell for `/`.
@@ -19,10 +19,10 @@ import { OG_IMAGE, OG_VIDEO, WORKER_DEV } from '../lib/site';
  * Everything inside #app is prerendered marketing content that main.tsx wipes
  * on boot. It exists for crawlers and for first paint before the bundle lands.
  */
-const title = 'MarkLayer · Free Webpage, PDF & Image Annotation, No Account';
+const title = 'visual collaboration · Webpage, PDF & Image Annotation';
 const description =
   'Free web app to annotate any live webpage, PDF or image. Paste a URL or drop a file, draw and comment, share a link. No account, no email, no install.';
-const ogTitle = 'MarkLayer · Free Webpage, PDF & Image Annotation';
+const ogTitle = 'visual collaboration · Free Webpage, PDF & Image Annotation';
 const ogDescription =
   'Free web app. Paste any URL or open a PDF or image, draw and comment on it, share a link. 100% free, anonymous by default. No account, no email, no sign-up, nothing to install.';
 const twitterDescription =
@@ -65,12 +65,8 @@ const ld = {
     <meta property="og:title" content={ogTitle} />
     <meta property="og:description" content={ogDescription} />
     <meta property="og:image" content={OG_IMAGE} />
-    <meta property="og:video" content={OG_VIDEO} />
-    <meta property="og:video:type" content="video/mp4" />
-    <meta property="og:video:width" content="1200" />
-    <meta property="og:video:height" content="630" />
     <meta property="og:url" content={ORIGIN} />
-    <meta property="og:site_name" content="MarkLayer" />
+    <meta property="og:site_name" content="visual collaboration" />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content={OG_IMAGE} />

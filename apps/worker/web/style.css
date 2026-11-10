@@ -1110,7 +1110,7 @@ button.lp-field:focus-visible {
    would put a visible band across the glyphs — which is the failure this is
    built to avoid. */
 .lp-wordmark-clip {
-  font-size: 21cqw;
+  font-size: 9cqw;
   height: 0.6em;
   overflow: hidden;
   text-align: center;

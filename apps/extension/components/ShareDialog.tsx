@@ -243,7 +243,7 @@ export function ShareDialog() {
             onClick={() => track('share_how_it_works_clicked')}
             class="text-meta text-(--ds-gray-900) hover:text-(--ds-gray-1000) no-underline hover:underline transition-colors"
           >
-            How MarkLayer works
+            How visual collaboration works
           </a>
         </Dialog.Popup>
       </Dialog.Portal>

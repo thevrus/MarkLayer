@@ -10,7 +10,7 @@ export function escapeXml(s: string): string {
  * from the wordmark beside it. These are the measured extents of the three paths
  * after `MARK_TRANSFORM`.
  */
-export const MARK_BOX = { x: 27.6, y: -3.4, h: 423.4 };
+export const MARK_BOX = { x: 48, y: 52, h: 357 };
 
 /* Two axes, and everything on either card sits on one of them: the marks (the
    logo, the favicon) hang at the outer edge, the words start at the inner one. */

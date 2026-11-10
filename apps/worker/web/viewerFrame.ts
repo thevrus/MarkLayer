@@ -14,11 +14,11 @@ export type RenderFailure = 'timeout' | 'no-marker' | 'iframe-error' | 'firewall
 export const FAILURE_COPY = {
   firewall: {
     title: "This site's firewall blocked us",
-    body: 'The host answered our request with a security challenge instead of the page, so there was nothing to show. The annotations are saved — open them with the MarkLayer extension on the live site, which loads the page in your own browser.',
+    body: 'The host answered our request with a security challenge instead of the page, so there was nothing to show. The annotations are saved — open them with the visual collaboration extension on the live site, which loads the page in your own browser.',
   },
   hostile: {
     title: 'This site blocks embedding',
-    body: 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the MarkLayer extension to view them on the live site.',
+    body: 'Sites like YouTube, TikTok, Instagram, and X refuse to load inside other pages. The annotations are saved — install the visual collaboration extension to view them on the live site.',
   },
   'upstream-error': {
     // Distinct from `firewall` on purpose: telling someone a firewall blocked us

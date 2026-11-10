@@ -223,7 +223,7 @@ function CompareBar({ a, b, compared }: { a: string; b: string; compared: boolea
   return (
     <header class={cn(geist.bar, 'px-4 py-3')}>
       <form class="flex flex-wrap items-end gap-3" onSubmit={submit}>
-        <a href="/" class="mb-2 flex h-6 shrink-0 items-center" aria-label="MarkLayer home">
+        <a href="/" class="mb-2 flex h-6 shrink-0 items-center" aria-label="visual collaboration home">
           <Logo size={20} />
         </a>
         <UrlField

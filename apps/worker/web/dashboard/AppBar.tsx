@@ -66,7 +66,7 @@ export function AppBar() {
           )}
         >
           <Logo size={20} />
-          <span class="text-ui tracking-ui font-semibold text-(--ds-gray-1000)">MarkLayer</span>
+          <span class="text-ui tracking-ui font-semibold text-(--ds-gray-1000)">visual collaboration</span>
         </a>
         {account ? <AccountMenu email={account.email} /> : null}
       </div>

@@ -39,5 +39,5 @@ p.alert{color:var(--fg);font-weight:500}
 `;
 
 export function page({ title, body }: { title: string; body: string }): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>${STYLE}</style></head><body><main><p class="mark">MarkLayer</p>${body}</main></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>${STYLE}</style></head><body><main><p class="mark">visual collaboration</p>${body}</main></body></html>`;
 }
