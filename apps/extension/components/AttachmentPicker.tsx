@@ -9,6 +9,7 @@ import { geist } from '../lib/geist';
 import { compressImage } from '../lib/image';
 import { portalContainer } from '../lib/portal';
 import { Tooltip } from './Tooltip';
+import { ScreenCapture } from './ScreenCapture';
 
 /**
  * Upload queue for one composer's attachments. `upload` is injected rather than
@@ -196,6 +197,7 @@ export function AttachButton({ attachments, label }: { attachments: Attachments;
 
   return (
     <>
+      <ScreenCapture attachments={attachments} />
       <button
         type="button"
         disabled={attachments.full}

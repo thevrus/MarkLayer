@@ -3,8 +3,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Bun's default level, measured on the bundle as it stood before the host contract.
-const GZ_BUDGET = 103_808;
+// 截图入口在小组件中被替换为空组件；预留 64 字节给共享调用与演示状态协议。
+const GZ_BUDGET = 103_872;
 
 const FORBIDDEN = [
   // Identity in a customer's localStorage: a visitor's is one page load long.
