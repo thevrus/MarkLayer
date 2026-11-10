@@ -109,3 +109,9 @@ test('layer commands and snapshots validate their identifiers and names', () => 
   expect(clientMsgSchema.safeParse({ type: 'layer_rename', id: 'review', name: '' }).success).toBe(false);
   expect(serverMsgSchema.safeParse({ type: 'layers', layers: [{ id: 'default', name: '默认图层', created_at: 1 }] }).success).toBe(true);
 });
+test('AI claim and task messages require identifiers', () => {
+  expect(clientMsgSchema.safeParse({ type: 'agent_claim', agentId: 'codex' }).success).toBe(true);
+  expect(clientMsgSchema.safeParse({ type: 'agent_claim', agentId: '' }).success).toBe(false);
+  expect(clientMsgSchema.safeParse({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'a1', sourceId: 'a1', layerId: 'review' }).success).toBe(true);
+  expect(clientMsgSchema.safeParse({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'a1', sourceId: 'a1' }).success).toBe(false);
+});

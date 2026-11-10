@@ -867,3 +867,20 @@ test('moving a root annotation moves its replies and forbids moving a reply sepa
     expect.objectContaining({ id: 'reply', layerId: 'review' }),
   ]);
 });
+
+test('room members claim an agent and queue an explicit assignment without losing the chosen layer', async () => {
+  const root: DrawOp = { id: 'root', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  const live = liveRoom({ ops: [root] });
+  const person = new FakeWebSocket({ id: 'p2', uid: 'user-1', name: 'Alice', color: '#000000' });
+  const agent = new FakeWebSocket({ id: 'mcp-codex-session', uid: 'codex', name: 'Codex', color: '#000000' });
+  live.ctx.getWebSockets().push(person, agent);
+  const send = (message: unknown) => live.room.webSocketMessage(person, JSON.stringify(message));
+  await send({ type: 'layer_create', id: 'review', name: '审查' });
+  await send({ type: 'agent_claim', agentId: 'codex' });
+  await send({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'root', sourceId: 'root', layerId: 'review' });
+  const snapshot = await live.room.snapshot();
+  expect(snapshot.claims).toContainEqual({ agent_id: 'codex', owner_id: 'user-1', owner_name: 'Alice' });
+  expect(snapshot.tasks).toEqual([expect.objectContaining({ id: 't1', requester_id: 'user-1', layer_id: 'review', status: 'queued' })]);
+  await send({ type: 'task_cancel', taskId: 't1' });
+  expect((await live.room.snapshot()).tasks?.[0]?.status).toBe('cancelled');
+});

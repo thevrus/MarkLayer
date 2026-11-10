@@ -31,6 +31,16 @@ export type RtcMessageType = (typeof RTC_MESSAGE_TYPES)[number];
 export const roomLayerSchema = z.object({ id: z.string().check(z.minLength(1)), name: z.string().check(z.minLength(1), z.maxLength(80)), created_at: z.number() });
 export type RoomLayer = z.infer<typeof roomLayerSchema>;
 
+export const agentClaimSchema = z.object({ agent_id: z.string(), owner_id: z.string(), owner_name: z.string() });
+export const roomTaskSchema = z.object({
+  sequence: z.number(), id: z.string(), room_id: z.string(), agent_id: z.string(), requester_id: z.string(), requester_name: z.string(),
+  layer_id: z.string(), annotation_id: z.string(), source_id: z.string(),
+  status: z.enum(['queued', 'running', 'waiting', 'cancel_requested', 'completed', 'cancelled']),
+  waiting_for: z.nullable(z.string()), created_at: z.number(),
+});
+export type RoomTask = z.infer<typeof roomTaskSchema>;
+export type AgentClaim = z.infer<typeof agentClaimSchema>;
+
 export const execModeSchema = z.enum(['solo', 'guide', 'pair']);
 export type ExecMode = z.infer<typeof execModeSchema>;
 
@@ -66,6 +76,10 @@ const teachingPeer = { peerId: z.string(), color: z.optional(z.string()) };
  * Excludes RTC signaling (see RTC_MESSAGE_TYPES).
  */
 export const clientMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('agent_claim'), agentId: z.string().check(z.minLength(1), z.maxLength(64)) }),
+  z.object({ type: z.literal('agent_release'), agentId: z.string().check(z.minLength(1), z.maxLength(64)) }),
+  z.object({ type: z.literal('task_submit'), taskId: z.string().check(z.minLength(1), z.maxLength(80)), agentId: z.string().check(z.minLength(1), z.maxLength(64)), annotationId: z.string().check(z.minLength(1)), sourceId: z.string().check(z.minLength(1)), layerId: z.string().check(z.minLength(1)) }),
+  z.object({ type: z.literal('task_cancel'), taskId: z.string().check(z.minLength(1), z.maxLength(80)) }),
   z.object({ type: z.literal('layer_create'), id: z.string().check(z.minLength(1), z.maxLength(80)), name: z.string().check(z.minLength(1), z.maxLength(80)) }),
   z.object({ type: z.literal('layer_rename'), id: z.string().check(z.minLength(1), z.maxLength(80)), name: z.string().check(z.minLength(1), z.maxLength(80)) }),
   z.object({ type: z.literal('layer_delete'), id: z.string().check(z.minLength(1), z.maxLength(80)) }),
@@ -128,6 +142,7 @@ const rtcRelaySchema = z.looseObject({
 
 /** Every message a room sends down a socket. Additive: it describes what is sent today. */
 export const serverMsgSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('collaboration'), claims: z.array(agentClaimSchema), tasks: z.array(roomTaskSchema) }),
   z.object({ type: z.literal('layers'), layers: z.array(roomLayerSchema) }),
   z.object({ type: z.literal('exec_mode'), execMode: execModeSchema }),
   z.object({ type: z.literal('teach_highlight'), ...teachHighlight, ...teachingPeer }),
@@ -148,6 +163,8 @@ export const serverMsgSchema = z.discriminatedUnion('type', [
     canEdit: z.optional(z.boolean()),
     execMode: z.optional(execModeSchema),
     layers: z.optional(z.array(roomLayerSchema)),
+    claims: z.optional(z.array(agentClaimSchema)),
+    tasks: z.optional(z.array(roomTaskSchema)),
     iceServers: z.optional(z.array(iceServerSchema)),
   }),
   z.object({ type: z.literal('access'), canEdit: z.boolean() }),
@@ -207,6 +224,8 @@ export interface AgentSnapshot {
   cursor: number;
   execMode?: ExecMode;
   layers?: RoomLayer[];
+  claims?: AgentClaim[];
+  tasks?: RoomTask[];
 }
 
 /**

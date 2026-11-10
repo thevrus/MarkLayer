@@ -53,6 +53,9 @@ export function collaborationStore(db: D1Database) {
         SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM room_layers WHERE room_id = ? AND id = ?)`)
         .bind(task.id, task.room_id, task.agent_id, task.requester_id, task.requester_name, task.layer_id, task.annotation_id, task.source_id, task.room_id, task.layer_id).run());
     },
+    async allTasks(roomId: string): Promise<RoomTask[]> {
+      return (await db.prepare('SELECT * FROM room_tasks WHERE room_id = ? ORDER BY sequence').bind(roomId).all<RoomTask>()).results;
+    },
     async tasks(roomId: string, agentId: string): Promise<RoomTask[]> {
       return (await db.prepare('SELECT * FROM room_tasks WHERE room_id = ? AND agent_id = ? ORDER BY sequence').bind(roomId, agentId).all<RoomTask>()).results;
     },

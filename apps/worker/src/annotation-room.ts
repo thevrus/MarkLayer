@@ -713,6 +713,8 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       canEdit: this.canEditFor(undefined),
       execMode: (await annotationStore(this.env.DB).getExecMode(await this.roomId())) ?? 'pair',
       layers: await collaborationStore(this.env.DB).layers(await this.roomId()),
+      claims: await collaborationStore(this.env.DB).claims(await this.roomId()),
+      tasks: await collaborationStore(this.env.DB).allTasks(await this.roomId()),
       cursor: this.cursor(),
     };
   }
@@ -892,6 +894,8 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       access: this.access,
       execMode: (await annotationStore(this.env.DB).getExecMode(await this.roomId())) ?? 'pair',
       layers: await collaborationStore(this.env.DB).layers(await this.roomId()),
+      claims: await collaborationStore(this.env.DB).claims(await this.roomId()),
+      tasks: await collaborationStore(this.env.DB).allTasks(await this.roomId()),
       canEdit,
       iceServers: iceServers.map((s) => ({ ...s })),
     };
@@ -968,6 +972,34 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     }
 
     switch (msg.type) {
+      case 'agent_claim':
+      case 'agent_release':
+      case 'task_submit':
+      case 'task_cancel': {
+        const info = this.getPeerInfo(ws);
+        if (!info?.uid || isAgentPeer(info.id)) return;
+        await this.serializeCollaboration(async () => {
+          if (!(await this.mayEdit({ ws })) || this.dead || (await this.pastDeadline())) return;
+          const store = collaborationStore(this.env.DB);
+          const roomId = await this.roomId();
+          let ok = false;
+          if (msg.type === 'agent_claim') {
+            const found = this.getPeerList().some((peer) => isAgentPeer(peer.id) && peer.uid === msg.agentId);
+            if (found) ok = await store.claim(roomId, msg.agentId, info.uid!, info.name);
+          }
+          if (msg.type === 'agent_release') ok = await store.release(roomId, msg.agentId, info.uid!);
+          if (msg.type === 'task_cancel') ok = await store.requestCancel(roomId, msg.taskId);
+          if (msg.type === 'task_submit') {
+            const source = parseOps(this.ops ?? []).find((op) => op.id === msg.sourceId);
+            const isSource = source && (source.id === msg.annotationId || (source.tool === 'comment' && source.parentId === msg.annotationId));
+            const found = this.getPeerList().some((peer) => isAgentPeer(peer.id) && peer.uid === msg.agentId) || (await store.claims(roomId)).some((claim) => claim.agent_id === msg.agentId);
+            if (isSource && found) ok = await store.enqueue({ id: msg.taskId, room_id: roomId, agent_id: msg.agentId, requester_id: info.uid!, requester_name: info.name, layer_id: msg.layerId, annotation_id: msg.annotationId, source_id: msg.sourceId });
+          }
+          if (ok) this.announce([{ type: 'collaboration', claims: await store.claims(roomId), tasks: await store.allTasks(roomId) }]);
+          else ws.send(JSON.stringify({ type: 'error', code: 'collaboration_change_refused' }));
+        });
+        return;
+      }
       case 'layer_create':
       case 'layer_rename':
       case 'layer_delete': {
