@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import { useSignalEffect } from '@preact/signals';
+import { useSignal, useSignalEffect } from '@preact/signals';
 import { useState } from 'preact/hooks';
 import { activeLayer, layerChoices, roomLayers, selectLayer, setLayerVisible } from '../lib/layers';
 import { operations, patchOp } from '../lib/ops';
@@ -7,18 +7,19 @@ import { canEditFromRoom, wsSend } from '../lib/realtime';
 
 export function LayerPanel({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('');
-  const [pending, setPending] = useState('');
+  const pending = useSignal('');
   const [renaming, setRenaming] = useState('');
   const [draft, setDraft] = useState('');
   const writable = canEditFromRoom.value !== false;
   const send = (message: object) => wsSend.value?.(message);
   useSignalEffect(() => {
-    if (pending && roomLayers.value.some((layer) => layer.id === pending)) { selectLayer(pending); setPending(''); }
+    const id = pending.value;
+    if (id && roomLayers.value.some((layer) => layer.id === id)) { selectLayer(id); pending.value = ''; }
   });
   const create = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const id = nanoid(); setPending(id); send({ type: 'layer_create', id, name: trimmed }); setName('');
+    const id = nanoid(); pending.value = id; send({ type: 'layer_create', id, name: trimmed }); setName('');
   };
   const items = operations.value.filter((op) => (op.layerId ?? 'default') === activeLayer.value && !(op.tool === 'comment' && op.parentId));
   return <section aria-label="图层管理" class="fixed right-4 bottom-20 z-2147483647 rounded-xl bg-white p-4 shadow-xl text-black" style={{ width: 320, maxHeight: '70vh', overflow: 'auto' }}>
