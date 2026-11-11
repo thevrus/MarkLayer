@@ -418,7 +418,7 @@ export const commentOpSchema = z.object({
   visualContext: z.optional(z.object({
     region: selectionRectSchema,
     layerId: z.string().check(z.minLength(1), z.maxLength(80)),
-    annotations: z.array(z.object({ id: z.string().check(z.minLength(1), z.maxLength(128)), kind: z.enum(['comment', 'area', 'selection', 'inspect']), text: z.string().check(z.maxLength(500)) })).check(z.maxLength(25)),
+    annotations: z.array(z.object({ id: z.string().check(z.minLength(1), z.maxLength(128)), kind: z.enum(['comment', 'area', 'selection', 'inspect', 'pen', 'highlight', 'rectangle', 'line', 'circle', 'text']), text: z.string().check(z.maxLength(500)), bounds: z.optional(selectionRectSchema) })).check(z.maxLength(25)),
     truncated: z.boolean(),
     /** Some positions could not be resolved against the visible document. */
     incomplete: z.optional(z.boolean()),

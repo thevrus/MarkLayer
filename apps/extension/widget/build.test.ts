@@ -3,8 +3,8 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// 小组件共用附件放大及当前图层的空间上下文；增加 1024 字节预算以覆盖这两项功能。
-const GZ_BUDGET = 105_280;
+// 小组件共用附件放大、图层空间上下文及图形位置；为新增能力预留共 1280 字节。
+const GZ_BUDGET = 105_536;
 
 const FORBIDDEN = [
   // Identity in a customer's localStorage: a visitor's is one page load long.
