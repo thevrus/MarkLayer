@@ -11,6 +11,7 @@ let root: HTMLDivElement;
 let target: HTMLDivElement;
 const originalPick = Object.getOwnPropertyDescriptor(document, 'elementsFromPoint');
 const width = window.innerWidth;
+const originalDpr = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
 const originalTool = activeTool.peek();
 
 afterEach(() => {
@@ -20,11 +21,14 @@ afterEach(() => {
   operations.value = [];
   activeTool.value = originalTool;
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+  if (originalDpr) Object.defineProperty(window, 'devicePixelRatio', originalDpr);
+  else Reflect.deleteProperty(window, 'devicePixelRatio');
   if (originalPick) Object.defineProperty(document, 'elementsFromPoint', originalPick);
   else Reflect.deleteProperty(document, 'elementsFromPoint');
 });
 
-test('缩放重排后草稿跟随目标，发布仍使用点击时的几何快照', async () => {
+test.each([1, 1.25, 1.5])('缩放重排后草稿跟随目标，发布仍使用点击时的几何快照 (zoom=%s)', async (zoom) => {
+  Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 });
   window.scrollTo(0, 0);
   operations.value = [];
   ensureScrollTickListener();
@@ -46,6 +50,7 @@ test('缩放重排后草稿跟随目标，发布仍使用点击时的几何快�
   const panel = () => root.querySelector<HTMLElement>('[aria-label="New comment"]')!;
   expect(panel().style.left).toBe('156px');
   const capturedWidth = window.innerWidth;
+  Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: zoom });
   rect = new DOMRect(200, 150, 100, 50);
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: capturedWidth - 100 });
   await act(async () => {

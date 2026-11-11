@@ -175,6 +175,114 @@ describe('resolveAnchorPoint', () => {
   });
 });
 
+describe('published pin under zoom', () => {
+  test('A: keeps CSS coordinates at 100%, 125%, and 150% browser zoom', () => {
+    mount('<h1 id="hero">Pricing</h1>');
+    const el = pick('#hero');
+    layout(el, { x: 100, y: 200, width: 200, height: 100 });
+    const pin = target({
+      rect: { x: 100, y: 200, width: 200, height: 100 },
+      offsetX: 190,
+      offsetY: 20,
+    });
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+    try {
+      for (const devicePixelRatio of [1, 1.25, 1.5]) {
+        Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: devicePixelRatio });
+        expect(resolveAnchorPoint(pin, ctx)).toMatchObject({ x: 290, y: 220 });
+      }
+    } finally {
+      if (descriptor) Object.defineProperty(window, 'devicePixelRatio', descriptor);
+      else Reflect.deleteProperty(window, 'devicePixelRatio');
+    }
+  });
+
+  test('scales a right-edge pin for a CSS transform, without treating it as reflow', () => {
+    mount('<h1 id="hero" style="transform: scale(0.8)">Pricing</h1>');
+    const el = pick('#hero');
+    layout(el, { x: 100, y: 200, width: 160, height: 80 });
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 200 });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 100 });
+    const pin = target({ rect: { x: 100, y: 200, width: 200, height: 100 }, offsetX: 190, offsetY: 20 });
+    expect(resolveAnchorPoint(pin, ctx)).toMatchObject({ x: 252, y: 216, scaleX: 0.8, scaleY: 0.8 });
+  });
+
+  test('does not apply an unchanged transform twice when capture was already scaled', () => {
+    mount('<h1 id="hero" style="transform: scale(0.8)">Pricing</h1>');
+    const el = pick('#hero');
+    layout(el, { x: 100, y: 200, width: 160, height: 80 });
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 200 });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 100 });
+    const pin = target({ rect: { x: 100, y: 200, width: 160, height: 80 }, offsetX: 152, offsetY: 16 });
+    expect(resolveAnchorPoint(pin, ctx)).toMatchObject({ x: 252, y: 216, scaleX: 1, scaleY: 1 });
+  });
+
+  test('keeps layout pin offsets bounded while reporting content scales', () => {
+    mount('<h1 id="hero">Pricing</h1>');
+    const el = pick('#hero');
+    layout(el, { x: 100, y: 200, width: 160, height: 80 });
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 160 });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 80 });
+    const captured = { x: 100, y: 200, width: 200, height: 100 };
+    expect(resolveAnchorPoint(target({ rect: captured, offsetX: 40, offsetY: 20 }), ctx))
+      .toMatchObject({ x: 140, y: 220, scaleX: 0.8, scaleY: 0.8 });
+    expect(resolveAnchorPoint(target({ rect: captured, offsetX: 190, offsetY: 90 }), ctx))
+      .toMatchObject({ x: 260, y: 280, scaleX: 0.8, scaleY: 0.8 });
+  });
+
+  test('A: keeps adjacent 45% and 55% pins strictly ordered after contraction', () => {
+    mount('<h1 id="hero">Pricing</h1>');
+    const el = pick('#hero');
+    layout(el, { x: 100, y: 200, width: 160, height: 80 });
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 160 });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 80 });
+    const captured = { x: 100, y: 200, width: 200, height: 100 };
+    const at = (offsetX: number, offsetY: number) =>
+      resolveAnchorPoint(target({ rect: captured, offsetX, offsetY }), ctx)!;
+    const left = at(90, 45);
+    const right = at(110, 55);
+    expect(left.x).toBeLessThan(right.x);
+    expect(left.y).toBeLessThan(right.y);
+    expect(left).toMatchObject({ x: 190, y: 245 });
+    expect(right).toMatchObject({ x: 210, y: 255 });
+    const before = at(99.999, 49.999);
+    const middle = at(100, 50);
+    const after = at(100.001, 50.001);
+    expect(middle.x - before.x).toBeCloseTo(0.001, 8);
+    expect(after.x - middle.x).toBeCloseTo(0.001, 8);
+    expect(middle.y - before.y).toBeCloseTo(0.001, 8);
+    expect(after.y - middle.y).toBeCloseTo(0.001, 8);
+    let previous = at(-1, -1);
+    for (let offset = 0; offset <= 201; offset++) {
+      const point = at(offset, offset / 2);
+      expect(point.x).toBeGreaterThanOrEqual(previous.x);
+      expect(point.y).toBeGreaterThanOrEqual(previous.y);
+      expect(point.x).toBeGreaterThanOrEqual(100);
+      expect(point.x).toBeLessThanOrEqual(260);
+      expect(point.y).toBeGreaterThanOrEqual(200);
+      expect(point.y).toBeLessThanOrEqual(280);
+      previous = point;
+    }
+  });
+
+  test('B: clamps a contracted pin to the right edge inside the box', () => {
+    mount('<h1 id="hero" style="transform: none">Pricing</h1>');
+    const el = pick('#hero');
+    const box = { x: 100, y: 200, width: 200, height: 100 };
+    layout(el, box);
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, get: () => box.width });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, get: () => box.height });
+    const pin = target({ rect: { ...box }, offsetX: 190, offsetY: 20 });
+    expect(resolveAnchorPoint(pin, ctx)).toMatchObject({ x: 290, y: 220 });
+
+    box.width = 160;
+    const anchor = resolveAnchorPoint(pin, ctx)!;
+    expect(anchor).toMatchObject({ x: 260, y: 220 });
+    expect(anchor.x).toBeGreaterThanOrEqual(box.x);
+    expect(anchor.x).toBeLessThanOrEqual(box.x + box.width);
+  });
+});
+
 describe('applyAnchorDelta', () => {
   test('reports the shift from the stored anchor to the resolved one', () => {
     mount('<h1 id="hero">Pricing</h1>');
@@ -254,5 +362,24 @@ describe('reprojectBox', () => {
 
     const out = reprojectBox({ target: target(), startX: 140, startY: 220, endX: 240, endY: 320, ctx });
     expect(out).toEqual({ x: 120, y: 240, width: 50, height: 200, strategy: 'primary' });
+  });
+});
+
+describe('content extents under layout contraction', () => {
+  test('scales rect extents and offsets-from-first with nonzero layout dimensions', () => {
+    mount('<h1 id="hero">Pricing</h1>');
+    const el = pick('#hero');
+    layout(el, { x: 100, y: 200, width: 160, height: 80 });
+    Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 160 });
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 80 });
+    const t = target({ rect: { x: 100, y: 200, width: 200, height: 100 } });
+    const out = reprojectRects({ target: t, ctx, rects: [
+      { x: 140, y: 220, width: 100, height: 20 },
+      { x: 150, y: 250, width: 50, height: 10 },
+    ] })!;
+    expect(out.rects[0]).toEqual({ x: 140, y: 220, width: 80, height: 16 });
+    expect(out.rects[1]).toEqual({ x: 148, y: 244, width: 40, height: 8 });
+    expect(reprojectBox({ target: t, ctx, startX: 140, startY: 220, endX: 240, endY: 270 }))
+      .toEqual({ x: 140, y: 220, width: 80, height: 40, strategy: 'primary' });
   });
 });

@@ -3,10 +3,7 @@ import { anchorGeneration } from './host-mutations';
 import { scrollOffset } from './scroller';
 import { textFingerprint } from './selector';
 
-// The stored `offsetX/offsetY` are absolute doc px from the target's top-left, but a
-// responsive reflow can resize the box between capture and re-anchor. Scaling the offset by
-// `currentSize / capturedSize` keeps the point at the same relative spot instead of drifting
-// off the element; with no captured size the scale is 1 and the offset stays absolute.
+// Content extents scale with the captured box; pin positions use a separate mapping.
 
 export interface AnchorContext {
   doc?: Document;
@@ -20,9 +17,9 @@ export type AnchorStrategy = 'primary' | 'text' | 'page';
 export interface ResolvedAnchor {
   x: number;
   y: number;
-  /** Current element size / captured element size (X axis). 1 when unknown. */
+  /** Current / captured content width. Independent of pin position scaling. */
   scaleX: number;
-  /** Current element size / captured element size (Y axis). 1 when unknown. */
+  /** Current / captured content height. Independent of pin position scaling. */
   scaleY: number;
   strategy: AnchorStrategy;
 }
@@ -96,11 +93,7 @@ function findByTextFingerprint(target: TargetElement, doc: Document, win: Window
   return best;
 }
 
-// Element-relative scale factors for the current re-anchor: how much the
-// target's box has grown/shrunk since capture, per axis. Guarded so a missing
-// captured rect or a zero-size box (display:none, not-yet-laid-out) degrades
-// to 1 (today's absolute-offset behavior) rather than exploding the
-// reprojected point.
+// Content scale is independent of the pin position policy below.
 function elementScale({ rect, target }: { rect: DOMRect; target: TargetElement }): {
   scaleX: number;
   scaleY: number;
@@ -109,14 +102,16 @@ function elementScale({ rect, target }: { rect: DOMRect; target: TargetElement }
   if (!cap || !(cap.width > 0) || !(cap.height > 0) || !(rect.width > 0) || !(rect.height > 0)) {
     return { scaleX: 1, scaleY: 1 };
   }
-  return { scaleX: rect.width / cap.width, scaleY: rect.height / cap.height };
+  return {
+    scaleX: rect.width / cap.width,
+    scaleY: rect.height / cap.height,
+  };
 }
 
-// Reproject the stored offset against the element's CURRENT rect as a
-// fraction of its (possibly resized) box — shared by both the memo-hit and
-// fresh-resolve paths so they can never drift out of lockstep.
+// Both resolution paths share the same projection.
 function projectAnchor({
   rect,
+  el,
   win,
   target,
   offsetX,
@@ -124,6 +119,7 @@ function projectAnchor({
   strategy,
 }: {
   rect: DOMRect;
+  el: Element;
   win: Window;
   target: TargetElement;
   offsetX: number;
@@ -132,9 +128,14 @@ function projectAnchor({
 }): ResolvedAnchor {
   const { scaleX, scaleY } = elementScale({ rect, target });
   const o = scrollOffset(win);
+  // Reflow preserves absolute pin offsets, clamped continuously to the box.
+  // Transformed or unknown layout dimensions retain captured-relative scaling.
+  // Saturation is nondecreasing: pins beyond the edge can coincide at the edge.
+  const projectOffset = (offset: number, size: number, positionScale: number) =>
+    size > 0 ? Math.max(0, Math.min(size, offset * positionScale)) : offset;
   return {
-    x: rect.x + o.x + offsetX * scaleX,
-    y: rect.y + o.y + offsetY * scaleY,
+    x: rect.x + o.x + projectOffset(offsetX, rect.width, rect.width === (el as HTMLElement).offsetWidth ? 1 : scaleX),
+    y: rect.y + o.y + projectOffset(offsetY, rect.height, rect.height === (el as HTMLElement).offsetHeight ? 1 : scaleY),
     scaleX,
     scaleY,
     strategy,
@@ -164,7 +165,7 @@ export function resolveAnchorPoint(
   const memo = RESOLVE_MEMO.get(target);
   if (memo && 'el' in memo && memo.el.isConnected && memo.el.ownerDocument === doc) {
     const rect = memo.el.getBoundingClientRect();
-    return projectAnchor({ rect, win, target, offsetX, offsetY, strategy: memo.strategy });
+    return projectAnchor({ rect, el: memo.el, win, target, offsetX, offsetY, strategy: memo.strategy });
   }
   if (memo && 'failedGen' in memo && memo.failedGen === anchorGeneration() && memo.doc === doc) return null;
 
@@ -185,7 +186,7 @@ export function resolveAnchorPoint(
   }
   RESOLVE_MEMO.set(target, { el, strategy });
   const rect = el.getBoundingClientRect();
-  return projectAnchor({ rect, win, target, offsetX, offsetY, strategy });
+  return projectAnchor({ rect, el, win, target, offsetX, offsetY, strategy });
 }
 
 // Returns the resolved point plus the delta from the op's stored anchor —
@@ -195,10 +196,7 @@ export interface AnchorDelta {
   x: number;
   y: number;
   /**
-   * The anchor keeps its relative position inside the element's box, so it
-   * scales with a resize. Every consumer is an op that scales its whole extent
-   * alongside it (`reprojectRects`, `reprojectBox`) — a selection or an area
-   * marks a region of content, so it grows and shrinks with that content.
+   * Position deltas follow the pin mapping; extents use the content scale.
    */
   dx: number;
   dy: number;
