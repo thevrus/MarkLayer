@@ -139,6 +139,7 @@ function ToolToggle({
       }}
       aria-label={tip}
       onPointerDown={(e: PointerEvent) => onReorderPointerDown(e, slot, reorderIndex)}
+      data-ml-semantic-id={`toolbar.tool.${tool}`}
       className={cn(
         geist.ctl,
         // Same two recipes every other control in the bar uses, so a token change
