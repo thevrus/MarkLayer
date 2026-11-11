@@ -39,6 +39,19 @@ describe('snapshotPin', () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
+  test('passes the configured dimensions to the capture host', async () => {
+    setPinShotDimension('width', 400);
+    setPinShotDimension('height', 200);
+    const shoot = mock(async () => { throw new Error('stop after recording crop'); });
+    try {
+      await snapshotPin({ ...base, pin: { x: 640, y: 1300 }, upload: async () => null, shoot });
+      expect(shoot).toHaveBeenCalledWith({ x: 440, y: 1200, width: 400, height: 200 });
+    } finally {
+      setPinShotDimension('width', 800);
+      setPinShotDimension('height', 500);
+    }
+  });
+
   test('gives up on a capture that never answers', async () => {
     const shot = snapshotPin({ ...base, upload: async () => 'id', shoot: () => new Promise(() => {}), timeoutMs: 5 });
     expect(await shot).toBeNull();
