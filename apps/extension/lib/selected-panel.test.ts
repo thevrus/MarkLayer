@@ -1,8 +1,10 @@
-import { afterEach, beforeEach, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, expect, mock, spyOn, test } from 'bun:test';
 import { inspectOpSchema } from '@marklayer/types/ops';
 import { h, render } from 'preact';
 import * as compat from 'preact/compat';
 import * as jsxRuntime from 'preact/jsx-runtime';
+import { act } from 'preact/test-utils';
+import { activeTool } from './tool-state';
 
 // Vite aliases React to preact/compat for the bundles; bun test has no such alias, and Base UI imports React.
 // The modules under test are imported after, so nothing resolves the real one first.
@@ -12,7 +14,7 @@ const fromBaseUi = (id: string) => Bun.resolveSync(id, baseUi);
 mock.module(fromBaseUi('react'), () => compat);
 mock.module(fromBaseUi('react-dom'), () => compat);
 mock.module(fromBaseUi('react/jsx-runtime'), () => jsxRuntime);
-const { SelectedPanel } = await import('../components/InspectorLayer');
+const { InspectorLayer, SelectedPanel } = await import('../components/InspectorLayer');
 const { getSelector, snapshotElement } = await import('./selector');
 const { inspectorStack } = await import('./inspector-stack');
 const { operations } = await import('./ops');
@@ -124,4 +126,62 @@ test('Edit CSS is offered only while the note is about a single element', async 
   mount();
   await tick();
   expect([...host.querySelectorAll('button')].some((b) => b.textContent?.includes('Edit CSS'))).toBe(false);
+});
+
+test('扩展检查面板只在点击入口时读取一批，复制失败重试同批；共享 Viewer 不出现入口', async () => {
+  const originalTool = activeTool.peek();
+  const write = spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+  const overlay = document.createElement('mark-layer');
+  host.replaceWith(overlay);
+  overlay.append(host);
+  el.getBoundingClientRect = () => new DOMRect(10, 10, 100, 30);
+  const fixture = document.createElement('div');
+  for (let i = 0; i < 25; i++) {
+    const item = document.createElement('button');
+    item.id = `viewport-ui-${i}`;
+    item.textContent = `元素 ${i}`;
+    item.getBoundingClientRect = () => new DOMRect(10, 50 + i, 100, 20);
+    fixture.append(item);
+  }
+  document.body.append(fixture);
+  try {
+    mount();
+    expect([...host.querySelectorAll('button')].some((b) => b.textContent?.includes('读取视口下一批'))).toBe(false);
+    render(null, host);
+    await act(async () => {
+      activeTool.value = 'inspect';
+      render(h(InspectorLayer, {}), host);
+    });
+    act(() => {
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    await tick();
+    expect(write).not.toHaveBeenCalled();
+    write.mockRejectedValueOnce(new Error('clipboard denied'));
+    await act(async () => {
+      button('读取视口下一批').click();
+    });
+    const first = write.mock.calls[0]![0];
+    expect(JSON.parse(first).items).toHaveLength(20);
+    await act(async () => {
+      button('读取视口下一批').click();
+    });
+    expect(write.mock.calls[1]![0]).toBe(first);
+    await act(async () => {
+      button('读取视口下一批').click();
+    });
+    const second = JSON.parse(write.mock.calls[2]![0]);
+    expect(second.items).toHaveLength(6);
+    expect(second.done).toBe(true);
+    const firstSelectors = JSON.parse(first).items.map((item: { selector: string }) => item.selector);
+    for (const item of second.items) expect(firstSelectors).not.toContain(item.selector);
+  } finally {
+    act(() => {
+      render(null, host);
+      activeTool.value = originalTool;
+    });
+    write.mockRestore();
+    fixture.remove();
+    overlay.replaceWith(host);
+  }
 });

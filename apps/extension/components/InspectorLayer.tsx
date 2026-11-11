@@ -32,6 +32,7 @@ import { isTextEditing } from '../lib/text-edit';
 import { copyText, toast } from '../lib/toasts';
 import { activeTool } from '../lib/tool-state';
 import type { InspectOp } from '../lib/types';
+import { createViewportReader, type ViewportBatch } from '../lib/viewport-reader';
 import { BatchSwitch } from './BatchSwitch';
 import { CssEditor } from './CssEditor';
 import { DictateButton } from './DictateButton';
@@ -72,6 +73,7 @@ export function SelectedPanel({
   el,
   onClose,
   onStyleChange,
+  onReadViewport,
 }: {
   state: SelectedInfo;
   /** The picked element, for live CSS editing; null hides the editor. */
@@ -79,6 +81,8 @@ export function SelectedPanel({
   onClose: () => void;
   /** An edit can move or resize the element, so the host re-measures its highlight. */
   onStyleChange?: () => void;
+  /** 仅扩展提供；网页 Viewer 不借此读取外层应用文档。 */
+  onReadViewport?: () => void;
 }) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const priority = useSignal<CommentPriority | undefined>(undefined);
@@ -335,6 +339,18 @@ export function SelectedPanel({
       )}
 
       <div class={cn('shrink-0', cssOpen.value && 'pt-2.5')}>
+        {onReadViewport && (
+          <div class="px-4 pb-3">
+            <button
+              type="button"
+              class={secondaryBtn}
+              onClick={onReadViewport}
+              title="每次至多读取 20 条当前视口元素并复制 JSON；滚动或页面变化后重新开始"
+            >
+              读取视口下一批
+            </button>
+          </div>
+        )}
         <div class="flex items-center gap-2 px-4 pb-3">
           <button
             type="button"
@@ -641,6 +657,7 @@ export function InspectorOverlay({
   el,
   onClose,
   onStyleChange,
+  onReadViewport,
 }: {
   hover: HoverState | null;
   selected: SelectedInfo | null;
@@ -648,6 +665,7 @@ export function InspectorOverlay({
   el: Element | null;
   onClose: () => void;
   onStyleChange: () => void;
+  onReadViewport?: () => void;
 }) {
   return (
     <>
@@ -655,7 +673,13 @@ export function InspectorOverlay({
       {selected && (
         <>
           <SelectedHighlight rect={selected.rect} />
-          <SelectedPanel state={selected} el={el} onClose={onClose} onStyleChange={onStyleChange} />
+          <SelectedPanel
+            state={selected}
+            el={el}
+            onClose={onClose}
+            onStyleChange={onStyleChange}
+            onReadViewport={onReadViewport}
+          />
         </>
       )}
       <InspectorStackPanel />
@@ -664,6 +688,28 @@ export function InspectorOverlay({
 }
 
 export function InspectorLayer() {
+  const viewportReader = useRef<ReturnType<typeof createViewportReader> | null>(null);
+  const pendingBatch = useRef<ViewportBatch | null>(null);
+  const copyingBatch = useRef(false);
+  const readViewport = async () => {
+    if (copyingBatch.current) return;
+    copyingBatch.current = true;
+    try {
+      viewportReader.current ??= createViewportReader(document);
+      pendingBatch.current ??= viewportReader.current.readNext();
+      const batch = pendingBatch.current;
+      await navigator.clipboard.writeText(JSON.stringify(batch, null, 2));
+      if (pendingBatch.current === batch) pendingBatch.current = null;
+      toast(`已复制 ${batch.items.length} 条视口元素${batch.done ? '，本轮读取结束' : '，可继续读取下一批'}`, {
+        type: 'success',
+      });
+    } catch {
+      // 剪贴板失败时保留批次，下次点击重试，避免游标前进导致条目丢失。
+      toast('复制失败，请点击重试当前批次', { type: 'error' });
+    } finally {
+      copyingBatch.current = false;
+    }
+  };
   const selected = useSignal<SelectedInfo | null>(null);
   // Boolean projection so rect writes don't retrigger the rect-sync effect setup.
   const hasSelected = useComputed(() => selected.value !== null);
@@ -798,6 +844,8 @@ export function InspectorLayer() {
 
   useSignalEffect(() => {
     if (activeTool.value === 'inspect') return;
+    viewportReader.current = null;
+    pendingBatch.current = null;
     clearHover();
     selected.value = null;
     selectedElRef.current = null;
@@ -822,6 +870,7 @@ export function InspectorLayer() {
         selected.value = null;
       }}
       onStyleChange={measure}
+      onReadViewport={readViewport}
     />
   );
 }
