@@ -1,5 +1,4 @@
 import { CAPTURE_ELEMENT } from './messages';
-import { overlayHost } from './overlay-mount';
 import { copyText, toast } from './toasts';
 
 // The worker type-checks this directory through its `@ext/*` alias but has no WXT
@@ -54,26 +53,10 @@ async function requestElementCapture(crop: Crop): Promise<string> {
   throw new Error('Tab capture failed');
 }
 
-/** Captures in flight; the overlay comes back only when the last one is done. */
-let hiding = 0;
-
-/**
- * Part of the viewport, with MarkLayer's own overlay faded out of it for the length of
- * the capture. Opacity rather than visibility, so a composer opening underneath can
- * still take focus; the host is the one element every layer of ours renders inside.
- */
+/** Capture the visible tab, including the annotation toolbar and overlays. */
 export async function shootViewport(crop: Omit<Crop, 'viewportWidth'>): Promise<ImageBitmap> {
-  const host = overlayHost();
-  const overlay = host instanceof HTMLElement ? host : null;
-  hiding++;
-  overlay?.style.setProperty('opacity', '0');
-  try {
-    await nextPaint();
-    const dataUrl = await requestElementCapture({ ...crop, viewportWidth: window.innerWidth });
-    return await createImageBitmap(await (await fetch(dataUrl)).blob());
-  } finally {
-    if (--hiding === 0) overlay?.style.removeProperty('opacity');
-  }
+  const dataUrl = await requestElementCapture({ ...crop, viewportWidth: window.innerWidth });
+  return createImageBitmap(await (await fetch(dataUrl)).blob());
 }
 
 /**

@@ -96,7 +96,7 @@ export function snapshotPin({
   upload,
   timeoutMs,
 }: {
-  /** The pixels of `crop` with no MarkLayer UI in them, at whatever density the platform gives. */
+  /** The pixels of `crop`, at whatever density the host can capture. */
   shoot: (crop: Box) => Promise<ImageBitmap>;
   pin: { x: number; y: number };
   /** The visible area, in `pin`'s coordinates; only what the author could see is shot. */
