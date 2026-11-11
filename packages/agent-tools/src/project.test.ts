@@ -49,6 +49,13 @@ describe('projectAnnotation — comment', () => {
     });
   });
 
+  test('exposes saved visual context without changing old comments', () => {
+    const visualContext = { region: { x: 0, y: 0, width: 800, height: 500 }, layerId: 'default', annotations: [{ id: 'nearby', kind: 'comment' as const, text: 'near' }], truncated: false };
+    const parsed = commentOpSchema.parse({ ...comment, visualContext });
+    expect(projectAnnotation(parsed, API_BASE)).toMatchObject({ visualContext });
+    expect(projectAnnotation(comment, API_BASE)).not.toHaveProperty('visualContext');
+  });
+
   test('hands an area its screenshot as a fetchable URL', () => {
     const area = areaOpSchema.parse({
       id: 'op-a',

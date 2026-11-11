@@ -29,7 +29,7 @@ interface DraftProps {
   /** Point the comment is pinned to, in the annotated page's document space. */
   at: { x: number; y: number };
   /** Bind the point to the element under it so the pin survives a reflow. */
-  capture: () => { target?: TargetElement; captureViewport: CaptureViewport };
+  capture: () => { target?: TargetElement; captureViewport: CaptureViewport; visualContext?: CommentOp['visualContext']; layerId?: string };
   push: (op: CommentOp) => void;
   onClose: () => void;
   /** Omitted where uploads shouldn't be offered — the marketing page's live demo, which

@@ -1,11 +1,11 @@
 import { wsSend } from '@ext/lib/realtime';
 import type { CommentStatus, SelectionRect } from '@ext/lib/types';
 import { uiHidden } from '@ext/lib/ui-state';
-import type { CaptureViewport, TargetElement } from '@marklayer/types/ops';
+import type { CaptureViewport, CommentOp, TargetElement } from '@marklayer/types/ops';
 import { computed, effect, signal } from '@preact/signals';
 
 /** Where a comment is being placed, with the screenshot started the moment it was. */
-export const commentPopover = signal<{ x: number; y: number; snapshot?: Promise<string | null> } | null>(null);
+export const commentPopover = signal<{ x: number; y: number; snapshot?: Promise<string | null>; visualContext?: CommentOp['visualContext'] } | null>(null);
 export const textInput = signal<{ x: number; y: number } | null>(null);
 export const selectionPopover = signal<{
   text: string;

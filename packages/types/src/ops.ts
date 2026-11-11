@@ -414,6 +414,15 @@ export const commentOpSchema = z.object({
   resolved: z.optional(z.boolean()),
   parentId: z.optional(z.string()),
   meta: z.optional(commentMetaSchema),
+  /** Snapshot of nearby annotations in the author's active layer at capture time. */
+  visualContext: z.optional(z.object({
+    region: selectionRectSchema,
+    layerId: z.string().check(z.minLength(1), z.maxLength(80)),
+    annotations: z.array(z.object({ id: z.string().check(z.minLength(1), z.maxLength(128)), kind: z.enum(['comment', 'area', 'selection', 'inspect']), text: z.string().check(z.maxLength(500)) })).check(z.maxLength(25)),
+    truncated: z.boolean(),
+    /** Some positions could not be resolved against the visible document. */
+    incomplete: z.optional(z.boolean()),
+  })),
 });
 export type CommentOp = z.infer<typeof commentOpSchema>;
 

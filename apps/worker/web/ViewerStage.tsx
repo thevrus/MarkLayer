@@ -1,5 +1,8 @@
 import { CommentPopover, CommentSheet } from '@ext/components/CommentPopover';
 import { PanLayer } from '@ext/components/PanLayer';
+import { commentContext } from '@ext/lib/comment-context';
+import { activeLayer } from '@ext/lib/layers';
+import { operations } from '@ext/lib/ops';
 import { snapshotPin } from '@ext/lib/pin-shot';
 import { color, lineWidth } from '@ext/lib/prefs';
 import { fileUrl, transcribeFile, uploadFile } from '@ext/lib/share';
@@ -380,7 +383,9 @@ function PageSurface() {
             return;
           }
           const at = canvasCoords(e);
-          commentPopover.value = { ...at, snapshot: shootPin({ frame: frameRef.current, at }) };
+          const viewport = frameViewport(frameRef.current);
+          const visualContext = commentContext({ pin: at, viewport: { x: 0, y: iframeScrollY.value, ...viewport }, layerId: activeLayer.peek(), ops: operations.peek(), device: deviceMode.peek(), doc: frameRef.current?.contentDocument ?? null });
+          commentPopover.value = { ...at, visualContext, snapshot: shootPin({ frame: frameRef.current, at }) };
         }}
       >
         {deviceComments.value.map((c) => (
@@ -421,6 +426,8 @@ function PendingComment({ frameRef }: { frameRef: { current: HTMLIFrameElement |
     capture: () => ({
       ...captureAnchors({ frame: frameRef.current, x: at.x, y: at.y }),
       captureViewport: frameViewport(frameRef.current),
+      visualContext: at.visualContext,
+      layerId: at.visualContext?.layerId,
     }),
     push: pushDeviceOp,
     onClose: () => {

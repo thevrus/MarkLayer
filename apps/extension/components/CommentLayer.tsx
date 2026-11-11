@@ -3,8 +3,10 @@ import { useSignalEffect } from '@preact/signals';
 import { useCallback, useState } from 'preact/hooks';
 import { applyAnchorDelta } from '../lib/anchor';
 import { checkRequest, flashAnnotation } from '../lib/checkFix';
+import { commentContext } from '../lib/comment-context';
 import { host } from '../lib/host-config';
-import { pushOp, rootComments } from '../lib/ops';
+import { operations, pushOp, rootComments } from '../lib/ops';
+import { activeLayer } from '../lib/layers';
 import { snapshotPin } from '../lib/pin-shot';
 import { MARKER_LAYER } from '../lib/popover';
 import { color } from '../lib/prefs';
@@ -12,6 +14,7 @@ import { scrollPageTo, toClient, toDoc } from '../lib/scroller';
 import { captureTarget, pickElementAtPoint } from '../lib/selector';
 import { fileUrl, transcribeFile, uploadFile } from '../lib/share';
 import { activeTool } from '../lib/tool-state';
+import type { CommentOp } from '../lib/types';
 import { CommentPin } from './CommentPin';
 import { CommentPopover } from './CommentPopover';
 
@@ -21,6 +24,7 @@ interface PopoverState {
   el: Element | null;
   /** The screenshot around the pin, taken at the click so it shows what was clicked. */
   snapshot: Promise<string | null>;
+  visualContext: NonNullable<CommentOp['visualContext']>;
 }
 
 export function CommentLayer() {
@@ -42,6 +46,8 @@ export function CommentLayer() {
   const onClick = useCallback((e: MouseEvent) => {
     if (activeTool.value !== 'comment') return;
     const { x, y } = toDoc({ x: e.clientX, y: e.clientY });
+    const topLeft = toDoc({ x: 0, y: 0 });
+    const visualContext = commentContext({ pin: { x, y }, viewport: { ...topLeft, width: innerWidth, height: innerHeight }, layerId: activeLayer.peek(), ops: operations.peek() });
     const el = pickElementAtPoint(e.clientX, e.clientY);
     const shoot = host.capabilities.capture;
     const snapshot = shoot
@@ -53,7 +59,7 @@ export function CommentLayer() {
           upload: uploadFile,
         })
       : Promise.resolve(null);
-    setPopover({ x, y, el, snapshot });
+    setPopover({ x, y, el, snapshot, visualContext });
   }, []);
 
   return (
@@ -82,6 +88,8 @@ export function CommentLayer() {
                 ? captureTarget({ el: popover.el, anchor: { x: popover.x, y: popover.y } })
                 : undefined,
               captureViewport: { width: window.innerWidth, height: window.innerHeight },
+              visualContext: popover.visualContext,
+              layerId: popover.visualContext.layerId,
             })}
             push={pushOp}
             onClose={() => setPopover(null)}
