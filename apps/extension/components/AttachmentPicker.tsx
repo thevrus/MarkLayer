@@ -2,7 +2,7 @@ import { Dialog } from '@base-ui/react/dialog';
 import { MAX_ATTACHMENTS } from '@marklayer/types/ops';
 import { UPLOAD_IMAGE_ACCEPT } from '@marklayer/types/uploads';
 import { cn } from '@marklayer/ui/cn';
-import { ImagePlus, Loader2, X } from 'lucide-preact';
+import { ImagePlus, Loader2, X, ZoomIn } from 'lucide-preact';
 import { useRef, useState } from 'preact/hooks';
 import { useCardHold } from '../lib/card-hold';
 import { geist } from '../lib/geist';
@@ -130,6 +130,12 @@ const STRIP = 'flex items-center gap-1.5 flex-wrap mt-1.5';
 
 /** Unwrapped thumbs, so the strip and the strip-plus-button share one copy of the markup. */
 function Thumbs({ attachments, resolveUrl }: { attachments: Attachments; resolveUrl: (id: string) => string }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const hold = useCardHold();
+  const show = (id: string | null) => {
+    setOpen(id);
+    hold?.(id !== null);
+  };
   return (
     <>
       {attachments.ids.map((id) => (
@@ -139,6 +145,14 @@ function Thumbs({ attachments, resolveUrl }: { attachments: Attachments; resolve
             alt="Attached screenshot"
             class="h-10 w-10 rounded-md object-cover border border-(--ds-gray-alpha-400)"
           />
+          <button
+            type="button"
+            onClick={() => show(id)}
+            aria-label="放大查看截图"
+            class="absolute bottom-0 right-0 grid place-items-center h-5 w-5 rounded-md bg-black/70 text-white cursor-zoom-in border-none p-0"
+          >
+            <ZoomIn size={13} aria-hidden="true" />
+          </button>
           <button
             type="button"
             onClick={() => attachments.remove(id)}
@@ -153,6 +167,7 @@ function Thumbs({ attachments, resolveUrl }: { attachments: Attachments; resolve
           </button>
         </div>
       ))}
+      <AttachmentLightbox open={open} show={show} resolveUrl={resolveUrl} />
       {attachments.uploading && (
         <div
           role="status"
@@ -307,7 +322,13 @@ export function AttachmentGallery({ ids, resolveUrl }: { ids: string[]; resolveU
           />
         </button>
       ))}
-      <Dialog.Root open={open !== null} onOpenChange={(next: boolean) => !next && show(null)}>
+      <AttachmentLightbox open={open} show={show} resolveUrl={resolveUrl} />
+    </div>
+  );
+}
+
+function AttachmentLightbox({ open, show, resolveUrl }: { open: string | null; show: (id: string | null) => void; resolveUrl: (id: string) => string }) {
+  return <Dialog.Root open={open !== null} onOpenChange={(next: boolean) => !next && show(null)}>
         <Dialog.Portal container={portalContainer.value ?? undefined}>
           <Dialog.Backdrop className="fixed inset-0 z-2147483647 bg-black/70 animate-[fadeInDown_0.15s_ease-out]" />
           <Dialog.Popup
@@ -331,7 +352,5 @@ export function AttachmentGallery({ ids, resolveUrl }: { ids: string[]; resolveU
             </Dialog.Close>
           </Dialog.Popup>
         </Dialog.Portal>
-      </Dialog.Root>
-    </div>
-  );
+      </Dialog.Root>;
 }

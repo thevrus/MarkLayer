@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from 'bun:test';
-import { pinCrop, snapshotPin } from './pin-shot';
+import { pinCrop, pinShotSize, setPinShotDimension, snapshotPin } from './pin-shot';
 
 const viewport = { x: 0, y: 1000, width: 1280, height: 720 };
 
@@ -17,6 +17,14 @@ describe('pinCrop', () => {
   test('never asks for more than the viewport holds', () => {
     const crop = pinCrop({ pin: { x: 150, y: 1200 }, viewport: { x: 0, y: 1000, width: 375, height: 300 } });
     expect(crop).toEqual({ x: 0, y: 1000, width: 375, height: 300 });
+  });
+
+  test('uses the chosen size and keeps it inside the viewport', () => {
+    expect(pinCrop({ pin: { x: 640, y: 1300 }, viewport, size: { width: 400, height: 200 } }))
+      .toEqual({ x: 440, y: 1200, width: 400, height: 200 });
+    setPinShotDimension('width', 2000);
+    expect(pinShotSize.peek().width).toBe(1600);
+    setPinShotDimension('width', 800);
   });
 });
 

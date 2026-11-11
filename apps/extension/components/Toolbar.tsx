@@ -15,6 +15,7 @@ import { inspectorStack } from '../lib/inspector-stack';
 import { HISTORY_KEYS } from '../lib/keymap';
 import { prefersReducedMotion } from '../lib/media';
 import { clearAll, copyOpenAnnotations, openAnnotationTotal, operations, redo, undo } from '../lib/ops';
+import { pinShotSize, setPinShotDimension } from '../lib/pin-shot';
 import { capturePointer, pointerSampler } from '../lib/pointer';
 import { portalContainer } from '../lib/portal';
 import { color, colorName, toggleToolbarMinimized, toolbarMinimized } from '../lib/prefs';
@@ -189,6 +190,30 @@ function SlotFrame({
 }
 
 const GROUP_LABELS: Record<ToolGroup, string> = { draw: 'Drawing tools', shapes: 'Shape tools' };
+
+/** Comment screenshot dimensions; the temporary frame previews CSS pixels. */
+function CommentCaptureMenu() {
+  const [open, setOpen] = useState(false);
+  const size = pinShotSize.value;
+  return <Menu.Root open={open} onOpenChange={setOpen}>
+    <Menu.Trigger aria-label="调节评论截图范围" className={cn(geist.ctl, geist.ctlIdle, 'w-4')}>
+      <Icon name="chevDown" size={12} strokeWidth={1.5} />
+    </Menu.Trigger>
+    <Menu.Portal container={portalContainer.value ?? undefined}>
+      {open && <div aria-hidden="true" class="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-2147483645 border-2 border-dashed border-blue-500" style={{ width: `min(${size.width}px, 95vw)`, height: `min(${size.height}px, 95vh)` }} />}
+      <Menu.Positioner side="top" align="start" sideOffset={10} collisionPadding={8} className="z-2147483647 outline-none">
+        <Menu.Popup className={cn(glass.menuPopup, geist.surface, glass.font, 'w-64 p-3 text-(--ds-gray-1000)')}>
+          <div class="text-ui font-semibold">截图范围（CSS 像素）</div>
+          {(['width', 'height'] as const).map((axis) => <label class="mt-3 flex items-center gap-2 text-ui">
+            <span>{axis === 'width' ? '宽' : '高'}</span>
+            <input type="range" min="100" max="1600" step="10" value={size[axis]} aria-label={axis === 'width' ? '截图宽度' : '截图高度'} onInput={(e) => setPinShotDimension(axis, Number(e.currentTarget.value))} class="min-w-0 flex-1" />
+            <span class="w-12 text-right tabular-nums">{size[axis]}</span>
+          </label>)}
+        </Menu.Popup>
+      </Menu.Positioner>
+    </Menu.Portal>
+  </Menu.Root>;
+}
 
 /** The chevron beside a group's toggle, listing every member. */
 function GroupMenu({ group }: { group: ToolGroup }) {
@@ -780,6 +805,7 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
                 draggingSlot={reorder.draggingSlot}
               />
               {isToolGroup(t) && <GroupMenu group={t} />}
+              {t === 'comment' && <CommentCaptureMenu />}
               {isTool(t) && TOOL_DEFS[t].badge && <CountBadge value={inspectorStack.value.length} />}
             </SlotFrame>
           );

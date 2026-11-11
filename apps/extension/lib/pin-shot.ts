@@ -1,3 +1,5 @@
+import { signal } from '@preact/signals';
+
 /**
  * The screenshot every new comment carries: the page around its pin, as an ordinary
  * image attachment, so an integration or an agent sees what the pin points at without
@@ -14,6 +16,11 @@ export interface Box {
 
 /** CSS px kept around a pin: the element it names plus enough of its surroundings to place it. */
 const SHOT_SIZE = { width: 800, height: 500 };
+export const pinShotSize = signal({ ...SHOT_SIZE });
+export function setPinShotDimension(axis: 'width' | 'height', value: number): void {
+  if (!Number.isFinite(value)) return;
+  pinShotSize.value = { ...pinShotSize.peek(), [axis]: Math.max(100, Math.min(1600, Math.round(value))) };
+}
 /** Holds Post for at most this long: a stalled capture or upload must not keep a comment from posting. */
 const SHOT_TIMEOUT_MS = 10_000;
 const MAX_DIMENSION = 1600;
@@ -28,9 +35,9 @@ const clamp = (n: number, lo: number, hi: number): number => Math.min(Math.max(n
  * Slid rather than shrunk at an edge, so a pin near the corner sits off-centre in a
  * full-size shot instead of at the middle of a sliver.
  */
-export function pinCrop({ pin, viewport }: { pin: { x: number; y: number }; viewport: Box }): Box {
-  const width = Math.min(SHOT_SIZE.width, viewport.width);
-  const height = Math.min(SHOT_SIZE.height, viewport.height);
+export function pinCrop({ pin, viewport, size = SHOT_SIZE }: { pin: { x: number; y: number }; viewport: Box; size?: { width: number; height: number } }): Box {
+  const width = Math.min(size.width, viewport.width);
+  const height = Math.min(size.height, viewport.height);
   return {
     x: clamp(pin.x - width / 2, viewport.x, viewport.x + viewport.width - width),
     y: clamp(pin.y - height / 2, viewport.y, viewport.y + viewport.height - height),
@@ -98,7 +105,7 @@ export function snapshotPin({
   upload: (file: Blob) => Promise<string | null>;
   timeoutMs?: number;
 }): Promise<string | null> {
-  const crop = pinCrop({ pin, viewport });
+  const crop = pinCrop({ pin, viewport, size: pinShotSize.peek() });
   const drawPin = (ctx: CanvasRenderingContext2D, perCssPx: number) => {
     ctx.beginPath();
     ctx.arc((pin.x - crop.x) * perCssPx, (pin.y - crop.y) * perCssPx, MARKER_RADIUS * perCssPx, 0, Math.PI * 2);
