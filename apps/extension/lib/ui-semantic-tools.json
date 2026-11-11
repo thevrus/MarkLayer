@@ -1,0 +1,18 @@
+{
+  "navigate": "Move around the page.",
+  "pen": "Draw freehand strokes.",
+  "highlight": "Highlight content with a freehand stroke.",
+  "line": "Draw a line.",
+  "arrow": "Draw an arrow.",
+  "rectangle": "Draw a rectangle.",
+  "circle": "Draw a circle.",
+  "text": "Add text to the page.",
+  "comment": "Place a comment on the page.",
+  "selection": "Select page text for annotation or editing.",
+  "area": "Mark a rectangular area.",
+  "eraser": "Erase drawn annotations.",
+  "inspect": "Inspect an element and its details.",
+  "multiInspect": "Inspect multiple elements.",
+  "measure": "Measure page elements.",
+  "guide": "Guide collaborators on the page."
+}

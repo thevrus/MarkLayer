@@ -1,4 +1,5 @@
 import { TOOL_CATALOG, type Tool } from '@marklayer/types/tools';
+import toolPurposes from './ui-semantic-tools.json';
 
 /** Stable semantic identities are independent of presentation and DOM structure. */
 export interface UiSemantic {
@@ -9,24 +10,27 @@ export interface UiSemantic {
   related: readonly string[];
 }
 
-const purposes: Record<Tool, string> = {
-  navigate: 'Move around the page.',
-  pen: 'Draw freehand strokes.',
-  highlight: 'Highlight content with a freehand stroke.',
-  line: 'Draw a line.',
-  arrow: 'Draw an arrow.',
-  rectangle: 'Draw a rectangle.',
-  circle: 'Draw a circle.',
-  text: 'Add text to the page.',
-  comment: 'Place a comment on the page.',
-  selection: 'Select page text for annotation or editing.',
-  area: 'Mark a rectangular area.',
-  eraser: 'Erase drawn annotations.',
-  inspect: 'Inspect an element and its details.',
-  multiInspect: 'Inspect multiple elements.',
-  measure: 'Measure page elements.',
-  guide: 'Guide collaborators on the page.',
-};
+const purposes: Record<Tool, string> = toolPurposes;
+
+/** A registry accepts data only; a semantic entry does not grant executable capabilities. */
+export function createSemanticRegistry() {
+  const entries = new Map<string, UiSemantic>();
+  return {
+    register(value: UiSemantic): void {
+      if (!/^[a-zA-Z][a-zA-Z0-9._-]{0,127}$/.test(value.id) ||
+          !value.label.trim() || !value.purpose.trim() || !value.region.trim() ||
+          !Array.isArray(value.related) || value.related.some((id) => typeof id !== 'string')) {
+        throw new Error('Invalid UI semantic definition');
+      }
+      if (entries.has(value.id)) throw new Error(`Duplicate UI semantic ID: ${value.id}`);
+      entries.set(value.id, { ...value, related: [...value.related] });
+    },
+    get(id: string): UiSemantic | undefined {
+      const entry = entries.get(id);
+      return entry ? { ...entry, related: [...entry.related] } : undefined;
+    },
+  };
+}
 
 export function toolbarToolSemantic(tool: Tool, label = TOOL_CATALOG[tool].label): UiSemantic {
   const group = TOOL_CATALOG[tool].group;
