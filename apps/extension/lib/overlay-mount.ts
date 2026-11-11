@@ -1,4 +1,5 @@
 import { type ComponentChild, render } from 'preact';
+import { scheduleGeometryTick } from './host-mutations';
 import { portalContainer } from './portal';
 
 export const OVERLAY_TAG = 'mark-layer';
@@ -56,6 +57,7 @@ export function mountOverlay({ container, app }: { container: HTMLElement; app: 
       zoomFrame = requestAnimationFrame(() => {
         zoomFrame = 0;
         unzoom();
+        scheduleGeometryTick();
       });
     });
     zoomWatch.observe(document.documentElement, { attributeFilter: ['style', 'class'] });

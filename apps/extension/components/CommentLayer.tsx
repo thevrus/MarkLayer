@@ -5,6 +5,7 @@ import { applyAnchorDelta } from '../lib/anchor';
 import { checkRequest, flashAnnotation } from '../lib/checkFix';
 import { commentContext } from '../lib/comment-context';
 import { host } from '../lib/host-config';
+import { hostMutationTick, scrollTick } from '../lib/host-mutations';
 import { operations, pushOp, rootComments } from '../lib/ops';
 import { activeLayer } from '../lib/layers';
 import { snapshotPin } from '../lib/pin-shot';
@@ -21,13 +22,16 @@ import { CommentPopover } from './CommentPopover';
 interface PopoverState {
   x: number;
   y: number;
-  el: Element | null;
+  target: CommentOp['target'];
+  captureViewport: NonNullable<CommentOp['captureViewport']>;
   /** The screenshot around the pin, taken at the click so it shows what was clicked. */
   snapshot: Promise<string | null>;
   visualContext: NonNullable<CommentOp['visualContext']>;
 }
 
 export function CommentLayer() {
+  scrollTick.value;
+  hostMutationTick.value;
   const [popover, setPopover] = useState<PopoverState | null>(null);
 
   // The page is the user's own and already live, so a reload would cost their
@@ -49,6 +53,9 @@ export function CommentLayer() {
     const topLeft = toDoc({ x: 0, y: 0 });
     const visualContext = commentContext({ pin: { x, y }, viewport: { ...topLeft, width: innerWidth, height: innerHeight }, layerId: activeLayer.peek(), ops: operations.peek() });
     const el = pickElementAtPoint(e.clientX, e.clientY);
+    // 锚点、视口和截图使用点击时的同一份几何，避免 Post 前缩放混入新布局。
+    const target = el ? captureTarget({ el, anchor: { x, y } }) : undefined;
+    const captureViewport = { width: window.innerWidth, height: window.innerHeight };
     const shoot = host.capabilities.capture;
     const snapshot = shoot
       ? snapshotPin({
@@ -59,7 +66,7 @@ export function CommentLayer() {
           upload: uploadFile,
         })
       : Promise.resolve(null);
-    setPopover({ x, y, el, snapshot, visualContext });
+    setPopover({ x, y, target, captureViewport, snapshot, visualContext });
   }, []);
 
   return (
@@ -82,12 +89,10 @@ export function CommentLayer() {
         {popover && (
           <CommentPopover
             at={{ x: popover.x, y: popover.y }}
-            anchorAt={toClient(popover)}
+            anchorAt={toClient(applyAnchorDelta(popover.target, { docX: popover.x, docY: popover.y }))}
             capture={() => ({
-              target: popover.el
-                ? captureTarget({ el: popover.el, anchor: { x: popover.x, y: popover.y } })
-                : undefined,
-              captureViewport: { width: window.innerWidth, height: window.innerHeight },
+              target: popover.target,
+              captureViewport: popover.captureViewport,
               visualContext: popover.visualContext,
               layerId: popover.visualContext.layerId,
             })}

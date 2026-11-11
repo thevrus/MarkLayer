@@ -23,18 +23,19 @@ import { signal } from '@preact/signals';
 export const scrollTick = signal(0);
 let _scrollListenerAttached = false;
 let _scrollRaf = 0;
+/** 将浏览器 resize、滚动和页面 CSS zoom 合并到同一条几何失效通知。 */
+export function scheduleGeometryTick() {
+  if (_scrollRaf) return;
+  _scrollRaf = requestAnimationFrame(() => {
+    _scrollRaf = 0;
+    scrollTick.value++;
+  });
+}
 export function ensureScrollTickListener() {
   if (_scrollListenerAttached || typeof window === 'undefined') return;
   _scrollListenerAttached = true;
-  const onScroll = () => {
-    if (_scrollRaf) return;
-    _scrollRaf = requestAnimationFrame(() => {
-      _scrollRaf = 0;
-      scrollTick.value++;
-    });
-  };
-  window.addEventListener('scroll', onScroll, { passive: true, capture: true });
-  window.addEventListener('resize', onScroll, { passive: true });
+  window.addEventListener('scroll', scheduleGeometryTick, { passive: true, capture: true });
+  window.addEventListener('resize', scheduleGeometryTick, { passive: true });
 }
 
 /**
