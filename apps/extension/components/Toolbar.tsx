@@ -838,27 +838,37 @@ function ExpandedToolbar({ onMinimize, drag }: { onMinimize: () => void; drag: D
         </>
       )}
 
-      {connected.value && <button type="button" class="rounded px-2 py-1 text-xs" onClick={() => setShowLayers(!showLayers)}>图层</button>}
+      <button
+        type="button"
+        disabled={!connected.value}
+        title={connected.value ? undefined : '未连接房间'}
+        class="rounded px-2 py-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+        onClick={() => { if (connected.value) setShowLayers(!showLayers); }}
+      >图层</button>
       {showLayers && <LayerPanel onClose={() => setShowLayers(false)} />}
-      {connected.value && (
-        <button type="button" class="rounded px-2 py-1 text-xs" onClick={openTeaching}>
-          演示
-        </button>
-      )}
-      {connected.value && (
-        <select
-          aria-label="执行模式"
-          title="房间执行模式"
-          value={execMode.value}
-          disabled={canEditFromRoom.value === false}
-          onChange={(event) => wsSend.value?.({ type: 'set_exec_mode', execMode: event.currentTarget.value })}
-          class="rounded px-1 py-1 text-xs"
-        >
-          <option value="solo">自主 Solo</option>
-          <option value="guide">引导 Guide</option>
-          <option value="pair">协作 Pair</option>
-        </select>
-      )}
+      <button
+        type="button"
+        disabled={!connected.value}
+        title={connected.value ? undefined : '未连接房间'}
+        class="rounded px-2 py-1 text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+        onClick={() => { if (connected.value) openTeaching(); }}
+      >演示</button>
+      <select
+        aria-label="执行模式"
+        title={connected.value ? '房间执行模式' : '未连接房间'}
+        value={execMode.value}
+        disabled={!connected.value || canEditFromRoom.value === false}
+        onChange={(event) => {
+          if (connected.value && canEditFromRoom.value !== false) {
+            wsSend.value?.({ type: 'set_exec_mode', execMode: event.currentTarget.value });
+          }
+        }}
+        class={cn('rounded px-1 py-1 text-xs', !connected.value && 'opacity-40 cursor-not-allowed')}
+      >
+        <option value="solo">自主 Solo</option>
+        <option value="guide">引导 Guide</option>
+        <option value="pair">协作 Pair</option>
+      </select>
       <DragGrip drag={drag} />
 
       <ConnectionDot />
