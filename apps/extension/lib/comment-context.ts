@@ -13,6 +13,7 @@ export function commentContext({ pin, viewport, layerId, ops, device, doc = docu
   const ctx = doc ? { doc, win: doc.defaultView ?? undefined } : undefined;
   const matches: NonNullable<CommentOp['visualContext']>['annotations'] = [];
   let incomplete = !doc;
+  let truncatedText = false;
   for (const op of ops) {
     if (!isRootAnnotation(op) || (op.layerId ?? DEFAULT_LAYER_ID) !== layerId) continue;
     if (device && (op.device ?? 'desktop') !== device) continue;
@@ -37,7 +38,10 @@ export function commentContext({ pin, viewport, layerId, ops, device, doc = docu
       }
       case 'inspect': rects = [op.rect]; text = op.comment ?? op.markdown; break;
     }
-    if (rects.some((rect) => intersects(region, rect))) matches.push({ id: op.id, kind: op.tool, text: text.slice(0, 500) });
+    if (rects.some((rect) => intersects(region, rect))) {
+      if (text.length > 500) truncatedText = true;
+      matches.push({ id: op.id, kind: op.tool, text: text.slice(0, 500) });
+    }
   }
-  return { region, layerId, annotations: matches.slice(0, 25), truncated: matches.length > 25, ...(incomplete ? { incomplete: true } : {}) };
+  return { region, layerId, annotations: matches.slice(0, 25), truncated: matches.length > 25 || truncatedText, ...(incomplete ? { incomplete: true } : {}) };
 }

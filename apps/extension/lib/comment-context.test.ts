@@ -25,3 +25,10 @@ test('marks a missing document as incomplete', () => {
   const result = commentContext({ pin: { x: 400, y: 250 }, viewport: { x: 0, y: 0, width: 1600, height: 900 }, layerId: 'default', ops: [], doc: null });
   expect(result.incomplete).toBe(true);
 });
+
+test('signals when a nearby annotation text is shortened', () => {
+  const op = { ...comment('long', 300), text: 'x'.repeat(501) };
+  const result = commentContext({ pin: { x: 400, y: 250 }, viewport: { x: 0, y: 0, width: 1600, height: 900 }, layerId: 'default', ops: [op] });
+  expect(result.annotations[0]?.text.length).toBe(500);
+  expect(result.truncated).toBe(true);
+});
