@@ -18,5 +18,3 @@ apps/worker/index.html
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
 
-# Internal research and ADRs — kept locally, not published.
-/docs/
