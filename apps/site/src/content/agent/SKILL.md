@@ -45,10 +45,18 @@ package instead:
     claude mcp add marklayer -- npx -y marklayer-mcp
 
 A room's `url` is not always a webpage. It can be a PDF or an image, either a
-link to one or a file someone uploaded, served from `/f/{id}`. Annotations on
-one record the page they were made on rather than a CSS selector — an image
-counts as a single page — and the `inspect` kind never appears there, so take
-the location from that instead of asking which element was meant.
+link to one or a file someone uploaded, served from `/f/{id}` (a path on the
+share link's own origin, e.g. `https://marklayer.app/f/{id}`). There is no DOM,
+so `target` is null, `marklayer_read_page` has nothing to read, and the
+`inspect` kind never appears. Instead each comment, area and selection carries
+a `pageAnchor`: `{ page, x, y }`, the 1-based page (an image counts as one) and
+the mark as fractions of that page's width and height. `position` and `rect`
+are viewer pixels and shift with the reviewer's zoom and window, so do not map
+them onto the file. To see what was marked, fetch the file and look at the
+point `x × width, y × height` on that page, e.g. crop a few hundred pixels
+around it. The comment text says what to change; the anchor confirms where.
+A mark dropped in the gap beside or between pages snaps to the nearest page,
+so read the text first when the point lands on empty space.
 
 Each annotation carries a `kind` (comment | area | selection | inspect) and,
 where the human marked an element, a `target` block with the CSS selector +
