@@ -160,6 +160,55 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
   let pongTimeout: ReturnType<typeof setTimeout> | null = null;
+  let mutationSeq = 0;
+  const pendingMutations = new Map<string, { rollback?: () => void; timer: ReturnType<typeof setTimeout> }>();
+
+  function dropQueuedMutation(opId: string) {
+    for (let i = pending.length - 1; i >= 0; i--) {
+      try {
+        if ((JSON.parse(pending[i] ?? 'null') as { clientOpId?: string } | null)?.clientOpId === opId)
+          pending.splice(i, 1);
+      } catch {
+        // A malformed queued frame is left for the existing socket parser to ignore.
+      }
+    }
+  }
+
+  function settleMutation(opId: string, rollback: boolean) {
+    const entry = pendingMutations.get(opId);
+    if (!entry) return false;
+    clearTimeout(entry.timer);
+    pendingMutations.delete(opId);
+    if (rollback) {
+      dropQueuedMutation(opId);
+      entry.rollback?.();
+      if (entry.rollback) operations.value = [...operations.value];
+      toast('连接不稳，改动没同步上', { type: 'error', duration: 5000 });
+    }
+    return true;
+  }
+
+  function refusalCopy(code: string) {
+    if (code === 'read_only') return '当前房间为只读';
+    if (code === 'layer_change_refused') return '图层操作未完成，请检查图层是否为空';
+    return '房间拒绝了这次协作变更';
+  }
+
+  function invalidateMutations(notify = true) {
+    if (!pendingMutations.size) return;
+    // Later changes can depend on earlier ones (create an op, undo it before either is answered),
+    // so unwinding has to run backwards: each rollback then sees the board as it was after the
+    // one before it, which is the state it was written against.
+    const entries = [...pendingMutations].reverse();
+    pendingMutations.clear();
+    for (const [opId, entry] of entries) {
+      clearTimeout(entry.timer);
+      dropQueuedMutation(opId);
+      entry.rollback?.();
+    }
+    operations.value = [...operations.value];
+    if (notify) toast('连接不稳，改动没同步上', { type: 'error', duration: 5000 });
+  }
 
   /** Everything tied to one socket's life. A closed socket and a teardown both end here. */
   function stopSocketTimers() {
@@ -288,6 +337,21 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
           toast('This link is view-only', { type: 'info' });
         }
         break;
+      case 'ack':
+        settleMutation(msg.opId, false);
+        break;
+      case 'nack': {
+        const entry = pendingMutations.get(msg.opId);
+        if (entry) {
+          clearTimeout(entry.timer);
+          pendingMutations.delete(msg.opId);
+          dropQueuedMutation(msg.opId);
+          entry.rollback?.();
+          if (entry.rollback) operations.value = [...operations.value];
+          toast(`改动未同步：${msg.reason ?? refusalCopy(msg.code)}`, { type: 'error', duration: 5000 });
+        }
+        break;
+      }
       case 'collaboration':
         agentClaims.value = msg.claims;
         roomTasks.value = msg.tasks;
@@ -452,6 +516,7 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
 
     socket.onclose = (event) => {
       stopSocketTimers();
+      invalidateMutations();
       ws = null;
       // Password-protected and this session is not (or no longer) unlocked: retrying cannot help.
       if (event.code === ROOM_LOCKED_CLOSE_CODE) {
@@ -491,8 +556,11 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
     if (ws?.readyState !== WebSocket.OPEN) scheduleSave();
   };
 
-  onChange.value = (change: OpChange) => {
-    sendMsg(change);
+  onChange.value = (change: OpChange, rollback?: () => void) => {
+    const opId = nanoid();
+    const timer = setTimeout(() => settleMutation(opId, true), 15000);
+    pendingMutations.set(opId, { rollback, timer });
+    sendMsg({ ...change, clientOpId: opId, seq: ++mutationSeq });
     const knownAgents = new Map(
       agentClaims.peek().map((claim) => [claim.agent_id, { uid: claim.agent_id, name: agentLabel(claim.agent_id) }]),
     );
@@ -556,6 +624,7 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
   function disconnect() {
     if (destroyed) return;
     destroyed = true;
+    invalidateMutations(false);
     connectionStatus.value = null;
     onChange.value = null;
     onCursorMove.value = null;

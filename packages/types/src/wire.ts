@@ -93,46 +93,65 @@ const teachControl = {
 };
 const teachingPeer = { peerId: z.string(), color: z.optional(z.string()) };
 
+/** Identifies one client mutation independently of annotation ids such as update_op.opId. */
+const mutationMeta = { clientOpId: z.optional(z.string()), seq: z.optional(z.number()) };
+
 /**
  * Operational client→server messages, strictly validated at the WS boundary.
  * Excludes RTC signaling (see RTC_MESSAGE_TYPES).
  */
 export const clientMsgSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('agent_claim'), agentId: z.string().check(z.minLength(1), z.maxLength(64)) }),
-  z.object({ type: z.literal('agent_release'), agentId: z.string().check(z.minLength(1), z.maxLength(64)) }),
+  z.object({
+    type: z.literal('agent_claim'),
+    ...mutationMeta,
+    agentId: z.string().check(z.minLength(1), z.maxLength(64)),
+  }),
+  z.object({
+    type: z.literal('agent_release'),
+    ...mutationMeta,
+    agentId: z.string().check(z.minLength(1), z.maxLength(64)),
+  }),
   z.object({
     type: z.literal('task_submit'),
+    ...mutationMeta,
     taskId: z.string().check(z.minLength(1), z.maxLength(80)),
     agentId: z.string().check(z.minLength(1), z.maxLength(64)),
     annotationId: z.string().check(z.minLength(1)),
     sourceId: z.string().check(z.minLength(1)),
     layerId: z.string().check(z.minLength(1)),
   }),
-  z.object({ type: z.literal('task_cancel'), taskId: z.string().check(z.minLength(1), z.maxLength(80)) }),
+  z.object({
+    type: z.literal('task_cancel'),
+    ...mutationMeta,
+    taskId: z.string().check(z.minLength(1), z.maxLength(80)),
+  }),
   z.object({
     type: z.literal('layer_create'),
+    ...mutationMeta,
     id: z.string().check(z.minLength(1), z.maxLength(80)),
     name: z.string().check(z.minLength(1), z.maxLength(80)),
   }),
   z.object({
     type: z.literal('layer_rename'),
+    ...mutationMeta,
     id: z.string().check(z.minLength(1), z.maxLength(80)),
     name: z.string().check(z.minLength(1), z.maxLength(80)),
   }),
-  z.object({ type: z.literal('layer_delete'), id: z.string().check(z.minLength(1), z.maxLength(80)) }),
-  z.object({ type: z.literal('set_exec_mode'), execMode: execModeSchema }),
+  z.object({ type: z.literal('layer_delete'), ...mutationMeta, id: z.string().check(z.minLength(1), z.maxLength(80)) }),
+  z.object({ type: z.literal('set_exec_mode'), ...mutationMeta, execMode: execModeSchema }),
   z.object({ type: z.literal('teach_highlight'), ...teachHighlight }),
   z.object({ type: z.literal('teach_caption'), ...teachCaption }),
   z.object({ type: z.literal('teach_state'), ...teachState }),
   z.object({ type: z.literal('teach_control'), ...teachControl }),
-  z.object({ type: z.literal('op'), op: drawOpSchema }),
+  z.object({ type: z.literal('op'), ...mutationMeta, op: drawOpSchema }),
   z.object({
     type: z.literal('update_op'),
+    ...mutationMeta,
     opId: z.string(),
     patch: z.record(z.string(), z.unknown()),
   }),
-  z.object({ type: z.literal('undo'), opId: z.string() }),
-  z.object({ type: z.literal('clear') }),
+  z.object({ type: z.literal('undo'), ...mutationMeta, opId: z.string() }),
+  z.object({ type: z.literal('clear'), ...mutationMeta }),
   z.object({ type: z.literal('ping') }),
   z.object({
     type: z.literal('cursor'),
@@ -179,6 +198,21 @@ const rtcRelaySchema = z.looseObject({
 
 /** Every message a room sends down a socket. Additive: it describes what is sent today. */
 export const serverMsgSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('ack'),
+    opId: z.string(),
+    status: z.enum(['applied', 'noop']),
+    seq: z.optional(z.number()),
+    rev: z.optional(z.number()),
+  }),
+  z.object({
+    type: z.literal('nack'),
+    opId: z.string(),
+    status: z.literal('refused'),
+    seq: z.optional(z.number()),
+    code: z.string(),
+    reason: z.optional(z.string()),
+  }),
   z.object({ type: z.literal('collaboration'), claims: z.array(agentClaimSchema), tasks: z.array(roomTaskSchema) }),
   z.object({ type: z.literal('layers'), layers: z.array(roomLayerSchema) }),
   z.object({ type: z.literal('exec_mode'), execMode: execModeSchema }),

@@ -59,7 +59,7 @@ export const commentCounter = computed(() => operations.value.filter((op) => op.
 export type OpChange = Extract<ClientMsg, { type: 'op' | 'update_op' | 'undo' | 'clear' }>;
 
 /** A local change on its way out, already wire-shaped. Set by `connectRoom` while a socket is open. */
-export const onChange = signal<((change: OpChange) => void) | null>(null);
+export const onChange = signal<((change: OpChange, rollback?: () => void) => void) | null>(null);
 
 /** Peers' strokes reach us unsigned (the schema has no author on a mark), which `isUndoable` would read as mine. */
 const peerMarks = new Set<string>();
@@ -69,8 +69,11 @@ function isSigned(op: DrawOp): boolean {
 }
 
 /** To peers and the draft together: forgetting the save loses the edit on reload. */
-function emit(change: OpChange) {
-  onChange.value?.(change);
+function emit(change: OpChange, rollback: () => void = () => {}) {
+  onChange.value?.(change, () => {
+    rollback();
+    drafts?.scheduleSave();
+  });
   if (change.type === 'clear') drafts?.clear();
   else drafts?.scheduleSave();
 }
@@ -82,11 +85,17 @@ function emit(change: OpChange) {
  */
 export function applyChange(change: OpChange, { origin }: { origin: 'local' | 'remote' }): boolean {
   const ops = operations.value;
+  let rollback: () => void = () => {};
   switch (change.type) {
     case 'op':
       if (ops.some((o) => o.id === change.op.id)) return false;
       if (origin === 'remote' && !isSigned(change.op)) peerMarks.add(change.op.id);
       operations.value = [...ops, change.op];
+      rollback = () => {
+        const current = operations.value;
+        if (current.some((op) => op.id === change.op.id))
+          operations.value = current.filter((op) => op.id !== change.op.id);
+      };
       break;
     case 'update_op': {
       const index = ops.findIndex((o) => o.id === change.opId);
@@ -95,17 +104,55 @@ export function applyChange(change: OpChange, { origin }: { origin: 'local' | 'r
       const next = ops.slice();
       next[index] = merged;
       operations.value = next;
+      const previous = ops[index];
+      // What this patch wrote, field by field. A rollback may only undo a field that still holds
+      // it: a peer's accepted update that landed in the meantime is newer than our optimistic
+      // edit, and restoring the old snapshot over it would leave the board diverged for good.
+      const optimistic = Object.fromEntries(
+        Object.keys(change.patch).map((key) => [key, (merged as unknown as Record<string, unknown>)[key]]),
+      );
+      rollback = () => {
+        const current = operations.value;
+        const currentIndex = current.findIndex((op) => op.id === change.opId);
+        if (currentIndex < 0 || !previous) return;
+        const target = current[currentIndex] as unknown as Record<string, unknown>;
+        const restored = current.slice();
+        restored[currentIndex] = {
+          ...restored[currentIndex],
+          ...Object.fromEntries(
+            Object.keys(change.patch)
+              .filter((key) => target[key] === optimistic[key])
+              .map((key) => [key, (previous as unknown as Record<string, unknown>)[key]]),
+          ),
+        } as DrawOp;
+        operations.value = restored;
+      };
       break;
     }
     case 'undo':
       if (!ops.some((o) => o.id === change.opId)) return false;
       operations.value = ops.filter((o) => o.id !== change.opId);
+      {
+        const previous = ops.find((o) => o.id === change.opId)!;
+        const index = ops.indexOf(previous);
+        rollback = () => {
+          if (operations.value.some((op) => op.id === previous.id)) return;
+          const restored = operations.value.slice();
+          restored.splice(Math.min(index, restored.length), 0, previous);
+          operations.value = restored;
+        };
+      }
       break;
     case 'clear':
       operations.value = [];
+      rollback = () => {
+        const current = operations.value;
+        const currentIds = new Set(current.map((op) => op.id));
+        operations.value = [...ops.filter((op) => !currentIds.has(op.id)), ...current];
+      };
       break;
   }
-  if (origin === 'local') emit(change);
+  if (origin === 'local') emit(change, rollback);
   return true;
 }
 

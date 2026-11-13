@@ -11,7 +11,7 @@ mock.module('idb-keyval', () => ({
   del: async () => {},
 }));
 
-const { onChange, operations } = await import('./ops');
+const { applyChange, onChange, operations } = await import('./ops');
 const { selectLayer } = await import('./layers');
 const { canEditFromRoom, connectRoom, execMode } = await import('./realtime');
 const { resetRoomIdentity, setAnnotationId } = await import('./room-id');
@@ -212,6 +212,93 @@ describe('connectRoom', () => {
     expect(sentOpIds(socket)).toEqual(['A', 'B']);
     expect(operations.value.map((o) => o.id)).toEqual(['R', 'L']);
   });
+
+  test('a nack rolls back the matching optimistic op and shows its reason', () => {
+    const socket = connect();
+    socket.open();
+    socket.receive({ type: 'init', ops: [] });
+    const optimistic = op('nack-op');
+    applyChange({ type: 'op', op: optimistic }, { origin: 'local' });
+    const sent = JSON.parse(socket.sent[0] ?? 'null') as { clientOpId: string };
+    expect(operations.value).toContainEqual(optimistic);
+
+    socket.receive({
+      type: 'nack',
+      opId: sent.clientOpId,
+      status: 'refused',
+      code: 'layer_unavailable',
+      reason: '目标图层不存在',
+    });
+    expect(operations.value).toEqual([]);
+    expect(toasts.value.some((item) => item.message.includes('目标图层不存在'))).toBe(true);
+  });
+
+  test('a noop ack confirms the local op and clears its pending rollback', () => {
+    const socket = connect();
+    socket.open();
+    socket.receive({ type: 'init', ops: [] });
+    const optimistic = op('noop-op');
+    applyChange({ type: 'op', op: optimistic }, { origin: 'local' });
+    const sent = JSON.parse(socket.sent[0] ?? 'null') as { clientOpId: string };
+
+    socket.receive({ type: 'ack', opId: sent.clientOpId, status: 'noop', rev: 1 });
+    socket.receive({
+      type: 'nack',
+      opId: sent.clientOpId,
+      status: 'refused',
+      code: 'read_only',
+      reason: 'stale receipt',
+    });
+    expect(operations.value).toEqual([optimistic]);
+    expect(toasts.value.some((item) => item.message.includes('stale receipt'))).toBe(false);
+  });
+
+  test('pending changes unwind in reverse, so a create and its undo leave nothing behind', async () => {
+    const socket = connect();
+    socket.open();
+    socket.receive({ type: 'init', ops: [] });
+    applyChange({ type: 'op', op: op('phantom') }, { origin: 'local' });
+    applyChange({ type: 'undo', opId: 'phantom' }, { origin: 'local' });
+    expect(operations.value).toEqual([]);
+
+    // The socket dies before either change is answered: undoing the undo first (it re-inserts the
+    // op) and then the create (it removes that id again) is what leaves the board empty. Insertion
+    // order resurrects the op the room never received.
+    socket.close();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(operations.value).toEqual([]);
+  });
+
+  test('a rolled-back patch leaves a newer peer edit of the same field alone', () => {
+    const socket = connect();
+    socket.open();
+    socket.receive({ type: 'init', ops: [op('shared')] });
+    applyChange({ type: 'update_op', opId: 'shared', patch: { text: 'mine' } }, { origin: 'local' });
+    // A peer's accepted edit to the same field lands while ours waits for its receipt.
+    socket.receive({ type: 'update_op', opId: 'shared', patch: { text: 'theirs' } });
+    const frame = socket.sent
+      .map((raw) => JSON.parse(raw) as { clientOpId?: string })
+      .find((msg) => typeof msg.clientOpId === 'string');
+    socket.receive({
+      type: 'nack',
+      opId: frame?.clientOpId,
+      status: 'refused',
+      code: 'read_only',
+      reason: '只读',
+    });
+    expect((operations.value[0] as Extract<DrawOp, { tool: 'text' }> | undefined)?.text).toBe('theirs');
+  });
+  test('an unacknowledged optimistic op rolls back after the receipt timeout', async () => {
+    const socket = connect();
+    socket.open();
+    socket.receive({ type: 'init', ops: [] });
+    applyChange({ type: 'op', op: op('timeout-op') }, { origin: 'local' });
+    expect(operations.value).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 15_050));
+    expect(operations.value).toEqual([]);
+    expect(toasts.value.some((item) => item.message.includes('连接不稳，改动没同步上'))).toBe(true);
+    // The receipt window is 15s of real time; bun test's default 5s cap would cut it short.
+  }, 20_000);
 
   test('a long offline queue drains in slices, in order, without dropping the tail', async () => {
     const socket = connect();

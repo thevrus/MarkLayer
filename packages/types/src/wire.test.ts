@@ -39,6 +39,13 @@ describe('clientMsgSchema', () => {
 // A socket message that fails to parse is dropped, so each of these is a silent failure if it regresses.
 describe('serverMsgSchema', () => {
   const parse = (msg: unknown) => serverMsgSchema.safeParse(msg);
+  test('parses acknowledgement and refusal receipts with correlation ids', () => {
+    expect(parse({ type: 'ack', opId: 'client-1', status: 'noop', rev: 4 }).success).toBe(true);
+    expect(
+      parse({ type: 'nack', opId: 'client-2', status: 'refused', code: 'read_only', reason: '只读' }).success,
+    ).toBe(true);
+  });
+
   const comment = {
     id: 'c1',
     tool: 'comment',

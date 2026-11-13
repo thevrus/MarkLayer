@@ -159,7 +159,12 @@ describe('AnnotationRoom view-only enforcement', () => {
     for (const msg of [{ type: 'clear' }, { type: 'undo', opId: op.id }, { type: 'op', op }]) {
       viewer.sent.length = 0;
       await room.webSocketMessage(viewer, JSON.stringify(msg));
-      expect(viewer.sent).toEqual([{ type: 'error', code: 'read_only' }]);
+      expect(viewer.sent).toContainEqual({ type: 'error', code: 'read_only' });
+      expect(
+        viewer.sent.some(
+          (receipt) => typeof receipt === 'object' && receipt !== null && 'type' in receipt && receipt.type === 'nack',
+        ),
+      ).toBe(true);
     }
     expect(other.sent).toEqual([]);
     expect(alarms).toEqual([]);
@@ -344,6 +349,8 @@ describe('one mutation core', () => {
     const { room, human, sqlite } = liveRoom();
     const sender = new FakeWebSocket({ id: 'p2', name: 'Bo', color: '#8b5cf6' });
     await room.webSocketMessage(sender, JSON.stringify({ type: 'op', op, clientVersion: '0.1.0', legacy: true }));
+    expect(sender.sent[0]).toMatchObject({ type: 'ack', status: 'applied', seq: expect.any(Number) });
+    expect((sender.sent[0] as { opId: string }).opId).toBeTruthy();
     await room.webSocketMessage(sender, JSON.stringify({ type: 'cursor', x: 1, y: 2 }));
     await room.webSocketMessage(sender, JSON.stringify({ type: 'not_a_thing', op }));
     await room.alarm();
@@ -352,6 +359,38 @@ describe('one mutation core', () => {
       'cursor',
     ]);
     expect(JSON.parse(opsColumn(sqlite) ?? 'null')).toEqual([op]);
+  });
+
+  test('socket mutations return correlated applied, noop and refused receipts without broadcasting a refusal', async () => {
+    const { room, human } = liveRoom();
+    const sender = new FakeWebSocket({ id: 'sender', name: 'Bo', color: '#8b5cf6' });
+    const readonly = new FakeWebSocket({ id: 'readonly', name: 'View', color: '#000000', canEdit: false });
+
+    await room.webSocketMessage(sender, JSON.stringify({ type: 'op', op, clientOpId: 'client-1', seq: 1 }));
+    expect(sender.sent).toContainEqual({ type: 'ack', opId: 'client-1', status: 'applied', seq: 1, rev: 1 });
+    expect(human.sent).toContainEqual({ type: 'op', op });
+
+    sender.sent.length = 0;
+    await room.webSocketMessage(sender, JSON.stringify({ type: 'op', op, clientOpId: 'client-2', seq: 2 }));
+    expect(sender.sent).toContainEqual({ type: 'ack', opId: 'client-2', status: 'noop', seq: 2, rev: 1 });
+
+    human.sent.length = 0;
+    await room.webSocketMessage(
+      readonly,
+      JSON.stringify({ type: 'op', op: { ...op, id: 'refused' }, clientOpId: 'client-3' }),
+    );
+    expect(readonly.sent).toContainEqual({
+      type: 'nack',
+      opId: 'client-3',
+      status: 'refused',
+      seq: 3,
+      code: 'read_only',
+      reason: '当前房间不允许编辑',
+    });
+    // The legacy frame a view-only peer always got: back then it said read_only, and it still does.
+    expect(readonly.sent).toContainEqual({ type: 'error', code: 'read_only' });
+    expect(human.sent).toEqual([]);
+    expect((await room.snapshot()).ops.map((item) => item.id)).toEqual([op.id]);
   });
 });
 

@@ -119,6 +119,7 @@ export type RoomChange =
 type Origin = { ws: WebSocket } | { userId?: string; peerId?: string };
 
 export type MutateOutcome = 'applied' | 'noop' | 'refused';
+type MutationResult = { status: 'applied' | 'noop' } | { status: 'refused'; code: string; reason: string };
 
 /**
  * What survives eviction. Read first in `loadOps`: `rowExisted` is what lets a
@@ -185,6 +186,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
    */
   private log: ServerMsg[] = [];
   private logBase = 0;
+  private lastReceiptSeq = 0;
   /** Parked watches, each waiting for a message past its cursor. */
   private watchers: { since: number; wake: (result: AgentWatchResult) => void }[] = [];
 
@@ -492,13 +494,13 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
   }
 
   /** Whether this caller may change the room. A socket answers for itself; everyone else is read against the row. */
-  private async mayEdit(from: Origin): Promise<boolean> {
+  private async mayEdit(from: Origin, notifyReadonly = true): Promise<boolean> {
     if ('ws' in from) {
       // `canEdit === false` only, never `!info`: a socket with no parsed info yet
       // defaults to allowed, matching `'edit'` being every link's default.
       const info = this.getPeerInfo(from.ws);
       if (info?.canEdit === false) {
-        from.ws.send(JSON.stringify({ type: 'error', code: ROOM_ERROR_READ_ONLY }));
+        if (notifyReadonly) from.ws.send(JSON.stringify({ type: 'error', code: ROOM_ERROR_READ_ONLY }));
         return false;
       }
       return true;
@@ -515,15 +517,16 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
    * The sender's own socket is skipped on `op`, `undo` and `clear` (it already
    * applied them locally); `update_op` goes to everyone, as it always has.
    */
-  private mutate(change: RoomChange, from: Origin): Promise<MutateOutcome> {
+  private mutate(change: RoomChange, from: Origin): Promise<MutationResult> {
     return this.serializeCollaboration(() => this.mutateLocked(change, from));
   }
 
-  private async mutateLocked(change: RoomChange, from: Origin): Promise<MutateOutcome> {
+  private async mutateLocked(change: RoomChange, from: Origin): Promise<MutationResult> {
+    const refused = (code: string, reason = code): MutationResult => ({ status: 'refused', code, reason });
     const ops = await this.getOps();
-    if (this.dead || (await this.pastDeadline())) return 'refused';
+    if (this.dead || (await this.pastDeadline())) return refused('room_expired', '房间已过期或关闭');
     // `mayEdit` rereads the row, which may find it gone.
-    if (!(await this.mayEdit(from)) || this.dead) return 'refused';
+    if (!(await this.mayEdit(from, false)) || this.dead) return refused('read_only', '当前房间不允许编辑');
     const peerId = 'ws' in from ? this.getPeerInfo(from.ws)?.id : from.peerId;
     const peer = peerId
       ? (this.httpAgents.get(peerId)?.peer ?? this.getPeerList().find((item) => item.id === peerId))
@@ -533,7 +536,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       const active = (await collaborationStore(this.env.DB).tasks(await this.roomId(), peer.uid)).find((task) =>
         ['running', 'waiting', 'cancel_requested'].includes(task.status),
       );
-      if (active?.status === 'cancel_requested') return 'refused';
+      if (active?.status === 'cancel_requested') return refused('task_cancel_requested', '该协作任务已请求取消');
       if (active && change.type === 'op' && !(change.op.tool === 'comment' && change.op.parentId)) {
         assignedLayer = active.layer_id;
         change = { ...change, op: { ...change.op, layerId: assignedLayer } };
@@ -546,21 +549,23 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
           typeof target !== 'string' ||
           !(await collaborationStore(this.env.DB).layers(await this.roomId())).some((layer) => layer.id === target)
         )
-          return 'refused';
+          return refused('layer_unavailable', '目标图层不存在或不可用');
       }
       if (change.type === 'update_op' && target !== undefined) {
         const current = parseOps(ops).find((op) => op.id === change.opId);
         if (current?.tool === 'comment' && current.parentId) {
           const parent = parseOps(ops).find((op) => op.id === current.parentId);
-          if (!parent || (parent.layerId ?? 'default') !== target) return 'refused';
+          if (!parent || (parent.layerId ?? 'default') !== target)
+            return refused('reply_layer_mismatch', '回复图层必须与父批注一致');
         }
       }
       if (change.type === 'op' && change.op.tool === 'comment' && change.op.parentId) {
         const parentId = change.op.parentId;
         const parent = ops.find((op) => opIdOf(op) === parentId);
-        if (!parent || typeof parent !== 'object') return 'refused';
+        if (!parent || typeof parent !== 'object') return refused('reply_parent_missing', '父批注不存在');
         const parentLayer = 'layerId' in parent ? parent.layerId : undefined;
-        if ((change.op.layerId ?? 'default') !== (parentLayer ?? 'default')) return 'refused';
+        if ((change.op.layerId ?? 'default') !== (parentLayer ?? 'default'))
+          return refused('reply_layer_mismatch', '回复图层必须与父批注一致');
       }
     }
     if (peerId && isAgentPeer(peerId)) {
@@ -570,19 +575,54 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
           : change.type === 'op' && 'status' in change.op
             ? change.op.status
             : undefined;
-      if (status === 'approved') return 'refused';
+      if (status === 'approved') return refused('agent_approval_forbidden', '协作代理不能批准批注');
       const mode = await annotationStore(this.env.DB).getExecMode(await this.roomId());
       if (mode === 'guide') {
-        if (status === 'resolved' || status === 'dismissed') return 'refused';
-        if (change.type === 'op' && change.op.tool === 'selection' && change.op.suggestion) return 'refused';
-        if (change.type === 'update_op' && 'suggestion' in change.patch && change.patch.suggestion) return 'refused';
+        if (status === 'resolved' || status === 'dismissed')
+          return refused('guide_status_forbidden', '教学模式下代理不能关闭批注');
+        if (change.type === 'op' && change.op.tool === 'selection' && change.op.suggestion)
+          return refused('guide_suggestion_forbidden', '教学模式下代理不能提交修改建议');
+        if (change.type === 'update_op' && 'suggestion' in change.patch && change.patch.suggestion)
+          return refused('guide_suggestion_forbidden', '教学模式下代理不能提交修改建议');
       }
     }
     const outcome = await this.apply({ change, ops, ws: 'ws' in from ? from.ws : undefined });
     if (outcome === 'applied' && assignedLayer && change.type === 'op' && 'ws' in from) {
       from.ws.send(JSON.stringify({ type: 'update_op', opId: change.op.id, patch: { layerId: assignedLayer } }));
     }
-    return outcome;
+    return outcome === 'refused' ? refused('invalid_change', '变更内容未通过房间校验') : { status: outcome };
+  }
+
+  private mutationReply(
+    ws: WebSocket,
+    opId: string,
+    result: MutationResult,
+    legacyCode = 'collaboration_change_refused',
+    seq?: number,
+  ) {
+    const receiptSeq = seq ?? Math.max(this.cursor(), this.lastReceiptSeq) + 1;
+    this.lastReceiptSeq = Math.max(this.lastReceiptSeq, receiptSeq);
+    if (result.status === 'refused') {
+      ws.send(
+        JSON.stringify({
+          type: 'nack',
+          opId,
+          status: result.status,
+          seq: receiptSeq,
+          code: result.code,
+          reason: result.reason,
+        }),
+      );
+      // Keep the legacy frame for clients predating correlated acknowledgements.
+      ws.send(
+        JSON.stringify({
+          type: 'error',
+          code: result.code === ROOM_ERROR_READ_ONLY ? ROOM_ERROR_READ_ONLY : legacyCode,
+        }),
+      );
+    } else {
+      ws.send(JSON.stringify({ type: 'ack', opId, status: result.status, seq: receiptSeq, rev: this.cursor() }));
+    }
   }
 
   /** The write itself, past every check: what `mutate` does once the caller may, and what `reset` does outright. */
@@ -790,7 +830,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     }
     if (msg.type === 'op' || msg.type === 'update_op' || msg.type === 'undo' || msg.type === 'clear') {
       const outcome = await this.mutate(msg, { peerId });
-      return outcome !== 'refused';
+      return outcome.status !== 'refused';
     }
     return true;
   }
@@ -836,7 +876,7 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
   }): Promise<boolean> {
     await this.getOps();
     await this.revive();
-    return (await this.mutate({ type: mode, ops }, { userId })) !== 'refused';
+    return (await this.mutate({ type: mode, ops }, { userId })).status !== 'refused';
   }
 
   /** The cron wiping the public demo board. */
@@ -1037,10 +1077,29 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       case 'agent_release':
       case 'task_submit':
       case 'task_cancel': {
+        const requestId = msg.clientOpId ?? crypto.randomUUID();
         const info = this.getPeerInfo(ws);
-        if (!info?.uid || isAgentPeer(info.id)) return;
+        if (!info?.uid || isAgentPeer(info.id)) {
+          this.mutationReply(
+            ws,
+            requestId,
+            { status: 'refused', code: 'invalid_peer', reason: '当前连接不能执行此协作操作' },
+            'collaboration_change_refused',
+            msg.seq,
+          );
+          return;
+        }
         await this.serializeCollaboration(async () => {
-          if (!(await this.mayEdit({ ws })) || this.dead || (await this.pastDeadline())) return;
+          if (!(await this.mayEdit({ ws }, false)) || this.dead || (await this.pastDeadline())) {
+            this.mutationReply(
+              ws,
+              requestId,
+              { status: 'refused', code: 'read_only', reason: '当前房间不允许编辑' },
+              'collaboration_change_refused',
+              msg.seq,
+            );
+            return;
+          }
           const store = collaborationStore(this.env.DB);
           const roomId = await this.roomId();
           let ok = false;
@@ -1074,17 +1133,44 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
             this.announce([
               { type: 'collaboration', claims: await store.claims(roomId), tasks: await store.allTasks(roomId) },
             ]);
-          else ws.send(JSON.stringify({ type: 'error', code: 'collaboration_change_refused' }));
+          this.mutationReply(
+            ws,
+            requestId,
+            ok
+              ? { status: 'applied' }
+              : { status: 'refused', code: 'collaboration_change_refused', reason: '协作任务状态已变化或不再可用' },
+            'collaboration_change_refused',
+            msg.seq,
+          );
         });
         return;
       }
       case 'layer_create':
       case 'layer_rename':
       case 'layer_delete': {
+        const requestId = msg.clientOpId ?? crypto.randomUUID();
         const info = this.getPeerInfo(ws);
-        if (!info || isAgentPeer(info.id)) return;
+        if (!info || isAgentPeer(info.id)) {
+          this.mutationReply(
+            ws,
+            requestId,
+            { status: 'refused', code: 'invalid_peer', reason: '当前连接不能管理图层' },
+            'layer_change_refused',
+            msg.seq,
+          );
+          return;
+        }
         await this.serializeCollaboration(async () => {
-          if (!(await this.mayEdit({ ws })) || this.dead || (await this.pastDeadline())) return;
+          if (!(await this.mayEdit({ ws }, false)) || this.dead || (await this.pastDeadline())) {
+            this.mutationReply(
+              ws,
+              requestId,
+              { status: 'refused', code: 'read_only', reason: '当前房间不允许编辑' },
+              'layer_change_refused',
+              msg.seq,
+            );
+            return;
+          }
           const store = collaborationStore(this.env.DB);
           const id = await this.roomId();
           const name = msg.type === 'layer_delete' ? '' : msg.name.trim();
@@ -1107,15 +1193,46 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
             }
           }
           if (ok) this.announce([{ type: 'layers', layers: await store.layers(id) }]);
-          else ws.send(JSON.stringify({ type: 'error', code: 'layer_change_refused' }));
+          this.mutationReply(
+            ws,
+            requestId,
+            ok
+              ? { status: 'applied' }
+              : {
+                  status: 'refused',
+                  code: 'layer_change_refused',
+                  reason: '图层操作未完成，请检查图层是否为空或名称是否有效',
+                },
+            'layer_change_refused',
+            msg.seq,
+          );
         });
         return;
       }
       case 'set_exec_mode': {
+        const requestId = msg.clientOpId ?? crypto.randomUUID();
         const info = this.getPeerInfo(ws);
-        if (!info || isAgentPeer(info.id) || !(await this.mayEdit({ ws }))) return;
+        if (!info || isAgentPeer(info.id) || !(await this.mayEdit({ ws }, false))) {
+          this.mutationReply(
+            ws,
+            requestId,
+            { status: 'refused', code: 'read_only', reason: '当前房间不允许修改协作模式' },
+            'collaboration_change_refused',
+            msg.seq,
+          );
+          return;
+        }
         if (await annotationStore(this.env.DB).setExecMode(await this.roomId(), msg.execMode)) {
           this.announce([{ type: 'exec_mode', execMode: msg.execMode }]);
+          this.mutationReply(ws, requestId, { status: 'applied' }, 'collaboration_change_refused', msg.seq);
+        } else {
+          this.mutationReply(
+            ws,
+            requestId,
+            { status: 'refused', code: 'exec_mode_refused', reason: '协作模式未能更新' },
+            'collaboration_change_refused',
+            msg.seq,
+          );
         }
         return;
       }
@@ -1132,9 +1249,12 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       case 'op':
       case 'update_op':
       case 'undo':
-      case 'clear':
-        await this.mutate(msg, { ws });
+      case 'clear': {
+        const requestId = msg.clientOpId ?? crypto.randomUUID();
+        const outcome = await this.mutate(msg, { ws });
+        this.mutationReply(ws, requestId, outcome, 'collaboration_change_refused', msg.seq);
         return;
+      }
       case 'ping':
         ws.send('{"type":"pong"}');
         return;
