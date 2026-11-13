@@ -7,6 +7,7 @@ import { deleteOp, setOpStatus } from '../lib/ops';
 import { hexToRgba } from '../lib/renderer';
 import { copyText } from '../lib/toasts';
 import type { AreaOp } from '../lib/types';
+import { DiagnosisAction } from './DiagnosisAction';
 import { MentionText } from './MentionText';
 import { PriorityBadge } from './PriorityPicker';
 
@@ -71,6 +72,7 @@ export function AreaCard({
         <p class="text-meta text-(--ds-gray-900) m-0 mt-1">No comment</p>
       )}
       {children}
+      <DiagnosisAction op={op} />
       <div class="flex items-center justify-between mt-2">
         <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
         <div class="flex items-center gap-3">

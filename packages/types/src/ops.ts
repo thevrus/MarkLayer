@@ -1,6 +1,6 @@
 import { isUploadId } from '@marklayer/brand/links';
 import { z } from 'zod/mini';
-import { MAX_PAGE_ERROR_TEXT, MAX_PAGE_ERRORS } from './relay';
+import { MAX_DIAGNOSIS_RECENT, MAX_NETWORK_ERRORS, MAX_PAGE_ERROR_TEXT, MAX_PAGE_ERRORS } from './relay';
 
 export const pointSchema = z.object({ x: z.number(), y: z.number() });
 export type Point = z.infer<typeof pointSchema>;
@@ -108,6 +108,68 @@ export const targetElementSchema = z.object({
 });
 export type TargetElement = z.infer<typeof targetElementSchema>;
 
+/** One uncaught error, rejection or `console.error` the page had logged when the comment was left. */
+export const pageErrorSchema = z.object({
+  message: z.string().check(z.maxLength(MAX_PAGE_ERROR_TEXT)),
+  source: z.optional(z.string().check(z.maxLength(MAX_PAGE_ERROR_TEXT))),
+  line: z.optional(z.int()),
+  at: z.number(),
+});
+export type PageError = z.infer<typeof pageErrorSchema>;
+
+/** A failed request observed in the page, with query/hash removed before it leaves that page. */
+export const networkErrorSchema = z.object({
+  method: z.string().check(z.maxLength(16)),
+  url: z.string().check(z.maxLength(MAX_PAGE_ERROR_TEXT)),
+  status: z.optional(z.int()),
+  error: z.optional(z.string().check(z.maxLength(80))),
+  durationMs: z.number(),
+  at: z.number(),
+});
+export type NetworkError = z.infer<typeof networkErrorSchema>;
+
+/** A bounded, shareable snapshot of the page around one annotation. */
+export const diagnosisSchema = z.object({
+  capturedAt: z.number(),
+  source: z.enum(['live-page', 'stored-annotation']),
+  target: z.optional(targetElementSchema),
+  hierarchy: z.optional(z.object({ iframeDepth: z.number(), shadowDepth: z.number() })),
+  hitTest: z.optional(
+    z.object({
+      covered: z.boolean(),
+      hit: z.optional(z.object({ selector: z.string(), tag: z.string() })),
+      chain: z
+        .array(
+          z.object({
+            selector: z.string(),
+            tag: z.string(),
+            pointerEvents: z.string(),
+            position: z.string(),
+            zIndex: z.string(),
+            opacity: z.string(),
+            visibility: z.string(),
+          }),
+        )
+        .check(z.maxLength(8)),
+    }),
+  ),
+  pageErrorCount: z.int(),
+  pageErrors: z.array(pageErrorSchema).check(z.maxLength(MAX_DIAGNOSIS_RECENT)),
+  networkFailureCount: z.int(),
+  networkFailures: z.array(networkErrorSchema).check(z.maxLength(MAX_DIAGNOSIS_RECENT)),
+  viewport: z.optional(
+    z.object({
+      devicePixelRatio: z.optional(z.number()),
+      scale: z.optional(z.number()),
+      scrollX: z.optional(z.number()),
+      scrollY: z.optional(z.number()),
+    }),
+  ),
+  reproductionSteps: z.array(z.string().check(z.maxLength(200))).check(z.maxLength(6)),
+  partial: z.boolean(),
+});
+export type Diagnosis = z.infer<typeof diagnosisSchema>;
+
 /** The handful of entities that actually turn up in copy. */
 const ENTITIES: Record<string, string> = {
   '&amp;': '&',
@@ -169,7 +231,12 @@ export type PageAnchor = z.infer<typeof pageAnchorSchema>;
  * exclusive in practice. The key predates images being one of those documents
  * and is kept as it is: it is on every mark already stored on a PDF.
  */
-const anchorable = { target: z.optional(targetElementSchema), pdf: z.optional(pageAnchorSchema) };
+const anchorable = {
+  target: z.optional(targetElementSchema),
+  pdf: z.optional(pageAnchorSchema),
+  /** Runtime diagnosis is a separate op field so the shared comment metadata stays backwards compatible. */
+  diagnosis: z.optional(diagnosisSchema),
+};
 
 export const freehandOpSchema = z.object({
   ...baseOp,
@@ -234,24 +301,13 @@ export const COMMENT_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
 export const commentPrioritySchema = z.enum(COMMENT_PRIORITIES);
 export type CommentPriority = z.infer<typeof commentPrioritySchema>;
 
-/**
- * One uncaught error, rejection or `console.error` the page had logged when the comment was left.
- * Capped here, not only where it is captured: the Durable Object validates every op against this.
- */
-export const pageErrorSchema = z.object({
-  message: z.string().check(z.maxLength(MAX_PAGE_ERROR_TEXT)),
-  source: z.optional(z.string().check(z.maxLength(MAX_PAGE_ERROR_TEXT))),
-  line: z.optional(z.int()),
-  at: z.number(),
-});
-export type PageError = z.infer<typeof pageErrorSchema>;
-
 export const commentMetaSchema = z.object({
   url: z.optional(z.string()),
   viewport: z.optional(captureViewportSchema),
   browser: z.optional(z.string()),
   os: z.optional(z.string()),
   errors: z.optional(z.array(pageErrorSchema).check(z.maxLength(MAX_PAGE_ERRORS))),
+  networkErrors: z.optional(z.array(networkErrorSchema).check(z.maxLength(MAX_NETWORK_ERRORS))),
 });
 export type CommentMeta = z.infer<typeof commentMetaSchema>;
 
@@ -547,6 +603,8 @@ export const inspectOpSchema = z.object({
   styleEdits: z.optional(z.array(styleEditSchema).check(z.maxLength(MAX_STYLE_EDITS))),
   /** Nested, not spread like `targetElementSchema` does: its `id` is the element's and would collide with the op's. */
   details: z.optional(elementDetailsSchema),
+  /** Runtime diagnosis hangs off the annotation it explains, same as on a comment. */
+  diagnosis: z.optional(diagnosisSchema),
   ts: z.number(),
 });
 export type InspectOp = z.infer<typeof inspectOpSchema>;

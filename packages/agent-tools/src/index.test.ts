@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import type { AnnotationOp, CommentOp } from '@marklayer/types/ops';
+import type { AnnotationOp, CommentOp, Diagnosis } from '@marklayer/types/ops';
 import { callTool, classifyOp, type RoomOps, TOOLS } from './index';
 
 const comment = (over: Partial<CommentOp> = {}): CommentOp => ({
@@ -25,6 +25,10 @@ function fakeRoom(over: Partial<RoomOps> = {}): RoomOps & { calls: string[] } {
     checkLive: () => null,
     listAnnotations: () => [comment()],
     getAnnotation: (id) => (id === 'op-1' ? { op: comment(), replies: [] } : null),
+    setDiagnosis: (id) => {
+      calls.push(`diagnosis:${id}`);
+      return true;
+    },
     watch: async () => [],
     teachStart: () => ({ presentationId: 'demo-1' }),
     teachStep: () => true,
@@ -77,6 +81,44 @@ const body = (result: Awaited<ReturnType<typeof run>>) => {
 };
 
 describe('callTool', () => {
+  test('marklayer_diagnose writes a privacy-filtered partial package when no live capture exists', async () => {
+    let written: Diagnosis | undefined;
+    const room = fakeRoom({
+      getAnnotation: () => ({
+        op: comment({
+          target: { selector: '#cta', tag: 'button', markdown: 'button: Continue' },
+          meta: { url: 'https://example.test/users/alice?token=secret#panel', errors: [{ message: 'failed', at: 1 }] },
+        }),
+        replies: [],
+      }),
+      setDiagnosis: (_id, diagnosis) => {
+        written = diagnosis;
+        return true;
+      },
+    });
+    const result = await run('marklayer_diagnose', { id: 'op-1' }, room);
+    expect(body(result).diagnosis).toMatchObject({ source: 'stored-annotation', partial: true });
+    expect(JSON.stringify(written)).not.toContain('alice');
+    expect(JSON.stringify(written)).not.toContain('secret');
+  });
+
+  test('marklayer_read_diagnosis returns the saved package', async () => {
+    const diagnosis: Diagnosis = {
+      capturedAt: 10,
+      source: 'live-page',
+      pageErrorCount: 0,
+      pageErrors: [],
+      networkFailureCount: 0,
+      networkFailures: [],
+      viewport: { devicePixelRatio: 2, scale: 1.5, scrollX: 0, scrollY: 20 },
+      hitTest: { covered: false, chain: [] },
+      reproductionSteps: [],
+      partial: false,
+    };
+    const room = fakeRoom({ getAnnotation: () => ({ op: comment({ diagnosis }), replies: [] }) });
+    expect(body(await run('marklayer_read_diagnosis', { id: 'op-1' }, room)).diagnosis).toEqual(diagnosis);
+  });
+
   test('refuses an image not attached to the requested annotation', async () => {
     const result = await run('marklayer_read_attachment', { id: 'op-1', attachmentId: 'other' });
     expect(result?.isError).toBe(true);

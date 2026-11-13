@@ -1,6 +1,7 @@
 import type { Crop } from '../lib/capture';
 import { bridgePayload } from '../lib/fiber-bridge';
 import { CAPTURE_ELEMENT, TOGGLE_ANNOTATE } from '../lib/messages';
+import { networkErrorBufferPayload } from '../lib/net-errors';
 import { errorBufferPayload } from '../lib/page-errors';
 
 /** Cut one element's box out of a full-tab screenshot, in the background's own heap. */
@@ -74,6 +75,7 @@ export default defineBackground(() => {
         world: 'MAIN',
         func: errorBufferPayload,
       }),
+      browser.scripting.executeScript({ target: { tabId }, world: 'MAIN', func: networkErrorBufferPayload }),
     ]);
   }
 

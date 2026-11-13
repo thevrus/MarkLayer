@@ -37,6 +37,7 @@ const SWAPS = new Map(
     [join(extRoot, 'components/VideoNote.tsx'), join(import.meta.dir, 'lite/VideoNote.tsx')],
     [join(extRoot, 'components/PriorityMenu.tsx'), join(import.meta.dir, 'lite/PriorityMenu.tsx')],
     [join(extRoot, 'components/Tooltip.tsx'), join(import.meta.dir, 'lite/Tooltip.tsx')],
+    [join(extRoot, 'components/DiagnosisAction.tsx'), join(import.meta.dir, 'lite/DiagnosisAction.tsx')],
     [join(extRoot, 'components/ScreenCapture.tsx'), join(import.meta.dir, 'lite/ScreenCapture.tsx')],
     [join(extRoot, 'components/BatchSwitch.tsx'), join(import.meta.dir, 'lite/BatchSwitch.tsx')],
   ].map(([from, to]) => [normalizePath(from!), to!] as [string, string]),

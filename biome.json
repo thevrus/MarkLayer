@@ -52,6 +52,7 @@
     "includes": [
       "**",
       "!**/node_modules",
+      "!.bun-install",
       "!**/.output",
       "!**/.wxt",
       "!**/.wrangler",

@@ -197,6 +197,22 @@ describe('comment meta page errors', () => {
     expect(withErrors([err('x'.repeat(MAX_PAGE_ERROR_TEXT + 1))])).toBe(false);
     expect(withErrors([{ ...err(), source: 'x'.repeat(MAX_PAGE_ERROR_TEXT + 1) }])).toBe(false);
   });
+
+  test('accepts a bounded network error and diagnosis op field', () => {
+    const diagnosis = {
+      capturedAt: 1,
+      source: 'live-page',
+      pageErrorCount: 0,
+      pageErrors: [],
+      networkFailureCount: 1,
+      networkFailures: [{ method: 'GET', url: 'https://example.test/api', status: 503, durationMs: 9, at: 1 }],
+      viewport: { devicePixelRatio: 2, scale: 1.25, scrollX: 0, scrollY: 40 },
+      reproductionSteps: ['定位批注目标 #cta'],
+      partial: false,
+    };
+    expect(commentOpSchema.safeParse({ ...comment, diagnosis }).success).toBe(true);
+    expect(commentMetaSchema.safeParse({ networkErrors: diagnosis.networkFailures }).success).toBe(true);
+  });
 });
 
 describe('mentionSegments', () => {

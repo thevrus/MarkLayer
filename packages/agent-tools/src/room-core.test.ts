@@ -265,6 +265,23 @@ describe('RoomCore writes', () => {
     expect(sent).toEqual([]);
   });
 
+  test('stores diagnosis as a separate validated annotation op patch', async () => {
+    const { core, sent } = loaded([comment()]);
+    const diagnosis = {
+      capturedAt: 5,
+      source: 'stored-annotation' as const,
+      pageErrorCount: 0,
+      pageErrors: [],
+      networkFailureCount: 0,
+      networkFailures: [],
+      reproductionSteps: [],
+      partial: true,
+    };
+    expect(await core.setDiagnosis('c1', diagnosis)).toBe(true);
+    expect(sent[0]).toEqual({ type: 'update_op', opId: 'c1', patch: { diagnosis } });
+    expect(core.listOps()[0]).toMatchObject({ diagnosis });
+  });
+
   test('a reply lands on any annotation kind, at its anchor, on the parent stroke', async () => {
     const area: DrawOp = {
       id: 'a1',

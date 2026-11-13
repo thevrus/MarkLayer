@@ -374,6 +374,18 @@ const TOOL_DEFS = {
       'its element `target` context and — for comments — the reply thread.',
     input: IdInput,
   },
+  marklayer_diagnose: {
+    ...WORKS_ROOM,
+    description:
+      'Generate and save a diagnosis package for one annotation. Call this when a report says an element is unclickable, misplaced, or otherwise behaves incorrectly. It preserves a live package already captured by the extension; when no live capture exists, it saves an explicitly partial package from the annotation snapshot. Then call marklayer_read_diagnosis to inspect it.',
+    input: IdInput,
+  },
+  marklayer_read_diagnosis: {
+    ...READS_ROOM,
+    description:
+      'Read the saved runtime diagnosis for one annotation, including element context, hit-test/overlay chain when captured live, page errors, failed network requests, viewport values, and reproduction-step draft. Call after marklayer_diagnose or when the annotation already carries a diagnosis.',
+    input: IdInput,
+  },
   marklayer_read_attachment: {
     ...READS_ROOM,
     description:
@@ -528,6 +540,8 @@ const WORKING_A_ROOM =
   'A comment (or a reply, from marklayer_get_annotation) may carry `attachments`: fetchable image URLs the ' +
   'reviewer attached — call marklayer_read_attachment and inspect its image content before claiming to see it. If the tool fails or your client cannot see images, tell the user; do not infer what an image shows. They often show the ' +
   'bug or the intended layout better than the text does. ' +
+  'When a report describes a page behavior bug, call marklayer_diagnose for its annotation and then read the saved ' +
+  'package with marklayer_read_diagnosis; a package marked partial lacks live browser capture. ' +
   'For assigned work, use marklayer_task list/take to select the next task. Follow task_update events, stop on cancel_requested and confirm_cancel, and report completion before taking another task. Waiting for a person keeps the current task active. ' +
   'The Selection tool marks webpage text; the arrow cursor is the separate Move tool. Toolbar order can be customized; use teach_step toolbarTarget to show the named tool in each viewer. ' +
   'Typical loop: marklayer_list_annotations to backfill anything pending, then marklayer_watch_annotations ' +

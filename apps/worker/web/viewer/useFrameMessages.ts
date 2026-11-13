@@ -1,3 +1,4 @@
+import { ingestNetworkErrors } from '@ext/lib/net-errors';
 import { ingestPageErrors } from '@ext/lib/page-errors';
 import { type Signal, useSignalEffect } from '@preact/signals';
 import { type FrameMessage, onFrameMessage } from '../../shared/frame-protocol';
@@ -46,7 +47,11 @@ export function bindFrameMessages({
         case 'ml-errors':
           ingestPageErrors(message.errors);
           break;
+        case 'ml-network-errors':
+          ingestNetworkErrors(message.errors);
+          break;
         case 'ml-navigate':
+          ingestNetworkErrors([]);
           navigateTo({ url: message.url, source: 'page_link' });
           break;
         case 'ml-blocked':

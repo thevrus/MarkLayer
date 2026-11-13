@@ -12,6 +12,10 @@
     "./prompt": {
       "types": "./src/prompt.ts",
       "default": "./src/prompt.ts"
+    },
+    "./diagnosis": {
+      "types": "./src/diagnosis.ts",
+      "default": "./src/diagnosis.ts"
     }
   },
   "scripts": {

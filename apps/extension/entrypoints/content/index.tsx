@@ -4,6 +4,7 @@ import { createDraftStore } from '../../lib/drafts';
 import { initHost } from '../../lib/host';
 import { localIdentity } from '../../lib/identity-store';
 import { isToggleMessage } from '../../lib/messages';
+import { listenForNetworkErrors } from '../../lib/net-errors';
 import { restoreDraft } from '../../lib/ops';
 import { mountOverlay, OVERLAY_TAG, overlayHost, pageHasMarkLayer } from '../../lib/overlay-mount';
 import { listenForPageErrors } from '../../lib/page-errors';
@@ -33,6 +34,7 @@ export default defineContentScript({
     visible.value = true;
     restoreDraft();
     listenForPageErrors();
+    listenForNetworkErrors();
 
     browser.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!isToggleMessage(msg)) return;

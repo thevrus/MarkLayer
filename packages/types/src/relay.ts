@@ -28,3 +28,5 @@ export const RELAY_STATUS_ERROR = 'error';
 
 export const MAX_PAGE_ERRORS = 10;
 export const MAX_PAGE_ERROR_TEXT = 300;
+export const MAX_NETWORK_ERRORS = 20;
+export const MAX_DIAGNOSIS_RECENT = 5;

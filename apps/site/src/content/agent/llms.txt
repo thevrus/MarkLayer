@@ -82,10 +82,12 @@ Add ?agent=<name> to that URL to set the name the humans see on the agent's work
 
 For clients that only run local servers, the same tools ship as a stdio package: claude mcp add marklayer -- npx -y marklayer-mcp
 
-The twelve tools:
+The fifteen tools:
 - marklayer_connect_room: join a share link, by URL or bare id
 - marklayer_room_info: the page under review, its viewport, its timestamps
 - marklayer_read_page: the page's headings, text, links and controls, with selectors
+- marklayer_diagnose: capture and save a live or explicitly partial diagnosis for one annotation
+- marklayer_read_diagnosis: read that annotation's saved element, hit-test, error, network and viewport details
 - marklayer_list_annotations: everything outstanding, filtered by status
 - marklayer_get_annotation: one annotation in full, including its reply thread
 - marklayer_read_attachment: read an annotation's image attachment as MCP image content

@@ -74,6 +74,10 @@ Three further tools let you take part rather than only respond:
 
 - `marklayer_read_page` returns the page's headings, text, links and controls
   with their selectors, so you can review a page before anyone has annotated it.
+- `marklayer_diagnose` captures and saves live runtime details for one annotation
+  when a report describes a broken or misplaced element. Then call
+  `marklayer_read_diagnosis` to inspect the package; it says when browser capture
+  was unavailable and the saved package is partial.
 - `marklayer_create_annotation` leaves a comment of your own, anchored to an
   element, with an optional priority.
 - `marklayer_suggest_edit` proposes exact replacement text against the `rects`

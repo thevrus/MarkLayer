@@ -9,6 +9,7 @@ import { STATUS_STYLES } from '../lib/status-ui';
 import { copyText } from '../lib/toasts';
 import type { SelectionOp } from '../lib/types';
 import { TriageSection } from './CommentTriage';
+import { DiagnosisAction } from './DiagnosisAction';
 import { Reactions } from './Reactions';
 import { SuggestionDiff } from './SelectionEdit';
 import { ReplyComposer, ThreadHeader, ThreadReplies } from './ThreadCard';
@@ -139,6 +140,7 @@ export function SelectionMarker({
               </p>
             )}
             <Reactions class="mt-2" opId={op.id} reactions={op.reactions} />
+            <DiagnosisAction op={op} />
           </div>
 
           <ThreadReplies replies={getReplies(op.id)} resolveUrl={resolveUrl} />

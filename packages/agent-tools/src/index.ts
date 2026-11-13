@@ -2,6 +2,7 @@ import { mcpEndpoint, parseRoomRef as roomIdIn, uploadPath } from '@marklayer/br
 import type { AnnotationOp, CommentStatus, DrawOp, QuestionOp, StepOp } from '@marklayer/types/ops';
 import { isRootAnnotation, orderedSteps, resolveOpStatus, tallyQuestion } from '@marklayer/types/ops';
 import { agentTaskCommandSchema } from '@marklayer/types/wire';
+import { buildStoredDiagnosis } from './diagnosis';
 import { formatStyleEdit } from './prompt';
 import type { PreviewCreated, RoomOps } from './room-core';
 import {
@@ -28,6 +29,7 @@ import {
   WatchInput,
 } from './tools';
 
+export * from './diagnosis';
 export * from './room-core';
 export * from './server-card';
 export * from './tools';
@@ -90,6 +92,7 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       pageErrors: op.meta?.errors ?? [],
       target: op.target ?? null,
       ...(op.visualContext ? { visualContext: op.visualContext } : {}),
+      ...(op.diagnosis ? { diagnosis: op.diagnosis } : {}),
       attachments: attachmentUrls(op.attachments, apiBase),
       // The recording behind `text`, which is its transcript and may be empty if transcription failed.
       voice: op.voice ? attachmentUrls([op.voice], apiBase)[0] : null,
@@ -104,6 +107,7 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       comment: op.comment ?? null,
       rect: { x: op.startX, y: op.startY, width: op.endX - op.startX, height: op.endY - op.startY },
       target: op.target ?? null,
+      ...(op.diagnosis ? { diagnosis: op.diagnosis } : {}),
       // The marked-up screenshot of the area, when the reviewer drew on it.
       attachments: attachmentUrls(op.attachments, apiBase),
     };
@@ -118,6 +122,7 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       comment: op.comment ?? null,
       rects: op.rects,
       target: op.target ?? null,
+      ...(op.diagnosis ? { diagnosis: op.diagnosis } : {}),
     };
   }
   return {
@@ -131,6 +136,7 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
     styleEdits: op.styleEdits?.map(formatStyleEdit) ?? [],
     // id, classes, attributes, visible text, key styles and component chain, so nothing has to be parsed out of `markdown`.
     details: op.details ?? null,
+    ...(op.diagnosis ? { diagnosis: op.diagnosis } : {}),
   };
 }
 
@@ -284,6 +290,29 @@ async function workRoom({
           attachments: attachmentUrls(r.attachments, apiBase),
         })),
       });
+    }
+
+    case 'marklayer_diagnose': {
+      const parsed = IdInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const found = room.getAnnotation(parsed.data.id);
+      if (!found) return err(`annotation not found: ${parsed.data.id}`);
+      // A live package contains DOM hit-testing the MCP worker cannot reproduce. Keep that
+      // evidence; otherwise write a clearly partial package from the stored annotation only.
+      const preserveLiveCapture = found.op.diagnosis?.source === 'live-page';
+      const diagnosis = preserveLiveCapture ? found.op.diagnosis! : buildStoredDiagnosis(found.op);
+      if (!preserveLiveCapture && !(await room.setDiagnosis(parsed.data.id, diagnosis)))
+        return mutationErr({ room, id: parsed.data.id });
+      return ok({ id: parsed.data.id, diagnosis, saved: !preserveLiveCapture });
+    }
+
+    case 'marklayer_read_diagnosis': {
+      const parsed = IdInput.safeParse(args);
+      if (!parsed.success) return fail(parsed.error);
+      const found = room.getAnnotation(parsed.data.id);
+      if (!found) return err(`annotation not found: ${parsed.data.id}`);
+      if (!found.op.diagnosis) return err('no diagnosis saved — call marklayer_diagnose first');
+      return ok({ id: parsed.data.id, diagnosis: found.op.diagnosis });
     }
 
     case 'marklayer_read_attachment': {

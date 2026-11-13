@@ -1,5 +1,5 @@
 import type { Env } from '../../env';
-import { errorRelayScript } from '../../error-relay';
+import { errorRelayScript, networkErrorRelayScript } from '../../error-relay';
 import type { FetchedPage } from '../fetch';
 import { blockedNotice } from './blocked';
 import { fetchShimScript } from './fetch-shim';
@@ -31,6 +31,7 @@ export function injectedHead({
     fetchShimScript({ selfOrigin, baseUrl }),
     `<base href="${baseUrl.origin}/">`,
     errorRelayScript(selfOrigin),
+    networkErrorRelayScript(selfOrigin),
     historyGuardScript(),
     linksScript({ selfOrigin }),
     scrollBridgeScript({ selfOrigin }),

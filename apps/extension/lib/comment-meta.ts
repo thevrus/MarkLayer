@@ -1,3 +1,4 @@
+import { networkErrorsForPage } from './net-errors';
 import { errorsForPage } from './page-errors';
 import { annotatedUrl } from './page-url';
 import type { CommentMeta } from './types';
@@ -35,5 +36,6 @@ export function getCommentMeta(): CommentMeta {
     viewport: { width: window.innerWidth, height: window.innerHeight },
     ...detectUA(),
     ...(errors.length > 0 && { errors }),
+    ...(networkErrorsForPage().length > 0 && { networkErrors: networkErrorsForPage() }),
   };
 }

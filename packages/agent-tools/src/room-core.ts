@@ -4,6 +4,7 @@ import type {
   CommentOp,
   CommentPriority,
   CommentStatus,
+  Diagnosis,
   DrawOp,
   QuestionOp,
   SelectionOp,
@@ -127,6 +128,7 @@ export interface RoomOps {
   checkLive(): string | null;
   listAnnotations(filter?: { status?: CommentStatus | 'all' }): AnnotationOp[];
   getAnnotation(id: string): { op: AnnotationOp; replies: CommentOp[] } | null;
+  setDiagnosis(id: string, diagnosis: Diagnosis): Awaitable<boolean>;
   watch(opts: { timeoutSeconds?: number; batchMs?: number }): Promise<WatchEvent[]>;
   teachStart(opts: { steps?: string[] }): Awaitable<{ presentationId: string } | null>;
   teachStep(step: TeachingStep): Awaitable<boolean>;
@@ -568,6 +570,10 @@ export class RoomCore implements RoomOps {
     const parent = this.ops.find((op): op is AnnotationOp => canReply(op) && op.id === id);
     if (!parent) return false;
     return this.commit(replyOp({ id: this.newId(), parent, ops: this.ops, text, signature: this.signature() }));
+  }
+
+  setDiagnosis(id: string, diagnosis: Diagnosis): Promise<boolean> {
+    return this.update(id, { diagnosis });
   }
 
   /** `target` is optional: without it the pin sits at a fixed document-px point; with it, it follows the element. */

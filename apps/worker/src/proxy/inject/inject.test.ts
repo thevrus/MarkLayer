@@ -28,9 +28,13 @@ function run({ resp = page(), url = 'https://example.com/a' }: { resp?: FetchedP
   const fakeWindow = {
     parent: { postMessage: (message: unknown, target: string) => posted.push({ message, target }) },
     addEventListener: (type: string, listener: (e: object) => void) => windowListeners.set(type, listener),
-    fetch: (input: string) => fetched.push(input),
+    fetch: (input: string) => {
+      fetched.push(input);
+      const status = input.includes('/bad') ? 503 : 200;
+      return Promise.resolve({ ok: status < 400, status });
+    },
   };
-  const fakeDocument = { documentElement: { dataset }, addEventListener: () => {} };
+  const fakeDocument = { documentElement: { dataset }, baseURI: 'https://example.com/a', addEventListener: () => {} };
   const fakeHistory = { replaceState: () => {}, pushState: () => {} };
   class FakeXhr {
     open() {}
@@ -116,6 +120,24 @@ describe('the injected block', () => {
     https.fakeWindow.fetch('http://other.example/x');
     https.fakeWindow.fetch('/api2/y');
     expect(https.fetched).toEqual([`${SELF}/px/other.example/x`, `${SELF}/px/example.com/api2/y`]);
+  });
+
+  test('captures only a failed request and redacts query and fragment in the proxied page', async () => {
+    const { posted, fakeWindow } = run();
+    await fakeWindow.fetch('/bad?token=secret#private');
+    await fakeWindow.fetch('/ok?token=also-secret');
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const report = posted
+      .map(({ message }) => message)
+      .find(
+        (message) =>
+          typeof message === 'object' && message !== null && 'type' in message && message.type === 'ml-network-errors',
+      );
+    expect(report).toMatchObject({
+      type: 'ml-network-errors',
+      errors: [{ method: 'GET', url: 'https://example.com/bad', status: 503 }],
+    });
+    expect(JSON.stringify(report)).not.toContain('secret');
   });
 
   test("the page's own /api and /s calls reach its host, not MarkLayer", () => {

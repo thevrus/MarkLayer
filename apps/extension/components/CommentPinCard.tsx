@@ -18,6 +18,7 @@ import type { CommentOp } from '../lib/types';
 import { AgentFixBanner } from './AgentFixBanner';
 import { CommentMedia } from './CommentMedia';
 import { TriageSection } from './CommentTriage';
+import { DiagnosisAction } from './DiagnosisAction';
 import { MentionText } from './MentionText';
 import { PriorityPin } from './PriorityPicker';
 import { Reactions } from './Reactions';
@@ -124,7 +125,6 @@ export function CommentPinCard({
   const replies = getReplies(op.id);
   const hold = useHoldLatch();
   const { triage } = host.capabilities;
-
   const onContextMenu = (e: MouseEvent) =>
     openContextMenu(e, [
       {
@@ -266,6 +266,7 @@ export function CommentPinCard({
                     </p>
                   )}
                   <CommentMedia op={op} resolveUrl={resolveUrl} />
+                  <DiagnosisAction op={op} />
                   <Reactions class="mt-2" opId={op.id} reactions={op.reactions} />
                 </div>
 

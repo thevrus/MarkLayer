@@ -22,6 +22,14 @@ export const AGENT_TOOL_GROUPS: { group: string; tools: AgentTool[] }[] = [
       { name: 'get_annotation', does: 'One annotation in full, with its reply thread and any attached images.' },
       { name: 'read_attachment', does: 'Read an attached image as MCP image content.' },
       {
+        name: 'diagnose',
+        does: 'Capture what the page looks like around one annotation: the element and its iframe/shadow path, what actually receives the click, page errors, failed requests, zoom and scroll.',
+      },
+      {
+        name: 'read_diagnosis',
+        does: 'The stored diagnosis for one annotation, and a fresh capture when the page is still open.',
+      },
+      {
         name: 'get_feedback',
         does: 'One read of the room: counts by status, open items, checklist progress, poll tallies.',
       },

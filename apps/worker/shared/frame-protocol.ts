@@ -10,6 +10,7 @@ export const FRAME_MESSAGE = {
   navigate: 'ml-navigate',
   blocked: 'ml-blocked',
   errors: 'ml-errors',
+  networkErrors: 'ml-network-errors',
   scroll: 'ml-scroll',
   ready: 'ml-ready',
   key: 'ml-key',
@@ -59,6 +60,7 @@ export const frameMessageSchema = z.discriminatedUnion('type', [
   }),
   // Items stay unknown: `ingestPageErrors` validates each one, since the page controls them.
   z.object({ type: z.literal(FRAME_MESSAGE.errors), errors: z.array(z.unknown()) }),
+  z.object({ type: z.literal(FRAME_MESSAGE.networkErrors), errors: z.array(z.unknown()) }),
   z.object({ type: z.literal(FRAME_MESSAGE.scroll), ratio: z.number() }),
   z.object({ type: z.literal(FRAME_MESSAGE.ready) }),
   keySchema,

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import mcpPackage from '../../../apps/mcp/package.json' with { type: 'json' };
 import { previewCreatedSchema } from './room-core';
 import { MCP_SERVER_CARD, MCP_SERVER_VERSION } from './server-card';
-import { instructionsFor, TOOLS, toolsFor } from './tools';
+import { instructionsFor, NEEDS_LIVE_ROOM, NEEDS_ROOM, TOOLS, toolsFor } from './tools';
 
 test('a limit only the zod input states reaches the client', () => {
   const nextSteps = TOOLS.find((tool) => tool.name === 'marklayer_set_next_steps');
@@ -14,6 +14,14 @@ describe('the tool table', () => {
     expect(toolsFor('stdio')).toHaveLength(TOOLS.length);
     expect(toolsFor('http').map((tool) => tool.name)).not.toContain('marklayer_connect_room');
     expect(toolsFor('http')).toHaveLength(TOOLS.length - 1);
+  });
+
+  test('advertises diagnose as a write and read_diagnosis as a read', () => {
+    expect(TOOLS.find((tool) => tool.name === 'marklayer_diagnose')?.description).toContain('Call this when');
+    expect(TOOLS.find((tool) => tool.name === 'marklayer_read_diagnosis')?.description).toContain('hit-test');
+    expect(NEEDS_LIVE_ROOM.has('marklayer_diagnose')).toBe(true);
+    expect(NEEDS_ROOM.has('marklayer_read_diagnosis')).toBe(true);
+    expect(NEEDS_LIVE_ROOM.has('marklayer_read_diagnosis')).toBe(false);
   });
 });
 

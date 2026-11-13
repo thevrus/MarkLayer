@@ -38,6 +38,16 @@ describe('onFrameMessage', () => {
     expect(got).toEqual([navigate]);
   });
 
+  test('accepts the bounded network failure relay shape', () => {
+    const { got, post } = listen();
+    const message = {
+      type: FRAME_MESSAGE.networkErrors,
+      errors: [{ method: 'GET', url: 'https://example.test/api', status: 503, durationMs: 12, at: 2 }],
+    };
+    post({ data: message, source: framed });
+    expect(got).toEqual([message]);
+  });
+
   test('a known type with the wrong shape never reaches the handler', () => {
     const { got, post } = listen();
     post({ data: { type: FRAME_MESSAGE.navigate, url: 42 }, source: framed });
