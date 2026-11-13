@@ -1,4 +1,4 @@
-import { visibleOperations, undoRedoFlash } from '@ext/lib/ops';
+import { undoRedoFlash, visibleOperations } from '@ext/lib/ops';
 import { inView, opBounds, renderOp } from '@ext/lib/renderer';
 import { useSignalEffect } from '@preact/signals';
 import { useCallback } from 'preact/hooks';

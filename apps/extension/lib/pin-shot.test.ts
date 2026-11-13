@@ -20,8 +20,12 @@ describe('pinCrop', () => {
   });
 
   test('uses the chosen size and keeps it inside the viewport', () => {
-    expect(pinCrop({ pin: { x: 640, y: 1300 }, viewport, size: { width: 400, height: 200 } }))
-      .toEqual({ x: 440, y: 1200, width: 400, height: 200 });
+    expect(pinCrop({ pin: { x: 640, y: 1300 }, viewport, size: { width: 400, height: 200 } })).toEqual({
+      x: 440,
+      y: 1200,
+      width: 400,
+      height: 200,
+    });
     setPinShotDimension('width', 2000);
     expect(pinShotSize.peek().width).toBe(1600);
     setPinShotDimension('width', 800);
@@ -42,7 +46,9 @@ describe('snapshotPin', () => {
   test('passes the configured dimensions to the capture host', async () => {
     setPinShotDimension('width', 400);
     setPinShotDimension('height', 200);
-    const shoot = mock(async () => { throw new Error('stop after recording crop'); });
+    const shoot = mock(async () => {
+      throw new Error('stop after recording crop');
+    });
     try {
       await snapshotPin({ ...base, pin: { x: 640, y: 1300 }, upload: async () => null, shoot });
       expect(shoot).toHaveBeenCalledWith({ x: 440, y: 1200, width: 400, height: 200 });

@@ -35,7 +35,15 @@ const clamp = (n: number, lo: number, hi: number): number => Math.min(Math.max(n
  * Slid rather than shrunk at an edge, so a pin near the corner sits off-centre in a
  * full-size shot instead of at the middle of a sliver.
  */
-export function pinCrop({ pin, viewport, size = SHOT_SIZE }: { pin: { x: number; y: number }; viewport: Box; size?: { width: number; height: number } }): Box {
+export function pinCrop({
+  pin,
+  viewport,
+  size = SHOT_SIZE,
+}: {
+  pin: { x: number; y: number };
+  viewport: Box;
+  size?: { width: number; height: number };
+}): Box {
   const width = Math.min(size.width, viewport.width);
   const height = Math.min(size.height, viewport.height);
   return {

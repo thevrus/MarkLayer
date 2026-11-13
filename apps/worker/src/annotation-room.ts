@@ -1,13 +1,12 @@
 import { DurableObject } from 'cloudflare:workers';
-import { collaborationStore } from './collaboration-store';
 import { WATCH_MAX_SECONDS } from '@marklayer/agent-tools';
 import { ORIGIN } from '@marklayer/brand';
 import { isAgentPeer } from '@marklayer/types/agents';
 import { applyOpPatch, type DrawOp, drawOpSchema, parseOps } from '@marklayer/types/ops';
 import {
-  type AgentTaskCommand,
   type AgentJoin,
   type AgentSnapshot,
+  type AgentTaskCommand,
   type AgentWatchRequest,
   type AgentWatchResult,
   type ClientMsg,
@@ -25,6 +24,7 @@ import {
 import { z } from 'zod/mini';
 import { canEditLink, effectiveExpiresAt, type LinkAccess } from '../shared/accounts';
 import { userFromCookieHeader } from './auth/session';
+import { collaborationStore } from './collaboration-store';
 import type { Env } from './env';
 import { getIceServers } from './ice';
 import { roomDestinations } from './integrations/destinations';
@@ -144,9 +144,15 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
   private async serializeCollaboration<T>(operation: () => Promise<T>): Promise<T> {
     const previous = this.collaborationLock;
     let release!: () => void;
-    this.collaborationLock = new Promise<void>((resolve) => { release = resolve; });
+    this.collaborationLock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     await previous;
-    try { return await operation(); } finally { release(); }
+    try {
+      return await operation();
+    } finally {
+      release();
+    }
   }
   private annotationId: string | null = null;
   /** Whether D1 had a row when this room loaded. False is the one case the flush may insert. */
@@ -519,11 +525,14 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     // `mayEdit` rereads the row, which may find it gone.
     if (!(await this.mayEdit(from)) || this.dead) return 'refused';
     const peerId = 'ws' in from ? this.getPeerInfo(from.ws)?.id : from.peerId;
-    const peer = peerId ? this.httpAgents.get(peerId)?.peer ?? this.getPeerList().find((item) => item.id === peerId) : undefined;
+    const peer = peerId
+      ? (this.httpAgents.get(peerId)?.peer ?? this.getPeerList().find((item) => item.id === peerId))
+      : undefined;
     let assignedLayer: string | undefined;
     if (peer?.uid && isAgentPeer(peer.id)) {
-      const active = (await collaborationStore(this.env.DB).tasks(await this.roomId(), peer.uid))
-        .find((task) => ['running', 'waiting', 'cancel_requested'].includes(task.status));
+      const active = (await collaborationStore(this.env.DB).tasks(await this.roomId(), peer.uid)).find((task) =>
+        ['running', 'waiting', 'cancel_requested'].includes(task.status),
+      );
       if (active?.status === 'cancel_requested') return 'refused';
       if (active && change.type === 'op' && !(change.op.tool === 'comment' && change.op.parentId)) {
         assignedLayer = active.layer_id;
@@ -533,7 +542,11 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     if (change.type === 'op' || change.type === 'update_op') {
       const target = change.type === 'op' ? change.op.layerId : change.patch.layerId;
       if (target !== undefined) {
-        if (typeof target !== 'string' || !(await collaborationStore(this.env.DB).layers(await this.roomId())).some((layer) => layer.id === target)) return 'refused';
+        if (
+          typeof target !== 'string' ||
+          !(await collaborationStore(this.env.DB).layers(await this.roomId())).some((layer) => layer.id === target)
+        )
+          return 'refused';
       }
       if (change.type === 'update_op' && target !== undefined) {
         const current = parseOps(ops).find((op) => op.id === change.opId);
@@ -551,7 +564,12 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
       }
     }
     if (peerId && isAgentPeer(peerId)) {
-      const status = change.type === 'update_op' ? change.patch.status : change.type === 'op' && 'status' in change.op ? change.op.status : undefined;
+      const status =
+        change.type === 'update_op'
+          ? change.patch.status
+          : change.type === 'op' && 'status' in change.op
+            ? change.op.status
+            : undefined;
       if (status === 'approved') return 'refused';
       const mode = await annotationStore(this.env.DB).getExecMode(await this.roomId());
       if (mode === 'guide') {
@@ -604,7 +622,8 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
         if (typeof change.patch.layerId === 'string' && !('parentId' in merged && merged.parentId)) {
           for (let i = 0; i < ops.length; i++) {
             const child = ops[i];
-            if (typeof child !== 'object' || child === null || !('parentId' in child) || child.parentId !== change.opId) continue;
+            if (typeof child !== 'object' || child === null || !('parentId' in child) || child.parentId !== change.opId)
+              continue;
             const updated = applyOpPatch({ op: child, patch: { layerId: change.patch.layerId } });
             if (updated) {
               ops[i] = updated;
@@ -740,17 +759,23 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     return this.serializeCollaboration(async () => {
       await this.getOps();
       const peer = this.httpAgents.get(peerId)?.peer ?? this.getPeerList().find((item) => item.id === peerId);
-      if (!peer?.uid || !isAgentPeer(peer.id) || this.dead || await this.pastDeadline()) return { ok: false, tasks: [] };
+      if (!peer?.uid || !isAgentPeer(peer.id) || this.dead || (await this.pastDeadline()))
+        return { ok: false, tasks: [] };
       const store = collaborationStore(this.env.DB);
       const roomId = await this.roomId();
       if (command.action !== 'list' && !(await this.mayEdit({ peerId }))) return { ok: false, tasks: [] };
       let ok = command.action === 'list';
       if (command.action === 'take') ok = !!(await store.takeNext(roomId, peer.uid));
-      if (command.action === 'wait' && command.taskId && command.waitingFor) ok = await store.waitFor(roomId, peer.uid, command.taskId, command.waitingFor);
+      if (command.action === 'wait' && command.taskId && command.waitingFor)
+        ok = await store.waitFor(roomId, peer.uid, command.taskId, command.waitingFor);
       if (command.action === 'resume' && command.taskId) ok = await store.resume(roomId, peer.uid, command.taskId);
       if (command.action === 'complete' && command.taskId) ok = await store.finish(roomId, peer.uid, command.taskId);
-      if (command.action === 'confirm_cancel' && command.taskId) ok = await store.confirmCancel(roomId, peer.uid, command.taskId);
-      if (ok && command.action !== 'list') this.announce([{ type: 'collaboration', claims: await store.claims(roomId), tasks: await store.allTasks(roomId) }]);
+      if (command.action === 'confirm_cancel' && command.taskId)
+        ok = await store.confirmCancel(roomId, peer.uid, command.taskId);
+      if (ok && command.action !== 'list')
+        this.announce([
+          { type: 'collaboration', claims: await store.claims(roomId), tasks: await store.allTasks(roomId) },
+        ]);
       return { ok, tasks: await store.tasks(roomId, peer.uid) };
     });
   }
@@ -1027,11 +1052,28 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
           if (msg.type === 'task_cancel') ok = await store.requestCancel(roomId, msg.taskId);
           if (msg.type === 'task_submit') {
             const source = parseOps(this.ops ?? []).find((op) => op.id === msg.sourceId);
-            const isSource = source && (source.id === msg.annotationId || (source.tool === 'comment' && source.parentId === msg.annotationId));
-            const found = this.getPeerList().some((peer) => isAgentPeer(peer.id) && peer.uid === msg.agentId) || (await store.claims(roomId)).some((claim) => claim.agent_id === msg.agentId);
-            if (isSource && found) ok = await store.enqueue({ id: msg.taskId, room_id: roomId, agent_id: msg.agentId, requester_id: info.uid!, requester_name: info.name, layer_id: msg.layerId, annotation_id: msg.annotationId, source_id: msg.sourceId });
+            const isSource =
+              source &&
+              (source.id === msg.annotationId || (source.tool === 'comment' && source.parentId === msg.annotationId));
+            const found =
+              this.getPeerList().some((peer) => isAgentPeer(peer.id) && peer.uid === msg.agentId) ||
+              (await store.claims(roomId)).some((claim) => claim.agent_id === msg.agentId);
+            if (isSource && found)
+              ok = await store.enqueue({
+                id: msg.taskId,
+                room_id: roomId,
+                agent_id: msg.agentId,
+                requester_id: info.uid!,
+                requester_name: info.name,
+                layer_id: msg.layerId,
+                annotation_id: msg.annotationId,
+                source_id: msg.sourceId,
+              });
           }
-          if (ok) this.announce([{ type: 'collaboration', claims: await store.claims(roomId), tasks: await store.allTasks(roomId) }]);
+          if (ok)
+            this.announce([
+              { type: 'collaboration', claims: await store.claims(roomId), tasks: await store.allTasks(roomId) },
+            ]);
           else ws.send(JSON.stringify({ type: 'error', code: 'collaboration_change_refused' }));
         });
         return;
@@ -1047,10 +1089,13 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
           const id = await this.roomId();
           const name = msg.type === 'layer_delete' ? '' : msg.name.trim();
           let ok = false;
-          if (msg.type === 'layer_create' && name && msg.id !== 'default') ok = await store.createLayer(id, msg.id, name);
+          if (msg.type === 'layer_create' && name && msg.id !== 'default')
+            ok = await store.createLayer(id, msg.id, name);
           if (msg.type === 'layer_rename' && name) ok = await store.renameLayer(id, msg.id, name);
           if (msg.type === 'layer_delete') {
-            const occupied = (this.ops ?? []).some((op) => typeof op === 'object' && op !== null && 'layerId' in op && op.layerId === msg.id);
+            const occupied = (this.ops ?? []).some(
+              (op) => typeof op === 'object' && op !== null && 'layerId' in op && op.layerId === msg.id,
+            );
             if (!occupied) {
               // The database's empty-layer guard must see moves and deletions still held in memory.
               if (this.dirty && this.ops) {

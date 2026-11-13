@@ -45,8 +45,11 @@ afterEach(() => {
 
 describe('roster', () => {
   test('offers a claimed AI even when it is offline and has never posted', () => {
-    seed(); agentClaims.value = [{ agent_id: 'codex', owner_id: 'u', owner_name: 'Owner' }];
-    expect(matchRoster({ query: 'Codex' })).toContainEqual(expect.objectContaining({ id: 'codex', name: 'Codex', online: false }));
+    seed();
+    agentClaims.value = [{ agent_id: 'codex', owner_id: 'u', owner_name: 'Owner' }];
+    expect(matchRoster({ query: 'Codex' })).toContainEqual(
+      expect.objectContaining({ id: 'codex', name: 'Codex', online: false }),
+    );
   });
 
   test('always includes you, marked as yourself', () => {

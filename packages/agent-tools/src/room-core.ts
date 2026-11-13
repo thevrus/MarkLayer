@@ -1,4 +1,3 @@
-import type { AgentTaskCommand, RoomLayer, RoomTask } from '@marklayer/types/wire';
 import { agentColor, agentPeerId, isAgentAuthored } from '@marklayer/types/agents';
 import type {
   AnnotationOp,
@@ -21,7 +20,7 @@ import {
   parseOps,
   resolveOpStatus,
 } from '@marklayer/types/ops';
-import type { ClientMsg, ServerMsg } from '@marklayer/types/wire';
+import type { AgentTaskCommand, ClientMsg, RoomLayer, RoomTask, ServerMsg } from '@marklayer/types/wire';
 import { ROOM_ERROR_READ_ONLY } from '@marklayer/types/wire';
 import { z } from 'zod/mini';
 import type { QuestionRequest, StepRequest } from './tools';
@@ -352,11 +351,15 @@ export class RoomCore implements RoomOps {
     this.newId = newId;
   }
 
-  listLayers(): RoomLayer[] { return this.layers; }
+  listLayers(): RoomLayer[] {
+    return this.layers;
+  }
 
   private setWaitingTasks(tasks: readonly RoomTask[]): void {
     this.waitingAnnotationIds = new Set(
-      tasks.filter((task) => task.agent_id === this.agentId && task.status === 'waiting').map((task) => task.annotation_id),
+      tasks
+        .filter((task) => task.agent_id === this.agentId && task.status === 'waiting')
+        .map((task) => task.annotation_id),
     );
   }
 
@@ -423,7 +426,13 @@ export class RoomCore implements RoomOps {
       default:
         return;
     }
-    const event = classifyMessage({ msg, before, ops: this.ops, agentId: this.agentId, waitingAnnotationIds: this.waitingAnnotationIds });
+    const event = classifyMessage({
+      msg,
+      before,
+      ops: this.ops,
+      agentId: this.agentId,
+      waitingAnnotationIds: this.waitingAnnotationIds,
+    });
     if (event) this.events.push(event);
   }
 
@@ -512,7 +521,16 @@ export class RoomCore implements RoomOps {
     return sent ? { presentationId } : null;
   }
 
-  async teachStep({ presentationId, index, caption, annotationId, selector, rect, toolbarTarget, state }: TeachingStep): Promise<boolean> {
+  async teachStep({
+    presentationId,
+    index,
+    caption,
+    annotationId,
+    selector,
+    rect,
+    toolbarTarget,
+    state,
+  }: TeachingStep): Promise<boolean> {
     const highlighted = await this.transport.send({
       type: 'teach_highlight',
       presentationId,
@@ -521,7 +539,11 @@ export class RoomCore implements RoomOps {
       ...(selector ? { selector } : {}),
       ...(rect ? { rect } : {}),
     });
-    if (!highlighted || !(await this.transport.send({ type: 'teach_caption', presentationId, text: caption, step: index }))) return false;
+    if (
+      !highlighted ||
+      !(await this.transport.send({ type: 'teach_caption', presentationId, text: caption, step: index }))
+    )
+      return false;
     return state ? this.transport.send({ type: 'teach_state', presentationId, state, step: index }) : true;
   }
 

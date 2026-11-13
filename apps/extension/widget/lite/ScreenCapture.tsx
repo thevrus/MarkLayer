@@ -1,1 +1,3 @@
-export function ScreenCapture() { return null; }
+export function ScreenCapture() {
+  return null;
+}

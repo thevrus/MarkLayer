@@ -8,8 +8,8 @@ import { useCardHold } from '../lib/card-hold';
 import { geist } from '../lib/geist';
 import { compressImage } from '../lib/image';
 import { portalContainer } from '../lib/portal';
-import { Tooltip } from './Tooltip';
 import { ScreenCapture } from './ScreenCapture';
+import { Tooltip } from './Tooltip';
 
 /**
  * Upload queue for one composer's attachments. `upload` is injected rather than
@@ -327,30 +327,40 @@ export function AttachmentGallery({ ids, resolveUrl }: { ids: string[]; resolveU
   );
 }
 
-function AttachmentLightbox({ open, show, resolveUrl }: { open: string | null; show: (id: string | null) => void; resolveUrl: (id: string) => string }) {
-  return <Dialog.Root open={open !== null} onOpenChange={(next: boolean) => !next && show(null)}>
-        <Dialog.Portal container={portalContainer.value ?? undefined}>
-          <Dialog.Backdrop className="fixed inset-0 z-2147483647 bg-black/70 animate-[fadeInDown_0.15s_ease-out]" />
-          <Dialog.Popup
-            className="fixed inset-0 z-2147483647 grid place-items-center p-6 outline-none pointer-events-auto"
-            onClick={() => show(null)}
+function AttachmentLightbox({
+  open,
+  show,
+  resolveUrl,
+}: {
+  open: string | null;
+  show: (id: string | null) => void;
+  resolveUrl: (id: string) => string;
+}) {
+  return (
+    <Dialog.Root open={open !== null} onOpenChange={(next: boolean) => !next && show(null)}>
+      <Dialog.Portal container={portalContainer.value ?? undefined}>
+        <Dialog.Backdrop className="fixed inset-0 z-2147483647 bg-black/70 animate-[fadeInDown_0.15s_ease-out]" />
+        <Dialog.Popup
+          className="fixed inset-0 z-2147483647 grid place-items-center p-6 outline-none pointer-events-auto"
+          onClick={() => show(null)}
+        >
+          <Dialog.Title className="sr-only">Screenshot</Dialog.Title>
+          {open && (
+            <img
+              src={resolveUrl(open)}
+              alt="Attached screenshot"
+              class="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+          <Dialog.Close
+            aria-label="Close"
+            className={cn(geist.ctlSm, geist.ctlIdle, 'absolute top-4 right-4 text-white hover:text-white')}
           >
-            <Dialog.Title className="sr-only">Screenshot</Dialog.Title>
-            {open && (
-              <img
-                src={resolveUrl(open)}
-                alt="Attached screenshot"
-                class="max-w-full max-h-full rounded-lg shadow-2xl object-contain"
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-            <Dialog.Close
-              aria-label="Close"
-              className={cn(geist.ctlSm, geist.ctlIdle, 'absolute top-4 right-4 text-white hover:text-white')}
-            >
-              <X size={16} aria-hidden="true" />
-            </Dialog.Close>
-          </Dialog.Popup>
-        </Dialog.Portal>
-      </Dialog.Root>;
+            <X size={16} aria-hidden="true" />
+          </Dialog.Close>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
 }

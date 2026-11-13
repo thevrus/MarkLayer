@@ -28,5 +28,8 @@ export function expiredPage(): Response {
   const body = `<h1>This link has expired</h1>
 <p>Sign-in links work once and last ${LOGIN_TOKEN_TTL_SECONDS / 60} minutes. Ask for a new one and use the newest email.</p>
 <a class="btn" href="/app">Get a new link</a>`;
-  return new Response(page({ title: 'Link expired · visual collaboration', body }), { status: 400, headers: HTML_HEADERS });
+  return new Response(page({ title: 'Link expired · visual collaboration', body }), {
+    status: 400,
+    headers: HTML_HEADERS,
+  });
 }

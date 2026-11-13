@@ -14,5 +14,9 @@
       "react/jsx-runtime": ["./node_modules/preact/jsx-runtime", "../../node_modules/preact/jsx-runtime"]
     }
   },
-  "include": ["src", "web", "shared", "../extension/components", "../extension/lib"]
+  "include": ["src", "web", "shared", "../extension/components", "../extension/lib"],
+  // 扩展端的测试文件由 apps/extension 自己的 tsconfig（DOM lib）检查；
+  // 这里再纳进来会和 @cloudflare/workers-types 的全局声明打架
+  // （Element.remove()、Response、Document.append 等签名不同），报一堆伪错误。
+  "exclude": ["../extension/**/*.test.ts", "../extension/**/*.test.tsx"]
 }

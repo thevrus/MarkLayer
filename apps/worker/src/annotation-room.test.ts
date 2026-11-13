@@ -4,8 +4,8 @@ import type { DrawOp } from '@marklayer/types/ops';
 import { ROOM_EXPIRED_CLOSE_CODE, ROOM_GEN_HEADER, ROOM_LOCKED_CLOSE_CODE } from '@marklayer/types/wire';
 import { z } from 'zod/mini';
 import { api } from './api';
-import { collaborationStore } from './collaboration-store';
 import { hashToken } from './auth/tokens';
+import { collaborationStore } from './collaboration-store';
 import { rooms } from './rooms';
 import { saveRoom } from './rooms-lifecycle';
 import { annotationStore, nowInSeconds } from './store';
@@ -733,21 +733,51 @@ describe('remote MCP endpoint against a live room', () => {
     const live = liveRoom({ ops: [comment] });
     const person = new FakeWebSocket({ id: 'task-person', uid: 'requester', name: 'Requester', color: '#000000' });
     live.ctx.getWebSockets().push(person);
-    await (await callTool({ room: live.room, db: live.db, agent: AGENT, name: 'marklayer_task', args: { action: 'list' } })).text();
-    await live.room.webSocketMessage(person, JSON.stringify({ type: 'task_submit', taskId: 'task-from-mcp', agentId: AGENT, annotationId: comment.id, sourceId: comment.id, layerId: 'default' }));
-    const response = await callTool({ room: live.room, db: live.db, agent: AGENT, name: 'marklayer_task', args: { action: 'take' } });
+    await (
+      await callTool({ room: live.room, db: live.db, agent: AGENT, name: 'marklayer_task', args: { action: 'list' } })
+    ).text();
+    await live.room.webSocketMessage(
+      person,
+      JSON.stringify({
+        type: 'task_submit',
+        taskId: 'task-from-mcp',
+        agentId: AGENT,
+        annotationId: comment.id,
+        sourceId: comment.id,
+        layerId: 'default',
+      }),
+    );
+    const response = await callTool({
+      room: live.room,
+      db: live.db,
+      agent: AGENT,
+      name: 'marklayer_task',
+      args: { action: 'take' },
+    });
     expect(await response.text()).toContain('running');
   });
 
   test('a remote MCP watch wakes for a plain reply to its waiting task', async () => {
     const { db, human, room } = liveRoom({ ops: [comment] });
     const store = collaborationStore(db);
-    await store.enqueue({ id: 'waiting-task', room_id: ID, agent_id: AGENT, requester_id: 'u1', requester_name: 'Ada', layer_id: 'default', annotation_id: 'c1', source_id: 'c1' });
+    await store.enqueue({
+      id: 'waiting-task',
+      room_id: ID,
+      agent_id: AGENT,
+      requester_id: 'u1',
+      requester_name: 'Ada',
+      layer_id: 'default',
+      annotation_id: 'c1',
+      source_id: 'c1',
+    });
     expect(await store.takeNext(ID, AGENT)).not.toBeNull();
     expect(await store.waitFor(ID, AGENT, 'waiting-task', 'Ada')).toBe(true);
     const watching = watchEvents({ room, db });
     await Bun.sleep(100);
-    await room.webSocketMessage(human, JSON.stringify({ type: 'op', op: { ...comment, id: 'answer', parentId: 'c1', text: '确认继续', author: 'Ada' } }));
+    await room.webSocketMessage(
+      human,
+      JSON.stringify({ type: 'op', op: { ...comment, id: 'answer', parentId: 'c1', text: '确认继续', author: 'Ada' } }),
+    );
     expect(await watching).toEqual(['handoff:c1']);
   });
 
@@ -826,20 +856,41 @@ describe('remote MCP endpoint against a live room', () => {
   });
 });
 
-
 describe('execution mode enforcement', () => {
   test('Guide refuses agent resolution and approval while Pair permits resolution', async () => {
-    const comment = { id: 'c1', tool: 'comment', x: 1, y: 1, num: 1, text: 'Question', color: '#333333', lineWidth: 2, ts: 1 } as const;
+    const comment = {
+      id: 'c1',
+      tool: 'comment',
+      x: 1,
+      y: 1,
+      num: 1,
+      text: 'Question',
+      color: '#333333',
+      lineWidth: 2,
+      ts: 1,
+    } as const;
     const live = liveRoom({ ops: [comment] });
     live.sqlite.query("UPDATE annotations SET exec_mode = 'guide' WHERE id = ?").run(ID);
     const agent = 'mcp-codex-session';
     expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'resolved' } }, agent)).toBe(false);
     expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'approved' } }, agent)).toBe(false);
     expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'dismissed' } }, agent)).toBe(false);
-    const suggestion = { id: 's1', tool: 'selection', text: 'old', suggestion: 'new', rects: [], color: '#333333', lineWidth: 2, ts: 1 } satisfies DrawOp;
+    const suggestion = {
+      id: 's1',
+      tool: 'selection',
+      text: 'old',
+      suggestion: 'new',
+      rects: [],
+      color: '#333333',
+      lineWidth: 2,
+      ts: 1,
+    } satisfies DrawOp;
     expect(await live.room.send({ type: 'op', op: suggestion }, agent)).toBe(false);
     const socketAgent = new FakeWebSocket({ id: agent, name: 'Agent', color: '#333333' });
-    await live.room.webSocketMessage(socketAgent, JSON.stringify({ type: 'update_op', opId: 'c1', patch: { status: 'resolved' } }));
+    await live.room.webSocketMessage(
+      socketAgent,
+      JSON.stringify({ type: 'update_op', opId: 'c1', patch: { status: 'resolved' } }),
+    );
     expect(live.human.sent).toEqual([]);
     expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'in_progress' } }, agent)).toBe(true);
     live.sqlite.query("UPDATE annotations SET exec_mode = 'pair' WHERE id = ?").run(ID);
@@ -847,7 +898,6 @@ describe('execution mode enforcement', () => {
     expect(await live.room.send({ type: 'update_op', opId: 'c1', patch: { status: 'approved' } }, agent)).toBe(false);
   });
 });
-
 
 test('human mode changes persist and broadcast, while an agent cannot change the mode', async () => {
   const live = liveRoom();
@@ -864,8 +914,22 @@ test('room layers broadcast and an occupied layer cannot be deleted while operat
   const live = liveRoom();
   const send = (message: unknown) => live.room.webSocketMessage(live.human, JSON.stringify(message));
   await send({ type: 'layer_create', id: 'review', name: '页面问题' });
-  expect(live.human.sent).toContainEqual({ type: 'layers', layers: expect.arrayContaining([expect.objectContaining({ id: 'review', name: '页面问题' })]) });
-  const comment: DrawOp = { id: 'layer-comment', layerId: 'review', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  expect(live.human.sent).toContainEqual({
+    type: 'layers',
+    layers: expect.arrayContaining([expect.objectContaining({ id: 'review', name: '页面问题' })]),
+  });
+  const comment: DrawOp = {
+    id: 'layer-comment',
+    layerId: 'review',
+    tool: 'comment',
+    num: 1,
+    text: '问题',
+    x: 1,
+    y: 2,
+    color: '#000',
+    lineWidth: 2,
+    ts: 1,
+  };
   await send({ type: 'op', op: comment });
   await send({ type: 'layer_delete', id: 'review' });
   expect(live.human.sent).toContainEqual({ type: 'error', code: 'layer_change_refused' });
@@ -877,7 +941,17 @@ test('room layers broadcast and an occupied layer cannot be deleted while operat
 });
 
 test('moving a root annotation moves its replies and forbids moving a reply separately', async () => {
-  const root: DrawOp = { id: 'root', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  const root: DrawOp = {
+    id: 'root',
+    tool: 'comment',
+    num: 1,
+    text: '问题',
+    x: 1,
+    y: 2,
+    color: '#000',
+    lineWidth: 2,
+    ts: 1,
+  };
   const reply: DrawOp = { ...root, id: 'reply', parentId: 'root', text: '回复' };
   const live = liveRoom({ ops: [root, reply] });
   const send = (message: unknown) => live.room.webSocketMessage(live.human, JSON.stringify(message));
@@ -892,7 +966,17 @@ test('moving a root annotation moves its replies and forbids moving a reply sepa
 });
 
 test('room members claim an agent and queue an explicit assignment without losing the chosen layer', async () => {
-  const root: DrawOp = { id: 'root', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  const root: DrawOp = {
+    id: 'root',
+    tool: 'comment',
+    num: 1,
+    text: '问题',
+    x: 1,
+    y: 2,
+    color: '#000',
+    lineWidth: 2,
+    ts: 1,
+  };
   const live = liveRoom({ ops: [root] });
   const person = new FakeWebSocket({ id: 'p2', uid: 'user-1', name: 'Alice', color: '#000000' });
   const agent = new FakeWebSocket({ id: 'mcp-codex-session', uid: 'codex', name: 'Codex', color: '#000000' });
@@ -900,17 +984,35 @@ test('room members claim an agent and queue an explicit assignment without losin
   const send = (message: unknown) => live.room.webSocketMessage(person, JSON.stringify(message));
   await send({ type: 'layer_create', id: 'review', name: '审查' });
   await send({ type: 'agent_claim', agentId: 'codex' });
-  await send({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'root', sourceId: 'root', layerId: 'review' });
+  await send({
+    type: 'task_submit',
+    taskId: 't1',
+    agentId: 'codex',
+    annotationId: 'root',
+    sourceId: 'root',
+    layerId: 'review',
+  });
   const snapshot = await live.room.snapshot();
   expect(snapshot.claims).toContainEqual({ agent_id: 'codex', owner_id: 'user-1', owner_name: 'Alice' });
-  expect(snapshot.tasks).toEqual([expect.objectContaining({ id: 't1', requester_id: 'user-1', layer_id: 'review', status: 'queued' })]);
+  expect(snapshot.tasks).toEqual([
+    expect.objectContaining({ id: 't1', requester_id: 'user-1', layer_id: 'review', status: 'queued' }),
+  ]);
   await send({ type: 'task_cancel', taskId: 't1' });
   expect((await live.room.snapshot()).tasks?.[0]?.status).toBe('cancelled');
 });
 
-
 test('agent task transitions keep waiting and cancellation requests ahead of the queue', async () => {
-  const root: DrawOp = { id: 'root', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  const root: DrawOp = {
+    id: 'root',
+    tool: 'comment',
+    num: 1,
+    text: '问题',
+    x: 1,
+    y: 2,
+    color: '#000',
+    lineWidth: 2,
+    ts: 1,
+  };
   const live = liveRoom({ ops: [root] });
   const person = new FakeWebSocket({ id: 'p2', uid: 'user-1', name: 'Alice', color: '#000000' });
   live.ctx.getWebSockets().push(person);
@@ -918,24 +1020,50 @@ test('agent task transitions keep waiting and cancellation requests ahead of the
   await live.room.join(peer);
   const send = (message: unknown) => live.room.webSocketMessage(person, JSON.stringify(message));
   await send({ type: 'layer_create', id: 'review', name: '审查' });
-  await send({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'root', sourceId: 'root', layerId: 'review' });
+  await send({
+    type: 'task_submit',
+    taskId: 't1',
+    agentId: 'codex',
+    annotationId: 'root',
+    sourceId: 'root',
+    layerId: 'review',
+  });
   expect((await live.room.agentTaskCommand(peer.id, { action: 'take' })).tasks[0]?.status).toBe('running');
   expect(await live.room.send({ type: 'op', op: { ...root, id: 'created-by-agent' } }, peer.id)).toBe(true);
-  expect((await live.room.snapshot()).ops).toContainEqual(expect.objectContaining({ id: 'created-by-agent', layerId: 'review' }));
-  expect((await live.room.agentTaskCommand(peer.id, { action: 'wait', taskId: 't1', waitingFor: 'Alice' })).tasks[0]?.status).toBe('waiting');
+  expect((await live.room.snapshot()).ops).toContainEqual(
+    expect.objectContaining({ id: 'created-by-agent', layerId: 'review' }),
+  );
+  expect(
+    (await live.room.agentTaskCommand(peer.id, { action: 'wait', taskId: 't1', waitingFor: 'Alice' })).tasks[0]?.status,
+  ).toBe('waiting');
   expect((await live.room.agentTaskCommand(peer.id, { action: 'take' })).ok).toBe(false);
   await send({ type: 'task_cancel', taskId: 't1' });
   expect((await live.room.agentTaskCommand(peer.id, { action: 'complete', taskId: 't1' })).ok).toBe(false);
-  expect((await live.room.agentTaskCommand(peer.id, { action: 'confirm_cancel', taskId: 't1' })).tasks[0]?.status).toBe('cancelled');
+  expect((await live.room.agentTaskCommand(peer.id, { action: 'confirm_cancel', taskId: 't1' })).tasks[0]?.status).toBe(
+    'cancelled',
+  );
   expect((await live.room.agentTaskCommand('mcp-unknown-session', { action: 'list' })).ok).toBe(false);
 });
-
 
 test('a layer can be deleted immediately after its persisted content is moved', async () => {
   const live = liveRoom();
   const send = (message: unknown) => live.room.webSocketMessage(live.human, JSON.stringify(message));
   await send({ type: 'layer_create', id: 'review', name: '审查' });
-  await send({ type: 'op', op: { id: 'm', layerId: 'review', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 } });
+  await send({
+    type: 'op',
+    op: {
+      id: 'm',
+      layerId: 'review',
+      tool: 'comment',
+      num: 1,
+      text: '问题',
+      x: 1,
+      y: 2,
+      color: '#000',
+      lineWidth: 2,
+      ts: 1,
+    },
+  });
   await live.room.alarm();
   await send({ type: 'update_op', opId: 'm', patch: { layerId: 'default' } });
   await send({ type: 'layer_delete', id: 'review' });

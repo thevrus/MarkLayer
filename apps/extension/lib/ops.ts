@@ -177,7 +177,8 @@ export function pushOp(op: DrawOp): 'held' | 'sent' {
 
 /** Every op this person authors carries who: ⌘Z and a rename both find their work by `authorId`. */
 const signedOp = (op: DrawOp): DrawOp => {
-  const parent = op.tool === 'comment' && op.parentId ? operations.peek().find((item) => item.id === op.parentId) : undefined;
+  const parent =
+    op.tool === 'comment' && op.parentId ? operations.peek().find((item) => item.id === op.parentId) : undefined;
   const layerId = parent ? (parent.layerId ?? 'default') : (op.layerId ?? activeLayer.peek());
   return { ...op, ...(isSigned(op) ? {} : signedBy()), ...(layerId === 'default' && !op.layerId ? {} : { layerId }) };
 };
@@ -308,7 +309,8 @@ export function undo() {
   const stack = undoStack.value;
   // While the guide tool is active, ⌘Z pops the most recent guide op specifically —
   // even if a non-guide op was added later — so guide scratch work feels independent.
-  const guide = activeTool.value === 'guide' ? visibleOperations.value.filter((op) => op.tool === 'guide').pop() : undefined;
+  const guide =
+    activeTool.value === 'guide' ? visibleOperations.value.filter((op) => op.tool === 'guide').pop() : undefined;
   const last = stack[stack.length - 1];
   if (!guide && !ops.length && last && 'type' in last) {
     operations.value = last.ops;
@@ -339,7 +341,10 @@ export function redo() {
 export function clearAll() {
   const ops = operations.value;
   if (!ops.length) return;
-  if (visibleOperations.value.length !== ops.length) { toast('请先显示所有图层，再清除全部批注'); return; }
+  if (visibleOperations.value.length !== ops.length) {
+    toast('请先显示所有图层，再清除全部批注');
+    return;
+  }
   if (!confirm('Clear all annotations on this page? Undo brings them back.')) return;
   track('history_action', { action: 'clear', ops: ops.length });
   undoStack.value = [...undoStack.value, { type: 'clear' as const, ops: structuredClone(ops) }];

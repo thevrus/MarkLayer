@@ -10,7 +10,8 @@ test('execution mode migration preserves existing rooms and defaults to pair', (
   db.exec(readFileSync(new URL('../migrations/0014_add_exec_mode.sql', import.meta.url), 'utf8'));
   db.exec("INSERT INTO annotations (id) VALUES ('new')");
   expect(db.query('SELECT exec_mode FROM annotations ORDER BY id').all()).toEqual([
-    { exec_mode: 'pair' }, { exec_mode: 'pair' },
+    { exec_mode: 'pair' },
+    { exec_mode: 'pair' },
   ]);
   db.exec("UPDATE annotations SET exec_mode = 'guide' WHERE id = 'existing'");
   expect(() => db.exec("UPDATE annotations SET exec_mode = 'other'")).toThrow();

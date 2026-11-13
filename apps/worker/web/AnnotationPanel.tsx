@@ -14,8 +14,8 @@ import {
   openAnnotationTotal,
   operations,
   rootComments,
-  visibleOperations,
   setOpStatus,
+  visibleOperations,
 } from '@ext/lib/ops';
 import { fileUrl } from '@ext/lib/share';
 import { getCommentStatus, STATUS_LABELS } from '@ext/lib/status-ui';

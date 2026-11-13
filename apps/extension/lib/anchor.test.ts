@@ -224,10 +224,18 @@ describe('published pin under zoom', () => {
     Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 160 });
     Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 80 });
     const captured = { x: 100, y: 200, width: 200, height: 100 };
-    expect(resolveAnchorPoint(target({ rect: captured, offsetX: 40, offsetY: 20 }), ctx))
-      .toMatchObject({ x: 140, y: 220, scaleX: 0.8, scaleY: 0.8 });
-    expect(resolveAnchorPoint(target({ rect: captured, offsetX: 190, offsetY: 90 }), ctx))
-      .toMatchObject({ x: 260, y: 280, scaleX: 0.8, scaleY: 0.8 });
+    expect(resolveAnchorPoint(target({ rect: captured, offsetX: 40, offsetY: 20 }), ctx)).toMatchObject({
+      x: 140,
+      y: 220,
+      scaleX: 0.8,
+      scaleY: 0.8,
+    });
+    expect(resolveAnchorPoint(target({ rect: captured, offsetX: 190, offsetY: 90 }), ctx)).toMatchObject({
+      x: 260,
+      y: 280,
+      scaleX: 0.8,
+      scaleY: 0.8,
+    });
   });
 
   test('A: keeps adjacent 45% and 55% pins strictly ordered after contraction', () => {
@@ -373,13 +381,22 @@ describe('content extents under layout contraction', () => {
     Object.defineProperty(el, 'offsetWidth', { configurable: true, value: 160 });
     Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 80 });
     const t = target({ rect: { x: 100, y: 200, width: 200, height: 100 } });
-    const out = reprojectRects({ target: t, ctx, rects: [
-      { x: 140, y: 220, width: 100, height: 20 },
-      { x: 150, y: 250, width: 50, height: 10 },
-    ] })!;
+    const out = reprojectRects({
+      target: t,
+      ctx,
+      rects: [
+        { x: 140, y: 220, width: 100, height: 20 },
+        { x: 150, y: 250, width: 50, height: 10 },
+      ],
+    })!;
     expect(out.rects[0]).toEqual({ x: 140, y: 220, width: 80, height: 16 });
     expect(out.rects[1]).toEqual({ x: 148, y: 244, width: 40, height: 8 });
-    expect(reprojectBox({ target: t, ctx, startX: 140, startY: 220, endX: 240, endY: 270 }))
-      .toEqual({ x: 140, y: 220, width: 80, height: 40, strategy: 'primary' });
+    expect(reprojectBox({ target: t, ctx, startX: 140, startY: 220, endX: 240, endY: 270 })).toEqual({
+      x: 140,
+      y: 220,
+      width: 80,
+      height: 40,
+      strategy: 'primary',
+    });
   });
 });

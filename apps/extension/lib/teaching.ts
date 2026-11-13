@@ -21,17 +21,38 @@ export const presentation = signal<Presentation | null>(null);
 /** Temporary messages stay in memory and never enter the annotation queue. */
 export function applyTeachingMessage(msg: TeachMessage): void {
   const old = presentation.peek();
-  if (msg.type === 'teach_control') { lastTeachingControl.value = msg; return; }
+  if (msg.type === 'teach_control') {
+    lastTeachingControl.value = msg;
+    return;
+  }
   if (msg.type === 'teach_state' && msg.state === 'ended') {
     if (old?.id === msg.presentationId) presentation.value = null;
     return;
   }
-  const current: Presentation = old?.id === msg.presentationId ? old : {
-    id: msg.presentationId, presenter: msg.peerId, state: 'active', hidden: false,
-  };
+  const current: Presentation =
+    old?.id === msg.presentationId
+      ? old
+      : {
+          id: msg.presentationId,
+          presenter: msg.peerId,
+          state: 'active',
+          hidden: false,
+        };
   if (msg.type === 'teach_highlight') presentation.value = { ...current, highlight: msg };
-  else if (msg.type === 'teach_caption') presentation.value = { ...current, caption: msg.text, step: msg.step ?? current.step, total: msg.total ?? current.total };
-  else presentation.value = { ...current, state: msg.state === 'paused' ? 'paused' : 'active', step: msg.step ?? current.step, total: msg.total ?? current.total };
+  else if (msg.type === 'teach_caption')
+    presentation.value = {
+      ...current,
+      caption: msg.text,
+      step: msg.step ?? current.step,
+      total: msg.total ?? current.total,
+    };
+  else
+    presentation.value = {
+      ...current,
+      state: msg.state === 'paused' ? 'paused' : 'active',
+      step: msg.step ?? current.step,
+      total: msg.total ?? current.total,
+    };
 }
 
 export function hidePresentation(): void {

@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import { TOOL_CATALOG, type Tool } from '@marklayer/types/tools';
 import {
-  createSemanticRegistry,
-  toolbarToolSemantic,
-  validateComponentSpec,
-  validateComponentSpecs,
+  type ComponentSchema,
   compileComponentSpec,
   compileComponentSpecs,
   compileControlledRender,
+  createSemanticRegistry,
+  toolbarToolSemantic,
   UiSemanticsCompileError,
-  type ComponentSchema,
+  validateComponentSpec,
+  validateComponentSpecs,
 } from './ui-semantics';
 
 describe('toolbar semantic catalog', () => {
@@ -32,7 +32,13 @@ describe('toolbar semantic catalog', () => {
 
 test('new component semantics can be registered without changing the lookup code', () => {
   const registry = createSemanticRegistry();
-  const spec = { id: 'annotation.reply', label: '回复', purpose: '回复批注', region: 'annotation', related: ['annotation.thread'] };
+  const spec = {
+    id: 'annotation.reply',
+    label: '回复',
+    purpose: '回复批注',
+    region: 'annotation',
+    related: ['annotation.thread'],
+  };
   registry.register(spec);
   spec.related.push('changed-after-registration');
   expect(registry.get('annotation.reply')?.related).toEqual(['annotation.thread']);
@@ -76,16 +82,13 @@ describe('UI component spec validation and compilation', () => {
     const registry = setupTestRegistry();
 
     // 1. Validation function returns structured error
-    const result = validateComponentSpec(
-      { kind: 'malicious.script_executor', props: {} },
-      registry,
-    );
+    const result = validateComponentSpec({ kind: 'malicious.script_executor', props: {} }, registry);
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.errors.length).toBe(1);
-      expect(result.errors[0].code).toBe('UNKNOWN_KIND');
-      expect(result.errors[0].field).toBe('kind');
-      expect(result.errors[0].message).toContain('Unknown component kind "malicious.script_executor"');
+      expect(result.errors[0]?.code).toBe('UNKNOWN_KIND');
+      expect(result.errors[0]?.field).toBe('kind');
+      expect(result.errors[0]?.message).toContain('Unknown component kind "malicious.script_executor"');
     }
 
     // 2. Compile function throws UiSemanticsCompileError
@@ -103,8 +106,8 @@ describe('UI component spec validation and compilation', () => {
     );
     expect(batchResult.ok).toBe(false);
     if (!batchResult.ok) {
-      expect(batchResult.errors[0].path).toBe('[1].kind');
-      expect(batchResult.errors[0].code).toBe('UNKNOWN_KIND');
+      expect(batchResult.errors[0]?.path).toBe('[1].kind');
+      expect(batchResult.errors[0]?.code).toBe('UNKNOWN_KIND');
     }
   });
 
@@ -164,8 +167,8 @@ describe('UI component spec validation and compilation', () => {
     );
     expect(missingRes.ok).toBe(false);
     if (!missingRes.ok) {
-      expect(missingRes.errors[0].code).toBe('MISSING_REQUIRED_PROP');
-      expect(missingRes.errors[0].field).toBe('author');
+      expect(missingRes.errors[0]?.code).toBe('MISSING_REQUIRED_PROP');
+      expect(missingRes.errors[0]?.field).toBe('author');
     }
 
     // 2. Type mismatch: string expected, got number
@@ -181,9 +184,9 @@ describe('UI component spec validation and compilation', () => {
     );
     expect(wrongTypeRes.ok).toBe(false);
     if (!wrongTypeRes.ok) {
-      expect(wrongTypeRes.errors[0].code).toBe('TYPE_MISMATCH');
-      expect(wrongTypeRes.errors[0].field).toBe('author');
-      expect(wrongTypeRes.errors[0].message).toContain('must be a string');
+      expect(wrongTypeRes.errors[0]?.code).toBe('TYPE_MISMATCH');
+      expect(wrongTypeRes.errors[0]?.field).toBe('author');
+      expect(wrongTypeRes.errors[0]?.message).toContain('must be a string');
     }
 
     // 3. Type mismatch: number expected, got NaN or string
@@ -200,8 +203,8 @@ describe('UI component spec validation and compilation', () => {
     );
     expect(nanRes.ok).toBe(false);
     if (!nanRes.ok) {
-      expect(nanRes.errors[0].code).toBe('TYPE_MISMATCH');
-      expect(nanRes.errors[0].field).toBe('likes');
+      expect(nanRes.errors[0]?.code).toBe('TYPE_MISMATCH');
+      expect(nanRes.errors[0]?.field).toBe('likes');
     }
 
     // 4. Type mismatch: boolean expected, got string
@@ -218,8 +221,8 @@ describe('UI component spec validation and compilation', () => {
     );
     expect(boolRes.ok).toBe(false);
     if (!boolRes.ok) {
-      expect(boolRes.errors[0].code).toBe('TYPE_MISMATCH');
-      expect(boolRes.errors[0].field).toBe('pinned');
+      expect(boolRes.errors[0]?.code).toBe('TYPE_MISMATCH');
+      expect(boolRes.errors[0]?.field).toBe('pinned');
     }
 
     // 5. Enum mismatch: out of range value
@@ -236,9 +239,9 @@ describe('UI component spec validation and compilation', () => {
     );
     expect(enumRes.ok).toBe(false);
     if (!enumRes.ok) {
-      expect(enumRes.errors[0].code).toBe('ENUM_MISMATCH');
-      expect(enumRes.errors[0].field).toBe('status');
-      expect(enumRes.errors[0].message).toContain('must be one of');
+      expect(enumRes.errors[0]?.code).toBe('ENUM_MISMATCH');
+      expect(enumRes.errors[0]?.field).toBe('status');
+      expect(enumRes.errors[0]?.message).toContain('must be one of');
     }
 
     // 6. Type mismatch: string[] expected, got non-string elements
@@ -255,8 +258,8 @@ describe('UI component spec validation and compilation', () => {
     );
     expect(arrayRes.ok).toBe(false);
     if (!arrayRes.ok) {
-      expect(arrayRes.errors[0].code).toBe('TYPE_MISMATCH');
-      expect(arrayRes.errors[0].field).toBe('tags');
+      expect(arrayRes.errors[0]?.code).toBe('TYPE_MISMATCH');
+      expect(arrayRes.errors[0]?.field).toBe('tags');
     }
   });
 
@@ -340,16 +343,17 @@ describe('UI component spec validation and compilation', () => {
 
     const compiledList = compileComponentSpecs(listSpecs, registry);
     expect(compiledList.length).toBe(3);
-    expect(compiledList[0].kind).toBe('annotation.reply_button');
-    expect(compiledList[0].props.label).toBe('First');
-    expect(compiledList[1].kind).toBe('annotation.card');
-    expect(compiledList[1].props.author).toBe('Second');
-    expect(compiledList[2].kind).toBe('annotation.reply_button');
-    expect(compiledList[2].props.label).toBe('Third');
+    expect(compiledList[0]?.kind).toBe('annotation.reply_button');
+    expect(compiledList[0]?.props.label).toBe('First');
+    expect(compiledList[1]?.kind).toBe('annotation.card');
+    expect(compiledList[1]?.props.author).toBe('Second');
+    expect(compiledList[2]?.kind).toBe('annotation.reply_button');
+    expect(compiledList[2]?.props.label).toBe('Third');
 
     // 3. compileControlledRender handles both single and array
     const single = compileControlledRender(listSpecs[0], registry);
-    expect(!Array.isArray(single) && single.kind === 'annotation.reply_button').toBe(true);
+    const singleNode = Array.isArray(single) ? undefined : (single as unknown as { kind?: string });
+    expect(singleNode?.kind).toBe('annotation.reply_button');
 
     const multi = compileControlledRender(listSpecs, registry);
     expect(Array.isArray(multi) && multi.length === 3).toBe(true);
@@ -372,10 +376,7 @@ describe('UI component spec validation and compilation', () => {
 
     expect(registry.hasComponent('custom.tag')).toBe(true);
 
-    const compiled = compileComponentSpec(
-      { kind: 'custom.tag', props: { color: 'blue', text: 'Active' } },
-      registry,
-    );
+    const compiled = compileComponentSpec({ kind: 'custom.tag', props: { color: 'blue', text: 'Active' } }, registry);
     expect(compiled.kind).toBe('custom.tag');
     expect(compiled.props.color).toBe('blue');
     expect(compiled.props.text).toBe('Active');

@@ -1,7 +1,18 @@
 import { expect, test } from 'bun:test';
-import { activeLayer, enterLayers, roomLayers, selectLayer, setLayerVisible, updateLayers, visibleLayerIds } from './layers';
+import {
+  activeLayer,
+  enterLayers,
+  roomLayers,
+  selectLayer,
+  setLayerVisible,
+  updateLayers,
+  visibleLayerIds,
+} from './layers';
 
-const initial = [{ id: 'default', name: '默认图层', created_at: 0 }, { id: 'review', name: '审查', created_at: 1 }];
+const initial = [
+  { id: 'default', name: '默认图层', created_at: 0 },
+  { id: 'review', name: '审查', created_at: 1 },
+];
 test('each room remembers personal selection and newly received layers are hidden', () => {
   localStorage.clear();
   enterLayers('room-a', initial);

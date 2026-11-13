@@ -1188,9 +1188,11 @@ describe('ensureScrollTickListener', () => {
   });
 });
 
-
 test('new annotations use the active layer and replies stay with their parent', () => {
-  const layers = [{ id: 'default', name: '默认图层', created_at: 0 }, { id: 'review', name: '审查', created_at: 1 }];
+  const layers = [
+    { id: 'default', name: '默认图层', created_at: 0 },
+    { id: 'review', name: '审查', created_at: 1 },
+  ];
   enterLayers('layer-test-room', layers);
   selectLayer('review');
   pushOp(comment({ id: 'layer-root' }));

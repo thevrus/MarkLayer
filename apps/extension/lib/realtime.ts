@@ -1,10 +1,10 @@
 import { agentLabel, isAgentPeer } from '@marklayer/types/agents';
-import type { AgentClaim, RoomTask } from '@marklayer/types/wire';
 import { parseOps } from '@marklayer/types/ops';
+import type { AgentClaim, RoomTask } from '@marklayer/types/wire';
 import {
+  type ExecMode,
   ROOM_ERROR_READ_ONLY,
   ROOM_LOCKED_CLOSE_CODE,
-  type ExecMode,
   type ServerMsg,
   SOCKET_BURST,
   SOCKET_REFILL_PER_S,
@@ -14,14 +14,14 @@ import { type ReadonlySignal, signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { track } from './analytics';
 import { host } from './host-config';
-import { activeLayer, enterLayers, updateLayers } from './layers';
 import { FALLBACK_PEER_COLOR, localUser, onProfileChange } from './identity';
+import { activeLayer, enterLayers, updateLayers } from './layers';
 import { mergeOps } from './mergeOps';
-import { applyChange, onChange, operations, type OpChange } from './ops';
+import { applyChange, type OpChange, onChange, operations } from './ops';
 import { clearDeparture, connectionStatus, noteDeparture, onCursorMove, peers } from './presence';
 import { isJoinedRoom } from './room-id';
-import { toast } from './toasts';
 import { applyTeachingMessage, presentation } from './teaching';
+import { toast } from './toasts';
 import type { Peer } from './types';
 
 export const agentClaims = signal<AgentClaim[]>([]);
@@ -493,19 +493,38 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
 
   onChange.value = (change: OpChange) => {
     sendMsg(change);
-    const knownAgents = new Map(agentClaims.peek().map((claim) => [claim.agent_id, { uid: claim.agent_id, name: agentLabel(claim.agent_id) }]));
-    for (const peer of peers.peek().values()) if (isAgentPeer(peer.id) && peer.uid) knownAgents.set(peer.uid, { uid: peer.uid, name: peer.name });
+    const knownAgents = new Map(
+      agentClaims.peek().map((claim) => [claim.agent_id, { uid: claim.agent_id, name: agentLabel(claim.agent_id) }]),
+    );
+    for (const peer of peers.peek().values())
+      if (isAgentPeer(peer.id) && peer.uid) knownAgents.set(peer.uid, { uid: peer.uid, name: peer.name });
     const agents = [...knownAgents.values()];
     if (change.type === 'op' && 'mentions' in change.op && change.op.mentions?.length) {
       const source = change.op;
       const annotationId = source.tool === 'comment' && source.parentId ? source.parentId : source.id;
-      for (const agent of agents) if (source.mentions?.some((mention) => mention.id === agent.uid)) {
-        sendMsg({ type: 'task_submit', taskId: nanoid(), agentId: agent.uid, annotationId, sourceId: source.id, layerId: activeLayer.peek() });
-      }
+      for (const agent of agents)
+        if (source.mentions?.some((mention) => mention.id === agent.uid)) {
+          sendMsg({
+            type: 'task_submit',
+            taskId: nanoid(),
+            agentId: agent.uid,
+            annotationId,
+            sourceId: source.id,
+            layerId: activeLayer.peek(),
+          });
+        }
     }
     if (change.type === 'update_op' && typeof change.patch.assignee === 'string') {
       const agent = agents.find((peer) => peer.name === change.patch.assignee || peer.uid === change.patch.assignee);
-      if (agent?.uid) sendMsg({ type: 'task_submit', taskId: nanoid(), agentId: agent.uid, annotationId: change.opId, sourceId: change.opId, layerId: activeLayer.peek() });
+      if (agent?.uid)
+        sendMsg({
+          type: 'task_submit',
+          taskId: nanoid(),
+          agentId: agent.uid,
+          annotationId: change.opId,
+          sourceId: change.opId,
+          layerId: activeLayer.peek(),
+        });
     }
   };
   onProfileChange.value = (name: string, color: string) => sendMsg({ type: 'profile', name, color });

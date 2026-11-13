@@ -1,4 +1,12 @@
-import type { AgentJoin, AgentSnapshot, AgentWatchRequest, AgentWatchResult, AgentTaskCommand, ClientMsg, RoomTask } from '@marklayer/types/wire';
+import type {
+  AgentJoin,
+  AgentSnapshot,
+  AgentTaskCommand,
+  AgentWatchRequest,
+  AgentWatchResult,
+  ClientMsg,
+  RoomTask,
+} from '@marklayer/types/wire';
 
 /** The REST save's two forms. Merge only adds: its caller's list may be stale, so it can neither undo nor revert. */
 export type SaveMode = 'replace' | 'merge';

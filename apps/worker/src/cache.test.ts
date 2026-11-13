@@ -13,8 +13,15 @@ test('refreshes old artwork at the same key and reuses current artwork', async (
     },
   } as unknown as R2Bucket;
   const pending: Promise<unknown>[] = [];
-  const ctx = { waitUntil: (p: Promise<unknown>) => { pending.push(p); } };
-  const render = async () => { renders++; return new Uint8Array([2]).buffer; };
+  const ctx = {
+    waitUntil: (p: Promise<unknown>) => {
+      pending.push(p);
+    },
+  };
+  const render = async () => {
+    renders++;
+    return new Uint8Array([2]).buffer;
+  };
   const first = await cachedPng({ bucket, key: 'existing-room.png', ctx, render });
   expect([...new Uint8Array(await first.arrayBuffer())]).toEqual([2]);
   await Promise.all(pending);

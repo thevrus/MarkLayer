@@ -108,10 +108,12 @@ class SocketTransport implements RoomTransport {
   async taskCommand(command: AgentTaskCommand): Promise<{ ok: boolean; tasks: RoomTask[] }> {
     const params = new URLSearchParams({ agent: this.agentId, session: this.session });
     const res = await fetch(`${this.apiBase}/s/${this.roomId}/agent-task?${params}`, {
-      method: 'POST', headers: { ...this.authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(command),
+      method: 'POST',
+      headers: { ...this.authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(command),
     });
     if (!res.ok) return { ok: false, tasks: [] };
-    return await res.json() as { ok: boolean; tasks: RoomTask[] };
+    return (await res.json()) as { ok: boolean; tasks: RoomTask[] };
   }
 
   send(msg: ClientMsg): boolean {

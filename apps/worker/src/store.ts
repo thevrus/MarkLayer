@@ -144,7 +144,10 @@ export type ExecMode = 'solo' | 'guide' | 'pair';
 export function annotationStore(db: D1Database) {
   return {
     async getExecMode(id: string): Promise<ExecMode | null> {
-      const row = await db.prepare('SELECT exec_mode FROM annotations WHERE id = ?').bind(id).first<{ exec_mode: ExecMode }>();
+      const row = await db
+        .prepare('SELECT exec_mode FROM annotations WHERE id = ?')
+        .bind(id)
+        .first<{ exec_mode: ExecMode }>();
       return row?.exec_mode ?? null;
     },
 

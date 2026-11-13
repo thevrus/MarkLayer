@@ -6,7 +6,12 @@ test('teaching messages are transient and closing is local until ended', () => {
   applyTeachingMessage({ type: 'teach_state', presentationId: 'p', peerId: 'presenter', state: 'active' });
   applyTeachingMessage({ type: 'teach_highlight', presentationId: 'p', peerId: 'presenter', selector: '#save' });
   applyTeachingMessage({ type: 'teach_caption', presentationId: 'p', peerId: 'presenter', text: '说明', step: 0 });
-  expect(presentation.value).toMatchObject({ id: 'p', caption: '说明', highlight: { selector: '#save' }, hidden: false });
+  expect(presentation.value).toMatchObject({
+    id: 'p',
+    caption: '说明',
+    highlight: { selector: '#save' },
+    hidden: false,
+  });
   hidePresentation();
   applyTeachingMessage({ type: 'teach_state', presentationId: 'p', peerId: 'presenter', state: 'paused' });
   expect(presentation.value).toMatchObject({ hidden: true, state: 'paused' });

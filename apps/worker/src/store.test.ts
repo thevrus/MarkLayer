@@ -205,7 +205,6 @@ describe('annotationStore.createPreview', () => {
   });
 });
 
-
 describe('room execution mode storage', () => {
   test('defaults to pair and persists changes independently per room', async () => {
     room('first');

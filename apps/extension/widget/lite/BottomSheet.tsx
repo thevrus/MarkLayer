@@ -13,6 +13,7 @@ export const ModalSheet: typeof Real.ModalSheet = ({ open, onOpenChange, label, 
     if (open) initialFocus?.current?.focus();
   }, [open, initialFocus]);
 
+  // biome-ignore lint/complexity/noUselessFragments: 返回类型沿用 Real.ModalSheet 的 Element，空 fragment 代替 null
   if (!open) return <></>;
   const sheet = (
     <div class="fixed inset-0 z-2147483647 flex items-end pointer-events-auto">

@@ -3,8 +3,9 @@
  * `initHost` and the component tests reach for it, so the globals have to exist
  * before any module under test is loaded, which is what a preload is for.
  */
-import { GlobalRegistrator } from '@happy-dom/global-registrator';
+
 import { mock } from 'bun:test';
+import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import * as compat from 'preact/compat';
 import * as jsxRuntime from 'preact/jsx-runtime';
 

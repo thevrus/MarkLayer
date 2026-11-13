@@ -384,7 +384,14 @@ function PageSurface() {
           }
           const at = canvasCoords(e);
           const viewport = frameViewport(frameRef.current);
-          const visualContext = commentContext({ pin: at, viewport: { x: 0, y: iframeScrollY.value, ...viewport }, layerId: activeLayer.peek(), ops: operations.peek(), device: deviceMode.peek(), doc: frameRef.current?.contentDocument ?? null });
+          const visualContext = commentContext({
+            pin: at,
+            viewport: { x: 0, y: iframeScrollY.value, ...viewport },
+            layerId: activeLayer.peek(),
+            ops: operations.peek(),
+            device: deviceMode.peek(),
+            doc: frameRef.current?.contentDocument ?? null,
+          });
           commentPopover.value = { ...at, visualContext, snapshot: shootPin({ frame: frameRef.current, at }) };
         }}
       >

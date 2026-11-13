@@ -3,8 +3,12 @@ import { clientMsgSchema, serverMsgSchema } from './wire';
 
 describe('clientMsgSchema', () => {
   test('accepts teaching messages and rejects an unknown control action', () => {
-    expect(clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', toolbarTarget: 'selection' }).success).toBe(true);
-    expect(clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', toolbarTarget: 'unexpected' }).success).toBe(false);
+    expect(
+      clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', toolbarTarget: 'selection' }).success,
+    ).toBe(true);
+    expect(
+      clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', toolbarTarget: 'unexpected' }).success,
+    ).toBe(false);
     expect(
       clientMsgSchema.safeParse({ type: 'teach_highlight', presentationId: 'p1', selector: '#save' }).success,
     ).toBe(true);
@@ -94,7 +98,6 @@ describe('serverMsgSchema', () => {
   });
 });
 
-
 test('execution mode messages accept only the three room modes', () => {
   for (const execMode of ['solo', 'guide', 'pair']) {
     expect(clientMsgSchema.safeParse({ type: 'set_exec_mode', execMode }).success).toBe(true);
@@ -104,16 +107,34 @@ test('execution mode messages accept only the three room modes', () => {
   expect(serverMsgSchema.safeParse({ type: 'init', ops: [], execMode: 'invalid' }).success).toBe(false);
 });
 
-
 test('layer commands and snapshots validate their identifiers and names', () => {
   expect(clientMsgSchema.safeParse({ type: 'layer_create', id: 'review', name: '页面问题' }).success).toBe(true);
   expect(clientMsgSchema.safeParse({ type: 'layer_create', id: '', name: '页面问题' }).success).toBe(false);
   expect(clientMsgSchema.safeParse({ type: 'layer_rename', id: 'review', name: '' }).success).toBe(false);
-  expect(serverMsgSchema.safeParse({ type: 'layers', layers: [{ id: 'default', name: '默认图层', created_at: 1 }] }).success).toBe(true);
+  expect(
+    serverMsgSchema.safeParse({ type: 'layers', layers: [{ id: 'default', name: '默认图层', created_at: 1 }] }).success,
+  ).toBe(true);
 });
 test('AI claim and task messages require identifiers', () => {
   expect(clientMsgSchema.safeParse({ type: 'agent_claim', agentId: 'codex' }).success).toBe(true);
   expect(clientMsgSchema.safeParse({ type: 'agent_claim', agentId: '' }).success).toBe(false);
-  expect(clientMsgSchema.safeParse({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'a1', sourceId: 'a1', layerId: 'review' }).success).toBe(true);
-  expect(clientMsgSchema.safeParse({ type: 'task_submit', taskId: 't1', agentId: 'codex', annotationId: 'a1', sourceId: 'a1' }).success).toBe(false);
+  expect(
+    clientMsgSchema.safeParse({
+      type: 'task_submit',
+      taskId: 't1',
+      agentId: 'codex',
+      annotationId: 'a1',
+      sourceId: 'a1',
+      layerId: 'review',
+    }).success,
+  ).toBe(true);
+  expect(
+    clientMsgSchema.safeParse({
+      type: 'task_submit',
+      taskId: 't1',
+      agentId: 'codex',
+      annotationId: 'a1',
+      sourceId: 'a1',
+    }).success,
+  ).toBe(false);
 });

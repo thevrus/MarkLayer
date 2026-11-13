@@ -139,9 +139,14 @@ export function createSemanticRegistry(): SemanticRegistry {
 
   return {
     register(value: UiSemantic): void {
-      if (!/^[a-zA-Z][a-zA-Z0-9._-]{0,127}$/.test(value.id) ||
-          !value.label.trim() || !value.purpose.trim() || !value.region.trim() ||
-          !Array.isArray(value.related) || value.related.some((id) => typeof id !== 'string')) {
+      if (
+        !/^[a-zA-Z][a-zA-Z0-9._-]{0,127}$/.test(value.id) ||
+        !value.label.trim() ||
+        !value.purpose.trim() ||
+        !value.region.trim() ||
+        !Array.isArray(value.related) ||
+        value.related.some((id) => typeof id !== 'string')
+      ) {
         throw new Error('Invalid UI semantic definition');
       }
       if (entries.has(value.id)) throw new Error(`Duplicate UI semantic ID: ${value.id}`);
@@ -400,7 +405,7 @@ export function validateComponentSpec(
           path: fieldPath,
           field: key,
           code: 'TYPE_MISMATCH',
-          message: `Unsupported property definition type "${(propDef as any).type}" for "${key}".`,
+          message: `Unsupported property definition type "${(propDef as { type?: unknown }).type}" for "${key}".`,
         });
       }
     }
@@ -414,7 +419,8 @@ export function validateComponentSpec(
   const sortedKeys = Object.keys(sanitizedProps).sort();
   const sortedProps: Record<string, string | number | boolean | readonly string[]> = {};
   for (const k of sortedKeys) {
-    sortedProps[k] = sanitizedProps[k];
+    const value = sanitizedProps[k];
+    if (value !== undefined) sortedProps[k] = value;
   }
 
   const node: ControlledRenderNode = Object.freeze({

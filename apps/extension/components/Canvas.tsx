@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks';
 import { tinykeys } from 'tinykeys';
 import { applyAnchorDelta } from '../lib/anchor';
 import { scrollTick } from '../lib/host-mutations';
-import { areas, comments, deleteOp, inspects, operations, visibleOperations, pushOp, selections, undoRedoFlash } from '../lib/ops';
+import { areas, comments, deleteOp, inspects, pushOp, selections, undoRedoFlash, visibleOperations } from '../lib/ops';
 import { color, lineWidth } from '../lib/prefs';
 import { circleHitsRect, eraserDiameter, redrawCanvas } from '../lib/renderer';
 import { scrollOffset, toDoc } from '../lib/scroller';

@@ -1,4 +1,3 @@
-import { agentTaskCommandSchema } from '@marklayer/types/wire';
 import { parseFetchableUrl } from '@marklayer/types/net';
 import {
   commentPrioritySchema,
@@ -10,6 +9,7 @@ import {
   STATUS_FILTERS,
   selectionRectSchema,
 } from '@marklayer/types/ops';
+import { agentTaskCommandSchema } from '@marklayer/types/wire';
 import { z } from 'zod/mini';
 
 /**
@@ -44,14 +44,19 @@ export const ConnectInput = z.object({
 });
 export const ListInput = z.object({ status: z.optional(StatusFilter) });
 export const IdInput = z.object({ ...idPart });
-export const AttachmentInput = z.object({ id: z.string().check(z.minLength(1)), attachmentId: z.string().check(z.minLength(1)) });
+export const AttachmentInput = z.object({
+  id: z.string().check(z.minLength(1)),
+  attachmentId: z.string().check(z.minLength(1)),
+});
 export const TeachStartInput = z.object({ steps: z.optional(z.array(z.string())) });
 export const TeachStepInput = z.object({
   presentationId: z.string().check(z.minLength(1)),
   index: z.number().check(z.int(), z.gte(0)),
   caption: z.string().check(z.minLength(1)),
   annotationId: z.optional(z.string().check(z.minLength(1))),
-  toolbarTarget: z.optional(z.enum(['comment', 'selection', 'pen', 'rectangle', 'area', 'eraser', 'inspect', 'text', 'guide'])),
+  toolbarTarget: z.optional(
+    z.enum(['comment', 'selection', 'pen', 'rectangle', 'area', 'eraser', 'inspect', 'text', 'guide']),
+  ),
   state: z.optional(z.enum(['active', 'paused'])),
   selector: z.optional(z.string().check(z.minLength(1))),
   rect: z.optional(selectionRectSchema),
@@ -307,7 +312,8 @@ const WORKS_ROOM = { needsLiveRoom: true, needsRoom: true, transports: EVERY_TRA
 const TOOL_DEFS = {
   marklayer_task: {
     ...WORKS_ROOM,
-    description: 'Coordinate assigned work: list, take the next task, wait for a person, resume, complete, or confirm_cancel. Only take another after completing or confirming cancellation of the current task. The queue prioritizes the agent owner.',
+    description:
+      'Coordinate assigned work: list, take the next task, wait for a person, resume, complete, or confirm_cancel. Only take another after completing or confirming cancellation of the current task. The queue prioritizes the agent owner.',
     input: agentTaskCommandSchema,
   },
   teach_start: {
@@ -370,7 +376,8 @@ const TOOL_DEFS = {
   },
   marklayer_read_attachment: {
     ...READS_ROOM,
-    description: 'Read an image attached to a room annotation as MCP image content. Use the attachment id from its URL; report failure or lack of image support honestly.',
+    description:
+      'Read an image attached to a room annotation as MCP image content. Use the attachment id from its URL; report failure or lack of image support honestly.',
     input: AttachmentInput,
   },
   marklayer_watch_annotations: {

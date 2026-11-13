@@ -1,4 +1,5 @@
 import type { WaitUntil } from './env';
+
 // Refresh pre-rebrand images in place, without changing room or object keys.
 const OG_ARTWORK_VERSION = 'visual-collaboration-1';
 /**
@@ -40,9 +41,11 @@ export async function cachedPng({
   if (admit && !(await admit())) return new Response('Too many requests', { status: 429 });
 
   const png = await render();
-  ctx.waitUntil(bucket.put(key, png, {
-    httpMetadata: { contentType: 'image/png' },
-    customMetadata: { artwork: OG_ARTWORK_VERSION },
-  }));
+  ctx.waitUntil(
+    bucket.put(key, png, {
+      httpMetadata: { contentType: 'image/png' },
+      customMetadata: { artwork: OG_ARTWORK_VERSION },
+    }),
+  );
   return new Response(png, { headers: dayCached('image/png') });
 }

@@ -9,14 +9,19 @@ import { Toolbar } from './Toolbar';
 let root: HTMLDivElement;
 const originalAnimate = Object.getOwnPropertyDescriptor(Element.prototype, 'animate');
 const initial = {
-  connected: connected.peek(), canEdit: canEditFromRoom.peek(), mode: execMode.peek(),
-  send: wsSend.peek(), minimized: toolbarMinimized.peek(),
-  presentation: presentation.peek(), composer: showTeachingComposer.peek(),
+  connected: connected.peek(),
+  canEdit: canEditFromRoom.peek(),
+  mode: execMode.peek(),
+  send: wsSend.peek(),
+  minimized: toolbarMinimized.peek(),
+  presentation: presentation.peek(),
+  composer: showTeachingComposer.peek(),
 };
 
 beforeEach(() => {
   Object.defineProperty(Element.prototype, 'animate', {
-    configurable: true, value: () => ({ cancel() {}, finished: Promise.resolve() }),
+    configurable: true,
+    value: () => ({ cancel() {}, finished: Promise.resolve() }),
   });
   root = document.createElement('div');
   document.body.append(root);
@@ -44,7 +49,9 @@ afterEach(() => {
 
 test('room controls stay visible and inert offline, retain online actions and the readonly mode gate', async () => {
   const sent: unknown[] = [];
-  wsSend.value = (message) => { sent.push(message); };
+  wsSend.value = (message) => {
+    sent.push(message);
+  };
   await act(() => render(<Toolbar />, root));
   const button = (text: string) => {
     const element = Array.from(root.querySelectorAll('button')).find((b) => b.textContent === text);
@@ -70,13 +77,21 @@ test('room controls stay visible and inert offline, retain online actions and th
   expect(showTeachingComposer.peek()).toBe(false);
   expect(sent).toEqual([]);
 
-  await act(() => { connected.value = true; });
+  await act(() => {
+    connected.value = true;
+  });
   for (const control of [button('图层'), button('演示'), mode()]) expect(control.disabled).toBe(false);
-  await act(() => { button('图层').click(); });
+  await act(() => {
+    button('图层').click();
+  });
   expect(root.querySelector('[aria-label="图层管理"]')).not.toBeNull();
-  await act(() => { button('图层').click(); });
+  await act(() => {
+    button('图层').click();
+  });
   expect(root.querySelector('[aria-label="图层管理"]')).toBeNull();
-  await act(() => { button('演示').click(); });
+  await act(() => {
+    button('演示').click();
+  });
   expect(showTeachingComposer.peek()).toBe(true);
   await act(() => {
     showTeachingComposer.value = false;
@@ -85,11 +100,15 @@ test('room controls stay visible and inert offline, retain online actions and th
   });
   expect(sent).toEqual([{ type: 'set_exec_mode', execMode: 'guide' }]);
   expect(execMode.peek()).toBe('pair');
-  await act(() => { canEditFromRoom.value = false; });
+  await act(() => {
+    canEditFromRoom.value = false;
+  });
   expect(mode().disabled).toBe(true);
   expect(button('图层').disabled).toBe(false);
   expect(button('演示').disabled).toBe(false);
 
-  await act(() => { connected.value = false; });
+  await act(() => {
+    connected.value = false;
+  });
   assertOffline();
 });

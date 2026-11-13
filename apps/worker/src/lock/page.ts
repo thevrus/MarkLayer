@@ -31,7 +31,10 @@ ${prompt ? `<p class="alert" role="alert">${prompt}</p>` : ''}
 <button type="submit">Open</button>
 </form>
 <small>If you own this link, sign in to open it without a password.</small>`;
-  return new Response(page({ title: 'Password required · visual collaboration', body }), { status, headers: HTML_HEADERS });
+  return new Response(page({ title: 'Password required · visual collaboration', body }), {
+    status,
+    headers: HTML_HEADERS,
+  });
 }
 
 /** A dead end: the room is gone or past its deadline. Says nothing about what was in it. */

@@ -71,7 +71,10 @@ const run = (name: string, args: unknown, room: RoomOps = fakeRoom()) =>
     createPreview: async () => ({ error: 'no preview here' }),
   });
 
-const body = (result: Awaited<ReturnType<typeof run>>) => { const item = result?.content[0]; return JSON.parse(item?.type === 'text' ? item.text : '{}'); };
+const body = (result: Awaited<ReturnType<typeof run>>) => {
+  const item = result?.content[0];
+  return JSON.parse(item?.type === 'text' ? item.text : '{}');
+};
 
 describe('callTool', () => {
   test('refuses an image not attached to the requested annotation', async () => {
@@ -82,18 +85,30 @@ describe('callTool', () => {
 
   test('returns attached image bytes as MCP image content', async () => {
     const original = globalThis.fetch;
-    globalThis.fetch = (async () => new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } })) as unknown as typeof fetch;
+    globalThis.fetch = (async () =>
+      new Response(new Uint8Array([1, 2, 3]), { headers: { 'content-type': 'image/png' } })) as unknown as typeof fetch;
     try {
       const room = fakeRoom({ getAnnotation: () => ({ op: comment({ attachments: ['image-1'] }), replies: [] }) });
       const result = await run('marklayer_read_attachment', { id: 'op-1', attachmentId: 'image-1' }, room);
       expect(result?.content[0]).toEqual({ type: 'image', data: 'AQID', mimeType: 'image/png' });
-    } finally { globalThis.fetch = original; }
+    } finally {
+      globalThis.fetch = original;
+    }
   });
 
   test('passes a toolbar target to the presenter', async () => {
     let target = '';
-    const room = fakeRoom({ teachStep: (step) => { target = step.toolbarTarget ?? ''; return true; } });
-    expect(body(await run('teach_step', { presentationId: 'p', index: 0, caption: '选择', toolbarTarget: 'selection' }, room)).sent).toBe(true);
+    const room = fakeRoom({
+      teachStep: (step) => {
+        target = step.toolbarTarget ?? '';
+        return true;
+      },
+    });
+    expect(
+      body(
+        await run('teach_step', { presentationId: 'p', index: 0, caption: '选择', toolbarTarget: 'selection' }, room),
+      ).sent,
+    ).toBe(true);
     expect(target).toBe('selection');
   });
   test('advertises and dispatches the teaching tools', async () => {
@@ -458,20 +473,23 @@ describe('with no room connected', () => {
   });
 });
 
-
 test('Guide blocks destructive tools before they write and permits replies', async () => {
-  const room = fakeRoom({ getMeta: () => ({ url: null, width: null, createdAt: null, expiresAt: null, execMode: 'guide' }) });
+  const room = fakeRoom({
+    getMeta: () => ({ url: null, width: null, createdAt: null, expiresAt: null, execMode: 'guide' }),
+  });
   for (const [name, args] of [
     ['marklayer_resolve', { id: 'op-1', summary: 'done' }],
     ['marklayer_dismiss', { id: 'op-1', reason: 'no' }],
     ['marklayer_suggest_edit', {}],
-  ] as const) expect((await run(name, args, room))?.isError).toBe(true);
+  ] as const)
+    expect((await run(name, args, room))?.isError).toBe(true);
   expect((await run('marklayer_reply', { id: 'op-1', text: 'question' }, room))?.isError).not.toBe(true);
   expect(room.calls).toEqual(['reply:op-1']);
 });
 
-
 test('room info exposes the execution mode under the protocol field name', async () => {
-  const room = fakeRoom({ getMeta: () => ({ url: null, width: null, createdAt: null, expiresAt: null, execMode: 'guide' }) });
+  const room = fakeRoom({
+    getMeta: () => ({ url: null, width: null, createdAt: null, expiresAt: null, execMode: 'guide' }),
+  });
   expect(body(await run('marklayer_room_info', {}, room)).exec_mode).toBe('guide');
 });

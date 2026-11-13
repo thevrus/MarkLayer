@@ -61,7 +61,9 @@ test.each([1, 1.25, 1.5])('缩放重排后草稿跟随目标，发布仍使用�
   expect(panel().style.top).toBe('176px');
   // 没有 resize 的 DOM/CSS 重排也须更新草稿。
   rect = new DOMRect(250, 200, 100, 50);
-  act(() => { hostMutationTick.value++; });
+  act(() => {
+    hostMutationTick.value++;
+  });
   expect(panel().style.left).toBe('286px');
   const textarea = panel().querySelector('textarea')!;
   act(() => {
@@ -69,11 +71,13 @@ test.each([1, 1.25, 1.5])('缩放重排后草稿跟随目标，发布仍使用�
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   });
   await act(async () => {
-    Array.from(panel().querySelectorAll('button')).find((button) => button.textContent?.includes('Post'))!.click();
+    Array.from(panel().querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Post'))!
+      .click();
   });
   const op = operations.peek().find((op) => op.tool === 'comment');
   expect(op?.tool).toBe('comment');
-  if (!op || op.tool !== 'comment') throw new Error('评论未发布');
+  if (op?.tool !== 'comment') throw new Error('评论未发布');
   expect(op.target?.rect).toEqual({ x: 100, y: 100, width: 200, height: 100 });
   expect(op.target?.offsetX).toBe(40);
   expect(op.target?.offsetY).toBe(20);

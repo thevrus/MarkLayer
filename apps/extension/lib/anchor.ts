@@ -135,7 +135,8 @@ function projectAnchor({
     size > 0 ? Math.max(0, Math.min(size, offset * positionScale)) : offset;
   return {
     x: rect.x + o.x + projectOffset(offsetX, rect.width, rect.width === (el as HTMLElement).offsetWidth ? 1 : scaleX),
-    y: rect.y + o.y + projectOffset(offsetY, rect.height, rect.height === (el as HTMLElement).offsetHeight ? 1 : scaleY),
+    y:
+      rect.y + o.y + projectOffset(offsetY, rect.height, rect.height === (el as HTMLElement).offsetHeight ? 1 : scaleY),
     scaleX,
     scaleY,
     strategy,

@@ -88,7 +88,9 @@ export class FakeRoomStub implements RoomStub {
     this.replaced.push(change);
     return true;
   }
-  async agentTaskCommand() { return { ok: false, tasks: [] }; }
+  async agentTaskCommand() {
+    return { ok: false, tasks: [] };
+  }
   async snapshot(): Promise<AgentSnapshot> {
     return EMPTY_SNAPSHOT;
   }

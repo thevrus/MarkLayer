@@ -9,8 +9,22 @@ beforeEach(() => {
   sqlite.query("INSERT INTO annotations (id, ops) VALUES ('r', '[]')").run();
   store = collaborationStore(new SqliteD1(sqlite));
 });
-const task = (id: string, user: string, layer = 'default'): Pick<RoomTask, 'id' | 'room_id' | 'agent_id' | 'requester_id' | 'requester_name' | 'layer_id' | 'annotation_id' | 'source_id'> => ({
-  id, room_id: 'r', agent_id: 'ai', requester_id: user, requester_name: user, layer_id: layer, annotation_id: id, source_id: id,
+const task = (
+  id: string,
+  user: string,
+  layer = 'default',
+): Pick<
+  RoomTask,
+  'id' | 'room_id' | 'agent_id' | 'requester_id' | 'requester_name' | 'layer_id' | 'annotation_id' | 'source_id'
+> => ({
+  id,
+  room_id: 'r',
+  agent_id: 'ai',
+  requester_id: user,
+  requester_name: user,
+  layer_id: layer,
+  annotation_id: id,
+  source_id: id,
 });
 
 test('layers persist, keep their contents and protect the default', async () => {

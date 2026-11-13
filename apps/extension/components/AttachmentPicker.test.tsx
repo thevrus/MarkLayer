@@ -16,9 +16,19 @@ test('composer screenshot exposes a separate preview and remove action', async (
   document.body.appendChild(root);
   const removed: string[] = [];
   const attachments: Parameters<typeof AttachmentThumbs>[0]['attachments'] = {
-    ids: ['image-1'], uploading: false, capturing: false, picked: 1, full: false,
-    late: async () => null, addFiles: () => {}, onPaste: () => {},
-    settled: async () => ['image-1'], remove: (id) => { removed.push(id); }, reset: () => {},
+    ids: ['image-1'],
+    uploading: false,
+    capturing: false,
+    picked: 1,
+    full: false,
+    late: async () => null,
+    addFiles: () => {},
+    onPaste: () => {},
+    settled: async () => ['image-1'],
+    remove: (id) => {
+      removed.push(id);
+    },
+    reset: () => {},
   };
   render(<AttachmentThumbs attachments={attachments} resolveUrl={(id) => `/f/${id}`} />, root);
   const preview = root.querySelector<HTMLButtonElement>('[aria-label="放大查看截图"]');

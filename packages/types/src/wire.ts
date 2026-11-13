@@ -28,15 +28,27 @@ export interface Peer {
 export const RTC_MESSAGE_TYPES = ['rtc_offer', 'rtc_answer', 'rtc_ice', 'rtc_request_ice'] as const;
 export type RtcMessageType = (typeof RTC_MESSAGE_TYPES)[number];
 
-export const roomLayerSchema = z.object({ id: z.string().check(z.minLength(1)), name: z.string().check(z.minLength(1), z.maxLength(80)), created_at: z.number() });
+export const roomLayerSchema = z.object({
+  id: z.string().check(z.minLength(1)),
+  name: z.string().check(z.minLength(1), z.maxLength(80)),
+  created_at: z.number(),
+});
 export type RoomLayer = z.infer<typeof roomLayerSchema>;
 
 export const agentClaimSchema = z.object({ agent_id: z.string(), owner_id: z.string(), owner_name: z.string() });
 export const roomTaskSchema = z.object({
-  sequence: z.number(), id: z.string(), room_id: z.string(), agent_id: z.string(), requester_id: z.string(), requester_name: z.string(),
-  layer_id: z.string(), annotation_id: z.string(), source_id: z.string(),
+  sequence: z.number(),
+  id: z.string(),
+  room_id: z.string(),
+  agent_id: z.string(),
+  requester_id: z.string(),
+  requester_name: z.string(),
+  layer_id: z.string(),
+  annotation_id: z.string(),
+  source_id: z.string(),
   status: z.enum(['queued', 'running', 'waiting', 'cancel_requested', 'completed', 'cancelled']),
-  waiting_for: z.nullable(z.string()), created_at: z.number(),
+  waiting_for: z.nullable(z.string()),
+  created_at: z.number(),
 });
 export type RoomTask = z.infer<typeof roomTaskSchema>;
 export type AgentClaim = z.infer<typeof agentClaimSchema>;
@@ -55,7 +67,9 @@ export type ExecMode = z.infer<typeof execModeSchema>;
 const teachHighlight = {
   presentationId: z.string(),
   annotationId: z.optional(z.string()),
-  toolbarTarget: z.optional(z.enum(['comment', 'selection', 'pen', 'rectangle', 'area', 'eraser', 'inspect', 'text', 'guide'])),
+  toolbarTarget: z.optional(
+    z.enum(['comment', 'selection', 'pen', 'rectangle', 'area', 'eraser', 'inspect', 'text', 'guide']),
+  ),
   selector: z.optional(z.string()),
   rect: z.optional(z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() })),
   label: z.optional(z.string()),
@@ -86,10 +100,25 @@ const teachingPeer = { peerId: z.string(), color: z.optional(z.string()) };
 export const clientMsgSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('agent_claim'), agentId: z.string().check(z.minLength(1), z.maxLength(64)) }),
   z.object({ type: z.literal('agent_release'), agentId: z.string().check(z.minLength(1), z.maxLength(64)) }),
-  z.object({ type: z.literal('task_submit'), taskId: z.string().check(z.minLength(1), z.maxLength(80)), agentId: z.string().check(z.minLength(1), z.maxLength(64)), annotationId: z.string().check(z.minLength(1)), sourceId: z.string().check(z.minLength(1)), layerId: z.string().check(z.minLength(1)) }),
+  z.object({
+    type: z.literal('task_submit'),
+    taskId: z.string().check(z.minLength(1), z.maxLength(80)),
+    agentId: z.string().check(z.minLength(1), z.maxLength(64)),
+    annotationId: z.string().check(z.minLength(1)),
+    sourceId: z.string().check(z.minLength(1)),
+    layerId: z.string().check(z.minLength(1)),
+  }),
   z.object({ type: z.literal('task_cancel'), taskId: z.string().check(z.minLength(1), z.maxLength(80)) }),
-  z.object({ type: z.literal('layer_create'), id: z.string().check(z.minLength(1), z.maxLength(80)), name: z.string().check(z.minLength(1), z.maxLength(80)) }),
-  z.object({ type: z.literal('layer_rename'), id: z.string().check(z.minLength(1), z.maxLength(80)), name: z.string().check(z.minLength(1), z.maxLength(80)) }),
+  z.object({
+    type: z.literal('layer_create'),
+    id: z.string().check(z.minLength(1), z.maxLength(80)),
+    name: z.string().check(z.minLength(1), z.maxLength(80)),
+  }),
+  z.object({
+    type: z.literal('layer_rename'),
+    id: z.string().check(z.minLength(1), z.maxLength(80)),
+    name: z.string().check(z.minLength(1), z.maxLength(80)),
+  }),
   z.object({ type: z.literal('layer_delete'), id: z.string().check(z.minLength(1), z.maxLength(80)) }),
   z.object({ type: z.literal('set_exec_mode'), execMode: execModeSchema }),
   z.object({ type: z.literal('teach_highlight'), ...teachHighlight }),

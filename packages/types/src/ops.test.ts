@@ -478,9 +478,18 @@ describe('authorship on every op', () => {
   });
 });
 
-
 test('annotation layer survives parsing and patching while older annotations remain readable', () => {
-  const comment = { id: 'layer-test', tool: 'comment', num: 1, text: '问题', x: 1, y: 2, color: '#000', lineWidth: 2, ts: 1 };
+  const comment = {
+    id: 'layer-test',
+    tool: 'comment',
+    num: 1,
+    text: '问题',
+    x: 1,
+    y: 2,
+    color: '#000',
+    lineWidth: 2,
+    ts: 1,
+  };
   expect(commentOpSchema.safeParse(comment).success).toBe(true);
   const layered = commentOpSchema.parse({ ...comment, layerId: 'review' });
   expect(layered.layerId).toBe('review');

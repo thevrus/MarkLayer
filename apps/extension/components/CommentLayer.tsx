@@ -6,8 +6,8 @@ import { checkRequest, flashAnnotation } from '../lib/checkFix';
 import { commentContext } from '../lib/comment-context';
 import { host } from '../lib/host-config';
 import { hostMutationTick, scrollTick } from '../lib/host-mutations';
-import { operations, pushOp, rootComments } from '../lib/ops';
 import { activeLayer } from '../lib/layers';
+import { operations, pushOp, rootComments } from '../lib/ops';
 import { snapshotPin } from '../lib/pin-shot';
 import { MARKER_LAYER } from '../lib/popover';
 import { color } from '../lib/prefs';
@@ -51,7 +51,12 @@ export function CommentLayer() {
     if (activeTool.value !== 'comment') return;
     const { x, y } = toDoc({ x: e.clientX, y: e.clientY });
     const topLeft = toDoc({ x: 0, y: 0 });
-    const visualContext = commentContext({ pin: { x, y }, viewport: { ...topLeft, width: innerWidth, height: innerHeight }, layerId: activeLayer.peek(), ops: operations.peek() });
+    const visualContext = commentContext({
+      pin: { x, y },
+      viewport: { ...topLeft, width: innerWidth, height: innerHeight },
+      layerId: activeLayer.peek(),
+      ops: operations.peek(),
+    });
     const el = pickElementAtPoint(e.clientX, e.clientY);
     // 锚点、视口和截图使用点击时的同一份几何，避免 Post 前缩放混入新布局。
     const target = el ? captureTarget({ el, anchor: { x, y } }) : undefined;

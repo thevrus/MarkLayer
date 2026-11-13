@@ -5,7 +5,12 @@ import type { CaptureViewport, CommentOp, TargetElement } from '@marklayer/types
 import { computed, effect, signal } from '@preact/signals';
 
 /** Where a comment is being placed, with the screenshot started the moment it was. */
-export const commentPopover = signal<{ x: number; y: number; snapshot?: Promise<string | null>; visualContext?: CommentOp['visualContext'] } | null>(null);
+export const commentPopover = signal<{
+  x: number;
+  y: number;
+  snapshot?: Promise<string | null>;
+  visualContext?: CommentOp['visualContext'];
+} | null>(null);
 export const textInput = signal<{ x: number; y: number } | null>(null);
 export const selectionPopover = signal<{
   text: string;

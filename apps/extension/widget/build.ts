@@ -26,19 +26,21 @@ process.chdir(extRoot);
  * path so no shared file needs a widget branch. Each stand-in is typed against the
  * module it replaces, so a drifted signature fails tsc.
  */
-const SWAPS = new Map([
-  [join(extRoot, 'components/CommentTriage.tsx'), join(import.meta.dir, 'lite/CommentTriage.tsx')],
-  [join(extRoot, 'components/MentionTextarea.tsx'), join(import.meta.dir, 'lite/MentionTextarea.tsx')],
-  [join(extRoot, 'components/Reactions.tsx'), join(import.meta.dir, 'lite/Reactions.tsx')],
-  [join(extRoot, 'components/BottomSheet.tsx'), join(import.meta.dir, 'lite/BottomSheet.tsx')],
-  [join(extRoot, 'lib/icons.tsx'), join(import.meta.dir, 'lite/icons.tsx')],
-  [join(extRoot, 'lib/agents.tsx'), join(import.meta.dir, 'lite/agents.tsx')],
-  [join(extRoot, 'components/VideoNote.tsx'), join(import.meta.dir, 'lite/VideoNote.tsx')],
-  [join(extRoot, 'components/PriorityMenu.tsx'), join(import.meta.dir, 'lite/PriorityMenu.tsx')],
-  [join(extRoot, 'components/Tooltip.tsx'), join(import.meta.dir, 'lite/Tooltip.tsx')],
-  [join(extRoot, 'components/ScreenCapture.tsx'), join(import.meta.dir, 'lite/ScreenCapture.tsx')],
-  [join(extRoot, 'components/BatchSwitch.tsx'), join(import.meta.dir, 'lite/BatchSwitch.tsx')],
-].map(([from, to]) => [normalizePath(from!), to!] as [string, string]));
+const SWAPS = new Map(
+  [
+    [join(extRoot, 'components/CommentTriage.tsx'), join(import.meta.dir, 'lite/CommentTriage.tsx')],
+    [join(extRoot, 'components/MentionTextarea.tsx'), join(import.meta.dir, 'lite/MentionTextarea.tsx')],
+    [join(extRoot, 'components/Reactions.tsx'), join(import.meta.dir, 'lite/Reactions.tsx')],
+    [join(extRoot, 'components/BottomSheet.tsx'), join(import.meta.dir, 'lite/BottomSheet.tsx')],
+    [join(extRoot, 'lib/icons.tsx'), join(import.meta.dir, 'lite/icons.tsx')],
+    [join(extRoot, 'lib/agents.tsx'), join(import.meta.dir, 'lite/agents.tsx')],
+    [join(extRoot, 'components/VideoNote.tsx'), join(import.meta.dir, 'lite/VideoNote.tsx')],
+    [join(extRoot, 'components/PriorityMenu.tsx'), join(import.meta.dir, 'lite/PriorityMenu.tsx')],
+    [join(extRoot, 'components/Tooltip.tsx'), join(import.meta.dir, 'lite/Tooltip.tsx')],
+    [join(extRoot, 'components/ScreenCapture.tsx'), join(import.meta.dir, 'lite/ScreenCapture.tsx')],
+    [join(extRoot, 'components/BatchSwitch.tsx'), join(import.meta.dir, 'lite/BatchSwitch.tsx')],
+  ].map(([from, to]) => [normalizePath(from!), to!] as [string, string]),
+);
 
 const swapModules: Plugin = {
   name: 'marklayer-widget-swaps',

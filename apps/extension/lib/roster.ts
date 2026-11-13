@@ -1,10 +1,10 @@
 import { agentLabel } from '@marklayer/types/agents';
-import { agentClaims } from './realtime';
 import type { Mention } from '@marklayer/types/ops';
 import { computed } from '@preact/signals';
 import { localUser } from './identity';
 import { operations } from './ops';
 import { peers } from './presence';
+import { agentClaims } from './realtime';
 import { stableComputed } from './stable';
 
 /** Colour for someone who is not currently connected, so their own is unknown. */
@@ -95,7 +95,19 @@ const present = stableComputed({
 });
 
 /** Everyone this room knows about. Recomputes only when one of its two sides actually changes. */
-export const roster = computed<RosterEntry[]>(() => merge([present.value, namedInOps.value, agentClaims.value.map((claim) => ({ id: claim.agent_id, name: agentLabel(claim.agent_id), color: OFFLINE_COLOR, online: false, self: false }))]));
+export const roster = computed<RosterEntry[]>(() =>
+  merge([
+    present.value,
+    namedInOps.value,
+    agentClaims.value.map((claim) => ({
+      id: claim.agent_id,
+      name: agentLabel(claim.agent_id),
+      color: OFFLINE_COLOR,
+      online: false,
+      self: false,
+    })),
+  ]),
+);
 
 /** Current names by id, built once for every tag rendered rather than per component. */
 export const rosterNames = computed(() => new Map(roster.value.map((entry) => [entry.id, entry.name])));

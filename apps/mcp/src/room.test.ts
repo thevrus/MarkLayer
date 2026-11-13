@@ -133,9 +133,12 @@ describe('against a worker on the old wire', () => {
     toPeer({ type: 'cursor', peerId: 'p2', x: 1, y: 2 });
     toPeer({ type: 'rtc_offer', from: 'p2', to: 'p3', sdp: 'opaque' });
     toPeer({ type: 'op', op: comment('op-2') });
-    expect((await batch).map((e) => [e.kind, e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id])).toEqual(
-      [['new', 'op-2']],
-    );
+    expect(
+      (await batch).map((e) => [
+        e.kind,
+        e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id,
+      ]),
+    ).toEqual([['new', 'op-2']]);
   });
 });
 
@@ -150,11 +153,30 @@ describe('marklayer_watch_annotations', () => {
     });
 
   test('a plain reply wakes a reconnected agent waiting on that thread', async () => {
-    const task = { sequence: 1, id: 't1', room_id: 'room-1', agent_id: AGENT, requester_id: 'u1', requester_name: 'Ada', layer_id: 'default', annotation_id: 'op-1', source_id: 'op-1', status: 'waiting', waiting_for: 'Ada', created_at: 1 };
+    const task = {
+      sequence: 1,
+      id: 't1',
+      room_id: 'room-1',
+      agent_id: AGENT,
+      requester_id: 'u1',
+      requester_name: 'Ada',
+      layer_id: 'default',
+      annotation_id: 'op-1',
+      source_id: 'op-1',
+      status: 'waiting',
+      waiting_for: 'Ada',
+      created_at: 1,
+    };
     const client = await connect({ ops: [comment('op-1')], tasks: [task] });
     const waiting = client.room.watch({ timeoutSeconds: 2, batchMs: 5 });
     toPeer({ type: 'op', op: { ...comment('reply'), parentId: 'op-1', text: '确认继续' } });
-    expect(await waiting).toEqual([expect.objectContaining({ kind: 'handoff', op: expect.objectContaining({ id: 'op-1' }), reply: expect.objectContaining({ text: '确认继续' }) })]);
+    expect(await waiting).toEqual([
+      expect.objectContaining({
+        kind: 'handoff',
+        op: expect.objectContaining({ id: 'op-1' }),
+        reply: expect.objectContaining({ text: '确认继续' }),
+      }),
+    ]);
   });
 
   test('teaching tools use the socket and watch returns a participant control', async () => {
@@ -213,7 +235,11 @@ describe('marklayer_watch_annotations', () => {
     toPeer({ type: 'op', op: comment('op-2') });
     await until(() => room.listOps().length > 0);
     const events = await room.watch({ timeoutSeconds: 5, batchMs: 5 });
-    expect(events.map((e) => (e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id))).toEqual(['op-2']);
+    expect(
+      events.map((e) =>
+        e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id,
+      ),
+    ).toEqual(['op-2']);
   });
 });
 
@@ -245,8 +271,11 @@ describe('handoff', () => {
     toPeer({ type: 'update_op', opId: 'op-1', patch: { assignee: AGENT } });
     toPeer({ type: 'update_op', opId: 'op-1', patch: { status: 'open' } });
     const events = await batch;
-    expect(events.map((e) => [e.kind, e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id])).toEqual([
-      ['handoff', 'op-1'],
-    ]);
+    expect(
+      events.map((e) => [
+        e.kind,
+        e.kind === 'teach_control' ? e.control.presentationId : e.kind === 'task_update' ? 'tasks' : e.op.id,
+      ]),
+    ).toEqual([['handoff', 'op-1']]);
   });
 });
