@@ -22,6 +22,7 @@ import {
   SOCKET_REFILL_PER_S,
 } from '@marklayer/types/wire';
 import { z } from 'zod/mini';
+import { createSemanticRegistry, type UiSemantic } from '../../extension/lib/ui-semantics';
 import { canEditLink, effectiveExpiresAt, type LinkAccess } from '../shared/accounts';
 import { userFromCookieHeader } from './auth/session';
 import { collaborationStore } from './collaboration-store';
@@ -877,6 +878,21 @@ export class AnnotationRoom extends DurableObject<RoomEnv> {
     await this.getOps();
     await this.revive();
     return (await this.mutate({ type: mode, ops }, { userId })).status !== 'refused';
+  }
+
+  /** Trusted server code only. No network route accepts registry writes. */
+  async registerUiSemantic(value: UiSemantic): Promise<void> {
+    await this.serializeCollaboration(async () => {
+      const entries = await this.queryUiSemantics();
+      const registry = createSemanticRegistry();
+      for (const entry of entries) registry.register(entry);
+      registry.register(value);
+      await this.ctx.storage.put('uiSemantics', [...entries, value]);
+    });
+  }
+
+  async queryUiSemantics(): Promise<UiSemantic[]> {
+    return (await this.ctx.storage.get<UiSemantic[]>('uiSemantics')) ?? [];
   }
 
   /** The cron wiping the public demo board. */

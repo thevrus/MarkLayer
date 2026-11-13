@@ -1109,3 +1109,26 @@ test('a layer can be deleted immediately after its persisted content is moved', 
   expect((await live.room.snapshot()).layers?.some((layer) => layer.id === 'review')).toBe(false);
   expect(JSON.parse(opsColumn(live.sqlite) ?? '[]')[0].layerId).toBe('default');
 });
+
+describe('room UI semantics API', () => {
+  test('queries trusted registrations, isolates rooms, and survives eviction', async () => {
+    const kv = new Map<string, unknown>();
+    const first = liveRoom({ kv });
+    const other = liveRoom();
+    const semantic = { id: 'annotation.card', label: 'Card', purpose: 'Annotation', region: 'annotation', related: [] };
+    const request = (live: ReturnType<typeof liveRoom>, suffix = '') =>
+      rooms.fetch(
+        new Request(`https://marklayer.app/s/${ID}/semantics${suffix}`),
+        { DB: live.db, ANNOTATION_ROOM: { idFromName: () => 'do', get: () => live.room } },
+        new FakeExecutionContext(),
+      );
+    expect<unknown>(await (await request(first)).json()).toEqual({ semantics: [] });
+    await first.room.registerUiSemantic(semantic);
+    await expect(first.room.registerUiSemantic(semantic)).rejects.toThrow('Duplicate');
+    expect<unknown>(await (await request(first, '?id=annotation.card')).json()).toEqual({ semantics: [semantic] });
+    expect<unknown>(await (await request(first, '?id=missing')).json()).toEqual({ semantics: [] });
+    expect<unknown>(await (await request(other)).json()).toEqual({ semantics: [] });
+    const restored = liveRoom({ kv });
+    expect<unknown>(await (await request(restored)).json()).toEqual({ semantics: [semantic] });
+  });
+});

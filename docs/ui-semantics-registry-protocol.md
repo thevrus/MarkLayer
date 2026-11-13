@@ -185,3 +185,10 @@ export interface ControlledRenderNode {
 - **输出顺序确定性（Deterministic Ordering）**：
   - 编译后的 `props` 字典键名强制按英文字母升序排列，消除因输入字典键序差异带来的比对抖动；
   - 组件列表编译保持输入的先后顺序不变，确保渲染树拓扑稳定。
+
+
+## 8. 服务端房间查询 API
+
+`GET /s/{roomId}/semantics` 返回 `{"semantics": [UiSemantic, ...]}`；可选 `?id=annotation.card` 按语义 ID 精确过滤，未注册时返回 `{"semantics": []}`。该接口通过与房间 MCP 相同的存在性、过期和密码检查；受密码保护的房间可使用 `Authorization: Bearer <password>`。接口受房间限流约束。
+
+注册表存于该房间的 Durable Object 存储，隔离房间并在对象休眠后保留。仅服务端受信任代码可调用内部 `registerUiSemantic`；没有 HTTP 写入接口，重复 ID 或组件 kind 会被拒绝。注册表不提供执行权限。当前没有将扩展本地注册表自动同步到服务端的生产者，因此没有服务端注册时查询为空；此接口不扫描页面，也不改变扩展行为。

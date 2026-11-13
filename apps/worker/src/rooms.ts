@@ -64,6 +64,16 @@ rooms.get('/s/:id/page.json', async (c) => {
   return reading ? c.json(reading) : c.json({ error: 'could not read the page' }, 502);
 });
 
+// Registry data is read-only over HTTP and uses the same room door as MCP.
+rooms.get('/s/:id/semantics', async (c) => {
+  if (await overRateLimit({ limiter: c.env.ROOM_LIMITER, req: c.req })) return c.text('Too many requests', 429);
+  const room = await openRoom({ env: c.env, id: c.req.param('id'), headers: c.req.raw.headers, ctx: c.executionCtx });
+  if (!room.ok) return refuse(room, 'json');
+  const entries = await room.stub.queryUiSemantics();
+  const id = c.req.query('id');
+  return c.json({ semantics: id === undefined ? entries : entries.filter((entry) => entry.id === id) });
+});
+
 /**
  * Remote MCP endpoint for a room — the share link is the address, so connecting
  * an agent is one line and needs no package installed:

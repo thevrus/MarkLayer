@@ -81,6 +81,9 @@ const EMPTY_SNAPSHOT: AgentSnapshot = {
  * `replaced` is what the REST save handed it; everything a test does not script throws.
  */
 export class FakeRoomStub implements RoomStub {
+  async queryUiSemantics() {
+    return [];
+  }
   readonly replaced: { ops: unknown[]; userId: string | undefined; mode: SaveMode }[] = [];
   readonly resets: number[] = [];
 
