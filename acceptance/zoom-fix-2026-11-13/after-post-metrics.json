@@ -1,0 +1,112 @@
+{
+  "tab": 530858,
+  "click": {
+    "x": 228.53125,
+    "y": 194,
+    "target": {
+      "x": 102.53125,
+      "y": 164,
+      "width": 420,
+      "height": 220,
+      "top": 164,
+      "right": 522.53125,
+      "bottom": 384,
+      "left": 102.53125
+    }
+  },
+  "at150": {
+    "zoom": 1.5,
+    "innerWidth": 785,
+    "innerHeight": 535,
+    "target": {
+      "x": 102.53125,
+      "y": 164,
+      "width": 420,
+      "height": 220,
+      "top": 164,
+      "right": 522.53125,
+      "bottom": 384,
+      "left": 102.53125
+    },
+    "dialog": {
+      "x": 244,
+      "y": 210,
+      "width": 360,
+      "height": 110,
+      "top": 210,
+      "right": 604,
+      "bottom": 320,
+      "left": 244
+    },
+    "dialogStyle": "left: 244px; top: 210px; width: 360px;"
+  },
+  "at200": {
+    "zoom": 2,
+    "innerWidth": 589,
+    "innerHeight": 401,
+    "target": {
+      "x": 82.8984375,
+      "y": 164,
+      "width": 420,
+      "height": 220,
+      "top": 164,
+      "right": 502.8984375,
+      "bottom": 384,
+      "left": 82.8984375
+    },
+    "dialog": {
+      "x": 224.3671875,
+      "y": 210,
+      "width": 360,
+      "height": 110,
+      "top": 210,
+      "right": 584.3671875,
+      "bottom": 320,
+      "left": 224.3671875
+    },
+    "dialogStyle": "left: 224.367px; top: 210px; width: 360px;"
+  },
+  "expectedDialogX": 224.8984375,
+  "dialogDeltaX": -0.53125,
+  "pin": {
+    "rect": {
+      "x": 208.3671875,
+      "y": 194,
+      "width": 28,
+      "height": 28,
+      "top": 194,
+      "right": 236.3671875,
+      "bottom": 222,
+      "left": 208.3671875
+    },
+    "style": "left: 208.367px; top: 194px;",
+    "text": "1\n1\nFunky Penguin\nnow\n\nAfter fix: click 150%, post 200%\n\nStatus\nOpen\nAssignee\nAssign\nReply"
+  },
+  "expectedPin": {
+    "x": 208.8984375,
+    "y": 194
+  },
+  "pinDelta": {
+    "x": -0.53125,
+    "y": 0
+  },
+  "ctrl0KeyZoom": 2,
+  "zoomAfterRestore": 1,
+  "restored": {
+    "zoom": 1,
+    "innerWidth": 1178,
+    "innerHeight": 802,
+    "target": {
+      "x": 281.5,
+      "y": 164,
+      "width": 420,
+      "height": 220,
+      "top": 164,
+      "right": 701.5,
+      "bottom": 384,
+      "left": 281.5
+    },
+    "dialog": null,
+    "dialogStyle": null
+  }
+}

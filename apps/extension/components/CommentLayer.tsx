@@ -94,6 +94,8 @@ export function CommentLayer() {
         {popover && (
           <CommentPopover
             at={{ x: popover.x, y: popover.y }}
+            // Without a captured element there is no geometry to reproject; keep
+            // the stored document point and let the browser map CSS px at zoom.
             anchorAt={toClient(applyAnchorDelta(popover.target, { docX: popover.x, docY: popover.y }))}
             capture={() => ({
               target: popover.target,

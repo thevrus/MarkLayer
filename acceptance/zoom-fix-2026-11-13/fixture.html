@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MarkLayer zoom anchor fixture</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 1800px; padding: 24px 0; font: 16px/1.5 system-ui, sans-serif; background: #f4f6fa; }
+      main { width: min(760px, calc(100% - 48px)); margin: 0 auto; }
+      #target { width: min(420px, 100%); height: 220px; margin: 100px 0 0 clamp(0px, 10vw, 80px); padding: 24px; border: 2px solid #64748b; border-radius: 12px; background: white; }
+      #target h1 { margin: 0 0 12px; font-size: 24px; }
+      #target p { margin: 0; }
+      #spacer { height: 900px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p>Fixed local fixture for browser zoom anchor measurements.</p>
+      <article id="target" data-testid="zoom-target">
+        <h1>Zoom anchor target</h1>
+        <p>Click near this text to pin a comment. The target keeps stable CSS dimensions while browser zoom changes.</p>
+      </article>
+      <div id="spacer"></div>
+      <p id="lower-target">Lower page content for scroll and fallback coverage.</p>
+    </main>
+  </body>
+</html>

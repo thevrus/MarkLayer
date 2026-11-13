@@ -1,0 +1,150 @@
+[
+  {
+    "requestedZoom": 1,
+    "actualZoom": 1,
+    "click": {
+      "x": 407.5,
+      "y": 194
+    },
+    "metrics": {
+      "innerWidth": 1178,
+      "innerHeight": 802,
+      "dpr": 1,
+      "visualScale": 1,
+      "target": {
+        "x": 281.5,
+        "y": 164,
+        "width": 420,
+        "height": 220,
+        "top": 164,
+        "right": 701.5,
+        "bottom": 384,
+        "left": 281.5
+      },
+      "dialog": {
+        "rect": {
+          "x": 423,
+          "y": 210,
+          "width": 360,
+          "height": 110,
+          "top": 210,
+          "right": 783,
+          "bottom": 320,
+          "left": 423
+        },
+        "style": "left: 423px; top: 210px; width: 360px;"
+      }
+    }
+  },
+  {
+    "requestedZoom": 1.5,
+    "actualZoom": 1.5,
+    "click": {
+      "x": 407.5,
+      "y": 194
+    },
+    "metrics": {
+      "innerWidth": 785,
+      "innerHeight": 535,
+      "dpr": 1.5,
+      "visualScale": 1,
+      "target": {
+        "x": 102.53125,
+        "y": 164,
+        "width": 420,
+        "height": 220,
+        "top": 164,
+        "right": 522.53125,
+        "bottom": 384,
+        "left": 102.53125
+      },
+      "dialog": {
+        "rect": {
+          "x": 244.03125,
+          "y": 210,
+          "width": 360,
+          "height": 110,
+          "top": 210,
+          "right": 604.03125,
+          "bottom": 320,
+          "left": 244.03125
+        },
+        "style": "left: 244.031px; top: 210px; width: 360px;"
+      }
+    }
+  },
+  {
+    "requestedZoom": 2,
+    "actualZoom": 2,
+    "click": {
+      "x": 407.5,
+      "y": 194
+    },
+    "metrics": {
+      "innerWidth": 589,
+      "innerHeight": 401,
+      "dpr": 2,
+      "visualScale": 1,
+      "target": {
+        "x": 82.8984375,
+        "y": 164,
+        "width": 420,
+        "height": 220,
+        "top": 164,
+        "right": 502.8984375,
+        "bottom": 384,
+        "left": 82.8984375
+      },
+      "dialog": {
+        "rect": {
+          "x": 224.3984375,
+          "y": 210,
+          "width": 360,
+          "height": 110,
+          "top": 210,
+          "right": 584.3984375,
+          "bottom": 320,
+          "left": 224.3984375
+        },
+        "style": "left: 224.398px; top: 210px; width: 360px;"
+      }
+    }
+  },
+  {
+    "requestedZoom": "Ctrl+0 (chrome.tabs.setZoom equivalent)",
+    "actualZoom": 1,
+    "click": {
+      "x": 407.5,
+      "y": 194
+    },
+    "metrics": {
+      "innerWidth": 1178,
+      "innerHeight": 802,
+      "dpr": 1,
+      "visualScale": 1,
+      "target": {
+        "x": 281.5,
+        "y": 164,
+        "width": 420,
+        "height": 220,
+        "top": 164,
+        "right": 701.5,
+        "bottom": 384,
+        "left": 281.5
+      },
+      "dialog": {
+        "rect": {
+          "x": 423,
+          "y": 210,
+          "width": 360,
+          "height": 110,
+          "top": 210,
+          "right": 783,
+          "bottom": 320,
+          "left": 423
+        },
+        "style": "left: 423px; top: 210px; width: 360px;"
+      }
+    }
+  }
+]

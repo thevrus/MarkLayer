@@ -85,3 +85,45 @@ test.each([1, 1.25, 1.5])('缩放重排后草稿跟随目标，发布仍使用�
   expect({ x: op.x, y: op.y }).toEqual({ x: 140, y: 120 });
   expect(applyAnchorDelta(op.target, { docX: op.x, docY: op.y })).toMatchObject({ x: 270, y: 210 });
 });
+
+test('没有目标元素的草稿在缩放后保留文档坐标', async () => {
+  Object.defineProperty(document, 'elementsFromPoint', { configurable: true, value: () => [] });
+  Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 });
+  window.scrollTo(0, 0);
+  operations.value = [];
+  ensureScrollTickListener();
+  target = document.createElement('div');
+  root = document.createElement('div');
+  document.body.append(root);
+  act(() => {
+    activeTool.value = 'comment';
+    render(<CommentLayer />, root);
+  });
+  act(() => {
+    root.firstElementChild!.dispatchEvent(new MouseEvent('click', { clientX: 140, clientY: 120, bubbles: true }));
+  });
+  const originalWidth = window.innerWidth;
+  Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 2 });
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth / 2 });
+  await act(async () => {
+    window.dispatchEvent(new Event('resize'));
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  });
+  const panel = root.querySelector<HTMLElement>('[aria-label="New comment"]')!;
+  const textarea = panel.querySelector('textarea')!;
+  act(() => {
+    textarea.value = '无目标缩放回归';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    Array.from(panel.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('Post'))!
+      .click();
+  });
+  const op = operations.peek().find((candidate) => candidate.tool === 'comment');
+  expect(op?.tool).toBe('comment');
+  if (op?.tool !== 'comment') throw new Error('评论未发布');
+  expect(op.target).toBeUndefined();
+  expect({ x: op.x, y: op.y }).toEqual({ x: 140, y: 120 });
+  expect(op.captureViewport?.width).toBe(originalWidth);
+});
