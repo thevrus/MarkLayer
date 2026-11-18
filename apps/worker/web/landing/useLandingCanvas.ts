@@ -1,14 +1,12 @@
 import { operations, undoRedoFlash } from '@ext/lib/ops';
+import { bindStrokeMoves, strokeDown } from '@ext/lib/pointer-stroke';
 import { color, lineWidth } from '@ext/lib/prefs';
 import { inView, opBounds, renderOp } from '@ext/lib/renderer';
 import { createStrokeEngine } from '@ext/lib/stroke-engine';
 import { activeTool } from '@ext/lib/tool-state';
-import type { Point } from '@ext/lib/types';
 import { useSignalEffect } from '@preact/signals';
 import { useCallback, useMemo, useRef } from 'preact/hooks';
 import { pushDeviceOp } from '../viewer-state';
-
-const clientOf = (e: MouseEvent): Point => ({ x: e.clientX, y: e.clientY });
 
 /**
  * The landing page's drawing surface: the product's own canvas and stroke engine,
@@ -17,7 +15,7 @@ const clientOf = (e: MouseEvent): Point => ({ x: e.clientX, y: e.clientY });
  */
 export function useLandingCanvas(): {
   canvasRef: { current: HTMLCanvasElement | null };
-  onDown: (e: MouseEvent) => void;
+  onDown: (e: PointerEvent) => void;
 } {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engine = useMemo(
@@ -52,9 +50,7 @@ export function useLandingCanvas(): {
     engine.resnapshot();
   }, []);
 
-  const onDown = useCallback((e: MouseEvent) => {
-    engine.down({ client: clientOf(e), shift: e.shiftKey });
-  }, []);
+  const onDown = useCallback((e: PointerEvent) => strokeDown({ engine, e }), []);
 
   useSignalEffect(() => {
     operations.value;
@@ -81,16 +77,7 @@ export function useLandingCanvas(): {
     };
   });
 
-  useSignalEffect(() => {
-    const onMove = (e: MouseEvent) => engine.move({ client: clientOf(e), shift: e.shiftKey });
-    const onUp = (e: MouseEvent) => engine.up({ client: clientOf(e), shift: e.shiftKey });
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-  });
+  useSignalEffect(() => bindStrokeMoves(engine));
 
   return { canvasRef, onDown };
 }

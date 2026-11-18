@@ -56,13 +56,16 @@ export function grabGuide({
   point,
   vertical,
   dragId,
+  hitPx = GUIDE_HIT_PX,
 }: {
   /** In document coords. */
   point: { x: number; y: number };
   vertical: boolean;
   dragId: Signal<string | null>;
+  /** How near a press must land to grab an existing guide rather than drop a new one. */
+  hitPx?: number;
 }) {
-  const hit = pickGuideAtPoint(point, guides.peek(), GUIDE_HIT_PX);
+  const hit = pickGuideAtPoint(point, guides.peek(), hitPx);
   if (hit) {
     selectedGuideId.value = hit.id;
     dragId.value = hit.id;

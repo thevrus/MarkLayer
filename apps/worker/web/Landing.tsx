@@ -478,10 +478,11 @@ export function Landing() {
 
         <canvas
           ref={canvasRef}
-          onMouseDown={onDown}
+          onPointerDown={onDown}
           class="absolute inset-x-0 top-0 z-2147483645"
           style={{
             height: '100%',
+            touchAction: 'none',
             pointerEvents: showCanvas ? 'auto' : 'none',
             cursor: showCanvas ? 'crosshair' : 'default',
           }}

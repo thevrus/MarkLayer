@@ -9,7 +9,7 @@ import {
   grabGuide,
   guideReadout,
 } from '@ext/components/GuideLayer';
-import { injectCrosshairCursor } from '@ext/lib/dom';
+import { injectDragSurface } from '@ext/lib/dom';
 import {
   clearGuides,
   flipGuide,
@@ -21,6 +21,7 @@ import {
 } from '@ext/lib/guides';
 import { useDismissible } from '@ext/lib/keymap';
 import { pickGuideAtPoint } from '@ext/lib/measure';
+import { isPrimaryPress } from '@ext/lib/pointer';
 import { scrollOffset } from '@ext/lib/scroller';
 import { activeTool } from '@ext/lib/tool-state';
 import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
@@ -29,6 +30,9 @@ import { tinykeys } from 'tinykeys';
 import { capture } from './analytics';
 import { isElementNode, sameOriginWindow, useIframeOverlay } from './iframeOverlay';
 import { cssScale, frameRect, iframeScrollY } from './viewer-state';
+
+/** A fingertip covers far more than a mouse tip, so a touch grabs a guide from further off. */
+const TOUCH_HIT_PX = 20;
 
 /** The frame's scroll offset, or none while the frame is down or has navigated out of the proxy. */
 const off = (frame: HTMLIFrameElement | null) => {
@@ -66,11 +70,17 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
     }
   };
 
-  const handlePointerDown = (e: MouseEvent, iframeX: number, iframeY: number) => {
+  const handlePointerDown = (e: PointerEvent) => {
     if (activeTool.value !== 'guide') return;
     e.preventDefault();
     e.stopPropagation();
-    grabGuide({ point: toIframeDoc(iframeX, iframeY), vertical: e.shiftKey, dragId });
+    grabGuide({
+      point: toIframeDoc(e.clientX, e.clientY),
+      vertical: e.shiftKey,
+      dragId,
+      hitPx: e.pointerType === 'touch' ? TOUCH_HIT_PX : GUIDE_HIT_PX,
+    });
+    cursor.value = toHostViewport(e.clientX, e.clientY);
   };
 
   const deleteSelected = (e: KeyboardEvent) => {
@@ -90,28 +100,31 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
   };
 
   useIframeOverlay(frameRef, ({ win }) => {
-    const onMove = (e: MouseEvent) => handlePointerMove(e.clientX, e.clientY);
-    const onDown = (e: MouseEvent) => {
-      if (!isElementNode(e.target)) return;
-      handlePointerDown(e, e.clientX, e.clientY);
+    const onMove = (e: PointerEvent) => {
+      if (e.isPrimary) handlePointerMove(e.clientX, e.clientY);
+    };
+    const onDown = (e: PointerEvent) => {
+      if (isPrimaryPress(e) && isElementNode(e.target)) handlePointerDown(e);
     };
     const onUp = () => {
       dragId.value = null;
     };
     // Off the frame, onto our chrome or out of the window: no line to place there.
-    const onOut = (e: MouseEvent) => {
+    const onOut = (e: PointerEvent) => {
       if (!e.relatedTarget && !dragId.peek()) cursor.value = null;
     };
-    win.addEventListener('mousemove', onMove, true);
-    win.addEventListener('mouseout', onOut, true);
-    win.addEventListener('mousedown', onDown, true);
-    win.addEventListener('mouseup', onUp, true);
+    win.addEventListener('pointermove', onMove, true);
+    win.addEventListener('pointerout', onOut, true);
+    win.addEventListener('pointerdown', onDown, true);
+    win.addEventListener('pointerup', onUp, true);
+    win.addEventListener('pointercancel', onUp, true);
     return () => {
       try {
-        win.removeEventListener('mousemove', onMove, true);
-        win.removeEventListener('mouseout', onOut, true);
-        win.removeEventListener('mousedown', onDown, true);
-        win.removeEventListener('mouseup', onUp, true);
+        win.removeEventListener('pointermove', onMove, true);
+        win.removeEventListener('pointerout', onOut, true);
+        win.removeEventListener('pointerdown', onDown, true);
+        win.removeEventListener('pointerup', onUp, true);
+        win.removeEventListener('pointercancel', onUp, true);
       } catch {
         /* iframe may have navigated cross-origin */
       }
@@ -138,12 +151,12 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
       shift.value = false;
       dragId.value = null;
     };
-    window.addEventListener('mouseup', onUp, true);
+    window.addEventListener('pointerup', onUp, true);
     window.addEventListener('blur', onBlur);
     const unbindDown = tinykeys(window, keyBindings);
     const unbindUp = tinykeys(window, keyBindingsUp, { event: 'keyup' });
     return () => {
-      window.removeEventListener('mouseup', onUp, true);
+      window.removeEventListener('pointerup', onUp, true);
       window.removeEventListener('blur', onBlur);
       unbindDown();
       unbindUp();
@@ -156,7 +169,7 @@ export function WebGuideLayer({ frameRef }: { frameRef: { current: HTMLIFrameEle
 
   useSignalEffect(() => {
     if (activeTool.value !== 'guide') return;
-    return injectCrosshairCursor(frameRef.current?.contentDocument);
+    return injectDragSurface(frameRef.current?.contentDocument);
   });
 
   // Memoized so the cursor-injection effect only re-fires when the resulting

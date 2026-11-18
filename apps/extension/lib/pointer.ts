@@ -40,3 +40,6 @@ export function pointerSampler({ event, onFrame }: { event: PointerEvent; onFram
     },
   };
 }
+
+/** A press that should start a gesture: the first finger or pen, or a left-button mouse. */
+export const isPrimaryPress = (e: PointerEvent) => e.isPrimary && (e.pointerType !== 'mouse' || e.button === 0);

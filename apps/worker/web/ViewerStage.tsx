@@ -363,9 +363,14 @@ function PageSurface() {
 
       <canvas
         ref={canvasRef}
-        onMouseDown={startDrawing}
+        onPointerDown={startDrawing}
         class="absolute inset-0"
-        style={{ pointerEvents: modes.canvas ? 'auto' : 'none', cursor: modes.canvas ? 'crosshair' : 'default' }}
+        style={{
+          pointerEvents: modes.canvas ? 'auto' : 'none',
+          cursor: modes.canvas ? 'crosshair' : 'default',
+          // Without it iPad Safari claims a finger or Pencil drag as a scroll and cancels the stroke.
+          touchAction: 'none',
+        }}
       />
 
       <div

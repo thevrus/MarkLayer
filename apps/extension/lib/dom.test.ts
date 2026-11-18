@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { injectCrosshairCursor } from './dom';
+import { injectCrosshairCursor, injectDragSurface } from './dom';
 
 describe('injectCrosshairCursor', () => {
   test('adds a style rule that outranks the page own cursor rules', () => {
@@ -28,5 +28,14 @@ describe('injectCrosshairCursor', () => {
     // straight out of an effect, so it has to be a valid cleanup value.
     expect(injectCrosshairCursor(null)).toBeUndefined();
     expect(injectCrosshairCursor(undefined)).toBeUndefined();
+  });
+});
+
+describe('injectDragSurface', () => {
+  test('stops touch scrolling over the page, and gives it back on cleanup', () => {
+    const cleanup = injectDragSurface(document);
+    expect(document.head.querySelector('style')?.textContent).toContain('touch-action: none !important');
+    cleanup?.();
+    expect(document.head.querySelector('style')).toBeNull();
   });
 });

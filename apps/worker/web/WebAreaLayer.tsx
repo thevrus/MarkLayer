@@ -6,7 +6,7 @@ import {
   type DraftRect,
   rectFromDraft,
 } from '@ext/components/AreaLayer';
-import { injectCrosshairCursor } from '@ext/lib/dom';
+import { injectDragSurface } from '@ext/lib/dom';
 import { color } from '@ext/lib/prefs';
 import { constrainEnd, hexToRgba } from '@ext/lib/renderer';
 import { scrollOffset } from '@ext/lib/scroller';
@@ -126,7 +126,7 @@ export function WebAreaLayer({ frameRef }: { frameRef: { current: HTMLIFrameElem
 
   useSignalEffect(() => {
     if (activeTool.value !== 'area') return;
-    return injectCrosshairCursor(frameRef.current?.contentDocument);
+    return injectDragSurface(frameRef.current?.contentDocument);
   });
 
   // Subscribe to iframeScrollY so the preview repositions while the user holds-and-drags

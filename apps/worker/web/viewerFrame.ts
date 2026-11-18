@@ -67,7 +67,7 @@ interface ViewerFrameState {
 interface ViewerFrameActions {
   /** Screen coordinates → page coordinates, undoing the frame offset and CSS scale. */
   canvasCoords: (e: MouseEvent) => Point;
-  startDrawing: (e: MouseEvent) => void;
+  startDrawing: (e: PointerEvent) => void;
   scrollToAnnotation: (y: number) => void;
   /** The proxied frame fired `load`, or failed to. `useRenderOutcome` decides what either means. */
   frameLoaded: () => void;

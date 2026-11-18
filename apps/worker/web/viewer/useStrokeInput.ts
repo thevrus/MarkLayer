@@ -1,4 +1,5 @@
 import { bindKeymap } from '@ext/lib/keymap';
+import { bindStrokeMoves, strokeDown } from '@ext/lib/pointer-stroke';
 import { color, lineWidth } from '@ext/lib/prefs';
 import { createStrokeEngine } from '@ext/lib/stroke-engine';
 import { activeTool } from '@ext/lib/tool-state';
@@ -7,9 +8,7 @@ import { useSignalEffect } from '@preact/signals';
 import { useCallback, useMemo } from 'preact/hooks';
 import { iframeScrollY, pushDeviceOp } from '../viewer-state';
 
-const clientOf = (e: MouseEvent): Point => ({ x: e.clientX, y: e.clientY });
-
-/** The viewer's adapter onto the shared stroke engine: the frame's coordinates, and mouse input. */
+/** The viewer's adapter onto the shared stroke engine: the frame's coordinates, and pointer input (mouse, touch, pen). */
 export function useStrokeInput({
   canvasRef,
   clientToDoc,
@@ -32,10 +31,7 @@ export function useStrokeInput({
   );
 
   useSignalEffect(() => {
-    const onMove = (e: MouseEvent) => engine.move({ client: clientOf(e), shift: e.shiftKey });
-    const onUp = (e: MouseEvent) => engine.up({ client: clientOf(e), shift: e.shiftKey });
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    const unbindMoves = bindStrokeMoves(engine);
     // Keys in the frame reach the host window as `ml-key`, so this hears Shift from either side.
     const unbind = bindKeymap({
       scope: window,
@@ -45,15 +41,12 @@ export function useStrokeInput({
       ],
     });
     return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
+      unbindMoves();
       unbind();
     };
   });
 
-  const startDrawing = useCallback((e: MouseEvent) => {
-    engine.down({ client: clientOf(e), shift: e.shiftKey });
-  }, []);
+  const startDrawing = useCallback((e: PointerEvent) => strokeDown({ engine, e }), []);
 
   return { startDrawing, repainted: engine.resnapshot };
 }
