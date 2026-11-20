@@ -85,6 +85,9 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       // Console output the page had when this was written; often the bug itself.
       pageErrors: op.meta?.errors ?? [],
       target: op.target ?? null,
+      // On an uploaded image or PDF: the page and the mark as fractions of its width and height.
+      // `position` is in viewer pixels, so this is the only zoom-independent way back to the file.
+      pageAnchor: op.pdf ?? null,
       attachments: attachmentUrls(op.attachments, apiBase),
       // The recording behind `text`, which is its transcript and may be empty if transcription failed.
       voice: op.voice ? attachmentUrls([op.voice], apiBase)[0] : null,
@@ -99,6 +102,7 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       comment: op.comment ?? null,
       rect: { x: op.startX, y: op.startY, width: op.endX - op.startX, height: op.endY - op.startY },
       target: op.target ?? null,
+      pageAnchor: op.pdf ?? null,
       // The marked-up screenshot of the area, when the reviewer drew on it.
       attachments: attachmentUrls(op.attachments, apiBase),
     };
@@ -113,6 +117,7 @@ export function projectAnnotation(op: AnnotationOp, apiBase: string) {
       comment: op.comment ?? null,
       rects: op.rects,
       target: op.target ?? null,
+      pageAnchor: op.pdf ?? null,
     };
   }
   return {

@@ -501,6 +501,8 @@ const WORKING_A_ROOM =
   'Each annotation carries a `kind` (comment | area | selection | inspect) and, where available, ' +
   'a `target` block with the element selector + markdown — that is your handle for code changes; ' +
   'do not ask the user to repeat what was clicked. ' +
+  'On an uploaded image or PDF there is no `target`; use `pageAnchor` instead: the page and the mark as ' +
+  'fractions of its width and height, so fetch the file and look at that point. ' +
   'A selection annotation may also carry a `suggestion`: the exact text the reviewer wants in place of its ' +
   '`text`. Apply it verbatim rather than paraphrasing it. ' +
   'A comment (or a reply, from marklayer_get_annotation) may carry `attachments`: fetchable image URLs the ' +

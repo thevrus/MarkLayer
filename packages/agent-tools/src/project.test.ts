@@ -41,11 +41,17 @@ describe('projectAnnotation — comment', () => {
       position: { x: 10, y: 20 },
       url: 'https://example.com/page',
       target: { selector: '#hero button', tag: 'button', markdown: '<button>Buy now</button>' },
+      pageAnchor: null,
       pageErrors: [],
       attachments: [],
       voice: null,
       video: null,
     });
+  });
+
+  test('hands over the page anchor of a mark on an uploaded image or PDF', () => {
+    const onFile = commentOpSchema.parse({ ...comment, pdf: { page: 2, x: 0.94, y: 0.27 } });
+    expect(projectAnnotation(onFile, API_BASE)).toMatchObject({ pageAnchor: { page: 2, x: 0.94, y: 0.27 } });
   });
 
   test('hands an area its screenshot as a fetchable URL', () => {
@@ -102,6 +108,7 @@ describe('projectAnnotation — comment', () => {
       position: { x: 0, y: 0 },
       url: null,
       target: null,
+      pageAnchor: null,
       pageErrors: [],
       attachments: [],
       voice: null,
@@ -194,6 +201,7 @@ describe('projectAnnotation — area', () => {
       comment: 'this whole section feels off',
       rect: { x: 10, y: 20, width: 100, height: 200 },
       target: { selector: '.hero', tag: 'section', markdown: '<section>hero</section>' },
+      pageAnchor: null,
       attachments: [],
     });
   });
@@ -227,6 +235,7 @@ describe('projectAnnotation — selection', () => {
       comment: 'typo',
       rects: [{ x: 0, y: 0, width: 50, height: 20 }],
       target: { selector: 'h1', tag: 'h1', markdown: '<h1>welcome too our site</h1>' },
+      pageAnchor: null,
     });
   });
 
