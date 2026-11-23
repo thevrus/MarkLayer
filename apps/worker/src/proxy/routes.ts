@@ -12,6 +12,11 @@ import { parsePxPath, pxTarget } from './px-path';
 import { isolateBreaker, type RelayBreaker, relayConfig, relaySubResource } from './relay';
 import { pageRewriter, rewriteCssUrls } from './rewrite';
 
+/** Fetch time (relay fallback included) for the network panel; Workers clocks only advance across I/O. */
+function serverTiming({ start, desc }: { start: number; desc: string }): string {
+  return `fetch;dur=${Date.now() - start};desc="${desc}"`;
+}
+
 /** The shared gate's failure reasons, in the proxy's own error vocabulary. */
 const URL_ERRORS = {
   invalid: PROXY_ERRORS.invalidUrl,
@@ -125,6 +130,7 @@ export function proxyRoutes({ breaker }: { breaker: RelayBreaker }) {
       // frames a proxied page (viewer, compare, device overview, all same-origin); the posts above
       // name that origin, and this keeps another site from embedding the proxy as an open relay.
       headers.set('Content-Security-Policy', "frame-ancestors 'self'");
+      headers.set('Server-Timing', serverTiming({ start: fetchStart, desc: resp.via }));
 
       if (resp.challenged) {
         captureServer(c.env, c.executionCtx, 'proxy_render_failed', {
@@ -173,6 +179,7 @@ export function proxyRoutes({ breaker }: { breaker: RelayBreaker }) {
       return c.text(message, 400);
     }
 
+    const fetchStart = Date.now();
     try {
       const direct = await upstreamRequest({
         url: targetUrl,
@@ -207,6 +214,8 @@ export function proxyRoutes({ breaker }: { breaker: RelayBreaker }) {
       headers.set('Access-Control-Allow-Origin', '*');
       headers.set('Access-Control-Expose-Headers', '*');
       headers.set('Cache-Control', resp.headers.get('cache-control') || 'public, max-age=3600');
+      const via = resp === direct ? `direct ${direct.headers.get('cf-cache-status') ?? ''}`.trim() : 'relay';
+      headers.set('Server-Timing', serverTiming({ start: fetchStart, desc: via }));
 
       if (ct.includes('text/css')) {
         const px = `${reqUrl.origin}/px/${pxTarget(gate.url)}`;
