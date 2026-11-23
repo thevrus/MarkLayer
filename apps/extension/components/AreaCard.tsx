@@ -5,6 +5,7 @@ import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { deleteOp, setOpStatus } from '../lib/ops';
 import { hexToRgba } from '../lib/renderer';
+import { canTriage } from '../lib/session-rights';
 import { copyText } from '../lib/toasts';
 import type { AreaOp } from '../lib/types';
 import { MentionText } from './MentionText';
@@ -26,12 +27,13 @@ export function areaMenuItems(op: AreaOp): ContextMenuItem[] {
     {
       label: resolved ? 'Reopen' : 'Resolve',
       icon: 'check',
+      triage: true,
       onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
     },
     ...(op.comment
       ? [{ label: 'Copy comment', icon: 'copy' as const, onClick: () => copyText(op.comment ?? '', 'Comment copied') }]
       : []),
-    { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
+    { label: 'Delete', icon: 'clear', danger: true, triage: true, onClick: () => deleteOp(op.id) },
   ];
 }
 
@@ -73,28 +75,30 @@ export function AreaCard({
       {children}
       <div class="flex items-center justify-between mt-2">
         <span class="text-meta text-(--ds-gray-900) font-medium">{op.author}</span>
-        <div class="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              deleteOp(op.id);
-            }}
-            class={cn(geist.bareBtn, geist.bareBtnDanger, 'font-medium')}
-          >
-            Delete
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpStatus(op.id, resolved ? 'open' : 'resolved');
-            }}
-            class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
-          >
-            {resolved ? 'Reopen' : 'Resolve'}
-          </button>
-        </div>
+        {canTriage() && (
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteOp(op.id);
+              }}
+              class={cn(geist.bareBtn, geist.bareBtnDanger, 'font-medium')}
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpStatus(op.id, resolved ? 'open' : 'resolved');
+              }}
+              class={cn(geist.bareBtn, geist.bareBtnQuiet, 'font-medium')}
+            >
+              {resolved ? 'Reopen' : 'Resolve'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

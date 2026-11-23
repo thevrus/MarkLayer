@@ -7,7 +7,7 @@ import {
   SOCKET_REFILL_PER_S,
   serverMsgSchema,
 } from '@marklayer/types/wire';
-import { type ReadonlySignal, signal } from '@preact/signals';
+import { signal } from '@preact/signals';
 import { nanoid } from 'nanoid';
 import { track } from './analytics';
 import { host } from './host-config';
@@ -16,6 +16,7 @@ import { mergeOps } from './mergeOps';
 import { applyChange, onChange, operations } from './ops';
 import { clearDeparture, connectionStatus, noteDeparture, onCursorMove, peers } from './presence';
 import { isJoinedRoom } from './room-id';
+import { canEditFromRoom, forcedReadonly } from './session-rights';
 import { toast } from './toasts';
 import type { Peer } from './types';
 
@@ -26,9 +27,6 @@ export const createdAt = signal<number | null>(null);
 export const expiresAt = signal<number | null>(null);
 /** Whether someone has claimed this link, which exempts it from the idle window. */
 export const isOwned = signal(false);
-
-/** What the room says about our write access. Undefined until it says. */
-export const canEditFromRoom = signal<boolean | undefined>(undefined);
 
 /** Annotation metadata received from server init */
 export const serverUrl = signal<string | null>(null);
@@ -123,8 +121,6 @@ export const emitRipple = signal<((x: number, y: number) => void) | null>(null);
 export interface ConnectRoomHooks {
   /** Every frame, after the transport has applied it: how a host reacts to room facts only it understands. */
   onMessage?: (msg: ServerMsg) => void;
-  /** The host holds this session read-only whatever the room says, so the room's access flips change nothing it can see. */
-  forcedReadonly?: ReadonlySignal<boolean>;
   /** The room refused this session for want of its password, or a password change ended it. */
   onLocked?: () => void;
 }
@@ -277,7 +273,7 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
         // The owner flipped the link while this tab was open.
         const wasReadonly = canEditFromRoom.value === false;
         canEditFromRoom.value = msg.canEdit;
-        if (msg.canEdit === wasReadonly && !hooks.forcedReadonly?.peek()) {
+        if (msg.canEdit === wasReadonly && !forcedReadonly.peek()) {
           toast(msg.canEdit ? 'You can edit this link again' : 'This link is now view-only', { type: 'info' });
         }
         break;
@@ -491,6 +487,8 @@ export function connectRoom({ roomId, origin, hooks = {} }: ConnectRoomOptions):
     if (destroyed) return;
     destroyed = true;
     connectionStatus.value = null;
+    // Access is per room: leaving a view-only one must not hold local work read-only.
+    canEditFromRoom.value = undefined;
     onChange.value = null;
     onCursorMove.value = null;
     onProfileChange.value = null;

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import type { AreaOp, CommentOp, DrawOp } from '@marklayer/types/ops';
 
 // No IndexedDB in the test DOM; pushOp schedules a draft save through idb-keyval.
@@ -66,6 +66,12 @@ beforeEach(() => {
   onChange.value = (change) => {
     if (change.type === 'op') sent.push(change.op);
   };
+});
+
+// Held notes outlive the file: left behind, the next file's ⌘Z takes one back instead of its own mark.
+afterEach(() => {
+  clearHeld();
+  onChange.value = null;
 });
 
 describe('batch edits', () => {
@@ -190,5 +196,19 @@ describe('batch edits', () => {
     toggleBatchMode();
     expect(batchMode.value).toBe(false);
     expect(localStorage.getItem(BATCH_KEY)).toBeNull();
+  });
+});
+
+describe('sending a batch the room would refuse', () => {
+  // The link went view-only while notes were held: they stay held, not dropped.
+  test('keeps every held note', async () => {
+    const { canEditFromRoom } = await import('./session-rights');
+    pushOp(comment('a'));
+    pushOp(area('b'));
+    canEditFromRoom.value = false;
+    sendHeld();
+    canEditFromRoom.value = undefined;
+    expect(heldOps.value.map((op) => op.id)).toEqual(['a', 'b']);
+    expect(sent).toEqual([]);
   });
 });

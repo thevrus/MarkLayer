@@ -1,7 +1,7 @@
 import { bumpAnchorGeneration } from '@ext/lib/host-mutations';
 import type { RectLike } from '@ext/lib/measure';
 import { areas, comments, placeOp, pushOp, selections } from '@ext/lib/ops';
-import { canEditFromRoom } from '@ext/lib/realtime';
+import { canWrite } from '@ext/lib/session-rights';
 import type { DeviceMode, DrawOp } from '@ext/lib/types';
 import { computed, signal } from '@preact/signals';
 import { captureOnce } from './analytics';
@@ -65,15 +65,12 @@ export function attachIframeMutationObserver(doc: Document): () => void {
   };
 }
 
-/** `?readonly=1`: the URL's own way to ask for a view-only session, independent of
- * whatever the room says about who may edit. Set once by `bootFromUrl`. */
-export const urlForcesReadonly = signal(false);
 /** `?still=1`: the page under review does not scroll. The landing page embeds a
  * room this way: a wheel over the window then chains to the page around it
  * instead of scrolling a second document inside the first. */
 export const isStillFrame = signal(false);
-/** The URL flag always wins over the room, in one place — not by convention at every writer. */
-export const isReadonly = computed(() => urlForcesReadonly.value || canEditFromRoom.value === false);
+/** The web chrome's name for `!canWrite`; the rule itself lives in `session-rights`. */
+export const isReadonly = computed(() => !canWrite.value);
 
 export const deviceMode = signal<DeviceMode>('desktop');
 export const DEVICE_WIDTHS: Record<DeviceMode, number> = { desktop: 0, tablet: 768, mobile: 390 };

@@ -13,7 +13,7 @@ Object.defineProperty(globalThis, 'localStorage', {
 
 const { readSupportRecord } = await import('./support');
 const { watchUse } = await import('./support-ui');
-const { canEditFromRoom } = await import('@ext/lib/realtime');
+const { canEditFromRoom } = await import('@ext/lib/session-rights');
 
 const daysUsed = () => readSupportRecord().days.length;
 

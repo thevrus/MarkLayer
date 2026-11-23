@@ -7,7 +7,7 @@ import { CardHold, useHoldLatch } from '../lib/card-hold';
 import { geist } from '../lib/geist';
 import { hostMutationTick, scrollTick } from '../lib/host-mutations';
 import { useMarkHover } from '../lib/mark-hover';
-import { deleteOp, pushOp, selections } from '../lib/ops';
+import { pushOp, selections } from '../lib/ops';
 import { MARKER_LAYER } from '../lib/popover';
 import { hexToRgba } from '../lib/renderer';
 import { toClient } from '../lib/scroller';
@@ -93,7 +93,6 @@ function SelectionHighlight({ op }: { op: SelectionOp }) {
         lift={lift}
         drifted={strategy === 'text'}
         cardClass={cn(geist.surfaceSmall, 'max-h-[50vh]')}
-        onDelete={() => deleteOp(op.id)}
         upload={uploadFile}
         resolveUrl={fileUrl}
       >

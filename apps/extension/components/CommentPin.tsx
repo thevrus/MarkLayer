@@ -1,7 +1,6 @@
 import { cn } from '@marklayer/ui/cn';
 import { applyAnchorDelta } from '../lib/anchor';
 import { geist } from '../lib/geist';
-import { host } from '../lib/host-config';
 import { hostMutationTick, scrollTick } from '../lib/host-mutations';
 import { toClient } from '../lib/scroller';
 import { fileUrl, uploadFile } from '../lib/share';
@@ -25,7 +24,6 @@ export function CommentPin({ op }: { op: CommentOp }) {
       flipV={top > window.innerHeight / 2}
       drifted={strategy === 'text'}
       cardClass={cn(geist.surfaceSmall, 'max-h-[70vh] overscroll-contain')}
-      canDelete={host.capabilities.triage}
       upload={uploadFile}
       resolveUrl={fileUrl}
     />

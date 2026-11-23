@@ -1,6 +1,5 @@
 import { CommentPinCard } from '@ext/components/CommentPinCard';
 import { threadCard } from '@ext/components/ThreadCard';
-import { localUser } from '@ext/lib/identity';
 import { fileUrl, uploadFile } from '@ext/lib/share';
 import type { CommentOp } from '@ext/lib/types';
 import { canReply } from '@marklayer/types/ops';
@@ -48,7 +47,6 @@ export function WebCommentPin({ op, scrollY, frameDoc }: Props) {
       // a narrow desktop window still hovers, and its card must not grow with it.
       // A string, since Preact suffixes a bare number with px.
       pinStyle={compactChrome.value ? { scale: String(1 / cssScale.value) } : undefined}
-      canDelete={op.authorId === localUser.id}
       onPinClick={
         hoverless.value
           ? (e) => {

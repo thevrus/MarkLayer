@@ -1,6 +1,7 @@
 import { trackChanges } from '@ext/lib/analytics';
 import { annotatedUrl } from '@ext/lib/page-url';
 import { activeRoomId, setAnnotationId } from '@ext/lib/room-id';
+import { forcedReadonly } from '@ext/lib/session-rights';
 import { toast } from '@ext/lib/toasts';
 import { activeTool } from '@ext/lib/tool-state';
 import { DEFAULT_WIDTH, sharePath } from '@marklayer/brand/links';
@@ -19,7 +20,6 @@ import {
   isStillFrame,
   narrowViewport,
   PHONE_TOOLS,
-  urlForcesReadonly,
   viewerZoom,
 } from './viewer-state';
 import { zoomStop } from './zoomScale';
@@ -137,7 +137,8 @@ function wireViewerEffects() {
 /** Everything the page reads off its URL and environment, once, before the first render. Importing state does none of it. */
 export function bootFromUrl() {
   const params = new URLSearchParams(location.search);
-  urlForcesReadonly.value = params.get('readonly') === '1';
+  // `?readonly=1`: the URL's own way to ask for a view-only session, whatever the room says.
+  forcedReadonly.value = params.get('readonly') === '1';
   isStillFrame.value = params.get('still') === '1';
   const device = deviceModeSchema.safeParse(params.get('device'));
   if (device.success) deviceMode.value = device.data;

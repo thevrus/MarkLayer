@@ -9,9 +9,9 @@ import { flashRing } from '../lib/checkFix';
 import { openContextMenu } from '../lib/context-menu';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
-import { host } from '../lib/host-config';
 import { deleteOp, getReplies, setOpStatus } from '../lib/ops';
 import { type ParsedInspectorComment, parseInspectorComment } from '../lib/selector';
+import { canTriage } from '../lib/session-rights';
 import { getCommentStatus, STATUS_LABELS, STATUS_STYLES } from '../lib/status-ui';
 import { copyText } from '../lib/toasts';
 import type { CommentOp } from '../lib/types';
@@ -94,7 +94,6 @@ export function CommentPinCard({
   drifted,
   cardClass,
   pinStyle,
-  canDelete,
   onPinClick,
   upload,
   resolveUrl,
@@ -109,7 +108,6 @@ export function CommentPinCard({
   /** The card's surface and height cap, which differ between host page and viewer. */
   cardClass: string;
   pinStyle?: CSSProperties;
-  canDelete: boolean;
   /** For a host with no hover: the pin takes the click and no card opens. */
   onPinClick?: (e: MouseEvent) => void;
   upload: (file: File | Blob) => Promise<string | null>;
@@ -123,25 +121,26 @@ export function CommentPinCard({
   const inspector = parseInspectorComment(op.text);
   const replies = getReplies(op.id);
   const hold = useHoldLatch();
-  const { triage } = host.capabilities;
+  const triage = canTriage();
 
   const onContextMenu = (e: MouseEvent) =>
     openContextMenu(e, [
       {
         label: closed ? 'Reopen' : 'Resolve',
         icon: 'check',
+        triage: true,
         onClick: () => setOpStatus(op.id, closed ? 'open' : 'resolved'),
       },
       // Only once the work is claimed done: approving is the requester agreeing
       // with a fix, so offering it on an open thread would skip the fix.
       ...(status === 'resolved'
-        ? [{ label: 'Approve', icon: 'check' as const, onClick: () => setOpStatus(op.id, 'approved') }]
+        ? [{ label: 'Approve', icon: 'check' as const, triage: true, onClick: () => setOpStatus(op.id, 'approved') }]
         : []),
       ...(inspector?.task
         ? [{ label: 'Copy task', icon: 'copy' as const, onClick: () => copyText(inspector.task ?? '', 'Task copied') }]
         : []),
       { label: 'Copy text', icon: 'copy', onClick: () => copyText(op.text, 'Comment copied') },
-      { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
+      { label: 'Delete', icon: 'clear', danger: true, triage: true, onClick: () => deleteOp(op.id) },
     ]);
 
   return (
@@ -221,7 +220,7 @@ export function CommentPinCard({
                   author={isAgentAuthored(op) && op.author ? agentLabel(op.author) : op.author}
                   ts={op.ts}
                   priority={op.priority}
-                  onDelete={canDelete ? () => deleteOp(op.id) : undefined}
+                  onDelete={triage ? () => deleteOp(op.id) : undefined}
                 />
 
                 {(op.assignedAgent || (dismissed && op.dismissReason)) && (

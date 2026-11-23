@@ -2,6 +2,7 @@ import { isAnnotationOp } from '@marklayer/types/ops';
 import { batch } from '@preact/signals';
 import { announceProfile, localUser, PROFILE_SETTLE_MS, saveIdentity, userName } from './identity';
 import { applyChange, operations } from './ops';
+import { admitWrite } from './session-rights';
 import { toast } from './toasts';
 
 /**
@@ -64,7 +65,7 @@ export function relabelOwnWork(): number {
   // Nothing written when nothing moved: signals compare by identity, so a fresh
   // array would re-partition `_opIndex` and re-render every layer for a rename
   // that touched nothing — the common case.
-  if (!patches.length) return 0;
+  if (!patches.length || !admitWrite()) return 0;
   batch(() => {
     for (const { opId, patch } of patches) applyChange({ type: 'update_op', opId, patch }, { origin: 'local' });
   });

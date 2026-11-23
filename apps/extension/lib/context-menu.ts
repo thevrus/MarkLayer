@@ -1,6 +1,7 @@
 import { signal } from '@preact/signals';
 import { host } from './host-config';
 import type { IconName } from './icons';
+import { canTriage } from './session-rights';
 
 /**
  * Singleton context-menu state. A pin sets this on right-click; the renderer in App.tsx
@@ -11,6 +12,8 @@ export interface ContextMenuItem {
   icon?: IconName;
   onClick: () => void;
   danger?: boolean;
+  /** Status changes and deletes: dropped when this session may not triage. */
+  triage?: boolean;
 }
 export interface ContextMenuState {
   x: number;
@@ -24,7 +27,8 @@ export function openContextMenu(e: MouseEvent, items: ContextMenuItem[]) {
   if (!host.capabilities.contextMenu) return;
   e.preventDefault();
   e.stopPropagation();
-  contextMenu.value = { x: e.clientX, y: e.clientY, items };
+  const triage = canTriage();
+  contextMenu.value = { x: e.clientX, y: e.clientY, items: items.filter((i) => triage || !i.triage) };
 }
 
 export function closeContextMenu() {

@@ -7,6 +7,7 @@ import { commentCounter, commitOp } from './ops';
 import { clearOnCopyEnabled, color, lineWidth } from './prefs';
 import { toDoc } from './scroller';
 import { ELEMENT_INSPECTOR_HEADING } from './selector';
+import { admitWrite } from './session-rights';
 import { copyText, toast } from './toasts';
 
 /** A stacked element-inspect entry awaiting bulk copy to an LLM. */
@@ -43,7 +44,8 @@ export function clearInspectorStack() {
  */
 export function flushInspectorStack(): number {
   const items = inspectorStack.value;
-  if (!items.length) return 0;
+  // Refused, the stack stays put for when this session may write again.
+  if (!items.length || !admitWrite()) return 0;
   const baseNum = commentCounter.value;
   let fallbackIdx = 0;
   items.forEach((item, i) => {

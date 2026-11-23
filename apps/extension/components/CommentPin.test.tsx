@@ -7,6 +7,7 @@ import { contextMenu } from '../lib/context-menu';
 import { operations } from '../lib/ops';
 import { findPageScroller, trackPageScroller } from '../lib/scroller';
 import { ELEMENT_INSPECTOR_HEADING } from '../lib/selector';
+import { canEditFromRoom } from '../lib/session-rights';
 
 // Vite aliases React for the bundles; keyed by the path Base UI resolves, as in selected-panel.test.ts.
 const baseUi = Bun.resolveSync('@base-ui/react', import.meta.dir);
@@ -67,6 +68,28 @@ describe('the menu on a finished comment', () => {
       ?.onClick();
     const [op] = operations.value;
     expect(op?.tool === 'comment' && op.status).toBe('open');
+  });
+});
+
+describe('a pin in a view-only session', () => {
+  afterEach(() => {
+    canEditFromRoom.value = undefined;
+    operations.value = [];
+    contextMenu.value = null;
+  });
+
+  // The room refuses every write here, so the card reads as facts, not controls.
+  test('offers nothing that writes: no status, delete, reaction or reply', () => {
+    canEditFromRoom.value = false;
+    const shown = withPin(comment('open'), (root) => root.innerHTML);
+    for (const control of ['Delete', 'Status', 'Add reaction', '>Reply<']) expect(shown).not.toContain(control);
+    expect(rightClick(comment('open')).map((i) => i.label)).toEqual(['Copy text']);
+  });
+
+  test('offers them again once the room lets this session edit', () => {
+    canEditFromRoom.value = true;
+    const shown = withPin(comment('open'), (root) => root.innerHTML);
+    for (const control of ['Delete', 'Status', 'Add reaction', '>Reply<']) expect(shown).toContain(control);
   });
 });
 

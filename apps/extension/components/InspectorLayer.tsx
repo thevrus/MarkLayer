@@ -145,6 +145,7 @@ export function SelectedPanel({
       captureViewport: { width: window.innerWidth, height: window.innerHeight },
     };
     const outcome = pushOp(op);
+    if (outcome === 'refused') return;
     track('inspector_sent', {
       held: outcome === 'held',
       has_note: comment.length > 0,

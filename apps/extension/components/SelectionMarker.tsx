@@ -5,6 +5,7 @@ import { openContextMenu } from '../lib/context-menu';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { deleteOp, getReplies, setOpStatus } from '../lib/ops';
+import { canTriage } from '../lib/session-rights';
 import { STATUS_STYLES } from '../lib/status-ui';
 import { copyText } from '../lib/toasts';
 import type { SelectionOp } from '../lib/types';
@@ -24,7 +25,6 @@ export function SelectionMarker({
   lift,
   drifted,
   cardClass,
-  onDelete,
   upload,
   resolveUrl,
   children,
@@ -41,13 +41,13 @@ export function SelectionMarker({
   drifted: boolean;
   /** The card's surface and height cap, which differ between host page and viewer. */
   cardClass: string;
-  onDelete?: () => void;
   upload: (file: File | Blob) => Promise<string | null>;
   resolveUrl: (id: string) => string;
   /** The comment's text. */
   children: ComponentChildren;
 }) {
   const resolved = isClosed(status);
+  const triage = canTriage();
   // Replies hang off the selection's stored anchor, not the reprojected one.
   const replyAnchor = op.rects[0];
 
@@ -65,10 +65,11 @@ export function SelectionMarker({
           {
             label: resolved ? 'Reopen' : 'Resolve',
             icon: 'check',
+            triage: true,
             onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
           },
           { label: 'Copy text', icon: 'copy', onClick: () => copyText(op.text, 'Selection copied') },
-          { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
+          { label: 'Delete', icon: 'clear', danger: true, triage: true, onClick: () => deleteOp(op.id) },
         ])
       }
     >
@@ -119,7 +120,7 @@ export function SelectionMarker({
             author={op.author}
             ts={op.ts}
             priority={op.priority}
-            onDelete={onDelete}
+            onDelete={triage ? () => deleteOp(op.id) : undefined}
           />
 
           <div class={cn(geist.divider, 'mx-3')} />
@@ -145,9 +146,12 @@ export function SelectionMarker({
 
           <div class={cn(geist.divider, 'mx-3')} />
 
-          <TriageSection opId={op.id} status={status} assignee={op.assignee ?? null} />
-
-          <div class={cn(geist.divider, 'mx-3')} />
+          {triage && (
+            <>
+              <TriageSection opId={op.id} status={status} assignee={op.assignee ?? null} />
+              <div class={cn(geist.divider, 'mx-3')} />
+            </>
+          )}
 
           {replyAnchor && (
             <ReplyComposer

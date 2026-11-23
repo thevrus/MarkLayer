@@ -19,6 +19,7 @@ import { type HostCapabilities, host } from './host-config';
 import { localUser, signedBy } from './identity';
 import { pageUrl } from './page-url';
 import { color, lineWidth } from './prefs';
+import { admitWrite } from './session-rights';
 import { copyText, toast } from './toasts';
 import { activeTool } from './tool-state';
 import type {
@@ -76,9 +77,11 @@ function emit(change: OpChange) {
 /**
  * The one writer of `operations` once it is live. A patch is re-validated first, so
  * one that would break the op never lands or leaves this tab, whoever sent it. Local
- * changes go on to the wire and the draft. False when nothing changed.
+ * changes go on to the wire and the draft, unless this session may not write: the
+ * room would refuse them, so they never show here either. False when nothing changed.
  */
 export function applyChange(change: OpChange, { origin }: { origin: 'local' | 'remote' }): boolean {
+  if (origin === 'local' && !admitWrite()) return false;
   const ops = operations.value;
   switch (change.type) {
     case 'op':
@@ -162,8 +165,9 @@ export function getReplies(parentId: string): CommentOp[] {
   return _opIndex.value.replies.get(parentId) ?? [];
 }
 
-/** Commit an op. Returns 'held' when batch mode kept the note back until Send, else 'sent'. */
-export function pushOp(op: DrawOp): 'held' | 'sent' {
+/** Commit an op. 'held' when batch mode kept the note back until Send, 'refused' on a view-only session. */
+export function pushOp(op: DrawOp): 'held' | 'sent' | 'refused' {
+  if (!admitWrite()) return 'refused';
   const signed = signedOp(op);
   if (shouldHold(signed)) {
     holdOp(signed);
@@ -180,18 +184,20 @@ const signedOp = (op: DrawOp): DrawOp => (isSigned(op) ? op : { ...op, ...signed
 const committedAt = new Map<string, number>();
 
 /** An op the app places itself (the landing's demo marks): in the document, but never counted as somebody annotating. */
-export function placeOp(op: DrawOp) {
+export function placeOp(op: DrawOp): boolean {
+  if (!admitWrite()) return false;
   committedAt.set(op.id, tick());
   if (undoStack.value.length) undoStack.value = [];
-  applyChange({ type: 'op', op }, { origin: 'local' });
+  return applyChange({ type: 'op', op }, { origin: 'local' });
 }
 
-/** `pushOp` without batch holding, for ops the user already chose to send. */
-export function commitOp(op: DrawOp) {
+/** `pushOp` without batch holding, for ops the user already chose to send. False when refused. */
+export function commitOp(op: DrawOp): boolean {
   const signed = signedOp(op);
-  placeOp(signed);
+  if (!placeOp(signed)) return false;
   track('annotation_created', { tool: signed.tool, reply: 'parentId' in signed && Boolean(signed.parentId) });
   host.actions.onOpMade?.(signed);
+  return true;
 }
 
 /**
@@ -199,6 +205,8 @@ export function commitOp(op: DrawOp) {
  * Comment numbers are assigned here: while held they all read the same count.
  */
 export function sendHeld() {
+  // Before the batch is taken: refused, the notes stay held rather than vanish.
+  if (!admitWrite()) return;
   const held = takeHeld();
   if (!held.length) return;
   let num = commentCounter.value;
@@ -254,9 +262,9 @@ export function setOpStatus(opId: string, status: CommentStatus) {
 }
 
 /** Patch any op here and on the wire. Re-validated first, so a patch that breaks the op never leaves this tab. */
-export function patchOp({ opId, patch }: { opId: string; patch: Record<string, unknown> }) {
-  if (patchHeld({ id: opId, patch })) return;
-  applyChange({ type: 'update_op', opId, patch }, { origin: 'local' });
+export function patchOp({ opId, patch }: { opId: string; patch: Record<string, unknown> }): boolean {
+  if (patchHeld({ id: opId, patch })) return true;
+  return applyChange({ type: 'update_op', opId, patch }, { origin: 'local' });
 }
 
 /** Toggle the local user's emoji on a comment or reply; the whole list ships as the patch. */
@@ -264,7 +272,7 @@ export function toggleOpReaction({ opId, emoji }: { opId: string; emoji: string 
   const op = operations.value.find((o) => o.id === opId);
   if (!op || !isAnnotationOp(op)) return;
   const reactions = toggleReaction({ reactions: op.reactions, emoji, by: { id: localUser.id, name: localUser.name } });
-  patchOp({ opId, patch: { reactions } });
+  if (!patchOp({ opId, patch: { reactions } })) return;
   track('annotation_reacted', { emoji, on: reactions.length > (op.reactions?.length ?? 0) });
 }
 
@@ -296,6 +304,8 @@ const isUndoable = (op: DrawOp | undefined) =>
 export function undo() {
   // Counted as an intent: a press with nothing to undo is still someone reaching for it.
   track('history_action', { action: 'undo' });
+  // Before the stack moves: a refused undo must not leave a redo behind.
+  if (!admitWrite()) return;
   const mine = operations.value.filter(isUndoable).pop();
   if (undoHeld({ after: (mine && committedAt.get(mine.id)) ?? 0 })) return;
   const ops = operations.value;
@@ -321,6 +331,7 @@ export function undo() {
 
 export function redo() {
   track('history_action', { action: 'redo' });
+  if (!admitWrite()) return;
   const stack = undoStack.value;
   const last = stack[stack.length - 1];
   if (!last || 'type' in last) return;
@@ -332,7 +343,7 @@ export function redo() {
 
 export function clearAll() {
   const ops = operations.value;
-  if (!ops.length) return;
+  if (!ops.length || !admitWrite()) return;
   if (!confirm('Clear all annotations on this page? Undo brings them back.')) return;
   track('history_action', { action: 'clear', ops: ops.length });
   undoStack.value = [...undoStack.value, { type: 'clear' as const, ops: structuredClone(ops) }];

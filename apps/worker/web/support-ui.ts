@@ -7,7 +7,7 @@
  */
 
 import { operations } from '@ext/lib/ops';
-import { canEditFromRoom } from '@ext/lib/realtime';
+import { canEditFromRoom } from '@ext/lib/session-rights';
 import { toast } from '@ext/lib/toasts';
 import type { DrawOp } from '@ext/lib/types';
 import { SUPPORT_CHANNEL, SUPPORT_PAID } from '@marklayer/brand';

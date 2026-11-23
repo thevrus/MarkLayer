@@ -10,6 +10,7 @@ import { localUser } from '../lib/identity';
 import { setOpAssignee, setOpStatus } from '../lib/ops';
 import { portalContainer } from '../lib/portal';
 import { peers } from '../lib/presence';
+import { canTriage } from '../lib/session-rights';
 import { stableComputed } from '../lib/stable';
 import { STATUS_COLORS, STATUS_LABELS } from '../lib/status-ui';
 
@@ -188,6 +189,7 @@ export function TriageSection({
   /** The pins keep the grid tight inside a hover card; the panel gives it room. */
   class?: string;
 }) {
+  if (!canTriage()) return null;
   return (
     <div class={cn('px-3.5 py-1.5', cls)}>
       <div class={rowCls}>

@@ -10,6 +10,7 @@ import { glass } from '../lib/glass';
 import { localUser } from '../lib/identity';
 import { toggleOpReaction } from '../lib/ops';
 import { portalContainer } from '../lib/portal';
+import { canWrite } from '../lib/session-rights';
 
 const pill = `
   inline-flex items-center gap-1 h-6 px-2 rounded-full cursor-pointer
@@ -27,14 +28,13 @@ export function Reactions({
   opId,
   reactions,
   class: cls,
-  readOnly = false,
 }: {
   opId: string;
   reactions: Reaction[] | undefined;
   class?: string;
-  /** A view-only link: the room refuses the toggle, so show the counts as facts. */
-  readOnly?: boolean;
 }) {
+  // A view-only session: the room refuses the toggle, so the counts read as facts.
+  const readOnly = !canWrite.value;
   const react = (emoji: string) => toggleOpReaction({ opId, emoji });
   return (
     <div class={cn('flex flex-wrap items-center gap-1.5', cls)}>

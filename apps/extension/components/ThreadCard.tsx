@@ -9,6 +9,7 @@ import { replyRequest } from '../lib/checkFix';
 import { geist } from '../lib/geist';
 import { glass } from '../lib/glass';
 import { pushReply } from '../lib/ops';
+import { canWrite } from '../lib/session-rights';
 import { timeAgo } from '../lib/time';
 import type { CommentOp } from '../lib/types';
 import { AttachmentGallery, AttachmentThumbs, ComposerActions, useAttachments } from './AttachmentPicker';
@@ -183,6 +184,7 @@ export function ReplyComposer({
     setOpen(false);
   };
 
+  if (!canWrite.value) return null;
   if (!open)
     return (
       <div class="flex items-center gap-2 px-3.5 py-2.5">

@@ -44,13 +44,14 @@ function InspectorMarker({ op }: { op: InspectOp }) {
       {
         label: resolved ? 'Reopen' : 'Resolve',
         icon: 'check',
+        triage: true,
         onClick: () => setOpStatus(op.id, resolved ? 'open' : 'resolved'),
       },
       { label: 'Copy markdown', icon: 'copy', onClick: () => copyText(op.markdown, 'Markdown copied') },
       ...(op.comment
         ? [{ label: 'Copy task', icon: 'copy' as const, onClick: () => copyText(op.comment ?? '', 'Task copied') }]
         : []),
-      { label: 'Delete', icon: 'clear', danger: true, onClick: () => deleteOp(op.id) },
+      { label: 'Delete', icon: 'clear', danger: true, triage: true, onClick: () => deleteOp(op.id) },
     ]);
 
   const stroke = resolved ? 'var(--color-ml-resolved)' : op.color;

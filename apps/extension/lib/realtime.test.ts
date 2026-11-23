@@ -1,6 +1,5 @@
 import { afterAll, afterEach, beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import type { DrawOp } from '@marklayer/types/ops';
-import { signal } from '@preact/signals';
 import type { ConnectRoomHooks } from './realtime';
 
 // No IndexedDB in the test DOM, and every write to `operations` schedules a draft save.
@@ -12,7 +11,8 @@ mock.module('idb-keyval', () => ({
 }));
 
 const { onChange, operations } = await import('./ops');
-const { canEditFromRoom, connectRoom } = await import('./realtime');
+const { connectRoom } = await import('./realtime');
+const { canEditFromRoom, forcedReadonly } = await import('./session-rights');
 const { resetRoomIdentity, setAnnotationId } = await import('./room-id');
 const { toasts } = await import('./toasts');
 
@@ -110,14 +110,25 @@ describe('connectRoom', () => {
   test('a host-forced read-only session hears nothing of an access flip', () => {
     const accessToasts = () => toasts.value.filter((t) => t.message.includes('edit this link'));
     canEditFromRoom.value = false;
-    connect({ forcedReadonly: signal(true) }).receive({ type: 'access', canEdit: true });
+    forcedReadonly.value = true;
+    connect().receive({ type: 'access', canEdit: true });
     expect(accessToasts()).toEqual([]);
     teardown?.();
+    forcedReadonly.value = false;
 
     canEditFromRoom.value = false;
     connect().receive({ type: 'access', canEdit: true });
     expect(accessToasts()).toHaveLength(1);
     canEditFromRoom.value = undefined;
+  });
+
+  // Access belongs to the room: carried past it, it would hold the extension's own page read-only.
+  test('leaving a view-only room gives write access back', () => {
+    connect().receive({ type: 'access', canEdit: false });
+    expect(canEditFromRoom.value).toBe(false);
+    teardown?.();
+    teardown = null;
+    expect(canEditFromRoom.value).toBeUndefined();
   });
 
   test('arrival keeps local work and flushes the offline queue in order', () => {

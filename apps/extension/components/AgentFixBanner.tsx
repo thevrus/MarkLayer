@@ -2,8 +2,8 @@ import { cn } from '@marklayer/ui/cn';
 import { useState } from 'preact/hooks';
 import { track } from '../lib/analytics';
 import { agentFix, checkRequest, confirmFixed, reportNotFixed } from '../lib/checkFix';
-import { host } from '../lib/host-config';
 import { getReplies } from '../lib/ops';
+import { canTriage } from '../lib/session-rights';
 import type { CommentOp } from '../lib/types';
 
 const actionCls = cn(
@@ -21,7 +21,7 @@ export function AgentFixBanner({ op }: { op: CommentOp }) {
   // Once checked the human is judging the result, so the prompt changes from "look" to "verdict".
   const [checked, setChecked] = useState(false);
   const fix = agentFix({ op, replies: getReplies(op.id) });
-  if (!fix || !host.capabilities.triage) return null;
+  if (!fix || !canTriage()) return null;
 
   return (
     <div class="px-3.5 py-2.5 flex flex-col gap-2">

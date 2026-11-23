@@ -2,7 +2,6 @@ import { connectRoom } from '@ext/lib/realtime';
 import { useEffect } from 'preact/hooks';
 import { viewerRoomMessages } from './room-messages';
 import { presenting } from './ui-state';
-import { urlForcesReadonly } from './viewer-state';
 
 export function useRealtimeSync(annotationId: string) {
   useEffect(() => {
@@ -10,7 +9,6 @@ export function useRealtimeSync(annotationId: string) {
       roomId: annotationId,
       origin: location.origin,
       hooks: {
-        forcedReadonly: urlForcesReadonly,
         onMessage: viewerRoomMessages(),
         // The page route owns the password prompt; reloading hands the visitor to it.
         onLocked: () => location.reload(),
