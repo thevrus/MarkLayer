@@ -34,7 +34,7 @@
     "modern-screenshot": "^4.7.0",
     "nanoid": "^6.0.0",
     "pdfjs-dist": "6.3.289",
-    "posthog-js": "^1.422.5",
+    "posthog-js": "^1.449.1",
     "preact": "^10.29.8",
     "simple-icons": "^16.29.0",
     "tinykeys": "^4.0.0",
