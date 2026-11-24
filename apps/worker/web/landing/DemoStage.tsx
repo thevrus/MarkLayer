@@ -1,12 +1,13 @@
 import { ChevronLeft, ChevronRight, Lock } from 'lucide-preact';
 import { DEMO_ROOM } from '../../shared/demo-room';
+import { DemoCrew } from './DemoCrew';
 import { DemoWindow } from './DemoWindow';
 
 /** macOS's close, minimise and zoom, in the system's own colours. */
 const LIGHTS = ['#ff5f57', '#febc2e', '#28c840'];
 
 /**
- * The demo's stage: a wallpaper desk with the live viewer on it.
+ * The demo's stage: a wallpaper desk with the live viewer on it, and the team around it.
  *
  * On desktops that support scroll-driven animation the stage is a two-screen
  * runway. The desk pins for the first screen and scroll drives it from a
@@ -58,6 +59,7 @@ export function DemoStage() {
                 </div>
                 <DemoWindow />
               </div>
+              <DemoCrew />
             </div>
           </div>
         </div>

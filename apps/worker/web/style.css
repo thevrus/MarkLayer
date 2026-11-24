@@ -936,6 +936,54 @@
   }
 }
 
+/* The demo's crew. A handoff card is a piece of the product resting on the desk:
+   a hairline ring and a short shadow cast down from one light. */
+.lp-handoff {
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.06),
+    0 2px 3px rgb(20 30 50 / 0.08),
+    0 10px 20px -10px rgb(20 30 50 / 0.3);
+}
+/* A crew element settling in: moves and sharpens, never fades, so it is there even if this never runs. */
+@keyframes lpCrewIn {
+  from {
+    transform: translateY(4px) scale(0.97);
+    filter: blur(1.5px);
+  }
+}
+@keyframes lpCrewDraw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lp-crew-in {
+    animation: lpCrewIn 380ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .lp-crew-draw {
+    stroke-dasharray: 1;
+    animation: lpCrewDraw ease-in-out both;
+  }
+}
+/* Teammates idle the way a hand on a mouse does: a slow drift a few pixels wide. */
+@media (prefers-reduced-motion: no-preference) {
+  .lp-peer {
+    animation: lpPeerDrift 7s ease-in-out infinite;
+  }
+}
+@keyframes lpPeerDrift {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  35% {
+    translate: -14px 9px;
+  }
+  70% {
+    translate: 8px -6px;
+  }
+}
+
 /* `scale` shrinks about the centre and the rest scale comes from the width, so a
    wide screen left a band above the desk; the entry frame lifts it back under the head. */
 @keyframes lpDeskExpand {
